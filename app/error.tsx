@@ -1,29 +1,22 @@
 "use client";
 
 import { useEffect } from "react";
+import { GlassPanel } from "@/components/ui/glass";
+import { PrimaryButton } from "@/components/ui/buttons";
 
-// Graceful fallback card: model or load failure never leaves a blank screen.
-export default function TimelineError({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
+// Graceful fallback card: a load failure never leaves a blank screen.
+export default function RootError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    console.error("Memory Lane failed to load:", error);
+    console.error("Aangan failed to load:", error);
   }, [error]);
 
   return (
-    <main>
-      <h1>Aangan</h1>
-      <article className="card" role="alert">
-        <h2>Your memories are safe — they just did not load.</h2>
-        <p>Check your connection and try again.</p>
-        <button className="button" type="button" onClick={reset}>
-          Try again
-        </button>
-      </article>
-    </main>
+    <div className="pt-8" role="alert">
+      <GlassPanel className="p-6">
+        <h1 className="mb-2 mt-0 text-2xl font-normal">Your memories are safe — they just did not load.</h1>
+        <p className="mt-0 text-ink-soft">Check your connection and try again.</p>
+        <PrimaryButton onClick={reset}>Try again</PrimaryButton>
+      </GlassPanel>
+    </div>
   );
 }

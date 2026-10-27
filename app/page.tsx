@@ -1,24 +1,44 @@
-import { listCards } from "@/lib/store";
+"use client";
 
-export default function Home() {
-  const cards = listCards();
-  return (
-    <main>
-      <h1>Aangan</h1>
-      <p className="sub">Memory Lane — our family timeline.</p>
-      {cards.length === 0 && <p>No cards yet. Upload the first memory.</p>}
-      {cards.map((card) => (
-        <article className="card" key={card.id}>
-          <time>{card.takenAt.slice(0, 10)}</time>
-          <h2>{card.caption}</h2>
-          <p>{card.summary}</p>
-          <div>
-            <span className="badge">{card.type}</span>
-            <span className="badge">{card.lang}</span>
-            {card.ritualSlug && <span className="badge">{card.ritualSlug}</span>}
-          </div>
-        </article>
-      ))}
-    </main>
-  );
+import { useEffect, useState } from "react";
+import { Home } from "@/components/home";
+import { useShell } from "@/components/shell";
+import { Welcome } from "@/components/welcome";
+
+const ENTERED_KEY = "aangan:entered";
+
+export default function Page() {
+  const { setWashPalette, setChromeHidden } = useShell();
+  const [entered, setEntered] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    setEntered(sessionStorage.getItem(ENTERED_KEY) === "1");
+  }, []);
+
+  useEffect(() => {
+    setChromeHidden(entered === false);
+  }, [entered, setChromeHidden]);
+
+  if (entered === null) {
+    return (
+      <div aria-busy="true" aria-label="Loading">
+        <div className="skeleton mb-2 h-10 w-40" />
+        <div className="skeleton h-40" />
+      </div>
+    );
+  }
+
+  if (!entered) {
+    return (
+      <Welcome
+        onEnter={() => {
+          sessionStorage.setItem(ENTERED_KEY, "1");
+          setWashPalette([]);
+          setEntered(true);
+        }}
+      />
+    );
+  }
+
+  return <Home />;
 }

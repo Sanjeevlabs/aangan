@@ -1,14 +1,19 @@
-import type { Card } from "./schemas";
+import type { z } from "zod";
+import { DEMO_MEMBERS } from "./family";
+import { CardSchema, MemberSchema, type Card, type Member } from "./schemas";
 
-// Demo backing store. Supabase replaces this when configured;
-// the function shapes stay the same.
+// Demo backing store. Supabase replaces this when the project is confirmed;
+// the function shapes stay the same. Accepts schema *input* so Zod defaults
+// apply at the boundary.
 let cards: Card[] = [];
+let members: Member[] = [];
 
 export function listCards(): Card[] {
   return [...cards].sort((a, b) => b.takenAt.localeCompare(a.takenAt));
 }
 
-export function addCard(card: Card): Card {
+export function addCard(input: z.input<typeof CardSchema>): Card {
+  const card = CardSchema.parse(input);
   cards = cards.filter((c) => c.id !== card.id);
   cards.push(card);
   return card;
@@ -16,6 +21,26 @@ export function addCard(card: Card): Card {
 
 export function clearCards(): void {
   cards = [];
+}
+
+export function listMembers(): Member[] {
+  return [...members];
+}
+
+export function getMember(id: string): Member | undefined {
+  return members.find((m) => m.id === id);
+}
+
+export function setMemberHome(
+  memberId: string,
+  homeImageRef: string,
+  homePalette: string[],
+): Member | undefined {
+  const member = members.find((m) => m.id === memberId);
+  if (!member) return undefined;
+  member.homeImageRef = homeImageRef;
+  member.homePalette = homePalette;
+  return { ...member };
 }
 
 export function seedDemo(): void {
@@ -42,4 +67,10 @@ export function seedDemo(): void {
   });
 }
 
+export function resetDemo(): void {
+  members = DEMO_MEMBERS.map((m) => MemberSchema.parse(m));
+  seedDemo();
+}
+
 if (cards.length === 0) seedDemo();
+if (members.length === 0) members = DEMO_MEMBERS.map((m) => MemberSchema.parse(m));

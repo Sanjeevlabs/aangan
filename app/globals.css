@@ -7,73 +7,142 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  height: 100%;
+}
+
 body {
   margin: 0;
   color: var(--ink);
   background: var(--paper);
   font-family: var(--font-body);
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
 }
 
-main {
-  max-width: 42rem;
-  margin: 0 auto;
-  padding: var(--space-3) var(--space-2) var(--space-6);
-}
-
-h1 {
+h1,
+h2,
+h3,
+.serif {
   font-family: var(--font-display);
-  font-size: 1.75rem;
-  margin: 0 0 var(--space-1);
 }
 
-.sub {
-  margin: 0 0 var(--space-3);
-  color: var(--ink-soft);
+/* Visible keyboard focus everywhere. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
-.card {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
-  padding: var(--space-2);
-  margin-bottom: var(--space-2);
-  background: var(--surface);
+button {
+  font: inherit;
+  color: inherit;
+  touch-action: manipulation;
 }
 
-.card time {
-  display: block;
-  font-size: 0.85rem;
-  color: var(--ink-soft);
+/* ---- Glass (PRD spec). Solid fallback first, blur when supported. ---- */
+.glass {
+  background: var(--glass-solid);
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
 }
 
-.card h2 {
-  font-family: var(--font-display);
-  font-size: 1.1rem;
-  margin: var(--space-1) 0;
+@supports (backdrop-filter: blur(40px)) or (-webkit-backdrop-filter: blur(40px)) {
+  .glass {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(40px) saturate(1.4);
+    backdrop-filter: blur(40px) saturate(1.4);
+  }
 }
 
-.badge {
-  display: inline-block;
-  font-size: 0.75rem;
-  border: 1px solid var(--accent);
-  color: var(--accent);
+.glass-sheet {
+  border-radius: var(--radius-sheet);
+}
+
+.glass-pill {
   border-radius: var(--radius-pill);
-  padding: 0.1rem 0.6rem;
-  margin-right: var(--space-1);
 }
 
-button,
-.button {
-  min-height: var(--touch-min);
-  min-width: var(--touch-min);
+/* ---- Adaptive light wash: 3 large blurred glows, drifting slowly. ---- */
+.wash {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
 }
 
-/* Skeleton loaders — Memory Lane never shows a blank spinner. */
+.wash-glow {
+  position: absolute;
+  width: 60vmax;
+  height: 60vmax;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.65;
+  will-change: transform;
+  animation: wash-drift 28s ease-in-out infinite alternate;
+}
+
+.wash-glow:nth-child(1) {
+  background: var(--wash-1);
+  top: -18vmax;
+  left: -14vmax;
+}
+
+.wash-glow:nth-child(2) {
+  background: var(--wash-2);
+  bottom: -22vmax;
+  right: -12vmax;
+  animation-duration: 34s;
+  animation-delay: -12s;
+}
+
+.wash-glow:nth-child(3) {
+  background: var(--wash-3);
+  top: 32vh;
+  left: 38vw;
+  width: 44vmax;
+  height: 44vmax;
+  opacity: 0.5;
+  animation-duration: 24s;
+  animation-delay: -6s;
+}
+
+@keyframes wash-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(4vmax, 3vmax, 0) scale(1.08);
+  }
+}
+
+/* ---- Horizontal shelves: snap, no visible scrollbar, still scrollable. ---- */
+.shelf {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  padding-bottom: var(--space-1);
+  scrollbar-width: none;
+}
+
+.shelf::-webkit-scrollbar {
+  display: none;
+}
+
+.shelf > * {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+
+/* ---- Skeleton loaders: never a blank spinner. ---- */
 .skeleton {
   border-radius: var(--radius-card);
   background: var(--skeleton);
   min-height: 96px;
-  margin-bottom: var(--space-2);
   animation: skeleton-pulse var(--motion-slow) ease-in-out infinite alternate;
 }
 
@@ -86,9 +155,18 @@ button,
   }
 }
 
-/* Card open transition: subtle and quick. */
-.card {
-  transition: opacity var(--motion-base) ease;
+/* Touch targets >= 44px on interactive controls. */
+.tap {
+  min-height: var(--touch-min);
+  min-width: var(--touch-min);
+}
+
+/* Square artwork tiles. */
+.art-square {
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  position: relative;
 }
 
 @media (prefers-reduced-motion: reduce) {

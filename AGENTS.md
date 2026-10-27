@@ -2,6 +2,8 @@
 
 Solo Indie-track hackathon entry. Public repo. Deadline 4 Nov 2026, 9:00 PM ET.
 
+Read docs/PRD.md before any task; it overrides earlier instructions; build only the milestone I name; stop after each milestone.
+
 ## Rules
 
 - No secrets or real family data in code, logs, or assets. Synthetic or self-owned test assets only.

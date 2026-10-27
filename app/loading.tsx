@@ -1,11 +1,9 @@
 export default function Loading() {
   return (
-    <main aria-busy="true" aria-label="Loading memories">
-      <h1>Aangan</h1>
-      <p className="sub">Memory Lane — our family timeline.</p>
-      <div className="skeleton" />
-      <div className="skeleton" />
-      <div className="skeleton" />
-    </main>
+    <div aria-busy="true" aria-label="Loading">
+      <div className="skeleton mb-2 h-10 w-40" />
+      <div className="skeleton mb-2 h-40" />
+      <div className="skeleton h-40" />
+    </div>
   );
 }

@@ -12,9 +12,21 @@ const config: Config = {
         "ink-soft": "var(--ink-soft)",
         line: "var(--line)",
         accent: "var(--accent)",
+        espresso: "var(--espresso)",
+        "espresso-ink": "var(--espresso-ink)",
+        cream: "var(--cream)",
+      },
+      fontFamily: {
+        sans: ["var(--font-body)"],
+        display: ["var(--font-display)"],
       },
       borderRadius: {
+        sheet: "var(--radius-sheet)",
         card: "var(--radius-card)",
+        pill: "var(--radius-pill)",
+      },
+      boxShadow: {
+        glass: "var(--glass-shadow)",
       },
     },
   },

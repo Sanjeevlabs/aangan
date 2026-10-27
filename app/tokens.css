@@ -1,8 +1,9 @@
 /* Aangan design tokens — the single source of truth for color, spacing, radius.
-   Apple-HIG-inspired: content first, minimal chrome. 8pt spacing grid. */
+   Light-first, dark supported. Sans UI; serif titles, captions, lyrics.
+   8pt spacing grid. System stacks only; no licensed fonts. */
 
 :root {
-  /* Warm, restrained palette — light mode */
+  /* Warm palette — light mode */
   --paper: #fffdf8;
   --surface: #ffffff;
   --ink: #2b2118;
@@ -12,26 +13,49 @@
   --accent-ink: #ffffff;
   --skeleton: #efe7da;
 
+  /* Buttons: primary = dark espresso pill, secondary = outlined pill */
+  --espresso: #33231a;
+  --espresso-ink: #fff8f0;
+  --cream: #fff9f3;
+
+  /* Glass — sheets, tab bar, mini-player, player controls, photo caption
+     panels, agent suggestion cards. Solid fallback first. */
+  --glass-solid: #fff9f3;
+  --glass-bg: rgba(255, 250, 245, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --glass-shadow: 0 20px 60px rgba(60, 40, 30, 0.18);
+
+  /* Adaptive light wash — default warm peach; seeded from home image /
+     artwork at runtime via --wash-1/2/3 overrides. */
+  --wash-1: #ffd9b8;
+  --wash-2: #ffb59a;
+  --wash-3: #ffe9d2;
+
+  /* Card art tints */
+  --art-veil: rgba(43, 33, 24, 0.28);
+
   /* Spacing — 8pt grid */
   --space-1: 8px;
   --space-2: 16px;
   --space-3: 24px;
   --space-4: 32px;
+  --space-5: 40px;
   --space-6: 48px;
 
   /* Radius */
-  --radius-card: 10px;
+  --radius-sheet: 32px;
+  --radius-card: 20px;
   --radius-pill: 999px;
 
   /* Touch */
   --touch-min: 44px;
 
-  /* Motion — subtle, purposeful */
+  /* Motion — framer-motion, 150–400ms */
   --motion-fast: 150ms;
-  --motion-base: 200ms;
-  --motion-slow: 300ms;
+  --motion-base: 250ms;
+  --motion-slow: 400ms;
 
-  /* Type — system stack only; no licensed fonts */
+  /* Type — system stack only */
   --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-display: Georgia, "Times New Roman", serif;
 }
@@ -45,4 +69,18 @@
   --accent: #e89b6a;
   --accent-ink: #241207;
   --skeleton: #332a20;
+
+  --espresso: #f3e9dc;
+  --espresso-ink: #241207;
+
+  --glass-solid: #2a2019;
+  --glass-bg: rgba(40, 30, 25, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+
+  --wash-1: #5a3a28;
+  --wash-2: #43304a;
+  --wash-3: #2e3a4a;
+
+  --art-veil: rgba(0, 0, 0, 0.4);
 }

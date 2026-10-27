@@ -17,7 +17,7 @@ export const PROVIDERS: Record<ProviderName, ProviderConfig> = {
     baseUrl: "https://api.meta.ai/v1",
     captionModel: "muse-spark-1.3",
     transcribeModel: "muse-voice-transcribe",
-    imageModel: "muse-image-style",
+    imageModel: "muse-image-1.0",
   },
   baseten: {
     baseUrl: "https://inference.baseten.co/v1",
