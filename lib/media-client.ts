@@ -254,6 +254,50 @@ export async function processVideo(file: File, opts: ProcessOptions): Promise<Pr
   };
 }
 
+// Voice note: decode for duration + waveform peaks (stored so static waves
+// render without decoding), then keep the original blob in session media.
+// No EXIF exists for mic audio; takenAt is file time, never the future.
+export async function processVoiceBlob(blob: Blob, opts: ProcessOptions): Promise<ProcessedUpload> {
+  let peaks: number[] = [];
+  let duration = 0;
+  try {
+    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (Ctx) {
+      const ctx = new Ctx();
+      try {
+        const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
+        duration = Number.isFinite(buf.duration) ? buf.duration : 0;
+        peaks = peaksFromSamples(buf.getChannelData(0), 48);
+      } finally {
+        await ctx.close().catch(() => undefined);
+      }
+    }
+  } catch {
+    peaks = [];
+  }
+  const takenAt = resolveTakenAt({ fileModifiedAt: new Date().toISOString() });
+  const takenAtSource = dateSourceUsed({});
+  const stored = putSessionMedia(blob);
+  return {
+    kind: "audio" satisfies MediaKind,
+    bytes: blob.size,
+    mime: blob.type || "audio/webm",
+    durationSeconds: duration,
+    takenAt,
+    takenAtSource,
+    source: resolveSource({
+      fromGlassesToggle: opts.fromGlassesToggle,
+      fromToday: opts.fromToday,
+    }),
+    palette: ["#c96f4a", "#e8a87c", "#f4d8b4"],
+    peaks,
+    mediaRef: stored.ref,
+    previewUrl: stored.url,
+    thumbnailRef: null,
+    thumbnailUrl: null,
+  };
+}
+
 // Home image: same pipeline, smaller output; returns the stored ref + palette
 // so the Welcome screen can seed the member's adaptive wash.
 export async function processHomeImage(file: File): Promise<{ mediaRef: string; palette: string[]; url: string | null }> {

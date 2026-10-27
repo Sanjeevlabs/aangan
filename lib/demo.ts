@@ -29,6 +29,12 @@ const RAW = [
     mediaRef: null,
     peaks: lcgPeaks(7),
     palette: ["#c96f4a", "#e8a87c", "#f4d8b4"],
+    transcript: "सुबह की दुआ — आज का दिन अच्छा हो। भगवान तुम्हें खुश रखे।",
+    transcriptLang: "hi",
+    segments: [
+      { start: 0, end: 4, text: "सुबह की दुआ — आज का दिन अच्छा हो।" },
+      { start: 4, end: 8, text: "भगवान तुम्हें खुश रखे।" },
+    ],
   },
   {
     id: "demo-voice-1",
@@ -43,6 +49,13 @@ const RAW = [
     mediaRef: null,
     peaks: lcgPeaks(21),
     palette: ["#7d8c6f", "#b3c1a5", "#e6e4d3"],
+    transcript: "The courtyard game has three rounds. First we hide, then we seek, then we all laugh together.",
+    transcriptLang: "en",
+    segments: [
+      { start: 0, end: 4, text: "The courtyard game has three rounds." },
+      { start: 4, end: 8, text: "First we hide, then we seek," },
+      { start: 8, end: 12, text: "then we all laugh together." },
+    ],
   },
   {
     id: "demo-voice-2",
@@ -57,6 +70,12 @@ const RAW = [
     mediaRef: null,
     peaks: lcgPeaks(42),
     palette: ["#a85d7a", "#d99ab0", "#f2d3da"],
+    transcript: "आरिया ने नया शब्द सुनाया। बहुत अच्छा बोला।",
+    transcriptLang: "hi",
+    segments: [
+      { start: 0, end: 4, text: "आरिया ने नया शब्द सुनाया।" },
+      { start: 4, end: 7, text: "बहुत अच्छा बोला।" },
+    ],
   },
   {
     id: "demo-years-1",

@@ -14,6 +14,61 @@ export const TranscriptSchema = z.object({
   language: z.string().min(2).max(8),
 });
 
+export const TranscriptSegmentSchema = z.object({
+  start: z.number().min(0),
+  end: z.number().min(0),
+  text: z.string().min(1),
+});
+
+export const VoiceTranscriptSchema = TranscriptSchema.extend({
+  segments: z.array(TranscriptSegmentSchema).default([]),
+});
+
+export const TranslationSchema = z.object({
+  text: z.string().min(1),
+  language: z.string().min(2).max(8),
+});
+
+export const PlaySchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+  cardId: z.string(),
+  memberId: z.string(),
+  playedAt: z.string().datetime(),
+});
+
+export const ReactionKindSchema = z.enum(["love", "laugh", "bless"]);
+
+export const ReactionSchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+  cardId: z.string(),
+  memberId: z.string(),
+  kind: ReactionKindSchema,
+  createdAt: z.string().datetime(),
+});
+
+export const CreatePlayRequestSchema = z.object({
+  cardId: z.string().min(1),
+  memberId: z.string().min(1),
+});
+
+export const CreateReactionRequestSchema = z.object({
+  cardId: z.string().min(1),
+  memberId: z.string().min(1),
+  kind: ReactionKindSchema,
+});
+
+export const TranslateRequestSchema = z.object({
+  text: z.string().min(1).max(2000),
+  targetLang: z.string().min(2).max(8),
+});
+
+export const TranscribeRequestSchema = z.object({
+  langHint: z.string().min(2).max(8).default("en"),
+  audioId: z.string().min(1).default("voice"),
+});
+
 export const RitualStepSchema = z.object({
   key: z.string(),
   kind: z.enum(["photo", "audio", "video", "text"]),
@@ -43,9 +98,14 @@ export const CardSchema = z.object({
   mediaRef: z.string().nullable().default(null),
   peaks: z.array(z.number().min(0).max(1)).default([]),
   palette: z.array(z.string()).default([]),
+  transcript: z.string().default(""),
+  transcriptLang: z.string().default("en"),
+  segments: z.array(TranscriptSegmentSchema).default([]),
 });
 
 export const MemberRoleSchema = z.enum(["elder", "adult", "child"]);
+
+export const DisplayLangSchema = z.enum(["en", "hi-latn", "hi-deva"]);
 
 export const MemberSchema = z.object({
   id: z.string(),
@@ -54,10 +114,16 @@ export const MemberSchema = z.object({
   displayName: z.string(),
   role: MemberRoleSchema,
   lang: z.string().default("en"),
+  displayLang: DisplayLangSchema.default("en"),
   tz: z.string().default("UTC"),
   birthday: z.string().regex(/^\d{2}-\d{2}$/),
   homeImageRef: z.string().nullable().default(null),
   homePalette: z.array(z.string()).default([]),
+});
+
+export const DisplayLangRequestSchema = z.object({
+  memberId: z.string().min(1),
+  displayLang: DisplayLangSchema,
 });
 
 export const CreateCardRequestSchema = z.object({
@@ -69,6 +135,9 @@ export const CreateCardRequestSchema = z.object({
   mediaRef: z.string().nullable().default(null),
   peaks: z.array(z.number().min(0).max(1)).max(128).default([]),
   palette: z.array(z.string()).max(5).default([]),
+  transcript: z.string().max(2000).default(""),
+  transcriptLang: z.string().min(2).max(8).default("en"),
+  segments: z.array(TranscriptSegmentSchema).max(64).default([]),
 });
 
 export const HomeImageRequestSchema = z.object({
@@ -79,6 +148,13 @@ export const HomeImageRequestSchema = z.object({
 
 export type Caption = z.infer<typeof CaptionSchema>;
 export type Transcript = z.infer<typeof TranscriptSchema>;
+export type VoiceTranscript = z.infer<typeof VoiceTranscriptSchema>;
+export type TranscriptSegment = z.infer<typeof TranscriptSegmentSchema>;
+export type Translation = z.infer<typeof TranslationSchema>;
+export type Play = z.infer<typeof PlaySchema>;
+export type Reaction = z.infer<typeof ReactionSchema>;
+export type ReactionKind = z.infer<typeof ReactionKindSchema>;
+export type DisplayLang = z.infer<typeof DisplayLangSchema>;
 export type RitualConfig = z.infer<typeof RitualConfigSchema>;
 export type Card = z.infer<typeof CardSchema>;
 export type CardSource = z.infer<typeof CardSourceSchema>;

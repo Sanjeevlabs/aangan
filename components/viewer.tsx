@@ -1,16 +1,18 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { DEFAULT_VIEWER_ID, DEMO_FAMILY, DEMO_MEMBERS, MOCK_SIGNAL_LINES } from "@/lib/family";
-import { normalizeLang, type SupportedLang } from "@/lib/i18n";
+import { DEFAULT_VIEWER_ID, DEMO_FAMILY, DEMO_MEMBERS, signalLineFor } from "@/lib/family";
+import { normalizeDisplayLang, type SupportedLang } from "@/lib/i18n";
 import type { Member } from "@/lib/schemas";
 
 interface ViewerState {
   viewer: Member;
   members: Member[];
   lang: SupportedLang;
+  displayLang: SupportedLang;
   signalLine: string;
   setViewerId: (id: string) => void;
+  setDisplayLang: (lang: SupportedLang) => Promise<void>;
   refreshMembers: () => Promise<void>;
 }
 
@@ -43,17 +45,38 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
     void refreshMembers();
   }, [refreshMembers]);
 
+  const setDisplayLang = useCallback(
+    async (lang: SupportedLang) => {
+      const normalized = normalizeDisplayLang(lang);
+      setMembers((prev) => prev.map((m) => (m.id === viewerId ? { ...m, displayLang: normalized } : m)));
+      try {
+        await fetch("/api/members/display-lang", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ memberId: viewerId, displayLang: normalized }),
+        });
+      } catch {
+        // Offline: local state already updated.
+      }
+      await refreshMembers().catch(() => undefined);
+    },
+    [viewerId, refreshMembers],
+  );
+
   const value = useMemo<ViewerState>(() => {
     const viewer = members.find((m) => m.id === viewerId) ?? fallbackViewer();
+    const displayLang = normalizeDisplayLang(viewer.displayLang ?? viewer.lang);
     return {
       viewer,
       members,
-      lang: normalizeLang(viewer.lang),
-      signalLine: MOCK_SIGNAL_LINES[viewer.id] ?? MOCK_SIGNAL_LINES[DEFAULT_VIEWER_ID],
+      lang: displayLang,
+      displayLang,
+      signalLine: signalLineFor(viewer.id, displayLang),
       setViewerId,
+      setDisplayLang,
       refreshMembers,
     };
-  }, [members, viewerId, refreshMembers]);
+  }, [members, viewerId, refreshMembers, setDisplayLang]);
 
   return <ViewerContext.Provider value={value}>{children}</ViewerContext.Provider>;
 }

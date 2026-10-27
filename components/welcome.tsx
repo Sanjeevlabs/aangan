@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { greetingForHour, strings } from "@/lib/i18n";
+import { SUPPORTED_LANGS, displayLangLabel, greetingForHour, strings } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import { resolveHomeImage } from "@/lib/media";
 import { processHomeImage } from "@/lib/media-client";
 import { resolveMediaUrl } from "@/lib/media-session";
@@ -17,7 +18,7 @@ const FALLBACK_COURTYARD_SRC = "/demo/courtyard.jpg";
 // Welcome screen, shown once per session. Renders inside the centred
 // phone-width column — nothing full-bleed beyond it — over the wash.
 export function Welcome({ onEnter }: { onEnter: () => void }) {
-  const { viewer, lang, signalLine, refreshMembers } = useViewer();
+  const { viewer, lang, displayLang, setDisplayLang, signalLine, refreshMembers } = useViewer();
   const { setWashPalette } = useShell();
   const t = strings(lang);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -92,16 +93,48 @@ export function Welcome({ onEnter }: { onEnter: () => void }) {
                 <p className="m-0 mt-1 text-[13px] text-ink-soft">{t.addHomeHint}</p>
               </div>
             )}
+            <div className="mb-4">
+              <p className="m-0 text-sm font-semibold">{t.speakToYou}</p>
+              <div className="mt-2 flex gap-2" role="radiogroup" aria-label={t.speakToYou}>
+                {SUPPORTED_LANGS.map((code) => (
+                  <button
+                    key={code}
+                    type="button"
+                    role="radio"
+                    aria-checked={displayLang === code}
+                    onClick={() => void setDisplayLang(code)}
+                    className={cn(
+                      "tap min-w-0 flex-1 basis-0 rounded-pill border px-2 text-sm font-semibold",
+                      displayLang === code
+                        ? "border-espresso bg-espresso text-espresso-ink"
+                        : "border-ink/40 bg-transparent",
+                    )}
+                  >
+                    {displayLangLabel(code)}
+                    <span className="block text-[11px] font-normal opacity-80">
+                      {code === "en" ? "English" : code === "hi-latn" ? "Hindi in English letters" : "हिंदी"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
             {error && (
               <p className="mb-3 mt-0 text-sm text-accent" role="alert">
                 {error}
               </p>
             )}
             <div className="flex gap-3">
-              <OutlineButton className="flex-1" disabled={saving} onClick={() => fileRef.current?.click()}>
+              <OutlineButton
+                className="min-w-0 flex-1 basis-0 overflow-hidden text-ellipsis whitespace-nowrap"
+                disabled={saving}
+                onClick={() => fileRef.current?.click()}
+              >
                 {t.changeHome}
               </OutlineButton>
-              <PrimaryButton className="flex-1" onClick={onEnter}>
+              <PrimaryButton
+                className="min-w-0 flex-1 basis-0 overflow-hidden text-ellipsis whitespace-nowrap"
+                onClick={onEnter}
+              >
                 {t.stepInside}
               </PrimaryButton>
             </div>

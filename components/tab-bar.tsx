@@ -13,9 +13,9 @@ function Icon({ d, active }: { d: string; active: boolean }) {
       width="22"
       height="22"
       viewBox="0 0 24 24"
-      fill="none"
+      fill={active ? "currentColor" : "none"}
       stroke="currentColor"
-      strokeWidth={active ? 2.2 : 1.8}
+      strokeWidth={active ? 2 : 1.8}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"

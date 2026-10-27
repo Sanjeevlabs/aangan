@@ -1,6 +1,15 @@
 import { createHash } from "crypto";
+import { z } from "zod";
 import { activeProvider, isMockMode, PROVIDERS, SPEND_CAP_USD } from "./config";
-import { CaptionSchema, type Caption } from "./schemas";
+import {
+  CaptionSchema,
+  TranslationSchema,
+  VoiceTranscriptSchema,
+  type Caption,
+  type Translation,
+  type VoiceTranscript,
+} from "./schemas";
+import { normalizeDisplayLang } from "./i18n";
 
 export interface LlmStore {
   get(key: string): string | undefined;
@@ -139,4 +148,312 @@ export async function captionCard(
     }
   }
   return { caption: FALLBACK_CAPTION, cached: false, cost: 0 };
+}
+
+const FALLBACK_TRANSCRIPT: VoiceTranscript = {
+  transcript: "A short voice note.",
+  summary: "Voice note saved to Memory Lane.",
+  language: "en",
+  segments: [],
+};
+
+const FALLBACK_TRANSLATION: Translation = {
+  text: "A family memory, kept close.",
+  language: "en",
+};
+
+const KNOWN_EN_TO_HI_DEVA: Array<[RegExp, string]> = [
+  [/birthday song/i, "परिवार ने मिलकर जन्मदिन का गीत गाया।"],
+  [/courtyard game/i, "आँगन का खेल, पूरे जोश में सुनाया।"],
+  [/morning blessing|morning prayer/i, "सुबह की दुआ — आज का दिन अच्छा हो।"],
+  [/lullaby/i, "एक मीठी लोरी।"],
+];
+
+const KNOWN_EN_TO_LATN: Array<[RegExp, string]> = [
+  [/birthday song/i, "Parivaar ne milkar janmadin ka geet gaya."],
+  [/courtyard game/i, "Aangan ka khel, poore josh mein sunaya."],
+  [/morning blessing|morning prayer/i, "Subah ki dua — aaj ka din achha ho."],
+  [/lullaby/i, "Ek meethi lori."],
+  [/warm family moment|family memory/i, "Parivaar ki ek pyaari yaad."],
+];
+
+const KNOWN_HI_TO_EN: Array<[RegExp, string]> = [
+  [/जन्मदिन का गीत/, "The family sang a birthday song together."],
+  [/आँगन में धूप/, "Sunshine and tea in the courtyard."],
+  [/सुबह की दुआ/, "A morning blessing for a good day."],
+  [/नया शब्द/, "Aria shared a new word."],
+  [/पुराना दरवाज़ा|पुरानी/i, "An old doorway in winter light."],
+];
+
+const KNOWN_HI_TO_LATN: Array<[RegExp, string]> = [
+  [/जन्मदिन का गीत/, "Parivaar ne milkar janmadin ka geet gaya."],
+  [/आँगन में धूप/, "Aangan mein dhoop aur chai."],
+  [/सुबह की दुआ/, "Subah ki dua — aaj ka din achha ho."],
+  [/नया शब्द/, "Aria ne naya shabd sunaya."],
+  [/परिवार की एक प्यारी याद/, "Parivaar ki ek pyaari yaad."],
+];
+
+export function containsDevanagari(s: string): boolean {
+  return /[\u0900-\u097F]/.test(s);
+}
+
+async function mockTranscribe(audioId: string, langHint: string): Promise<{ json: unknown; cost: number }> {
+  const lang = normalizeDisplayLang(langHint);
+  // hi-latn speakers speak Hindi: transcribe the Hindi source, the display
+  // layer transliterates it to Latin script per card + lang.
+  if (lang === "hi-deva" || lang === "hi-latn") {
+    return {
+      json: {
+        transcript: "सुबह की दुआ — आज का दिन अच्छा हो। भगवान तुम्हें खुश रखे।",
+        summary: "सुबह की दुआ।",
+        language: "hi",
+        segments: [
+          { start: 0, end: 4, text: "सुबह की दुआ — आज का दिन अच्छा हो।" },
+          { start: 4, end: 8, text: "भगवान तुम्हें खुश रखे।" },
+        ],
+      },
+      cost: 0,
+    };
+  }
+  void audioId;
+  return {
+    json: {
+      transcript: "Good morning, my love. Have a wonderful day. God bless your exam.",
+      summary: "A morning blessing.",
+      language: "en",
+      segments: [
+        { start: 0, end: 4, text: "Good morning, my love." },
+        { start: 4, end: 8, text: "Have a wonderful day." },
+        { start: 8, end: 12, text: "God bless your exam." },
+      ],
+    },
+    cost: 0,
+  };
+}
+
+async function mockTranslate(text: string, targetLang: string): Promise<{ json: unknown; cost: number }> {
+  const target = normalizeDisplayLang(targetLang);
+  if (target === "hi-deva") {
+    for (const [re, hi] of KNOWN_EN_TO_HI_DEVA) {
+      if (re.test(text)) return { json: { text: hi, language: "hi-deva" }, cost: 0 };
+    }
+    if (containsDevanagari(text)) return { json: { text, language: "hi-deva" }, cost: 0 };
+    return { json: { text: "परिवार की एक प्यारी याद।", language: "hi-deva" }, cost: 0 };
+  }
+  if (target === "hi-latn") {
+    for (const [re, latn] of KNOWN_HI_TO_LATN) {
+      if (re.test(text)) return { json: { text: latn, language: "hi-latn" }, cost: 0 };
+    }
+    for (const [re, latn] of KNOWN_EN_TO_LATN) {
+      if (re.test(text)) return { json: { text: latn, language: "hi-latn" }, cost: 0 };
+    }
+    if (!containsDevanagari(text)) return { json: { text, language: "hi-latn" }, cost: 0 };
+    return { json: { text: "Parivaar ki ek pyaari yaad.", language: "hi-latn" }, cost: 0 };
+  }
+  for (const [re, en] of KNOWN_HI_TO_EN) {
+    if (re.test(text)) return { json: { text: en, language: "en" }, cost: 0 };
+  }
+  if (!containsDevanagari(text)) return { json: { text, language: "en" }, cost: 0 };
+  return { json: { text: "A family memory, kept close.", language: "en" }, cost: 0 };
+}
+
+const TRANSCRIPT_SYSTEM =
+  "Transcribe the described family voice note as JSON: {transcript, summary, language, segments}. " +
+  "transcript is the full text, summary is 5-500 chars, language is a short code, " +
+  "segments is an array of {start, end, text} in seconds. Reply with JSON only.";
+
+const TRANSLATE_SYSTEM =
+  "Translate the given family text as JSON: {text, language}. " +
+  "text is the translation in the requested target language, language is its short code. " +
+  "Translate, never explain. Reply with JSON only.";
+
+async function liveJson(
+  provider: keyof typeof PROVIDERS,
+  system: string,
+  user: string,
+  model: string,
+  maxTokens = 500,
+): Promise<{ json: unknown; cost: number }> {
+  const cfg = PROVIDERS[provider];
+  const key = process.env.META_API_KEY;
+  if (!key) throw new Error("missing-key");
+  const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: maxTokens,
+    }),
+  });
+  if (!res.ok) throw new Error(`provider-${res.status}`);
+  const data = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  const raw = data.choices?.[0]?.message?.content ?? "{}";
+  return { json: JSON.parse(raw) as unknown, cost: 0.01 };
+}
+
+// Voice transcription: mock-first; live uses the chat endpoint with a
+// description (raw audio upload wiring lands with Supabase storage).
+export async function transcribeVoice(
+  input: { audioId?: string; langHint?: string },
+  opts: { store?: LlmStore; ledger?: SpendLedger } = {},
+): Promise<{ transcript: VoiceTranscript; cached: boolean; cost: number }> {
+  const audioId = input.audioId ?? "voice";
+  const langHint = normalizeDisplayLang(input.langHint ?? "en");
+  const store = opts.store ?? memoryStore();
+  const ledger = opts.ledger ?? new SpendLedger(store);
+  const provider = activeProvider();
+  const model = PROVIDERS[provider].transcribeModel;
+  const key = `llm:${cacheKey(model, `transcribe:${langHint}`, audioId)}`;
+  const hit = store.get(key);
+  if (hit) {
+    const parsed = VoiceTranscriptSchema.safeParse(JSON.parse(hit));
+    if (parsed.success) return { transcript: parsed.data, cached: true, cost: 0 };
+  }
+  const estimatedCost = isMockMode() ? 0 : 0.01;
+  if (!ledger.canSpend(estimatedCost)) {
+    return { transcript: FALLBACK_TRANSCRIPT, cached: false, cost: 0 };
+  }
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const out = isMockMode()
+        ? await mockTranscribe(audioId, langHint)
+        : await liveJson(
+            provider,
+            TRANSCRIPT_SYSTEM,
+            `Voice note ${audioId}, reply in ${langHint}.`,
+            model,
+            2000,
+          );
+      const parsed = VoiceTranscriptSchema.safeParse(out.json);
+      if (!parsed.success) continue;
+      ledger.record(out.cost);
+      store.set(key, JSON.stringify(parsed.data));
+      return { transcript: parsed.data, cached: false, cost: out.cost };
+    } catch {
+      continue;
+    }
+  }
+  return { transcript: FALLBACK_TRANSCRIPT, cached: false, cost: 0 };
+}
+
+const SuggestSchema = z.object({ questions: z.array(z.string().min(5).max(200)).min(1).max(5) });
+
+const MOCK_SUGGESTIONS: Record<string, string[]> = {
+  en: [
+    "What did your courtyard smell like in the morning?",
+    "Which festival food should the children learn first?",
+    "What blessing do you want to record for Leo's exam?",
+  ],
+  "hi-latn": [
+    "Subah aapka aangan kaisa mehakta tha?",
+    "Bachchon ko sabse pehle kaun-sa tyohaar ka khana seekhna chahiye?",
+    "Leo ke exam ke liye kaun-sa aashirvaad record karna chahengi?",
+  ],
+  "hi-deva": [
+    "सुबह आपका आँगन कैसा महकता था?",
+    "बच्चों को सबसे पहले कौन-सा त्योहार का खाना सीखना चाहिए?",
+    "लियो की परीक्षा के लिए कौन-सा आशीर्वाद रिकॉर्ड करना चाहेंगी?",
+  ],
+};
+
+const SUGGEST_SYSTEM =
+  "Suggest family questions as JSON: {questions}. Three short warm questions " +
+  "an elder would love to answer by voice, in the requested language. " +
+  "Reply with JSON only.";
+
+async function mockSuggest(displayLang: string): Promise<{ json: unknown; cost: number }> {
+  const lang = normalizeDisplayLang(displayLang);
+  return { json: { questions: MOCK_SUGGESTIONS[lang] ?? MOCK_SUGGESTIONS.en }, cost: 0 };
+}
+
+// Elder-question suggestions via muse-spark-1.3, cached per member + lang.
+// Mock returns localized starters; live calls the model once per lang.
+export async function suggestQuestions(
+  input: { memberId?: string; displayLang?: string },
+  opts: { store?: LlmStore; ledger?: SpendLedger } = {},
+): Promise<{ questions: string[]; cached: boolean; cost: number }> {
+  const memberId = input.memberId ?? "elder";
+  const lang = normalizeDisplayLang(input.displayLang ?? "en");
+  const store = opts.store ?? memoryStore();
+  const ledger = opts.ledger ?? new SpendLedger(store);
+  const provider = activeProvider();
+  const model = PROVIDERS[provider].captionModel;
+  const key = `llm:${cacheKey(model, `suggest:${lang}`, memberId)}`;
+  const hit = store.get(key);
+  if (hit) {
+    const parsed = SuggestSchema.safeParse(JSON.parse(hit));
+    if (parsed.success) return { questions: parsed.data.questions, cached: true, cost: 0 };
+  }
+  const estimatedCost = isMockMode() ? 0 : 0.01;
+  if (!ledger.canSpend(estimatedCost)) {
+    return { questions: MOCK_SUGGESTIONS[lang] ?? MOCK_SUGGESTIONS.en, cached: false, cost: 0 };
+  }
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const out = isMockMode()
+        ? await mockSuggest(lang)
+        : await liveJson(
+            provider,
+            SUGGEST_SYSTEM,
+            `Elder questions for ${memberId} in ${lang}.`,
+            model,
+            2000,
+          );
+      const parsed = SuggestSchema.safeParse(out.json);
+      if (!parsed.success) continue;
+      ledger.record(out.cost);
+      store.set(key, JSON.stringify(parsed.data));
+      return { questions: parsed.data.questions, cached: false, cost: out.cost };
+    } catch {
+      continue;
+    }
+  }
+  return { questions: MOCK_SUGGESTIONS[lang] ?? MOCK_SUGGESTIONS.en, cached: false, cost: 0 };
+}
+
+// Translation/transliteration into the viewer's display_lang, cached per
+// card text + lang. Mock never leaks script: en output is Latin-only with
+// no untranslated Hindi, hi-latn output is Latin-only, hi-deva Devanagari.
+export async function translateText(
+  text: string,
+  targetLang: string,
+  opts: { store?: LlmStore; ledger?: SpendLedger } = {},
+): Promise<{ translation: Translation; cached: boolean; cost: number }> {
+  const target = normalizeDisplayLang(targetLang);
+  const store = opts.store ?? memoryStore();
+  const ledger = opts.ledger ?? new SpendLedger(store);
+  const provider = activeProvider();
+  const model = PROVIDERS[provider].captionModel;
+  const key = `llm:${cacheKey(model, `translate:${target}:${text}`, "text")}`;
+  const hit = store.get(key);
+  if (hit) {
+    const parsed = TranslationSchema.safeParse(JSON.parse(hit));
+    if (parsed.success) return { translation: parsed.data, cached: true, cost: 0 };
+  }
+  const estimatedCost = isMockMode() ? 0 : 0.01;
+  if (!ledger.canSpend(estimatedCost)) {
+    return { translation: { ...FALLBACK_TRANSLATION, language: target }, cached: false, cost: 0 };
+  }
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const out = isMockMode()
+        ? await mockTranslate(text, target)
+        : await liveJson(provider, TRANSLATE_SYSTEM, `Target language: ${target}\nText:\n${text}`, model);
+      const parsed = TranslationSchema.safeParse(out.json);
+      if (!parsed.success) continue;
+      ledger.record(out.cost);
+      store.set(key, JSON.stringify(parsed.data));
+      return { translation: parsed.data, cached: false, cost: out.cost };
+    } catch {
+      continue;
+    }
+  }
+  return { translation: { ...FALLBACK_TRANSLATION, language: target }, cached: false, cost: 0 };
 }

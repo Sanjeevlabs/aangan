@@ -1,12 +1,36 @@
-// Demo languages: English + Hindi. UI chrome is English-first; the viewer's
-// language drives greetings, kinship-driven lines, and card content.
-// Add locales here, never branch logic on them.
+// Demo display languages: English, Hinglish (Hindi in Latin script),
+// Hindi in Devanagari. The viewer's display_lang drives greetings,
+// kinship-driven lines, and card content. Add locales here, never branch
+// logic on them.
 
-export const SUPPORTED_LANGS = ["en", "hi"] as const;
+export const SUPPORTED_LANGS = ["en", "hi-latn", "hi-deva"] as const;
 export type SupportedLang = (typeof SUPPORTED_LANGS)[number];
+// Legacy two-code alias (member.lang); hi maps to hi-deva.
+export type DisplayLang = SupportedLang;
 
 export function normalizeLang(lang: string | null | undefined): SupportedLang {
-  return lang === "hi" ? "hi" : "en";
+  return normalizeDisplayLang(lang);
+}
+
+export function normalizeDisplayLang(lang: string | null | undefined): SupportedLang {
+  if (lang === "hi-latn") return "hi-latn";
+  if (lang === "hi-deva" || lang === "hi") return "hi-deva";
+  return "en";
+}
+
+export function displayLangLabel(code: SupportedLang): string {
+  if (code === "hi-latn") return "Hinglish";
+  if (code === "hi-deva") return "हिंदी";
+  return "English";
+}
+
+// Kinship name for the demo grandmother, per viewer display_lang.
+// en -> Grandma, hi-latn -> Dadi, hi-deva -> दादी.
+export function grandmaName(lang: string | null | undefined): string {
+  const l = normalizeDisplayLang(lang);
+  if (l === "hi-deva") return "दादी";
+  if (l === "hi-latn") return "Dadi";
+  return "Grandma";
 }
 
 export type DayPart = "morning" | "afternoon" | "evening";
@@ -52,6 +76,29 @@ interface Strings {
   coming: { inDays: (n: number) => string; today: string; birthday: (name: string) => string };
   empty: { laneSoon: string; ritualsSoon: string; gatherSoon: string; noToday: string };
   viewingAs: string;
+  language: string;
+  speakToYou: string;
+  heard: { heardThis: string };
+  reactions: { love: string; laugh: string; bless: string; replyVoice: string };
+  player: {
+    nowPlaying: string;
+    play: string;
+    pause: string;
+    close: string;
+    lyrics: string;
+    transcriptLabel: string;
+    translatedNote: string;
+    noAudio: string;
+  };
+  voice: {
+    record: string;
+    stop: string;
+    preview: string;
+    consent: string;
+    useRecording: string;
+    recordAgain: string;
+    suggested: string;
+  };
   common: { cancel: string; close: string; retry: string };
 }
 
@@ -74,7 +121,7 @@ const STRINGS: Record<SupportedLang, Strings> = {
       record: "Record for them",
     },
     add: {
-      title: "Add to today",
+      title: "Add to Aangan",
       photos: "Photos",
       voice: "Voice",
       video: "Video",
@@ -99,10 +146,102 @@ const STRINGS: Record<SupportedLang, Strings> = {
       gatherSoon: "Gather arrives in M5.",
       noToday: "Nothing from today yet — add the first moment.",
     },
-    viewingAs: "Viewing as",
+    viewingAs: "Demo · Viewing as",
+    language: "Language",
+    speakToYou: "How should Aangan speak to you?",
+    heard: { heardThis: "heard this" },
+    reactions: { love: "Love", laugh: "Laugh", bless: "Bless", replyVoice: "Reply with voice" },
+    player: {
+      nowPlaying: "Now playing",
+      play: "Play",
+      pause: "Pause",
+      close: "Close player",
+      lyrics: "Lyrics",
+      transcriptLabel: "Transcript",
+      translatedNote: "Translated for you",
+      noAudio: "Preview plays from saved waves in this demo.",
+    },
+    voice: {
+      record: "Record",
+      stop: "Stop",
+      preview: "Preview",
+      consent: "Demo mode: AI providers may process content. Record only with everyone's okay.",
+      useRecording: "Use this recording",
+      recordAgain: "Record again",
+      suggested: "Suggested for them",
+    },
     common: { cancel: "Cancel", close: "Close", retry: "Try again" },
   },
-  hi: {
+  "hi-latn": {
+    tabs: { home: "Home", lane: "Lane", add: "Jodein", rituals: "Rasmein", gather: "Milan" },
+    greeting: { morning: "Suprabhat", afternoon: "Namaste", evening: "Shubh sandhya" },
+    welcomeTo: (name) => `${name} ke Aangan mein swagat hai`,
+    changeHome: "Ghar badlein",
+    stepInside: "Andar chalein",
+    addHomeTitle: "Us ghar ki photo jodein jiski yaad aati hai",
+    addHomeHint: "Aangan, khidki, darwaza — makan number ya gali ka naam na dikhe.",
+    shelves: {
+      role: "Aaj ki bhoomika",
+      fromElder: (name) => `${name} ki ore se`,
+      voices: "Awaazein",
+      today: "Aaj · apne din se jodein",
+      yearsAgo: "Aaj hi ke din, saalon pehle",
+      comingUp: "Aane wala",
+      record: "Unke liye record karein",
+    },
+    add: {
+      title: "Aangan mein jodein",
+      photos: "Photo",
+      voice: "Awaaz",
+      video: "Video",
+      ask: "Poochein",
+      fromToday: "Aaj ki",
+      fromGlasses: "Mere chashme se",
+      captionPlaceholder: "Is pal ke baare mein kuch kahein…",
+      share: "Yaad jodein",
+      processing: "Taiyaar ho raha hai…",
+      voiceSoon: "Awaaz recording M2 mein aayegi — pehle Heard loop zaroori hai.",
+      askSoon: "Sujhae gaye sawal M2 mein awaaz ke saath aayenge. Ye shuruaat aaj kaam karegi:",
+    },
+    card: { untitled: "Parivaar ki ek yaad", glassesBadge: "Hands-free capture" },
+    coming: {
+      inDays: (n) => (n === 1 ? "kal" : `${n} din mein`),
+      today: "Aaj!",
+      birthday: (name) => `${name} ka janmadin`,
+    },
+    empty: {
+      laneSoon: "Memory Lane M3 mein aayegi.",
+      ritualsSoon: "Rasmon ka calendar M4 mein aayega.",
+      gatherSoon: "Milan M5 mein aayega.",
+      noToday: "Aaj ki koi yaad nahin — pehla pal jodein.",
+    },
+    viewingAs: "Demo · Is roop mein dekhein",
+    language: "Bhasha",
+    speakToYou: "Aangan aapse kaise baat kare?",
+    heard: { heardThis: "ne ye suna" },
+    reactions: { love: "Pyaar", laugh: "Hansi", bless: "Aashirvaad", replyVoice: "Awaaz mein jawab dein" },
+    player: {
+      nowPlaying: "Ab baj raha hai",
+      play: "Chalayein",
+      pause: "Rokein",
+      close: "Player band karein",
+      lyrics: "Bol",
+      transcriptLabel: "Transcript",
+      translatedNote: "Aapke liye anuvaadit",
+      noAudio: "Is demo mein preview saved waves se bajta hai.",
+    },
+    voice: {
+      record: "Record karein",
+      stop: "Rokein",
+      preview: "Sunein",
+      consent: "Demo mode: AI providers content process kar sakte hain. Sabki razamandi se hi record karein.",
+      useRecording: "Is recording ka istemal karein",
+      recordAgain: "Dobara record karein",
+      suggested: "Unke liye sujhaav",
+    },
+    common: { cancel: "Radd karein", close: "Band karein", retry: "Phir koshish karein" },
+  },
+  "hi-deva": {
     tabs: { home: "होम", lane: "लेन", add: "जोड़ें", rituals: "रस्में", gather: "मिलन" },
     greeting: { morning: "सुप्रभात", afternoon: "नमस्ते", evening: "शुभ संध्या" },
     welcomeTo: (name) => `${name} के आँगन में स्वागत है`,
@@ -120,7 +259,7 @@ const STRINGS: Record<SupportedLang, Strings> = {
       record: "उनके लिए रिकॉर्ड करें",
     },
     add: {
-      title: "आज में जोड़ें",
+      title: "आँगन में जोड़ें",
       photos: "फ़ोटो",
       voice: "आवाज़",
       video: "वीडियो",
@@ -145,13 +284,36 @@ const STRINGS: Record<SupportedLang, Strings> = {
       gatherSoon: "मिलन M5 में आएगा।",
       noToday: "आज की कोई याद नहीं — पहला पल जोड़ें।",
     },
-    viewingAs: "इस रूप में देखें",
+    viewingAs: "Demo · इस रूप में देखें",
+    language: "भाषा",
+    speakToYou: "आँगन आपसे कैसे बात करे?",
+    heard: { heardThis: "ने यह सुना" },
+    reactions: { love: "प्यार", laugh: "हँसी", bless: "आशीर्वाद", replyVoice: "आवाज़ में जवाब दें" },
+    player: {
+      nowPlaying: "अभी बज रहा है",
+      play: "चलाएँ",
+      pause: "रोकें",
+      close: "प्लेयर बंद करें",
+      lyrics: "बोल",
+      transcriptLabel: "प्रतिलेख",
+      translatedNote: "आपके लिए अनुवादित",
+      noAudio: "इस डेमो में प्रीव्यू सहेजी तरंगों से बजता है।",
+    },
+    voice: {
+      record: "रिकॉर्ड करें",
+      stop: "रोकें",
+      preview: "सुनें",
+      consent: "डेमो मोड: AI प्रदाता सामग्री संसाधित कर सकते हैं। सभी की सहमति से ही रिकॉर्ड करें।",
+      useRecording: "इस रिकॉर्डिंग का उपयोग करें",
+      recordAgain: "फिर से रिकॉर्ड करें",
+      suggested: "उनके लिए सुझाव",
+    },
     common: { cancel: "रद्द करें", close: "बंद करें", retry: "फिर कोशिश करें" },
   },
 };
 
 export function strings(lang: string | null | undefined): Strings {
-  return STRINGS[normalizeLang(lang)];
+  return STRINGS[normalizeDisplayLang(lang)];
 }
 
 // Static starter questions (data, not model output). Model-suggested prompts
@@ -162,7 +324,12 @@ export const ASK_STARTERS: Record<SupportedLang, string[]> = {
     "Teach me one word I should never forget.",
     "What song did your mother sing to you?",
   ],
-  hi: [
+  "hi-latn": [
+    "Bachpan mein aapka aangan kaisa dikhta tha?",
+    "Mujhe ek aisa shabd sikhaiye jo main kabhi na bhoolun.",
+    "Aapki maa aapko kaun-sa geet sunati thin?",
+  ],
+  "hi-deva": [
     "बचपन में आपका आँगन कैसा दिखता था?",
     "मुझे एक ऐसा शब्द सिखाइए जो मैं कभी न भूलूँ।",
     "आपकी माँ आपको कौन-सा गीत सुनाती थीं?",

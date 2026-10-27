@@ -1,15 +1,20 @@
 "use client";
 
 import type { CSSProperties } from "react";
+import { useRef } from "react";
 import { strings } from "@/lib/i18n";
 import { resolveMediaUrl } from "@/lib/media-session";
 import type { Card } from "@/lib/schemas";
+import { useDisplayText } from "@/lib/use-display-text";
+import { usePlayer } from "./player";
+import { HeardChip, ReactionBar } from "./reactions";
+import { useShell } from "./shell";
 import { useViewer } from "./viewer";
 
 const FALLBACK_PALETTE = ["#c96f4a", "#e8a87c", "#f4d8b4"];
 
 function Art({ card }: { card: Card }) {
-  const url = resolveMediaUrl(card.mediaRef);
+  const url = card.type === "photo" ? resolveMediaUrl(card.mediaRef) : null;
   const palette = card.palette.length >= 3 ? card.palette : FALLBACK_PALETTE;
   if (url) {
     // eslint-disable-next-line @next/next/no-img-element
@@ -48,22 +53,80 @@ function Art({ card }: { card: Card }) {
   );
 }
 
-// Spotify-inspired square artwork card, artwork-tinted. Grounded model
-// captions arrive in M2; M1 shows user/seed captions as-is.
+// Spotify-inspired square artwork card, artwork-tinted. Captions render in
+// the viewer's display_lang (skeleton while a translation loads, so Hindi
+// is never shown untranslated to en / hi-latn viewers). Tap plays in Now
+// Playing; long-press replies by voice.
 export function MemoryCard({ card }: { card: Card }) {
   const { lang } = useViewer();
+  const { openAdd } = useShell();
+  const { play } = usePlayer();
   const t = strings(lang);
+  const pressTimer = useRef<number | null>(null);
+  const longPressed = useRef(false);
+
+  const { text: caption, translated } = useDisplayText(card.caption, card.lang, lang);
+
+  const beginPress = () => {
+    longPressed.current = false;
+    if (pressTimer.current) window.clearTimeout(pressTimer.current);
+    pressTimer.current = window.setTimeout(() => {
+      longPressed.current = true;
+      pressTimer.current = null;
+      openAdd("voice");
+    }, 550);
+  };
+  const endPress = () => {
+    if (pressTimer.current) {
+      window.clearTimeout(pressTimer.current);
+      pressTimer.current = null;
+    }
+  };
+
   return (
-    <article className="w-40">
-      <div className="art-square bg-skeleton">
-        <Art card={card} />
-        {card.source === "glasses" && (
-          <span className="glass glass-pill absolute left-2 top-2 px-3 py-1 text-[11px] font-semibold">
-            {t.card.glassesBadge}
-          </span>
-        )}
+    <article
+      className="w-40"
+      onPointerDown={beginPress}
+      onPointerUp={endPress}
+      onPointerLeave={endPress}
+    >
+      <button
+        type="button"
+        onClick={() => {
+          if (longPressed.current) {
+            longPressed.current = false;
+            return;
+          }
+          play(card);
+        }}
+        className="block w-full p-0 text-left"
+        aria-label={caption ?? card.caption}
+      >
+        <div className="art-square bg-skeleton">
+          <Art card={card} />
+          {card.source === "glasses" && (
+            <span className="glass glass-pill absolute left-2 top-2 px-3 py-1 text-[11px] font-semibold">
+              {t.card.glassesBadge}
+            </span>
+          )}
+        </div>
+      </button>
+      {caption === null ? (
+        <div className="skeleton mb-0 mt-2 h-[22px]" aria-busy="true" aria-label="Loading" />
+      ) : (
+        <p className="serif mb-0 mt-2 line-clamp-2 text-[15px] leading-snug">{caption || t.card.untitled}</p>
+      )}
+      {translated && (
+        <p className="m-0 mt-1 text-[11px] font-semibold text-accent">{t.player.translatedNote}</p>
+      )}
+      <div className="mt-1 flex flex-col gap-1">
+        <HeardChip cardId={card.id} />
       </div>
-      <p className="serif mb-0 mt-2 line-clamp-2 text-[15px] leading-snug">{card.caption || t.card.untitled}</p>
+      {(card.type === "audio" || card.type === "video") && (
+        <div className="mt-2">
+          <ReactionBar cardId={card.id} />
+        </div>
+      )}
     </article>
   );
 }

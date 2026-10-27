@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { AddSheet, type AddTab } from "./add-sheet";
+import { PlayerProvider } from "./player";
 import { TabBar } from "./tab-bar";
 import { ViewerProvider } from "./viewer";
 import { Wash } from "./wash";
@@ -59,10 +60,17 @@ function ShellInner({ children }: { children: React.ReactNode }) {
 
   return (
     <ShellContext.Provider value={value}>
-      <Wash palette={washPalette.length >= 3 ? washPalette : undefined} />
-      <div className="relative z-10 mx-auto min-h-full w-full max-w-[480px] px-4 pb-28 pt-6">{children}</div>
-      <TabBar />
-      <AddSheet />
+      <PlayerProvider>
+        <Wash palette={washPalette.length >= 3 ? washPalette : undefined} />
+        <div
+          className="relative z-10 mx-auto min-h-full w-full max-w-[480px] px-4 pt-6"
+          style={{ paddingBottom: "calc(7rem + env(safe-area-inset-bottom))" }}
+        >
+          {children}
+        </div>
+        <TabBar />
+        <AddSheet />
+      </PlayerProvider>
     </ShellContext.Provider>
   );
 }

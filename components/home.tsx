@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { demoShelf } from "@/lib/demo";
-import { daysUntilBirthday, MOCK_DAILY_ROLES } from "@/lib/family";
-import { strings } from "@/lib/i18n";
+import { dailyRoleFor, daysUntilBirthday } from "@/lib/family";
+import { SUPPORTED_LANGS, displayLangLabel, normalizeDisplayLang, strings } from "@/lib/i18n";
 import type { Card } from "@/lib/schemas";
 import { MemoryCard } from "./memory-card";
 import { useShell } from "./shell";
@@ -16,10 +16,11 @@ function ShelfTitle({ children }: { children: React.ReactNode }) {
 }
 
 export function Home() {
-  const { viewer, members, lang, setViewerId } = useViewer();
+  const { viewer, members, lang, displayLang, setDisplayLang, setViewerId } = useViewer();
   const { openAdd, refreshKey } = useShell();
   const t = strings(lang);
   const [todayCards, setTodayCards] = useState<Card[] | null>(null);
+  const [voiceCards, setVoiceCards] = useState<Card[]>([]);
   const [failed, setFailed] = useState(false);
 
   const load = useCallback(async () => {
@@ -29,6 +30,7 @@ export function Home() {
       if (!res.ok) throw new Error("cards-fetch-failed");
       const data = (await res.json()) as { cards: Card[] };
       setTodayCards(data.cards.filter((c) => c.source === "today"));
+      setVoiceCards(data.cards.filter((c) => c.type === "audio"));
     } catch {
       setFailed(true);
     }
@@ -44,7 +46,7 @@ export function Home() {
   };
 
   const elder = members.find((m) => m.role === "elder");
-  const role = MOCK_DAILY_ROLES[viewer.id];
+  const role = viewer.role === "elder" ? dailyRoleFor(displayLang) : undefined;
   const coming = members
     .map((m) => ({ member: m, days: daysUntilBirthday(m.birthday) }))
     .sort((a, b) => a.days - b.days)
@@ -52,16 +54,34 @@ export function Home() {
 
   return (
     <div className="pt-2">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between gap-2">
         <p className="serif m-0 text-2xl">Aangan</p>
-        <button
-          type="button"
-          onClick={cycleViewer}
-          className="tap rounded-pill border border-line bg-surface/70 px-4 text-sm"
-          aria-label={`${t.viewingAs}: ${viewer.displayName}`}
-        >
-          {t.viewingAs}: {viewer.displayName}
-        </button>
+        <div className="flex items-center gap-2">
+          <label className="sr-only" htmlFor="aangan-lang">
+            {t.language}
+          </label>
+          <select
+            id="aangan-lang"
+            value={displayLang}
+            onChange={(e) => void setDisplayLang(normalizeDisplayLang(e.target.value))}
+            className="tap rounded-pill border border-line bg-surface/70 px-3 text-sm"
+            aria-label={t.language}
+          >
+            {SUPPORTED_LANGS.map((code) => (
+              <option key={code} value={code}>
+                {displayLangLabel(code)}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={cycleViewer}
+            className="tap rounded-pill border border-line bg-surface/70 px-4 text-sm"
+            aria-label={`${t.viewingAs}: ${viewer.displayName}`}
+          >
+            {t.viewingAs}: {viewer.displayName}
+          </button>
+        </div>
       </div>
 
       <PrimaryButton className="mb-6 w-full" onClick={() => openAdd("voice")}>
@@ -99,6 +119,9 @@ export function Home() {
         <ShelfTitle>{t.shelves.voices}</ShelfTitle>
         <div className="shelf">
           {demoShelf("voices").map((card) => (
+            <MemoryCard key={card.id} card={card} />
+          ))}
+          {voiceCards.map((card) => (
             <MemoryCard key={card.id} card={card} />
           ))}
         </div>

@@ -1,12 +1,24 @@
 import type { z } from "zod";
 import { DEMO_MEMBERS } from "./family";
-import { CardSchema, MemberSchema, type Card, type Member } from "./schemas";
+import {
+  CardSchema,
+  MemberSchema,
+  PlaySchema,
+  ReactionSchema,
+  type Card,
+  type Member,
+  type Play,
+  type Reaction,
+  type ReactionKind,
+} from "./schemas";
 
 // Demo backing store. Supabase replaces this when the project is confirmed;
 // the function shapes stay the same. Accepts schema *input* so Zod defaults
 // apply at the boundary.
 let cards: Card[] = [];
 let members: Member[] = [];
+let plays: Play[] = [];
+let reactions: Reaction[] = [];
 
 export function listCards(): Card[] {
   return [...cards].sort((a, b) => b.takenAt.localeCompare(a.takenAt));
@@ -21,6 +33,44 @@ export function addCard(input: z.input<typeof CardSchema>): Card {
 
 export function clearCards(): void {
   cards = [];
+}
+
+export function listPlays(cardId?: string): Play[] {
+  const all = [...plays].sort((a, b) => b.playedAt.localeCompare(a.playedAt));
+  return cardId ? all.filter((p) => p.cardId === cardId) : all;
+}
+
+export function addPlay(input: z.input<typeof PlaySchema>): Play {
+  const play = PlaySchema.parse(input);
+  plays = plays.filter((p) => p.id !== play.id);
+  plays.push(play);
+  return play;
+}
+
+export function clearPlays(): void {
+  plays = [];
+}
+
+export function listReactions(cardId?: string): Reaction[] {
+  const all = [...reactions].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return cardId ? all.filter((r) => r.cardId === cardId) : all;
+}
+
+// One per member per card: a second reaction from the same member replaces
+// the first — never a count, only the latest kind.
+export function setReaction(input: z.input<typeof ReactionSchema>): Reaction {
+  const reaction = ReactionSchema.parse(input);
+  reactions = reactions.filter((r) => !(r.cardId === reaction.cardId && r.memberId === reaction.memberId));
+  reactions.push(reaction);
+  return reaction;
+}
+
+export function clearReactions(): void {
+  reactions = [];
+}
+
+export function reactionKinds(): ReactionKind[] {
+  return ["love", "laugh", "bless"];
 }
 
 export function listMembers(): Member[] {
@@ -40,6 +90,14 @@ export function setMemberHome(
   if (!member) return undefined;
   member.homeImageRef = homeImageRef;
   member.homePalette = homePalette;
+  return { ...member };
+}
+
+export function setMemberDisplayLang(memberId: string, displayLang: Member["displayLang"]): Member | undefined {
+  const member = members.find((m) => m.id === memberId);
+  if (!member) return undefined;
+  member.displayLang = displayLang;
+  member.lang = displayLang === "hi-deva" ? "hi" : "en";
   return { ...member };
 }
 
@@ -69,6 +127,8 @@ export function seedDemo(): void {
 
 export function resetDemo(): void {
   members = DEMO_MEMBERS.map((m) => MemberSchema.parse(m));
+  clearPlays();
+  clearReactions();
   seedDemo();
 }
 
