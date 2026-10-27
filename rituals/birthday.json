@@ -1,0 +1,19 @@
+{
+  "slug": "birthday",
+  "title": "Birthday — family guide",
+  "cultureNotes": "Universal. Use the family's own birthday customs and songs.",
+  "steps": [
+    {
+      "key": "song",
+      "kind": "audio",
+      "prompt": "Sing the birthday song together, each from your own home.",
+      "cardTemplate": "Birthday voices together: {caption}"
+    },
+    {
+      "key": "cake",
+      "kind": "photo",
+      "prompt": "Share a photo of the cake, or whatever sweet the family chose.",
+      "cardTemplate": "Something sweet: {caption}"
+    }
+  ]
+}

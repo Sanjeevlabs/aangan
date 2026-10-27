@@ -1,0 +1,19 @@
+{
+  "slug": "diwali",
+  "title": "Festival of Lights — family guide",
+  "cultureNotes": "Celebrated by many Hindu, Jain, Sikh and Buddhist families. Adapt wording to the family's own tradition.",
+  "steps": [
+    {
+      "key": "light",
+      "kind": "photo",
+      "prompt": "Light a diya or candle together on video call and capture the moment.",
+      "cardTemplate": "Light shared across distance: {caption}"
+    },
+    {
+      "key": "wish",
+      "kind": "audio",
+      "prompt": "Record a one-line wish for the family in your own language.",
+      "cardTemplate": "A wish in {language}: {caption}"
+    }
+  ]
+}
