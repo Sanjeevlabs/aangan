@@ -1,6 +1,6 @@
 import { CreateRelationshipRequestSchema } from "@/lib/schemas";
 import { dbAddRelationship, dbGetMember, dbListMembers, dbListRelationships } from "@/lib/db";
-import { requireSession } from "@/lib/auth";
+import { requireCan, requireSession } from "@/lib/auth";
 
 export async function GET(req: Request): Promise<Response> {
   const auth = requireSession(req);
@@ -21,6 +21,8 @@ export async function POST(req: Request): Promise<Response> {
   } catch {
     return Response.json({ error: "invalid-json" }, { status: 400 });
   }
+  const allowed = await requireCan(auth, "tree.add");
+  if (allowed instanceof Response) return allowed;
   const parsed = CreateRelationshipRequestSchema.safeParse(body);
   if (!parsed.success) return Response.json({ error: "invalid-relationship" }, { status: 400 });
   const anchor = await dbGetMember(parsed.data.memberId);

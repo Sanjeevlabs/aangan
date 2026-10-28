@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useShell } from "@/components/shell";
 import { Translated } from "@/components/translated";
-import { Avatar, Button, EmptyLine, Icon, MuseMark, RoomHeader, SectionTitle } from "@/components/ui/kit";
+import { ActionMenu, Avatar, Button, EmptyLine, Icon, MuseMark, RoomHeader, SectionTitle } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
 import { HELPER_ROLES, NEED_KINDS } from "@/lib/kind-values";
-import type { CareSettings, Helper, Need, Presence, Rota } from "@/lib/kinds";
+import type { CareSettings, Duty, Helper, Need, Presence, Rota } from "@/lib/kinds";
+import { can } from "@/lib/permissions";
 import { language } from "@/lib/languages";
 import { callName, memberPhoto } from "@/lib/people";
 import { MOMENT_LABEL, at, quietDay, todayFor, whoseWeek } from "@/lib/presence";
@@ -20,6 +21,7 @@ interface CareData {
   needs: Need[];
   helpers: Helper[];
   rotas: Rota[];
+  duties: Duty[];
 }
 interface PresenceData {
   presence: Presence[];
@@ -102,7 +104,8 @@ export default function CarePage() {
           {isParent && <AskForHelp parent={parent} onAsked={reload} />}
           <WhoseWeek parent={parent} homeName={homeName} rota={care.data.rotas.find((r) => ids.includes(r.forMemberId))} members={members} viewerId={viewer.id} onChange={reload} isParent={isParent} />
           <Needs parent={parent} homeName={homeName} home={home!.members} needs={care.data.needs.filter((n) => ids.includes(n.forMemberId))} helpers={care.data.helpers.filter((h) => ids.includes(h.forMemberId))} members={members} viewerId={viewer.id} isParent={isParent} onChange={reload} />
-          <Village parent={parent} homeName={homeName} helpers={care.data.helpers.filter((h) => ids.includes(h.forMemberId))} onChange={reload} />
+          {!isParent && <Duties parent={parent} homeIds={ids} homeName={homeName} duties={care.data.duties ?? []} members={members} canManage={can(viewer, "care.manage")} onChange={reload} />}
+          <Village parent={parent} homeName={homeName} helpers={care.data.helpers.filter((h) => ids.includes(h.forMemberId))} canManage={can(viewer, "care.manage")} onChange={reload} />
           {isParent && <MySharing settings={pres.data.settings.find((s) => s.memberId === viewer.id)} members={members} viewerId={viewer.id} onChange={reload} />}
         </>
       )}
@@ -229,6 +232,12 @@ function WhoseWeek({ parent, homeName, rota, members, viewerId, onChange, isPare
           I&rsquo;ll take it
         </button>
       )}
+      {!isParent && rota.order.includes(viewerId) && (
+        <ActionMenu
+          label="Rota options"
+          actions={[{ label: "Take me off the rota", danger: true, confirm: "Stop taking turns checking in?", onSelect: async () => { await postJson("/api/care", { action: "leave-rota", forMemberId: rota.forMemberId }); onChange(); } }]}
+        />
+      )}
     </section>
   );
 }
@@ -240,6 +249,9 @@ function Needs({ parent, homeName, home, needs, helpers, members, viewerId, isPa
   const [kind, setKind] = useState<(typeof NEED_KINDS)[number]>("other");
   const [when, setWhen] = useState("");
   const [showDone, setShowDone] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const { viewer } = useViewer();
+  const manage = can(viewer, "care.manage");
   const open = needs.filter((n) => n.status !== "done");
   const done = needs.filter((n) => n.status === "done");
   const name = (id: string | null) => (id === viewerId ? "You" : callName(members.find((m) => m.id === id)));
@@ -267,8 +279,21 @@ function Needs({ parent, homeName, home, needs, helpers, members, viewerId, isPa
                     {n.askedBy !== n.forMemberId ? ` · by ${name(n.askedBy)}` : ""}
                   </p>
                 </div>
-                <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-[12px] font-semibold", n.status === "open" ? "bg-[#fff0d6] text-[#8a4b00]" : "bg-[#e6f4ea] text-[#1e6b3a]")}>{n.status === "open" ? "Open" : "On it"}</span>
+                <span className="flex shrink-0 items-center gap-1">
+                  <span className={cn("rounded-full px-2.5 py-1 text-[12px] font-semibold", n.status === "open" ? "bg-[#fff0d6] text-[#8a4b00]" : "bg-[#e6f4ea] text-[#1e6b3a]")}>{n.status === "open" ? "Open" : "On it"}</span>
+                  {(n.askedBy === viewerId || n.forMemberId === viewerId || manage) && (
+                    <ActionMenu
+                      label="Need options"
+                      actions={[
+                        { label: "Edit", onSelect: () => setEditingId(n.id) },
+                        ...(n.status === "claimed" && manage ? [{ label: "Put back to open", onSelect: () => act({ action: "reopen", needId: n.id }) }] : []),
+                        { label: isParent ? "I don't need this anymore" : "Withdraw", danger: true, confirm: "Remove this need?", onSelect: () => act({ action: "need-delete", needId: n.id }) },
+                      ]}
+                    />
+                  )}
+                </span>
               </div>
+              {editingId === n.id && <NeedEditor need={n} onDone={() => { setEditingId(null); onChange(); }} />}
               {n.status === "claimed" && (
                 <p className="m-0 mt-2 text-[14px]">
                   {name(n.claimedBy)} {n.claimedBy === viewerId ? "are" : "is"} on it{helper ? ` · ${helper.name} (${helper.role}) will go` : ""}
@@ -280,7 +305,7 @@ function Needs({ parent, homeName, home, needs, helpers, members, viewerId, isPa
                   {!isParent && <MuseMark>note for {name(n.forMemberId)} in {language(members.find((m) => m.id === n.forMemberId)?.displayLang ?? "en").native}</MuseMark>}
                 </div>
               )}
-              {!isParent && (
+              {!isParent && manage && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {n.status === "open" && (
                     <button type="button" className="press h-10 rounded-full bg-black px-4 text-[14px] font-semibold text-white" onClick={() => void act({ action: "claim", needId: n.id })}>
@@ -314,7 +339,7 @@ function Needs({ parent, homeName, home, needs, helpers, members, viewerId, isPa
         })}
       </ul>
 
-      {!isParent && (
+      {!isParent && manage && (
         <div className="mt-3">
           {!adding ? (
             <button type="button" onClick={() => setAdding(true)} className="press flex h-11 items-center gap-1.5 text-[15px] font-semibold">
@@ -380,7 +405,8 @@ function Needs({ parent, homeName, home, needs, helpers, members, viewerId, isPa
   );
 }
 
-function Village({ parent, homeName, helpers, onChange }: { parent: Member; homeName: string; helpers: Helper[]; onChange: () => void }) {
+function Village({ parent, homeName, helpers, canManage, onChange }: { parent: Member; homeName: string; helpers: Helper[]; canManage: boolean; onChange: () => void }) {
+  const [editing, setEditing] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [role, setRole] = useState<(typeof HELPER_ROLES)[number]>("groceries");
@@ -394,7 +420,8 @@ function Village({ parent, homeName, helpers, onChange }: { parent: Member; home
       {sorted.length === 0 && <EmptyLine>No one added yet. Start with the person who delivers groceries.</EmptyLine>}
       <ul className="m-0 list-none divide-y divide-[var(--line)] p-0">
         {sorted.map((h) => (
-          <li key={h.id} className="flex items-center gap-3 py-3">
+          <Fragment key={h.id}>
+          <li className="flex items-center gap-3 py-3">
             <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-surface">
               <Icon name="village" size={20} />
             </span>
@@ -410,21 +437,25 @@ function Village({ parent, homeName, helpers, onChange }: { parent: Member; home
                 <Icon name="phone" size={18} />
               </a>
             )}
-            <button
-              type="button"
-              aria-label={`Remove ${h.name}`}
-              className="press grid h-10 w-10 place-items-center rounded-full text-ink-faint"
-              onClick={async () => {
-                await postJson("/api/care", { action: "helper-remove", helperId: h.id });
-                onChange();
-              }}
-            >
-              <Icon name="close" size={16} />
-            </button>
+            {canManage && (
+              <ActionMenu
+                label={`${h.name} options`}
+                actions={[
+                  { label: "Edit", onSelect: () => setEditing(h.id) },
+                  { label: "Remove from the Village", danger: true, confirm: `Remove ${h.name}?`, onSelect: async () => { await postJson("/api/care", { action: "helper-remove", helperId: h.id }); onChange(); } },
+                ]}
+              />
+            )}
           </li>
+          {editing === h.id && (
+            <li className="pb-3">
+              <HelperEditor helper={h} onDone={() => { setEditing(null); onChange(); }} />
+            </li>
+          )}
+          </Fragment>
         ))}
       </ul>
-      {!adding ? (
+      {!canManage ? null : !adding ? (
         <button type="button" onClick={() => setAdding(true)} className="press mt-2 flex h-11 items-center gap-1.5 text-[15px] font-semibold">
           <Icon name="plus" size={18} />
           Add someone to the Village
@@ -498,6 +529,102 @@ function MySharing({ settings, members, viewerId, onChange }: { settings: CareSe
         </select>
       )}
       <p className="m-0 mt-3 text-[13px] text-ink-faint">Nothing is tracked. &ldquo;Quiet&rdquo; means you haven&rsquo;t shared anything hours after your usual time. Only the person you choose is told, and you can turn it off anytime.</p>
+    </section>
+  );
+}
+
+function NeedEditor({ need, onDone }: { need: Need; onDone: () => void }) {
+  const [title, setTitle] = useState(need.title);
+  const [kind, setKind] = useState(need.kind);
+  const [when, setWhen] = useState(need.when);
+  return (
+    <div className="mt-3 space-y-2 rounded-[18px] bg-white p-3">
+      <input className={cn(field, "bg-surface")} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} aria-label="What's needed" />
+      <KindChips value={kind} onChange={setKind} />
+      <input className={cn(field, "bg-surface")} value={when} onChange={(e) => setWhen(e.target.value)} maxLength={60} placeholder="When (optional)" aria-label="When" />
+      <div className="flex gap-2">
+        <Button className="h-11 flex-1 text-[15px]" disabled={title.trim().length < 3} onClick={async () => { await postJson("/api/care", { action: "need-edit", needId: need.id, title: title.trim(), kind, when: when.trim() }); onDone(); }}>
+          Save
+        </Button>
+        <Button variant="secondary" className="h-11 flex-1 text-[15px]" onClick={onDone}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function HelperEditor({ helper, onDone }: { helper: Helper; onDone: () => void }) {
+  const [name, setName] = useState(helper.name);
+  const [role, setRole] = useState(helper.role);
+  const [phone, setPhone] = useState(helper.phone);
+  const [note, setNote] = useState(helper.note);
+  return (
+    <div className="space-y-2 rounded-[18px] bg-surface p-3">
+      <input className={field} value={name} onChange={(e) => setName(e.target.value)} maxLength={60} aria-label="Name" />
+      <select className={field} value={role} onChange={(e) => setRole(e.target.value as Helper["role"])} aria-label="What they help with">
+        {HELPER_ROLES.map((r) => (
+          <option key={r} value={r}>
+            {r}
+          </option>
+        ))}
+      </select>
+      <input className={field} value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^+\d\s()-]/g, ""))} inputMode="tel" maxLength={30} placeholder="Phone (optional)" aria-label="Phone" />
+      <input className={field} value={note} onChange={(e) => setNote(e.target.value)} maxLength={160} placeholder="A note" aria-label="Note" />
+      <div className="flex gap-2">
+        <Button className="h-11 flex-1 text-[15px]" disabled={!name.trim()} onClick={async () => { await postJson("/api/care", { action: "helper-edit", helperId: helper.id, name: name.trim(), role, phone: phone.trim(), note: note.trim() }); onDone(); }}>
+          Save
+        </Button>
+        <Button variant="secondary" className="h-11 flex-1 !bg-white text-[15px]" onClick={onDone}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Who handles what for this home. Siblings abroad split the work: one takes
+ * groceries, another repairs. A new need of that kind goes straight to them.
+ */
+function Duties({ parent, homeIds, homeName, duties, members, canManage, onChange }: { parent: Member; homeIds: string[]; homeName: string; duties: Duty[]; members: Member[]; canManage: boolean; onChange: () => void }) {
+  const helpers = members.filter((m) => !homeIds.includes(m.id) && m.access !== "child");
+  const dutyFor = (kind: Duty["kind"]) => duties.find((d) => homeIds.includes(d.forMemberId) && d.kind === kind);
+  const kinds = NEED_KINDS.filter((k) => k !== "other");
+  return (
+    <section aria-label="Who handles what">
+      <SectionTitle>Who handles what</SectionTitle>
+      <p className="m-0 -mt-1 mb-3 text-[14px] text-ink-soft">Split the work for {homeName}. A new need goes straight to the person who handles it.</p>
+      <ul className="m-0 list-none divide-y divide-[var(--line)] rounded-card bg-surface p-0 px-4">
+        {kinds.map((k) => {
+          const d = dutyFor(k);
+          return (
+            <li key={k} className="flex items-center justify-between gap-3 py-2.5">
+              <span className="text-[15px] font-medium">{NEED_LABEL[k]}</span>
+              {canManage ? (
+                <select
+                  aria-label={`Who handles ${NEED_LABEL[k]}`}
+                  value={d?.memberId ?? ""}
+                  onChange={async (e) => {
+                    await postJson("/api/care", e.target.value ? { action: "duty-set", forMemberId: d?.forMemberId ?? parent.id, kind: k, memberId: e.target.value } : { action: "duty-clear", forMemberId: d?.forMemberId ?? parent.id, kind: k });
+                    onChange();
+                  }}
+                  className="h-10 max-w-[170px] rounded-full bg-white px-3 text-[14px] font-semibold"
+                >
+                  <option value="">Anyone</option>
+                  {helpers.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {callName(m)}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="text-[14px] text-ink-soft">{d ? callName(members.find((m) => m.id === d.memberId)) : "Anyone"}</span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }

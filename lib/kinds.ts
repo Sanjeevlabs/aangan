@@ -114,6 +114,18 @@ export const HelperSchema = z.object({
   createdAt: iso,
 });
 
+/**
+ * Who handles what for a home ("Arjun handles groceries for Maa & Papa").
+ * A new need of that kind goes straight to them. id = `${forMemberId}:${kind}`.
+ */
+export const DutySchema = z.object({
+  id,
+  forMemberId: id,
+  kind: z.enum(NEED_KINDS),
+  memberId: id,
+  updatedAt: iso,
+});
+
 /** Siblings take turns being the one who checks in this week. */
 export const RotaSchema = z.object({
   id, // = forMemberId
@@ -135,6 +147,9 @@ export const SittingSchema = z.object({
   note: z.string().max(200).default(""),
   /** The moment kept afterwards: a card in Memory Lane. */
   keptCardId: z.string().nullable().default(null),
+  /** RSVPs: who said they'll be there, and who can't make it. */
+  going: z.array(id).default([]),
+  cantMake: z.array(id).default([]),
   createdAt: iso,
 });
 
@@ -182,6 +197,7 @@ export const DOC_SCHEMAS = {
   need: NeedSchema,
   helper: HelperSchema,
   rota: RotaSchema,
+  duty: DutySchema,
   sitting: SittingSchema,
   knock: KnockSchema,
   question: QuestionSchema,
@@ -199,6 +215,7 @@ export type CareSettings = DocOf<"care_settings">;
 export type Need = DocOf<"need">;
 export type Helper = DocOf<"helper">;
 export type Rota = DocOf<"rota">;
+export type Duty = DocOf<"duty">;
 export type Sitting = DocOf<"sitting">;
 export type Knock = DocOf<"knock">;
 export type Question = DocOf<"question">;

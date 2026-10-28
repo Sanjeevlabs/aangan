@@ -3,10 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Member } from "@/lib/schemas";
-import { callName } from "@/lib/people";
+import { callName, memberPhoto } from "@/lib/people";
 import { cn } from "@/lib/utils";
 import { ZONES, placeFromTz } from "@/lib/zones";
-import { Button } from "./ui/kit";
+import { can } from "@/lib/permissions";
+import type { Relationship } from "@/lib/schemas";
+import { Avatar, Button, Icon } from "./ui/kit";
 import { useViewer } from "./viewer";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -23,7 +25,7 @@ const field = "h-[52px] w-full appearance-none rounded-full bg-surface px-5 text
  */
 export function PersonDetails({ person, onChanged }: { person: Member; onChanged: () => void }) {
   const router = useRouter();
-  const { viewer, refreshMembers } = useViewer();
+  const { viewer, members, relationships, refreshMembers } = useViewer();
   const [editing, setEditing] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [name, setName] = useState(person.displayName);
@@ -35,7 +37,8 @@ export function PersonDetails({ person, onChanged }: { person: Member; onChanged
   const [error, setError] = useState<string | null>(null);
   const isSelf = person.id === viewer.id;
   const hasAccount = Boolean(person.email);
-  const manageable = !hasAccount || isSelf;
+  const manageable = (!hasAccount && can(viewer, "tree.edit")) || isSelf;
+  const removable = !isSelf && can(viewer, hasAccount ? "tree.remove-account" : "tree.remove");
 
   if (isSelf) return null; // You edit yourself in Settings.
 
@@ -81,7 +84,9 @@ export function PersonDetails({ person, onChanged }: { person: Member; onChanged
         )}
       </div>
 
-      {!manageable && <p className="m-0 mt-3 text-[14px] text-ink-soft">{callName(person)} has their own account, so only they can change these details.</p>}
+      {!manageable && hasAccount && <p className="m-0 mt-3 text-[14px] text-ink-soft">{callName(person)} has their own account, so only they can change these details.</p>}
+
+      {!editing && <Connections person={person} members={members} relationships={relationships} canEdit={can(viewer, "tree.edit")} canAdd={can(viewer, "tree.add")} onChanged={async () => { await refreshMembers(); onChanged(); }} />}
 
       {editing && (
         <div className="mt-4 space-y-3">
@@ -138,7 +143,7 @@ export function PersonDetails({ person, onChanged }: { person: Member; onChanged
         </div>
       )}
 
-      {manageable && !editing && (
+      {removable && !editing && (
         <div className="mt-5 border-t border-[var(--line)] pt-4">
           {!confirm ? (
             <button type="button" onClick={() => setConfirm(true)} className="h-11 text-[15px] font-medium text-[#b42318]">
@@ -146,7 +151,10 @@ export function PersonDetails({ person, onChanged }: { person: Member; onChanged
             </button>
           ) : (
             <div role="alertdialog" aria-label="Confirm removal">
-              <p className="m-0 text-[15px]">Remove {callName(person)}? Their place in the tree and anything saved about them goes too. Voice notes and photos others shared stay.</p>
+              <p className="m-0 text-[15px]">
+                Remove {callName(person)}? Their place in the tree and anything saved about them goes too. Voice notes and photos others shared stay.
+                {hasAccount ? " They'll lose access to the family." : ""}
+              </p>
               <div className="mt-3 flex gap-2">
                 <Button className="flex-1 !bg-[#b42318]" disabled={busy} onClick={() => void remove()}>
                   {busy ? "Removing…" : "Remove"}
@@ -165,5 +173,98 @@ export function PersonDetails({ person, onChanged }: { person: Member; onChanged
         </p>
       )}
     </section>
+  );
+}
+
+const LINK_WORDS = ["wife", "husband", "mother", "father", "daughter", "son", "sister", "brother"];
+
+/**
+ * How this person is connected, in plain words, with a way to fix it:
+ * remove a wrong link, or link them to someone already in the family.
+ */
+function Connections({ person, members, relationships, canEdit, canAdd, onChanged }: { person: Member; members: Member[]; relationships: Relationship[]; canEdit: boolean; canAdd: boolean; onChanged: () => Promise<void> }) {
+  const [adding, setAdding] = useState(false);
+  const [word, setWord] = useState("wife");
+  const [other, setOther] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const name = (id: string) => callName(members.find((m) => m.id === id));
+  const mine = relationships.filter((r) => r.memberId === person.id || r.relationMemberId === person.id);
+  // Edge (A, B, "mother") means B is A's mother.
+  const line = (r: Relationship) => `${name(r.relationMemberId)} is ${name(r.memberId)}'s ${r.relation}`;
+  const others = members.filter((m) => m.id !== person.id);
+  return (
+    <div className="mt-4">
+      <p className="m-0 mb-1.5 text-[13px] font-medium text-ink-soft">Connections</p>
+      {mine.length === 0 && <p className="m-0 text-[14px] text-ink-soft">Not connected to anyone yet.</p>}
+      <ul className="m-0 list-none space-y-1 p-0">
+        {mine.map((r) => (
+          <li key={r.id} className="flex items-center justify-between gap-2 rounded-[14px] bg-white px-3 py-2 text-[14px]">
+            <span>{line(r)}</span>
+            {canEdit && (
+              <button
+                type="button"
+                aria-label={`Remove: ${line(r)}`}
+                className="press grid h-8 w-8 place-items-center rounded-full text-ink-faint"
+                onClick={async () => {
+                  await fetch(`/api/relationships/${encodeURIComponent(r.id)}`, { method: "DELETE" });
+                  await onChanged();
+                }}
+              >
+                <Icon name="close" size={14} />
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      {canAdd && !adding && (
+        <button type="button" onClick={() => setAdding(true)} className="press mt-2 flex h-10 items-center gap-1.5 text-[14px] font-semibold">
+          <Icon name="plus" size={16} />
+          Link to someone already here
+        </button>
+      )}
+      {adding && (
+        <div className="mt-2 rounded-[16px] bg-white p-3">
+          <p className="m-0 mb-1.5 text-[13px] text-ink-soft">{callName(person)} is the</p>
+          <div className="flex flex-wrap gap-1.5">
+            {LINK_WORDS.map((w) => (
+              <button key={w} type="button" aria-pressed={word === w} onClick={() => setWord(w)} className={cn("press h-9 rounded-full px-3 text-[14px] font-medium", word === w ? "bg-black text-white" : "bg-surface")}>
+                {w}
+              </button>
+            ))}
+          </div>
+          <p className="m-0 mb-1.5 mt-2.5 text-[13px] text-ink-soft">of</p>
+          <div className="no-scrollbar -mx-3 flex gap-1.5 overflow-x-auto px-3">
+            {others.map((m) => (
+              <button key={m.id} type="button" aria-pressed={other === m.id} onClick={() => setOther(m.id)} className={cn("press flex h-10 shrink-0 items-center gap-1.5 rounded-full pl-1 pr-3 text-[14px] font-medium", other === m.id ? "bg-black text-white" : "bg-surface")}>
+                <Avatar src={memberPhoto(m)} name={callName(m)} size={30} />
+                {callName(m)}
+              </button>
+            ))}
+          </div>
+          {error && <p className="m-0 mt-2 text-[13px] text-[#b42318]">{error}</p>}
+          <div className="mt-3 flex gap-2">
+            <Button
+              className="h-11 flex-1 text-[15px]"
+              disabled={!other}
+              onClick={async () => {
+                setError(null);
+                // "Papa is Maa's husband" → edge (Maa, Papa, "husband").
+                const res = await fetch("/api/relationships/link", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ memberId: other, relationMemberId: person.id, relation: word }) });
+                if (res.status === 409) return setError("They're already connected.");
+                if (!res.ok) return setError("Couldn't link them. Try again.");
+                setAdding(false);
+                setOther("");
+                await onChanged();
+              }}
+            >
+              Link
+            </Button>
+            <Button variant="secondary" className="h-11 flex-1 text-[15px]" onClick={() => setAdding(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

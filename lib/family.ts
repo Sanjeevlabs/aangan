@@ -18,6 +18,7 @@ export const DEMO_FAMILY: DemoFamily = {
 export const DEMO_MEMBERS: Member[] = [
   {
     id: "dadi",
+    access: "member",
     photoRef: "/demo/portrait-dadi.webp",
     email: null,
     familyId: "demo-family",
@@ -33,6 +34,7 @@ export const DEMO_MEMBERS: Member[] = [
   },
   {
     id: "dada",
+    access: "member",
     photoRef: null,
     email: null,
     familyId: "demo-family",
@@ -48,6 +50,7 @@ export const DEMO_MEMBERS: Member[] = [
   },
   {
     id: "arjun",
+    access: "admin",
     photoRef: "/demo/portrait-dad.webp",
     email: null,
     familyId: "demo-family",
@@ -63,6 +66,7 @@ export const DEMO_MEMBERS: Member[] = [
   },
   {
     id: "leo",
+    access: "member",
     photoRef: "/demo/portrait-leo.webp",
     email: null,
     familyId: "demo-family",
@@ -78,6 +82,7 @@ export const DEMO_MEMBERS: Member[] = [
   },
   {
     id: "aria",
+    access: "child",
     photoRef: "/demo/portrait-aria.webp",
     email: null,
     familyId: "demo-family",

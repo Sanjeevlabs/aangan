@@ -5,6 +5,18 @@ import { householdOf, households } from "@/lib/households";
 import { deleteDoc, getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
 import { needFromVoice, noteForParent } from "@/lib/care";
 import { HELPER_ROLES, NEED_KINDS, type Need } from "@/lib/kinds";
+import { can } from "@/lib/permissions";
+
+const NEED_LABEL_EN: Record<(typeof NEED_KINDS)[number], string> = {
+  groceries: "groceries",
+  house: "the house",
+  ride: "rides",
+  repair: "repairs",
+  gas: "the gas booking",
+  errand: "errands",
+  visit: "visits",
+  other: "this",
+};
 import type { Member } from "@/lib/schemas";
 
 // Care circle: needs (open → claimed → done), the parent's Village (trusted
@@ -27,13 +39,30 @@ const Body = z.discriminatedUnion("action", [
   }),
   z.object({ action: z.literal("helper-remove"), helperId: z.string().min(1) }),
   z.object({ action: z.literal("take-week"), forMemberId: z.string().min(1) }),
+  z.object({ action: z.literal("leave-rota"), forMemberId: z.string().min(1) }),
+  z.object({ action: z.literal("need-edit"), needId: z.string().min(1), title: z.string().trim().min(3).max(120), kind: z.enum(NEED_KINDS), when: z.string().trim().max(60).default("") }),
+  z.object({ action: z.literal("need-delete"), needId: z.string().min(1) }),
+  z.object({
+    action: z.literal("helper-edit"),
+    helperId: z.string().min(1),
+    name: z.string().trim().min(1).max(60),
+    role: z.enum(HELPER_ROLES),
+    phone: z.string().trim().max(30).regex(/^[+\d\s()-]*$/).default(""),
+    note: z.string().trim().max(160).default(""),
+  }),
+  z.object({ action: z.literal("duty-set"), forMemberId: z.string().min(1), kind: z.enum(NEED_KINDS), memberId: z.string().min(1) }),
+  z.object({ action: z.literal("duty-clear"), forMemberId: z.string().min(1), kind: z.enum(NEED_KINDS) }),
 ]);
+
+// Anyone may ask for themselves; managing care (claiming, assigning, the
+// Village, the rota, duties, editing others' needs) needs care.manage.
+const SELF_SERVICE = new Set(["need", "need-from-voice", "need-edit", "need-delete"]);
 
 export async function GET(req: Request): Promise<Response> {
   const auth = requireSession(req);
   if (auth instanceof Response) return auth;
-  const [needs, helpers, rotas] = await Promise.all([listDocs(auth.familyId, "need"), listDocs(auth.familyId, "helper"), listDocs(auth.familyId, "rota")]);
-  return Response.json({ needs, helpers, rotas });
+  const [needs, helpers, rotas, duties] = await Promise.all([listDocs(auth.familyId, "need"), listDocs(auth.familyId, "helper"), listDocs(auth.familyId, "rota"), listDocs(auth.familyId, "duty")]);
+  return Response.json({ needs, helpers, rotas, duties });
 }
 
 function mondayOf(d: Date): string {
@@ -52,6 +81,21 @@ export async function POST(req: Request): Promise<Response> {
   const person = (id: string): Member | undefined => members.find((m) => m.id === id);
   const me = person(auth.memberId);
   const now = new Date().toISOString();
+  if (!SELF_SERVICE.has(body.action) && !can(me, "care.manage")) return Response.json({ error: "not-allowed", action: "care.manage" }, { status: 403 });
+  const askingForSelf = "forMemberId" in body && body.forMemberId === auth.memberId;
+  if ((body.action === "need" || body.action === "need-from-voice") && !askingForSelf && !can(me, "care.manage")) return Response.json({ error: "not-allowed", action: "care.manage" }, { status: 403 });
+
+  // Who handles this kind of need for this home? Then it goes straight to them.
+  const routeToDuty = async (need: Need): Promise<Need> => {
+    const rels = await dbListRelationships(auth.familyId);
+    const home = householdOf(need.forMemberId, households(members, rels));
+    const homeIds = new Set([need.forMemberId, ...(home?.members.map((m) => m.id) ?? [])]);
+    const duty = (await listDocs(auth.familyId, "duty")).find((d) => homeIds.has(d.forMemberId) && d.kind === need.kind);
+    const who = duty && person(duty.memberId);
+    if (!who) return need;
+    const noteForParent = await reassure(need, `${who.displayName} looks after ${NEED_LABEL_EN[need.kind]} for you. They're on it.`);
+    return putDoc(auth.familyId, "need", { ...need, status: "claimed", claimedBy: who.id, noteForParent });
+  };
 
   const loadNeed = async (id: string): Promise<Need | Response> => (await getDoc(auth.familyId, "need", id)) ?? Response.json({ error: "unknown-need" }, { status: 404 });
   const reassure = async (need: Need, english: string) => {
@@ -63,7 +107,7 @@ export async function POST(req: Request): Promise<Response> {
     case "need": {
       if (!person(body.forMemberId)) return Response.json({ error: "unknown-member" }, { status: 404 });
       const need = await putDoc(auth.familyId, "need", { id: newId("need"), forMemberId: body.forMemberId, askedBy: auth.memberId, title: body.title, kind: body.kind, when: body.when, status: "open", createdAt: now });
-      return Response.json({ need }, { status: 201 });
+      return Response.json({ need: await routeToDuty(need) }, { status: 201 });
     }
     case "need-from-voice": {
       const parent = person(body.forMemberId);
@@ -72,7 +116,7 @@ export async function POST(req: Request): Promise<Response> {
       const draft = await needFromVoice(auth.familyId, parent.displayName, card.transcript || card.caption, card.transcriptLang || card.lang);
       const need = await putDoc(auth.familyId, "need", { id: newId("need"), forMemberId: parent.id, askedBy: auth.memberId, ...draft, status: "open", createdAt: now });
       await dbAddAgentRun({ goal: `Care: turned ${parent.displayName}'s voice into a task`, tools: ["muse-voice-transcribe", "muse-spark", "create_need"], familyId: auth.familyId });
-      return Response.json({ need }, { status: 201 });
+      return Response.json({ need: await routeToDuty(need) }, { status: 201 });
     }
     case "claim": {
       const need = await loadNeed(body.needId);
@@ -113,6 +157,48 @@ export async function POST(req: Request): Promise<Response> {
       if (!helper) return Response.json({ error: "unknown-helper" }, { status: 404 });
       await deleteDoc(auth.familyId, "helper", helper.id);
       return Response.json({ removed: helper.id });
+    }
+    case "need-edit":
+    case "need-delete": {
+      const need = await loadNeed(body.needId);
+      if (need instanceof Response) return need;
+      const mine = need.askedBy === auth.memberId || need.forMemberId === auth.memberId;
+      if (!mine && !can(me, "care.manage")) return Response.json({ error: "not-yours" }, { status: 403 });
+      if (body.action === "need-delete") {
+        await deleteDoc(auth.familyId, "need", need.id);
+        return Response.json({ deleted: need.id });
+      }
+      return Response.json({ need: await putDoc(auth.familyId, "need", { ...need, title: body.title, kind: body.kind, when: body.when }) });
+    }
+    case "helper-edit": {
+      const helper = await getDoc(auth.familyId, "helper", body.helperId);
+      if (!helper) return Response.json({ error: "unknown-helper" }, { status: 404 });
+      const { action: _a, helperId: _h, ...fields } = body;
+      void _a;
+      void _h;
+      return Response.json({ helper: await putDoc(auth.familyId, "helper", { ...helper, ...fields }) });
+    }
+    case "duty-set":
+    case "duty-clear": {
+      if (!person(body.forMemberId)) return Response.json({ error: "unknown-member" }, { status: 404 });
+      const id = `${body.forMemberId}:${body.kind}`;
+      if (body.action === "duty-clear") {
+        await deleteDoc(auth.familyId, "duty", id);
+        return Response.json({ cleared: id });
+      }
+      const who = person(body.memberId);
+      if (!who || who.access === "child") return Response.json({ error: "unknown-member" }, { status: 404 });
+      return Response.json({ duty: await putDoc(auth.familyId, "duty", { id, forMemberId: body.forMemberId, kind: body.kind, memberId: who.id, updatedAt: now }) });
+    }
+    case "leave-rota": {
+      const rota = await getDoc(auth.familyId, "rota", body.forMemberId);
+      if (!rota) return Response.json({ error: "unknown-rota" }, { status: 404 });
+      const order = rota.order.filter((id) => id !== auth.memberId);
+      if (order.length === 0) {
+        await deleteDoc(auth.familyId, "rota", rota.id);
+        return Response.json({ rota: null });
+      }
+      return Response.json({ rota: await putDoc(auth.familyId, "rota", { ...rota, order, updatedAt: now }) });
     }
     case "take-week": {
       if (!person(body.forMemberId)) return Response.json({ error: "unknown-member" }, { status: 404 });

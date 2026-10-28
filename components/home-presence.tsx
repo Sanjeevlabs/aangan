@@ -170,7 +170,21 @@ function ShareMyDay({ presence, onShared }: { presence: Presence[]; onShared: ()
   return (
     <section aria-label="Share your day" className="rounded-card bg-surface p-4">
       <p className="m-0 text-[17px] font-semibold">{sent ? `Your family will see: ${MOMENT_LABEL[sent].label}` : "Let the family feel your day"}</p>
-      <p className="m-0 mt-0.5 text-[13px] text-ink-soft">{today.length ? `Shared today: ${today.map((p) => MOMENT_LABEL[p.moment].label).join(", ")}` : "One tap. They'll see it when they open Aangan."}</p>
+      <p className="m-0 mt-0.5 text-[13px] text-ink-soft">
+        {today.length ? `Shared today: ${today.map((p) => MOMENT_LABEL[p.moment].label).join(", ")}` : "One tap. They'll see it when they open Aangan."}
+        {today.length > 0 && (
+          <button
+            type="button"
+            className="ml-2 font-semibold text-ink underline underline-offset-2"
+            onClick={async () => {
+              await postJson("/api/presence", { presenceId: today[today.length - 1].id }, "DELETE");
+              onShared();
+            }}
+          >
+            Undo last
+          </button>
+        )}
+      </p>
       <div className="mt-3 flex flex-wrap gap-2">
         {SHAREABLE.map((m) => (
           <button key={m} type="button" onClick={() => void share(m)} className={cn("press h-11 rounded-full px-4 text-[15px] font-semibold", sent === m ? "bg-marigold text-black" : "bg-white")}>
@@ -192,7 +206,7 @@ function QuestionLine({ q }: { q: Question }) {
 function MyQuestions() {
   const { viewer, members } = useViewer();
   const { openAdd } = useShell();
-  const { data } = useJson<{ questions: Question[] }>("/api/keeper");
+  const { data, reload } = useJson<{ questions: Question[] }>("/api/keeper");
   const open = (data?.questions ?? []).filter((q) => q.toMemberId === viewer.id && !q.answeredCardId).slice(0, 2);
   if (open.length === 0) return null;
   return (
@@ -218,6 +232,11 @@ function MyQuestions() {
               >
                 <Icon name="mic" size={16} />
                 Answer
+              </button>
+            </div>
+            <div className="mt-1 text-right">
+              <button type="button" className="h-9 text-[13px] font-medium text-[#8a4b00]" onClick={async () => { await postJson("/api/keeper", { action: "remove", questionId: q.id }); await reload(); }}>
+                {by ? "Not now" : "Skip this one"}
               </button>
             </div>
           </section>

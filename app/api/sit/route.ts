@@ -16,6 +16,8 @@ const Body = z.discriminatedUnion("action", [
     note: z.string().trim().max(200).default(""),
   }),
   z.object({ action: z.literal("cancel"), sittingId: z.string().min(1) }),
+  z.object({ action: z.literal("rsvp"), sittingId: z.string().min(1), answer: z.enum(["going", "cant", "clear"]) }),
+  z.object({ action: z.literal("reschedule"), sittingId: z.string().min(1), startsAt: z.string().datetime(), title: z.string().trim().min(2).max(80).optional() }),
   z.object({ action: z.literal("knock"), minutes: z.number().int().min(15).max(180).default(45), note: z.string().trim().max(80).default("") }),
   z.object({ action: z.literal("unknock") }),
 ]);
@@ -47,6 +49,23 @@ export async function POST(req: Request): Promise<Response> {
     const sitting = await putDoc(auth.familyId, "sitting", { id: newId("sit"), reason: body.reason, title: body.title, hostId: auth.memberId, startsAt: new Date(body.startsAt).toISOString(), invites, recipeId: body.recipeId ?? null, note: body.note, keptCardId: null, createdAt: now.toISOString() });
     return Response.json({ sitting }, { status: 201 });
   }
+  if (body.action === "rsvp" || body.action === "reschedule") {
+    const s = await getDoc(auth.familyId, "sitting", body.sittingId);
+    if (!s) return Response.json({ error: "unknown-sitting" }, { status: 404 });
+    if (body.action === "rsvp") {
+      const me = auth.memberId;
+      const going = s.going.filter((x) => x !== me);
+      const cantMake = s.cantMake.filter((x) => x !== me);
+      if (body.answer === "going") going.push(me);
+      if (body.answer === "cant") cantMake.push(me);
+      return Response.json({ sitting: await putDoc(auth.familyId, "sitting", { ...s, going, cantMake }) });
+    }
+    if (s.hostId !== auth.memberId) return Response.json({ error: "not-host" }, { status: 403 });
+    if (Date.parse(body.startsAt) < now.getTime() - 5 * 60_000) return Response.json({ error: "in-the-past" }, { status: 400 });
+    // A new time resets RSVPs: everyone answers again for the new time.
+    return Response.json({ sitting: await putDoc(auth.familyId, "sitting", { ...s, startsAt: new Date(body.startsAt).toISOString(), title: body.title ?? s.title, going: [], cantMake: [] }) });
+  }
+
   if (body.action === "cancel") {
     const s = await getDoc(auth.familyId, "sitting", body.sittingId);
     if (!s) return Response.json({ error: "unknown-sitting" }, { status: 404 });

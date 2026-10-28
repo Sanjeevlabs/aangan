@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { dbGetMember, dbRemoveMember } from "@/lib/db";
+import { dbGetMember, dbListMembers, dbRemoveMember } from "@/lib/db";
 import { requireMember, requireSession } from "@/lib/auth";
 import { deleteDocsForMember } from "@/lib/family-docs";
 
@@ -22,6 +22,12 @@ export async function DELETE(req: Request): Promise<Response> {
   if (ownership) return ownership;
   if (!(await dbGetMember(parsed.data.memberId))) {
     return Response.json({ error: "unknown-member" }, { status: 404 });
+  }
+  // The family always keeps an admin: hand it over before the last one leaves.
+  const family = await dbListMembers(auth.familyId);
+  const me = family.find((m) => m.id === parsed.data.memberId);
+  if (me?.access === "admin" && family.length > 1 && family.filter((m) => m.access === "admin").length <= 1) {
+    return Response.json({ error: "last-admin" }, { status: 409 });
   }
   const ok = await dbRemoveMember(parsed.data.memberId);
   if (!ok) return Response.json({ error: "leave-failed" }, { status: 500 });

@@ -7,6 +7,7 @@ import { callName, memberPhoto } from "@/lib/people";
 import { cn } from "@/lib/utils";
 import { useViewer } from "@/components/viewer";
 import { LivingTree, TreeLegend } from "@/components/family-tree";
+import { can } from "@/lib/permissions";
 import { ZONES, placeFromTz } from "@/lib/zones";
 
 const RELATION_WORDS = ["mother", "father", "wife", "husband", "daughter", "son", "sister", "brother"];
@@ -253,12 +254,16 @@ export default function BondPage() {
             <LivingTree members={members} relationships={relationships ?? []} viewerId={viewer.id} kin={Object.fromEntries(members.map((m) => [m.id, plainKin(kin[m.id] ?? "")]))} />
             <TreeLegend />
           </section>
+          {can(viewer, "tree.add") ? (
           <GuidedAdd
             onAdded={() => {
               void load();
               void refreshMembers();
             }}
           />
+          ) : (
+            <p className="m-0 mt-8 text-center text-[14px] text-ink-soft">Ask a grown-up in the family to add people.</p>
+          )}
         </>
       )}
     </div>

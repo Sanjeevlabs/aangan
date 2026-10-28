@@ -13,11 +13,67 @@ import { resolveMediaUrl } from "@/lib/media-session";
 import { memberPhoto } from "@/lib/people";
 import { resetFamilyCards } from "@/lib/use-family";
 import { useLargeText } from "@/lib/use-large-text";
+import { ACCESS_LABEL, can } from "@/lib/permissions";
+import { callName } from "@/lib/people";
 import { cn } from "@/lib/utils";
 
 interface Invite {
   code: string;
   expiresAt: string;
+}
+
+/** Who's who, and (for admins) who may do what. */
+function PeopleAndRoles({ onMessage }: { onMessage: (m: string) => void }) {
+  const { viewer, members, refreshMembers } = useViewer();
+  const admin = can(viewer, "roles.assign");
+  const order: Record<string, number> = { admin: 0, member: 1, child: 2 };
+  const people = [...members].sort((a, b) => order[a.access] - order[b.access] || callName(a).localeCompare(callName(b)));
+  return (
+    <div>
+      <ul className="m-0 list-none divide-y divide-[var(--line)] rounded-[22px] bg-surface p-0 px-4">
+        {people.map((m) => (
+          <li key={m.id} className="flex items-center gap-3 py-3">
+            <Avatar src={memberPhoto(m)} name={callName(m)} size={40} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[16px] font-semibold">
+                {callName(m)}
+                {m.id === viewer.id ? " (you)" : ""}
+              </span>
+              <span className="block text-[13px] text-ink-soft">{m.email ? "Has their own account" : "Added by family"}</span>
+            </span>
+            {admin ? (
+              <select
+                aria-label={`${callName(m)}'s role`}
+                value={m.access}
+                onChange={async (e) => {
+                  const res = await fetch(`/api/members/${encodeURIComponent(m.id)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ access: e.target.value }) });
+                  if (res.status === 409) onMessage("The family needs at least one admin.");
+                  else if (res.ok) onMessage(`${callName(m)} is now ${ACCESS_LABEL[e.target.value as keyof typeof ACCESS_LABEL].label.toLowerCase()}.`);
+                  await refreshMembers();
+                }}
+                className="h-10 rounded-full bg-white px-3 text-[14px] font-semibold"
+              >
+                {(["admin", "member", "child"] as const).map((a) => (
+                  <option key={a} value={a}>
+                    {ACCESS_LABEL[a].label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="rounded-full bg-white px-3 py-1.5 text-[13px] font-semibold">{ACCESS_LABEL[m.access].label}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+      <ul className="m-0 mt-3 list-none space-y-1 p-0 text-[13px] text-ink-soft">
+        {(["admin", "member", "child"] as const).map((a) => (
+          <li key={a}>
+            <span className="font-semibold text-ink">{ACCESS_LABEL[a].label}</span> · {ACCESS_LABEL[a].note}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 function LargeTextToggle() {
@@ -203,7 +259,8 @@ export default function SettingsPage() {
       router.replace("/");
     } else {
       setBusy(null);
-      flash("Couldn't leave. Try again.");
+      setConfirmLeave(false);
+      flash(res.status === 409 ? "You're the only admin. Make someone else admin first (People & roles)." : "Couldn't leave. Try again.");
     }
   };
 
@@ -294,19 +351,40 @@ export default function SettingsPage() {
       </Group>
 
       <Group title="Invite family" id="invite">
-        {invite ? (
+        {!can(viewer, "invite.create") ? (
+          <p className="m-0 text-[15px] text-ink-soft">Ask a grown-up in the family to invite people.</p>
+        ) : invite ? (
           <div className="rounded-[22px] bg-surface p-4">
-            <p className="m-0 text-[13px] text-ink-soft">Share this code. It works for 7 days.</p>
+            <p className="m-0 text-[13px] text-ink-soft">Share this code. It works until {new Date(invite.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}.</p>
             <p className="tnum m-0 mt-1 text-[28px] font-bold tracking-[0.12em]">{invite.code}</p>
             <Button className="mt-3 w-full" onClick={() => void shareInvite()}>
               {copied ? "Copied" : "Share invite"}
             </Button>
+            {can(viewer, "invite.revoke") && (
+              <button
+                type="button"
+                className="mt-2 h-10 w-full text-[14px] font-medium text-[#b42318]"
+                onClick={async () => {
+                  const res = await fetch("/api/invites", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: invite.code }) });
+                  if (res.ok) {
+                    setInvite(null);
+                    flash("Code revoked. It no longer works.");
+                  }
+                }}
+              >
+                Revoke this code
+              </button>
+            )}
           </div>
         ) : (
           <Button className="w-full" disabled={busy === "invite"} onClick={() => void newInvite()}>
             {busy === "invite" ? "Creating…" : "Create an invite code"}
           </Button>
         )}
+      </Group>
+
+      <Group title="People & roles" id="roles">
+        <PeopleAndRoles onMessage={flash} />
       </Group>
 
       <Group title="Privacy">

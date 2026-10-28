@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useShell } from "@/components/shell";
-import { Avatar, Button, EmptyLine, Icon, Monogram, MuseMark, Photo, RoomHeader, SectionTitle } from "@/components/ui/kit";
+import { ActionMenu, Avatar, Button, EmptyLine, Icon, Monogram, MuseMark, Photo, RoomHeader, SectionTitle } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
 import type { Attempt, Question, Recipe } from "@/lib/kinds";
 import { callName, memberPhoto } from "@/lib/people";
@@ -43,6 +43,9 @@ export default function KitchenPage() {
                   <Icon name="mic" size={18} />
                   Teach it in your voice
                 </Button>
+                <button type="button" className="mt-1 h-10 w-full text-[14px] font-medium text-[#8a4b00]" onClick={async () => { await postJson("/api/keeper", { action: "remove", questionId: q.id }); await asks.reload(); }}>
+                  Not this one
+                </button>
               </div>
             );
           })}
@@ -112,7 +115,13 @@ export default function KitchenPage() {
               .map((q) => (
                 <li key={q.id} className="flex items-center gap-3 rounded-[18px] bg-surface px-3 py-2.5">
                   <Avatar src={memberPhoto(byId(q.toMemberId))} name={callName(byId(q.toMemberId))} size={36} />
-                  <span className="voice text-[16px]">“{q.text}”</span>
+                  <span className="voice min-w-0 flex-1 text-[16px]">“{q.text}”</span>
+                  {q.askedBy === viewer.id && (
+                    <ActionMenu
+                      label="Question options"
+                      actions={[{ label: "Withdraw the question", danger: true, confirm: "Withdraw it? They won't see it anymore.", onSelect: async () => { await postJson("/api/keeper", { action: "remove", questionId: q.id }); await asks.reload(); } }]}
+                    />
+                  )}
                 </li>
               ))}
           </ul>

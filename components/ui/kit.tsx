@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------------------------------------- icons */
@@ -424,4 +425,99 @@ export function MuseMark({ children = "powered by Muse", tone = "soft", classNam
 
 export function EmptyLine({ children }: { children: React.ReactNode }) {
   return <p className="m-0 py-6 text-center text-[15px] text-ink-soft">{children}</p>;
+}
+
+/* -------------------------------------------------------------- actions */
+export interface MenuAction {
+  label: string;
+  onSelect: () => void | Promise<void>;
+  /** Destructive: asks once more, inside the menu ("Delete? Yes / Keep"). */
+  danger?: boolean;
+  confirm?: string;
+}
+
+/**
+ * The "⋯" for one thing (a voice note, a recipe, a need). Opens a small
+ * frosted menu; destructive actions confirm in place, never with a browser
+ * dialog. Closes on outside tap or Escape.
+ */
+export function ActionMenu({ actions, label = "More", tone = "soft", className }: { actions: MenuAction[]; label?: string; tone?: "soft" | "light"; className?: string }) {
+  const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !ref.current?.contains(e.target as Node)) {
+        setOpen(false);
+        setConfirming(null);
+      }
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [open]);
+  if (actions.length === 0) return null;
+  const run = async (a: MenuAction) => {
+    setBusy(true);
+    try {
+      await a.onSelect();
+    } finally {
+      setBusy(false);
+      setOpen(false);
+      setConfirming(null);
+    }
+  };
+  return (
+    <div ref={ref} className={cn("relative", className)}>
+      <button
+        type="button"
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+        className={cn("press grid h-10 w-10 place-items-center rounded-full", tone === "light" ? "text-white" : "text-ink-soft")}
+      >
+        <Icon name="more" size={20} />
+      </button>
+      {open && (
+        <div role="menu" className="frost absolute right-0 top-11 z-30 min-w-[200px] rounded-[18px] p-1.5" onClick={(e) => e.stopPropagation()}>
+          {actions.map((a, i) =>
+            confirming === i ? (
+              <div key={a.label} className="px-3 py-2">
+                <p className="m-0 text-[14px] text-ink">{a.confirm ?? `${a.label}?`}</p>
+                <div className="mt-2 flex gap-2">
+                  <button type="button" disabled={busy} onClick={() => void run(a)} className="press h-9 flex-1 rounded-full bg-[#b42318] text-[14px] font-semibold text-white">
+                    {busy ? "…" : "Yes"}
+                  </button>
+                  <button type="button" onClick={() => setConfirming(null)} className="press h-9 flex-1 rounded-full bg-black/[.06] text-[14px] font-semibold">
+                    Keep
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                key={a.label}
+                type="button"
+                role="menuitem"
+                disabled={busy}
+                onClick={() => (a.danger ? setConfirming(i) : void run(a))}
+                className={cn("press flex h-11 w-full items-center rounded-[12px] px-3 text-left text-[15px] font-medium hover:bg-black/[.04]", a.danger && "text-[#b42318]")}
+              >
+                {a.label}
+              </button>
+            ),
+          )}
+        </div>
+      )}
+    </div>
+  );
 }

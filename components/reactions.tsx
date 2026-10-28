@@ -93,12 +93,17 @@ export function ReactionBar({ cardId, tone = "light", onReply }: { cardId: strin
   }, [load]);
 
   const react = async (kind: (typeof KINDS)[number]) => {
+    // Tapping your current reaction again takes it back.
+    const mine = reactions?.find((r) => r.memberId === viewer.id);
     try {
-      const res = await fetch("/api/reactions", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ cardId, memberId: viewer.id, kind }),
-      });
+      const res =
+        mine?.kind === kind
+          ? await fetch("/api/reactions", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ cardId }) })
+          : await fetch("/api/reactions", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ cardId, memberId: viewer.id, kind }),
+            });
       if (res.ok) await load();
     } catch {
       // Offline: keep prior state.

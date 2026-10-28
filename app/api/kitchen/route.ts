@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { requireSession } from "@/lib/auth";
-import { dbListCards, dbListMembers } from "@/lib/db";
-import { getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
+import { dbGetMember, dbListCards, dbListMembers } from "@/lib/db";
+import { deleteDoc, getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
+import { IngredientSchema, StepSchema } from "@/lib/kinds";
+import { canChange } from "@/lib/permissions";
 import { recipeFromVoice } from "@/lib/kitchen";
 
 // The family Kitchen.
@@ -16,6 +18,18 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("bless"), attemptId: z.string().min(1) }),
   z.object({ action: z.literal("ask"), toMemberId: z.string().min(1), dish: z.string().trim().min(2).max(60) }),
   z.object({ action: z.literal("rename"), recipeId: z.string().min(1), title: z.string().trim().min(1).max(80), memory: z.string().trim().max(240).optional() }),
+  z.object({
+    action: z.literal("edit"),
+    recipeId: z.string().min(1),
+    title: z.string().trim().min(1).max(80),
+    memory: z.string().trim().max(240).default(""),
+    serves: z.string().trim().max(40).default(""),
+    ingredients: z.array(IngredientSchema).min(1).max(40),
+    steps: z.array(StepSchema).min(1).max(30),
+  }),
+  z.object({ action: z.literal("delete-recipe"), recipeId: z.string().min(1) }),
+  z.object({ action: z.literal("delete-attempt"), attemptId: z.string().min(1) }),
+  z.object({ action: z.literal("unbless"), attemptId: z.string().min(1) }),
 ]);
 
 export async function GET(req: Request): Promise<Response> {
@@ -79,9 +93,36 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ attempt: await putDoc(auth.familyId, "attempt", { ...attempt, blessedBy }) });
   }
 
+  const me = await dbGetMember(auth.memberId);
+  if (body.action === "edit" || body.action === "delete-recipe") {
+    const recipe = await getDoc(auth.familyId, "recipe", body.recipeId);
+    if (!recipe) return Response.json({ error: "unknown-recipe" }, { status: 404 });
+    // The cook owns their recipe; an admin may remove it.
+    if (!canChange(me, recipe.cookId, body.action === "edit" ? "edit" : "delete")) return Response.json({ error: "not-yours" }, { status: 403 });
+    if (body.action === "delete-recipe") {
+      await deleteDoc(auth.familyId, "recipe", recipe.id);
+      for (const a of (await listDocs(auth.familyId, "attempt")).filter((x) => x.recipeId === recipe.id)) await deleteDoc(auth.familyId, "attempt", a.id);
+      return Response.json({ deleted: recipe.id });
+    }
+    const { action: _a, recipeId: _r, ...fields } = body;
+    void _a;
+    void _r;
+    return Response.json({ recipe: await putDoc(auth.familyId, "recipe", { ...recipe, ...fields, madeBy: "family" }) });
+  }
+
+  if (body.action === "delete-attempt" || body.action === "unbless") {
+    const attempt = await getDoc(auth.familyId, "attempt", body.attemptId);
+    if (!attempt) return Response.json({ error: "unknown-attempt" }, { status: 404 });
+    if (body.action === "unbless") return Response.json({ attempt: await putDoc(auth.familyId, "attempt", { ...attempt, blessedBy: attempt.blessedBy.filter((x) => x !== auth.memberId) }) });
+    if (!canChange(me, attempt.memberId)) return Response.json({ error: "not-yours" }, { status: 403 });
+    await deleteDoc(auth.familyId, "attempt", attempt.id);
+    return Response.json({ deleted: attempt.id });
+  }
+
   if (body.action === "rename") {
     const recipe = await getDoc(auth.familyId, "recipe", body.recipeId);
     if (!recipe) return Response.json({ error: "unknown-recipe" }, { status: 404 });
+    if (!canChange(me, recipe.cookId, "edit")) return Response.json({ error: "not-yours" }, { status: 403 });
     return Response.json({ recipe: await putDoc(auth.familyId, "recipe", { ...recipe, title: body.title, memory: body.memory ?? recipe.memory }) });
   }
 

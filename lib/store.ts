@@ -154,6 +154,7 @@ export interface MemberPatch {
   firstName?: string;
   displayName?: string;
   role?: Member["role"];
+  access?: Member["access"];
   tz?: string;
   birthday?: string;
   photoRef?: string | null;
@@ -165,6 +166,7 @@ export function updateMemberProfile(memberId: string, patch: MemberPatch): Membe
   if (!member) return undefined;
   if (patch.displayName !== undefined) member.displayName = patch.displayName;
   if (patch.role !== undefined) member.role = patch.role;
+  if (patch.access !== undefined) member.access = patch.access;
   if (patch.birthday !== undefined) member.birthday = patch.birthday;
   if (patch.email !== undefined) member.email = patch.email;
   if (patch.firstName !== undefined) member.firstName = patch.firstName;
@@ -424,3 +426,40 @@ if (relationships.length === 0) clearRelationships();
 
 if (cards.length === 0) seedDemo();
 if (members.length === 0) members = DEMO_MEMBERS.map((m) => MemberSchema.parse(m));
+
+// ---- Edit / delete operations (stage 5 CRUD) ----
+export function revokeInvite(code: string, familyId: string): boolean {
+  const before = invites.length;
+  invites = invites.filter((i) => !(i.code.toUpperCase() === code.toUpperCase() && i.familyId === familyId));
+  return invites.length < before;
+}
+
+export function updateCard(id: string, patch: { caption?: string; transcript?: string; segments?: Card["segments"] }): Card | undefined {
+  const card = cards.find((c) => c.id === id);
+  if (!card) return undefined;
+  if (patch.caption !== undefined) card.caption = patch.caption;
+  if (patch.transcript !== undefined) card.transcript = patch.transcript;
+  if (patch.segments !== undefined) card.segments = patch.segments;
+  return { ...card };
+}
+
+export function deleteCard(id: string): boolean {
+  const before = cards.length;
+  cards = cards.filter((c) => c.id !== id);
+  plays = plays.filter((p) => p.cardId !== id);
+  reactions = reactions.filter((r) => r.cardId !== id);
+  wishes = wishes.filter((w) => w.cardId !== id);
+  return cards.length < before;
+}
+
+export function removeReaction(cardId: string, memberId: string): boolean {
+  const before = reactions.length;
+  reactions = reactions.filter((r) => !(r.cardId === cardId && r.memberId === memberId));
+  return reactions.length < before;
+}
+
+export function deleteRelationship(id: string): boolean {
+  const before = relationships.length;
+  relationships = relationships.filter((r) => r.id !== id);
+  return relationships.length < before;
+}
