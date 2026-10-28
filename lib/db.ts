@@ -49,11 +49,20 @@ import {
 import { isDbLive, supabaseServer } from "./supabase";
 import { AgentRunSchema, CardSchema, DailyRoleSchema, GatherSessionSchema, MemberSchema, PlaySchema, ReactionSchema, RelationshipSchema, RitualRunSchema, SuggestionSchema, WishSchema, type AgentRun, type Card, type DailyRole, type GatherSession, type Member, type Play, type Reaction, type Relationship, type RitualRun, type Suggestion, type Wish } from "./schemas";
 
+// Postgres returns "2026-10-27 08:10:00+00" / "...+00:00"; the schemas (and
+// string sorting across the app) expect canonical UTC "...Z". Normalise here.
+export function iso(v: unknown): string {
+  if (v instanceof Date) return v.toISOString();
+  const d = new Date(String(v ?? ""));
+  return Number.isNaN(d.getTime()) ? String(v ?? "") : d.toISOString();
+}
+
+
 function live(): boolean {
   return !isMockMode() && isDbLive();
 }
 
-function cardFromRow(r: Record<string, unknown>): Card {
+export function cardFromRow(r: Record<string, unknown>): Card {
   return CardSchema.parse({
     id: r.id,
     familyId: r.family_id,
@@ -61,7 +70,7 @@ function cardFromRow(r: Record<string, unknown>): Card {
     caption: r.caption ?? "",
     summary: r.summary ?? "",
     lang: r.lang ?? "en",
-    takenAt: r.taken_at instanceof Date ? r.taken_at.toISOString() : (r.taken_at as string),
+    takenAt: iso(r.taken_at),
     ritualSlug: (r.ritual_slug as string | null) ?? null,
     source: (r.source as string) ?? "upload",
     mediaRef: (r.media_ref as string | null) ?? null,
@@ -120,7 +129,16 @@ export async function dbListCards(familyId: string = DEMO_FAMILY): Promise<Card[
   if (!sb) return scoped(memListCards(), familyId);
   const { data, error } = await sb.from("cards").select("*").eq("family_id", familyId).order("taken_at", { ascending: false });
   if (error || !data) return scoped(memListCards(), familyId);
-  return data.map(cardFromRow);
+  // One malformed row must never blank the whole feed: skip it and log the id.
+  const cards: Card[] = [];
+  for (const row of data) {
+    try {
+      cards.push(cardFromRow(row));
+    } catch (e) {
+      console.error("[db] skipped malformed card", (row as { id?: unknown }).id, (e as Error).message);
+    }
+  }
+  return cards;
 }
 
 export async function dbAddCard(input: Omit<import("zod").input<typeof CardSchema>, "id"> & { id?: string }): Promise<Card> {
@@ -260,7 +278,7 @@ export async function dbListPlays(cardId?: string): Promise<Play[]> {
       familyId: r.family_id,
       cardId: r.card_id,
       memberId: r.member_id,
-      playedAt: r.played_at instanceof Date ? r.played_at.toISOString() : (r.played_at as string),
+      playedAt: iso(r.played_at),
     }),
   );
 }
@@ -301,7 +319,7 @@ export async function dbListReactions(cardId?: string): Promise<Reaction[]> {
       cardId: r.card_id,
       memberId: r.member_id,
       kind: r.kind,
-      createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : (r.created_at as string),
+      createdAt: iso(r.created_at),
     }),
   );
 }
@@ -431,7 +449,7 @@ function suggestionFromRow(r: Record<string, unknown>): Suggestion {
     goal: r.goal ?? "",
     payload: (r.payload as Record<string, unknown>) ?? {},
     status: r.status ?? "pending",
-    createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : (r.created_at as string),
+    createdAt: iso(r.created_at),
   });
 }
 
@@ -495,7 +513,7 @@ export async function dbListAgentRuns(familyId?: string): Promise<AgentRun[]> {
       goal: r.goal ?? "",
       tools: Array.isArray(r.tools) ? r.tools : [],
       status: r.status ?? "done",
-      createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : (r.created_at as string),
+      createdAt: iso(r.created_at),
     }),
   );
 }
@@ -540,7 +558,7 @@ export async function dbListWishes(runId?: string, familyId?: string): Promise<W
       cardId: (r.card_id as string | null) ?? null,
       memberId: r.member_id,
       kind: r.kind,
-      createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : (r.created_at as string),
+      createdAt: iso(r.created_at),
     }),
   );
 }
@@ -585,7 +603,7 @@ export async function dbListRitualRuns(familyId?: string): Promise<RitualRun[]> 
       ritualSlug: r.ritual_slug,
       occasionDate: typeof r.occasion_date === "string" ? r.occasion_date.slice(0, 10) : "",
       status: r.status ?? "open",
-      createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : (r.created_at as string),
+      createdAt: iso(r.created_at),
     }),
   );
 }
@@ -671,10 +689,10 @@ export async function dbListGatherSessions(familyId?: string): Promise<GatherSes
       id: r.id,
       familyId: r.family_id,
       title: r.title ?? "",
-      startsAt: r.starts_at instanceof Date ? r.starts_at.toISOString() : String(r.starts_at ?? ""),
+      startsAt: iso(r.starts_at),
       invites: Array.isArray(r.invites) ? (r.invites as string[]) : [],
       playlist: Array.isArray(r.playlist) ? (r.playlist as string[]) : [],
-      createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : (r.created_at as string),
+      createdAt: iso(r.created_at),
     }),
   );
 }
@@ -745,7 +763,7 @@ export async function dbListInvites(): Promise<Invite[]> {
     id: r.id as string,
     code: r.code as string,
     familyId: r.family_id as string,
-    expiresAt: r.expires_at instanceof Date ? r.expires_at.toISOString() : String(r.expires_at),
+    expiresAt: iso(r.expires_at),
   }));
 }
 
