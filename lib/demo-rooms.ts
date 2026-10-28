@@ -132,6 +132,11 @@ export function seedDemoRooms(now = Date.now()): void {
   seedDoc(FAM, "pet", { id: "pet-bruno", name: "Bruno", species: "dog", livesWith: "dadi", photoRef: null, birthday: "02-14", note: "Waits at the gate for the milkman.", addedBy: "arjun", createdAt: ago(60 * 24 * 40, now) });
   seedDoc(FAM, "pet", { id: "pet-mochi", name: "Mochi", species: "cat", livesWith: "arjun", photoRef: null, birthday: "", note: "Sleeps on Leo's homework.", addedBy: "leo", createdAt: ago(60 * 24 * 30, now) });
 
+  // ---------- Safe & sound (Aria, at college in Chicago, chose Papa and Dadi) ----------
+  seedDoc(FAM, "safety_settings", { id: "aria", memberId: "aria", enabled: true, watchers: ["arjun", "dadi"], paused: false, updatedAt: ago(60 * 24 * 6, now) });
+  seedDoc(FAM, "safety_checkin", { id: "safe-aria-1", memberId: "aria", kind: "heading", note: "From the library", etaAt: ago(60 * 26 - 25, now), closedAt: ago(60 * 26 - 22, now), location: null, at: ago(60 * 26, now) });
+  seedDoc(FAM, "safety_checkin", { id: "safe-aria-2", memberId: "aria", kind: "home-safe", note: "", etaAt: null, closedAt: ago(140, now), location: null, at: ago(140, now) });
+
   // ---------- Care circle ----------
   seedDoc(FAM, "need", {
     id: "need-gas",

@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { HELPER_ROLES, NEED_KINDS, NEED_STATUSES, PET_SPECIES, PRESENCE_MOMENTS, PRIORITIES, RECURRENCE, SITTING_REASONS } from "./kind-values";
+import { HELPER_ROLES, NEED_KINDS, NEED_STATUSES, PET_SPECIES, PRESENCE_MOMENTS, PRIORITIES, RECURRENCE, SAFETY_KINDS, SITTING_REASONS } from "./kind-values";
 
-export { HELPER_ROLES, NEED_KINDS, NEED_STATUSES, PET_SPECIES, PRESENCE_MOMENTS, PRIORITIES, RECURRENCE, SITTING_REASONS };
+export { HELPER_ROLES, NEED_KINDS, NEED_STATUSES, PET_SPECIES, PRESENCE_MOMENTS, PRIORITIES, RECURRENCE, SAFETY_KINDS, SITTING_REASONS };
 
 // Schemas for the family's "living" records: Kitchen, presence, care,
 // Village, sittings and the weekly question. They share one table
@@ -107,6 +107,31 @@ export const NeedSchema = z.object({
   noteForParent: z.string().max(240).default(""),
   doneAt: iso.nullable().default(null),
   createdAt: iso,
+});
+
+// ---------- Safe & sound (owned by the person it protects) ----------
+export const SafetySettingsSchema = z.object({
+  id, // = memberId
+  memberId: id,
+  enabled: z.boolean().default(false),
+  /** The people she chose. Nobody else ever sees her check-ins. */
+  watchers: z.array(id).max(12).default([]),
+  paused: z.boolean().default(false),
+  updatedAt: iso,
+});
+
+export const SafetyCheckinSchema = z.object({
+  id,
+  memberId: id,
+  kind: z.enum(SAFETY_KINDS),
+  note: z.string().max(120).default(""),
+  /** Heading / journey: when she expects to arrive. */
+  etaAt: iso.nullable().default(null),
+  /** When she closed it ("Home safe", "Landed", "I'm okay now"). */
+  closedAt: iso.nullable().default(null),
+  /** Only ever on "I need help", only if she chose to send it; dropped after 24 h. */
+  location: z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180), accuracy: z.number().min(0).max(100000), at: iso }).nullable().default(null),
+  at: iso,
 });
 
 // ---------- Pets (part of a home) ----------
@@ -222,6 +247,8 @@ export const DOC_SCHEMAS = {
   rota: RotaSchema,
   duty: DutySchema,
   pet: PetSchema,
+  safety_settings: SafetySettingsSchema,
+  safety_checkin: SafetyCheckinSchema,
   sitting: SittingSchema,
   knock: KnockSchema,
   question: QuestionSchema,
@@ -241,6 +268,8 @@ export type Helper = DocOf<"helper">;
 export type Rota = DocOf<"rota">;
 export type Duty = DocOf<"duty">;
 export type Pet = DocOf<"pet">;
+export type SafetySettings = DocOf<"safety_settings">;
+export type SafetyCheckin = DocOf<"safety_checkin">;
 export type Sitting = DocOf<"sitting">;
 export type Knock = DocOf<"knock">;
 export type Question = DocOf<"question">;

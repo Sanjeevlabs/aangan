@@ -12,6 +12,7 @@ import { roomUrl } from "@/lib/overlap";
 import { householdName, households, type Household } from "@/lib/households";
 import { cn } from "@/lib/utils";
 import { dayPartIn, placeFromTz, timeIn } from "@/lib/zones";
+import { SafetyWatch } from "./safety";
 import { useShell } from "./shell";
 import { Translated } from "./translated";
 import { Avatar, Icon, LiveDot, MuseMark } from "./ui/kit";
@@ -57,6 +58,7 @@ export function CourtyardNow() {
       {knocks.map((k) => (
         <KnockBanner key={k.id} knock={k} member={members.find((m) => m.id === k.memberId)} />
       ))}
+      <SafetyWatch />
       {viewer.role === "elder" ? (
         <>
           <ShareMyDay presence={pres.data?.presence ?? []} onShared={() => void pres.reload()} />
