@@ -12,6 +12,11 @@ import { useViewer } from "./viewer";
 
 export type AddTab = "photos" | "voice" | "video" | "ask";
 
+export interface ReplyContribution {
+  runId: string;
+  kind: "wish" | "blessing";
+}
+
 async function postCard(upload: ProcessedUpload, caption: string, lang: string): Promise<boolean> {
   const res = await fetch("/api/cards", {
     method: "POST",
@@ -36,7 +41,7 @@ async function postVoiceCard(input: {
   transcript: string;
   transcriptLang: string;
   segments: TranscriptSegment[];
-}): Promise<boolean> {
+}): Promise<{ ok: boolean; id: string | null }> {
   const res = await fetch("/api/cards", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -54,7 +59,9 @@ async function postVoiceCard(input: {
       segments: input.segments.slice(0, 64),
     }),
   });
-  return res.ok;
+  if (!res.ok) return { ok: false, id: null };
+  const data = (await res.json()) as { card?: { id?: string } };
+  return { ok: true, id: data.card?.id ?? null };
 }
 
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
@@ -90,7 +97,7 @@ interface VoiceReady {
   segments: TranscriptSegment[];
 }
 
-function VoiceTab({ onPosted }: { onPosted: () => void }) {
+function VoiceTab({ onPosted, contribution }: { onPosted: () => void; contribution: ReplyContribution | null }) {
   const { viewer, lang } = useViewer();
   const t = strings(lang);
   const [phase, setPhase] = useState<"idle" | "recording" | "ready">("idle");
@@ -199,7 +206,7 @@ function VoiceTab({ onPosted }: { onPosted: () => void }) {
     setBusy(true);
     setError(null);
     const text = caption.trim() || ready.transcript;
-    const ok = await postVoiceCard({
+    const posted = await postVoiceCard({
       upload: ready.upload,
       caption: text,
       transcript: ready.transcript,
@@ -207,7 +214,20 @@ function VoiceTab({ onPosted }: { onPosted: () => void }) {
       segments: ready.segments,
     });
     setBusy(false);
-    if (ok) {
+    if (posted.ok) {
+      // Reel replies link the new voice card to the ritual run as a wish.
+      if (contribution && posted.id) {
+        await fetch("/api/wishes", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            ritualRunId: contribution.runId,
+            cardId: posted.id,
+            memberId: viewer.id,
+            kind: contribution.kind,
+          }),
+        }).catch(() => undefined);
+      }
       if (ready.url) URL.revokeObjectURL(ready.url);
       setReady(null);
       setCaption("");
@@ -364,7 +384,7 @@ function AskTab() {
 }
 
 export function AddSheet() {
-  const { addOpen, addTab, closeAdd, bumpRefresh } = useShell();
+  const { addOpen, addTab, replyTo, closeAdd, bumpRefresh } = useShell();
   const { viewer, lang } = useViewer();
   const t = strings(lang);
   const [tab, setTab] = useState<AddTab>("photos");
@@ -502,6 +522,7 @@ export function AddSheet() {
 
       {tab === "voice" && (
         <VoiceTab
+          contribution={replyTo}
           onPosted={() => {
             bumpRefresh();
             closeAdd();

@@ -345,6 +345,15 @@ export async function transcribeVoice(
 
 const SuggestSchema = z.object({ questions: z.array(z.string().min(5).max(200)).min(1).max(5) });
 
+const PlaylistSchema = z.object({
+  tracks: z.array(z.object({ cardId: z.string(), note: z.string().max(120) })).min(1).max(8),
+});
+
+const PLAYLIST_SYSTEM =
+  "Curate a warm family-evening playlist as JSON: {tracks: [{cardId, note}]}. " +
+  "Pick from the given card ids only, warmest first, at most 8. " +
+  "Each note is one short line about why this track fits the evening. Reply with JSON only.";
+
 const MOCK_SUGGESTIONS: Record<string, string[]> = {
   en: [
     "What did your courtyard smell like in the morning?",
@@ -416,6 +425,58 @@ export async function suggestQuestions(
     }
   }
   return { questions: MOCK_SUGGESTIONS[lang] ?? MOCK_SUGGESTIONS.en, cached: false, cost: 0 };
+}
+
+// Gather playlist curation from the Lane (muse-spark-1.3, structured
+// output, one retry then fallback). Mock picks the newest audio first.
+export async function curatePlaylist(
+  cards: { id: string; caption: string }[],
+  opts: { store?: LlmStore; ledger?: SpendLedger } = {},
+): Promise<{ tracks: { cardId: string; note: string }[]; cached: boolean; cost: number }> {
+  const store = opts.store ?? memoryStore();
+  const ledger = opts.ledger ?? new SpendLedger(store);
+  const provider = activeProvider();
+  const model = PROVIDERS[provider].captionModel;
+  const ids = cards.map((c) => c.id).join(",");
+  const key = `llm:${cacheKey(model, `playlist:${ids}`, "gather")}`;
+  const hit = store.get(key);
+  if (hit) {
+    const parsed = PlaylistSchema.safeParse(JSON.parse(hit));
+    if (parsed.success) return { tracks: parsed.data.tracks, cached: true, cost: 0 };
+  }
+  const estimatedCost = isMockMode() ? 0 : 0.01;
+  if (!ledger.canSpend(estimatedCost) || cards.length === 0) {
+    return { tracks: [], cached: false, cost: 0 };
+  }
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const out = isMockMode()
+        ? {
+            json: {
+              tracks: cards.slice(0, 5).map((c, i) => ({ cardId: c.id, note: i === 0 ? "Open the evening together" : "Keep the warmth going" })),
+            },
+            cost: 0,
+          }
+        : await liveJson(
+            provider,
+            PLAYLIST_SYSTEM,
+            `Cards:\n${cards.slice(0, 20).map((c) => `- ${c.id}: ${c.caption.slice(0, 120)}`).join("\n")}`,
+            model,
+          );
+      const parsed = PlaylistSchema.safeParse(out.json);
+      if (!parsed.success) continue;
+      // Never invent: drop tracks pointing at unknown cards.
+      const known = new Set(cards.map((c) => c.id));
+      const tracks = parsed.data.tracks.filter((t) => known.has(t.cardId));
+      if (tracks.length === 0) continue;
+      ledger.record(out.cost);
+      store.set(key, JSON.stringify({ tracks }));
+      return { tracks, cached: false, cost: out.cost };
+    } catch {
+      continue;
+    }
+  }
+  return { tracks: [], cached: false, cost: 0 };
 }
 
 // Translation/transliteration into the viewer's display_lang, cached per

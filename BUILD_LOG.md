@@ -32,6 +32,14 @@
 - Decisions: role prompts are deterministic data tables (not model output) so the daily scan costs $0; reject supported from day one.
 - Verified: `npm run lint` ok, `npm run typecheck` ok, `npm run test:mock` 65 passed + 2 skipped, `npm run build` ok (25 routes). Live-model cost this milestone: USD 0. Visual self-QA blocked (sandbox sockets) — build + code inspection only.
 
+## 28 Oct 2026 — M5: Birthday Reel, Gather, privacy set
+
+- Birthday Reel (`/reel` + `/reel/[runId]`, `components/reel.tsx`, `lib/reel.ts`): segmented progress, each wish/blessing plays with synced lyrics via the existing player, "Happy birthday, <viewer-relative term>" (kinship lookup; falls back to the celebrant name), "Reply with voice" (opens the Add voice tab with reel context — the posted card auto-links as a wish on the run), petal effect (CSS, reduced-motion safe). Pure tested sequencing: oldest-first segments joined to members + cards (`buildReelSegments`); title helper. CHECKPOINT: P0 is fully green — no P1 started.
+- Gather (`/gather`): plan-a-date form, per-member local times (Intl with each member's tz), invites, Lane-derived playlist curated by muse-spark-1.3 (`curatePlaylist` in `lib/llm.ts`, structured output, mock-first, never invents card ids), "Start together" (local marker + plays the first track; synced multi-device playback stays P1 — logged). New `/api/gather` GET/POST.
+- Privacy set (`/privacy`, profile-menu link): in-app disclosure ("Demo mode…"), "Remove my memories" (DELETE `/api/privacy/cards` — deletes attributable traces; UI states shared family cards stay), "Leave family" (DELETE `/api/privacy/membership` — removes member + edges + traces), expiring invites (`/api/invites` GET/POST, 6-char codes, 7-day expiry; service-role only). Store + Supabase coverage in `lib/db.ts`. Decisions: cards have no per-card owner in the schema, so they belong to the shared pool and survive both actions — the UI says exactly this.
+- New maintained test `tests/m5-reel-gather.test.ts` (7 tests: reel order/joins/title, mock playlist + no invented ids, gather POST, traces delete + 404s, leave + re-leave 404, invite format/expiry/listing, wish-card linking).
+- Verified: `npm run lint` ok, `npm run typecheck` ok, `npm run test:mock` 72 passed + 2 skipped, `npm run build` ok (32 routes). Live-model cost this milestone: USD 0. Visual self-QA blocked (sandbox sockets) — build + code inspection only.
+
 
 ## 27 Oct 2026 — Day 1: foundation
 

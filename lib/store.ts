@@ -167,6 +167,7 @@ export function resetDemo(): void {
   ritualRuns = [];
   dailyRoles = [];
   gatherSessions = [];
+  clearInvites();
   seedDemo();
 }
 
@@ -248,6 +249,59 @@ export function assignDailyRole(input: z.input<typeof DailyRoleSchema>): DailyRo
 
 export function listGatherSessions(): GatherSession[] {
   return [...gatherSessions].sort((a, b) => b.startsAt.localeCompare(a.startsAt));
+}
+
+// Privacy set: full deletes, no tombstones. Cards belong to the shared
+// family pool (no per-card owner in the schema) and are kept; everything
+// attributable to the member — wishes, reactions, plays, daily roles — is
+// fully deleted.
+export function deleteMemberTraces(memberId: string): { wishes: number; reactions: number; plays: number; roles: number } {
+  const count = {
+    wishes: wishes.filter((w) => w.memberId === memberId).length,
+    reactions: reactions.filter((r) => r.memberId === memberId).length,
+    plays: plays.filter((p) => p.memberId === memberId).length,
+    roles: dailyRoles.filter((d) => d.memberId === memberId).length,
+  };
+  wishes = wishes.filter((w) => w.memberId !== memberId);
+  reactions = reactions.filter((r) => r.memberId !== memberId);
+  plays = plays.filter((p) => p.memberId !== memberId);
+  dailyRoles = dailyRoles.filter((d) => d.memberId !== memberId);
+  return count;
+}
+
+export function removeMemberCompletely(memberId: string): boolean {
+  const exists = members.some((m) => m.id === memberId);
+  if (!exists) return false;
+  members = members.filter((m) => m.id !== memberId);
+  relationships = relationships.filter((r) => r.memberId !== memberId && r.relationMemberId !== memberId);
+  plays = plays.filter((p) => p.memberId !== memberId);
+  reactions = reactions.filter((r) => r.memberId !== memberId);
+  wishes = wishes.filter((w) => w.memberId !== memberId);
+  dailyRoles = dailyRoles.filter((d) => d.memberId !== memberId);
+  return true;
+}
+
+export interface Invite {
+  id: string;
+  code: string;
+  familyId: string;
+  expiresAt: string;
+}
+
+let invites: Invite[] = [];
+
+export function listInvites(): Invite[] {
+  return [...invites];
+}
+
+export function createInvite(code: string, expiresAt: string, familyId = "demo-family"): Invite {
+  const invite: Invite = { id: crypto.randomUUID(), code, familyId, expiresAt };
+  invites.push(invite);
+  return invite;
+}
+
+export function clearInvites(): void {
+  invites = [];
 }
 
 export function addGatherSession(input: z.input<typeof GatherSessionSchema>): GatherSession {

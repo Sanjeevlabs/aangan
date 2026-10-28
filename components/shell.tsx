@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
-import { AddSheet, type AddTab } from "./add-sheet";
+import { AddSheet, type AddTab, type ReplyContribution } from "./add-sheet";
 import { PlayerProvider } from "./player";
 import { TabBar } from "./tab-bar";
 import { ViewerProvider } from "./viewer";
@@ -9,7 +9,8 @@ import { ViewerProvider } from "./viewer";
 interface ShellState {
   addOpen: boolean;
   addTab: AddTab;
-  openAdd: (tab?: AddTab) => void;
+  replyTo: ReplyContribution | null;
+  openAdd: (tab?: AddTab, replyTo?: ReplyContribution | null) => void;
   closeAdd: () => void;
   refreshKey: number;
   bumpRefresh: () => void;
@@ -28,19 +29,24 @@ export function useShell(): ShellState {
 function ShellInner({ children }: { children: React.ReactNode }) {
   const [addOpen, setAddOpen] = useState(false);
   const [addTab, setAddTab] = useState<AddTab>("photos");
+  const [replyTo, setReplyTo] = useState<ReplyContribution | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [chromeHidden, setChromeHidden] = useState(false);
 
-  const openAdd = useCallback((tab: AddTab = "photos") => {
+  const openAdd = useCallback((tab: AddTab = "photos", contribution: ReplyContribution | null = null) => {
     setAddTab(tab);
+    setReplyTo(contribution);
     setAddOpen(true);
   }, []);
-  const closeAdd = useCallback(() => setAddOpen(false), []);
+  const closeAdd = useCallback(() => {
+    setAddOpen(false);
+    setReplyTo(null);
+  }, []);
   const bumpRefresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   const value = useMemo<ShellState>(
-    () => ({ addOpen, addTab, openAdd, closeAdd, refreshKey, bumpRefresh, chromeHidden, setChromeHidden }),
-    [addOpen, addTab, openAdd, closeAdd, refreshKey, bumpRefresh, chromeHidden],
+    () => ({ addOpen, addTab, replyTo, openAdd, closeAdd, refreshKey, bumpRefresh, chromeHidden, setChromeHidden }),
+    [addOpen, addTab, replyTo, openAdd, closeAdd, refreshKey, bumpRefresh, chromeHidden],
   );
 
   return (

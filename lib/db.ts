@@ -14,12 +14,15 @@ import {
   addSuggestion as memAddSuggestion,
   addWish as memAddWish,
   assignDailyRole as memAssignRole,
+  createInvite as memCreateInvite,
+  deleteMemberTraces as memDeleteTraces,
   getKinshipTerms as memGetKinship,
   getMember as memGetMember,
   listAgentRuns as memListAgentRuns,
   listCards as memListCards,
   listDailyRoles as memListRoles,
   listGatherSessions as memListGather,
+  listInvites as memListInvites,
   listMembers as memListMembers,
   listPlays as memListPlays,
   listReactions as memListReactions,
@@ -27,6 +30,7 @@ import {
   listRitualRuns as memListRitualRuns,
   listSuggestions as memListSuggestions,
   listWishes as memListWishes,
+  removeMemberCompletely as memRemoveMember,
   setKinshipTerms as memSetKinship,
   setMemberDisplayLang as memSetDisplayLang,
   setMemberHome as memSetHome,
@@ -34,6 +38,7 @@ import {
   setRitualRunStatus as memSetRunStatus,
   setSuggestionStatus as memSetSuggestionStatus,
   mockAddMember as memAddMember,
+  type Invite as MemInvite,
 } from "./store";
 import { isDbLive, supabaseServer } from "./supabase";
 import { AgentRunSchema, CardSchema, DailyRoleSchema, GatherSessionSchema, MemberSchema, PlaySchema, ReactionSchema, RelationshipSchema, RitualRunSchema, SuggestionSchema, WishSchema, type AgentRun, type Card, type DailyRole, type GatherSession, type Member, type Play, type Reaction, type Relationship, type RitualRun, type Suggestion, type Wish } from "./schemas";
@@ -596,6 +601,76 @@ export async function dbAddGatherSession(input: { title: string; startsAt: strin
   });
   if (error) return memAddGather(g);
   return g;
+}
+
+// ---- Privacy set + invites. ----
+
+export type Invite = MemInvite;
+
+export async function dbListInvites(): Promise<Invite[]> {
+  if (!live()) return memListInvites();
+  const sb = supabaseServer();
+  if (!sb) return memListInvites();
+  const { data, error } = await sb.from("invites").select("*").order("created_at", { ascending: false });
+  if (error || !data) return memListInvites();
+  return data.map((r) => ({
+    id: r.id as string,
+    code: r.code as string,
+    familyId: r.family_id as string,
+    expiresAt: r.expires_at instanceof Date ? r.expires_at.toISOString() : String(r.expires_at),
+  }));
+}
+
+function inviteCode(): string {
+  const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  let out = "";
+  const bytes = crypto.getRandomValues(new Uint8Array(6));
+  for (let i = 0; i < bytes.length; i++) out += chars[bytes[i] % chars.length];
+  return out;
+}
+
+export async function dbCreateInvite(familyId = "demo-family"): Promise<Invite> {
+  const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString();
+  if (!live()) return memCreateInvite(inviteCode(), expiresAt, familyId);
+  const sb = supabaseServer();
+  if (!sb) return memCreateInvite(inviteCode(), expiresAt, familyId);
+  const invite: Invite = { id: crypto.randomUUID(), code: inviteCode(), familyId, expiresAt };
+  const { error } = await sb.from("invites").insert({
+    id: invite.id,
+    family_id: familyId,
+    code: invite.code,
+    expires_at: expiresAt,
+  });
+  if (error) return memCreateInvite(invite.code, expiresAt, familyId);
+  return invite;
+}
+
+// "Remove my memories": delete the member's attributable traces (cards stay
+// in the shared family pool). "Leave family": remove the member completely.
+export async function dbDeleteMemberTraces(memberId: string): Promise<Record<string, number>> {
+  if (!live()) return memDeleteTraces(memberId);
+  const sb = supabaseServer();
+  if (!sb) return memDeleteTraces(memberId);
+  const tables = ["wishes", "reactions", "plays", "daily_roles"];
+  for (const t of tables) {
+    await sb.from(t).delete().eq("member_id", memberId);
+  }
+  return memDeleteTraces(memberId);
+}
+
+export async function dbRemoveMember(memberId: string): Promise<boolean> {
+  if (!live()) return memRemoveMember(memberId);
+  const sb = supabaseServer();
+  if (!sb) return memRemoveMember(memberId);
+  await sb.from("relationships").delete().or(`member_id.eq.${memberId},relation_member_id.eq.${memberId}`);
+  const tables = ["wishes", "reactions", "plays", "daily_roles"];
+  for (const t of tables) {
+    await sb.from(t).delete().eq("member_id", memberId);
+  }
+  const { error } = await sb.from("members").delete().eq("id", memberId);
+  if (error) return false;
+  memRemoveMember(memberId);
+  return true;
 }
 
 export async function dbSetReaction(input: { cardId: string; memberId: string; kind: Reaction["kind"]; familyId?: string }): Promise<Reaction> {
