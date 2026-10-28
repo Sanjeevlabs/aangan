@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { DEFAULT_VIEWER_ID, DEMO_FAMILY, DEMO_MEMBERS, signalLineFor } from "@/lib/family";
 import { normalizeDisplayLang, type SupportedLang } from "@/lib/i18n";
-import type { Member } from "@/lib/schemas";
+import type { Member, Relationship } from "@/lib/schemas";
 
 interface ViewerState {
   /** True once the session and family have loaded (or there is no session). */
@@ -11,6 +11,8 @@ interface ViewerState {
   signedIn: boolean;
   viewer: Member;
   members: Member[];
+  /** How everyone is related (households, the tree, the dock). */
+  relationships: Relationship[];
   lang: SupportedLang;
   displayLang: SupportedLang;
   signalLine: string;
@@ -24,6 +26,12 @@ const ViewerContext = createContext<ViewerState | null>(null);
 const fallbackViewer = (): Member =>
   DEMO_MEMBERS.find((m) => m.id === DEFAULT_VIEWER_ID) ?? DEMO_MEMBERS[0];
 
+async function fetchRelationships(): Promise<Relationship[]> {
+  const res = await fetch("/api/relationships", { cache: "no-store" });
+  if (!res.ok) return [];
+  return ((await res.json()) as { relationships: Relationship[] }).relationships;
+}
+
 async function fetchMembers(): Promise<Member[]> {
   const res = await fetch("/api/members", { cache: "no-store" });
   if (!res.ok) throw new Error("members-fetch-failed");
@@ -33,6 +41,7 @@ async function fetchMembers(): Promise<Member[]> {
 
 export function ViewerProvider({ children }: { children: React.ReactNode }) {
   const [members, setMembers] = useState<Member[]>(DEMO_MEMBERS);
+  const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [viewerId, setViewerIdState] = useState<string>(DEFAULT_VIEWER_ID);
   const [ready, setReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
@@ -54,8 +63,9 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
 
   const refreshMembers = useCallback(async () => {
     try {
-      const fresh = await fetchMembers();
+      const [fresh, rels] = await Promise.all([fetchMembers(), fetchRelationships().catch(() => [] as Relationship[])]);
       if (fresh.length > 0) setMembers(fresh);
+      setRelationships(rels);
     } catch {
       // Offline or server hiccup: keep the seeded demo members.
     }
@@ -67,8 +77,9 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch("/api/session", { cache: "no-store" });
       if (res.ok) {
         const s = (await res.json()) as { memberId: string };
-        const fresh = await fetchMembers().catch(() => [] as Member[]);
+        const [fresh, rels] = await Promise.all([fetchMembers().catch(() => [] as Member[]), fetchRelationships().catch(() => [] as Relationship[])]);
         if (fresh.length > 0) setMembers(fresh);
+        setRelationships(rels);
         setViewerIdState(s.memberId);
         setSignedIn(true);
       } else {
@@ -114,6 +125,7 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
       signedIn,
       viewer,
       members,
+      relationships,
       lang: displayLang,
       displayLang,
       signalLine: signalLineFor(viewer.id, displayLang),
@@ -121,7 +133,7 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
       setDisplayLang,
       refreshMembers,
     };
-  }, [members, viewerId, ready, signedIn, refreshMembers, setDisplayLang, setViewerId]);
+  }, [members, relationships, viewerId, ready, signedIn, refreshMembers, setDisplayLang, setViewerId]);
 
   return <ViewerContext.Provider value={value}>{children}</ViewerContext.Provider>;
 }

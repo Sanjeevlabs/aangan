@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useRef, useState } from "react";
 import { usePlayer } from "@/components/player";
 import { useShell } from "@/components/shell";
-import { Avatar, Button, EmptyLine, Icon, MuseMark, Photo, PlayButton, RoomHeader, SectionTitle } from "@/components/ui/kit";
+import { Avatar, Button, EmptyLine, Icon, Monogram, MuseMark, Photo, PlayButton, RoomHeader, SectionTitle } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
 import type { Attempt, Recipe } from "@/lib/kinds";
 import { language } from "@/lib/languages";
@@ -58,7 +58,7 @@ export default function RecipePage() {
       <RoomHeader title={r.title} subtitle={r.serves ? `Serves ${r.serves}` : `${callName(cook)}'s recipe`} />
 
       <div className="relative h-[300px] overflow-hidden rounded-hero bg-[#3a2a1c]" style={{ boxShadow: "0 24px 50px -22px rgba(120,70,20,.6)" }}>
-        {cookPhoto && <Photo src={cookPhoto} alt={callName(cook)} sizes="440px" priority position="center 25%" />}
+        {cookPhoto ? <Photo src={cookPhoto} alt={callName(cook)} sizes="440px" priority position="center 25%" /> : <div className="absolute inset-0"><Monogram name={callName(cook)} size={300} /></div>}
         <div className="glass absolute inset-x-2.5 bottom-2.5 rounded-[22px] p-4">
           {r.memory && <p className="voice m-0 mb-3 text-[19px] leading-snug text-white">“{r.memory}”</p>}
           {voice ? (

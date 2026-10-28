@@ -121,6 +121,17 @@ export async function dbListFamilyIds(): Promise<string[]> {
 // a live error) are filtered the same way, so a new family never sees another
 // family's rows.
 const DEMO_FAMILY = "demo-family";
+
+/** Live rows win; seeded demo rows fill in anything the database doesn't have. */
+function withDemoSeed<T extends { id: string }>(live: T[], seed: T[], merge?: (live: T, seed: T) => T): T[] {
+  const seedById = new Map(seed.map((x) => [x.id, x]));
+  const out = live.map((row) => {
+    const s = seedById.get(row.id);
+    return s && merge ? merge(row, s) : row;
+  });
+  const ids = new Set(live.map((x) => x.id));
+  return [...out, ...seed.filter((x) => !ids.has(x.id))];
+}
 function scoped<T extends { familyId?: string | null }>(rows: T[], familyId: string | undefined): T[] {
   return familyId ? rows.filter((r) => (r.familyId ?? DEMO_FAMILY) === familyId) : rows;
 }
@@ -178,7 +189,8 @@ export async function dbListMembers(familyId: string = DEMO_FAMILY): Promise<Mem
   if (!sb) return scoped(memListMembers(), familyId);
   const { data, error } = await sb.from("members").select("*").eq("family_id", familyId);
   if (error || !data || (data.length === 0 && familyId === DEMO_FAMILY)) return scoped(memListMembers(), familyId);
-  return data.map(memberFromRow);
+  const rows = data.map(memberFromRow);
+  return familyId === DEMO_FAMILY ? withDemoSeed(rows, scoped(memListMembers(), familyId), (live, seed) => ({ ...live, photoRef: live.photoRef ?? seed.photoRef })) : rows;
 }
 
 export async function dbGetMember(id: string): Promise<Member | undefined> {
@@ -335,7 +347,7 @@ export async function dbListRelationships(familyId: string = DEMO_FAMILY): Promi
   if (!sb) return scoped(memListRelationships(), familyId);
   const { data, error } = await sb.from("relationships").select("*").eq("family_id", familyId);
   if (error || !data || (data.length === 0 && familyId === DEMO_FAMILY)) return scoped(memListRelationships(), familyId);
-  return data.map((r) =>
+  const rows = data.map((r) =>
     RelationshipSchema.parse({
       id: r.id,
       familyId: r.family_id,
@@ -345,6 +357,9 @@ export async function dbListRelationships(familyId: string = DEMO_FAMILY): Promi
       canonicalKind: canonicalKindFor(r.relation),
     }),
   );
+  // The demo family's seeded graph lives in memory: one new live edge must
+  // never hide it (that flattened the demo tree once a person was added).
+  return familyId === DEMO_FAMILY ? withDemoSeed(rows, scoped(memListRelationships(), familyId)) : rows;
 }
 
 // Canonical edge kind from the family's own word. Data in, data out.

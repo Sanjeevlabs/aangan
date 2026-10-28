@@ -105,6 +105,15 @@ export function seedDemoRooms(now = Date.now()): void {
   day
     .filter(([, h]) => h <= localNow + shift)
     .forEach(([moment, h, note], i) => seedDoc(FAM, "presence", { id: `presence-dadi-${i}`, memberId: "dadi", moment, note, at: ago(Math.round((localNow + shift - h) * 60), now) }));
+  const dadaDay: [string, number, string][] = [
+    ["walk", 7.5, "With Dadi, round the park"],
+    ["market", 10.25, "Newspaper and milk"],
+    ["garden", 16.5, "The tulsi needs water"],
+    ["resting", 22, ""],
+  ];
+  dadaDay
+    .filter(([, h]) => h <= localNow + shift)
+    .forEach(([moment, h, note], i) => seedDoc(FAM, "presence", { id: `presence-dada-${i}`, memberId: "dada", moment, note, at: ago(Math.round((localNow + shift - h) * 60), now) }));
   seedDoc(FAM, "presence", { id: "presence-arjun-0", memberId: "arjun", moment: "thinking", note: "", at: ago(15, now) });
   seedDoc(FAM, "care_settings", { id: "dadi", memberId: "dadi", quietAlert: true, tellMemberId: "arjun", graceHours: 3, updatedAt: ago(60 * 24 * 6, now) });
 
@@ -117,6 +126,7 @@ export function seedDemoRooms(now = Date.now()): void {
     { id: "helper-gas", name: "Gas agency", role: "gas booking", phone: "+91 90000 00005", note: "Booking ID is in the kitchen drawer." },
   ];
   village.forEach((h) => seedDoc(FAM, "helper", { ...h, forMemberId: "dadi", addedBy: "arjun", createdAt: ago(60 * 24 * 20, now) }));
+  seedDoc(FAM, "helper", { id: "helper-dr-clinic", name: "Sharma Clinic", role: "doctor's clinic", forMemberId: "dada", phone: "+91 90000 00006", note: "Dada's regular check-ups. Imran bhai drives.", addedBy: "arjun", createdAt: ago(60 * 24 * 20, now) });
 
   // ---------- Care circle ----------
   seedDoc(FAM, "need", {

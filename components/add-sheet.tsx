@@ -3,6 +3,7 @@
 import { AnimatePresence, m } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { addressTo, householdName, households } from "@/lib/households";
 import { ASK_STARTERS } from "@/lib/i18n";
 import { blobToWav16k, extractVideoFrames, processImage, processVideo, processVoiceBlob, type ProcessedUpload } from "@/lib/media-client";
 import { getSessionMedia } from "@/lib/media-session";
@@ -131,20 +132,37 @@ function useMicLevels(stream: MediaStream | null, bars = 40): number[] {
 }
 
 /* ------------------------------------------------------------- recipients */
-function Recipients({ value, onChange }: { value: string | null; onChange: (id: string | null) => void }) {
-  const { viewer, members } = useViewer();
+/** Who a voice note is for: whole homes first ("Maa & Papa"), then any mix of people, or everyone. */
+function Recipients({ value, onChange }: { value: string[]; onChange: (ids: string[]) => void }) {
+  const { viewer, members, relationships } = useViewer();
+  const homes = households(members, relationships).filter((h) => !h.members.some((m) => m.id === viewer.id) && h.members.length > 1);
   const others = members.filter((mm) => mm.id !== viewer.id);
+  const toggle = (id: string) => onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
+  const isHome = (ids: string[]) => ids.length === value.length && ids.every((id) => value.includes(id));
   return (
-    <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5" role="radiogroup" aria-label="Who is this for">
+    <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5" role="group" aria-label="Who is this for">
+      {homes.map((h) => {
+        const ids = h.members.map((m) => m.id);
+        const on = isHome(ids);
+        return (
+          <button key={h.id} type="button" aria-pressed={on} onClick={() => onChange(on ? [] : ids)} className={cn("press flex h-11 shrink-0 items-center gap-2 rounded-full pl-1 pr-4 text-[15px] font-medium", on ? "bg-black text-white" : "bg-surface text-ink")}>
+            <span className="flex -space-x-2">
+              {h.members.slice(0, 2).map((m) => (
+                <Avatar key={m.id} src={memberPhoto(m)} name={callName(m)} size={30} />
+              ))}
+            </span>
+            {householdName(h, (m) => callName(m))}
+          </button>
+        );
+      })}
       {others.map((mm) => {
-        const on = value === mm.id;
+        const on = value.includes(mm.id) && !homes.some((h) => isHome(h.members.map((m) => m.id)));
         return (
           <button
             key={mm.id}
             type="button"
-            role="radio"
-            aria-checked={on}
-            onClick={() => onChange(mm.id)}
+            aria-pressed={on}
+            onClick={() => toggle(mm.id)}
             className={cn("press flex h-11 shrink-0 items-center gap-2 rounded-full pl-1 pr-4 text-[15px] font-medium", on ? "bg-black text-white" : "bg-surface text-ink")}
           >
             <Avatar src={memberPhoto(mm)} name={callName(mm)} size={34} />
@@ -154,10 +172,9 @@ function Recipients({ value, onChange }: { value: string | null; onChange: (id: 
       })}
       <button
         type="button"
-        role="radio"
-        aria-checked={value === null}
-        onClick={() => onChange(null)}
-        className={cn("press h-11 shrink-0 rounded-full px-4 text-[15px] font-medium", value === null ? "bg-black text-white" : "bg-surface text-ink")}
+        aria-pressed={value.length === 0}
+        onClick={() => onChange([])}
+        className={cn("press h-11 shrink-0 rounded-full px-4 text-[15px] font-medium", value.length === 0 ? "bg-black text-white" : "bg-surface text-ink")}
       >
         Everyone
       </button>
@@ -175,11 +192,11 @@ interface VoiceReady {
   unavailable: boolean;
 }
 
-function VoiceComposer({ addressee, contribution, onDone }: { addressee: string | null; contribution: ReplyContribution | null; onDone: () => void }) {
+function VoiceComposer({ addressee, contribution, onDone }: { addressee: string[] | null; contribution: ReplyContribution | null; onDone: () => void }) {
   const router = useRouter();
-  const { viewer, members, displayLang } = useViewer();
+  const { viewer, members, relationships, displayLang } = useViewer();
   const purpose = contribution && contribution.kind !== "wish" && contribution.kind !== "blessing" ? PURPOSE[contribution.kind] : null;
-  const [to, setTo] = useState<string | null>(addressee);
+  const [to, setTo] = useState<string[]>(addressee ?? []);
   const [consent, setConsent] = useState<boolean | null>(null);
   const [phase, setPhase] = useState<"idle" | "recording" | "working" | "ready">("idle");
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -192,7 +209,14 @@ function VoiceComposer({ addressee, contribution, onDone }: { addressee: string 
   const chunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const levels = useMicLevels(stream);
-  const person = members.find((mm) => mm.id === to);
+  // "Maa & Papa" when a whole home is chosen, otherwise the people's names.
+  const toLabel = (() => {
+    if (to.length === 0) return "";
+    const home = households(members, relationships).find((h) => h.members.length === to.length && h.members.every((m) => to.includes(m.id)));
+    if (home) return householdName(home, (m) => callName(m));
+    const names = to.map((id) => callName(members.find((m) => m.id === id)));
+    return names.length <= 2 ? names.join(" & ") : `${names.slice(0, 2).join(", ")} +${names.length - 2}`;
+  })();
 
   useEffect(() => {
     try {
@@ -284,7 +308,7 @@ function VoiceComposer({ addressee, contribution, onDone }: { addressee: string 
   const send = async () => {
     if (!ready) return;
     setPhase("working");
-    const posted = await postVoice({ ...ready, caption: ready.transcript, addressedTo: to });
+    const posted = await postVoice({ ...ready, caption: ready.transcript, addressedTo: addressTo(to) });
     if (!posted.ok) {
       setError("Couldn't send. Check your connection and try again.");
       setPhase("ready");
@@ -407,7 +431,7 @@ function VoiceComposer({ addressee, contribution, onDone }: { addressee: string 
               ) : phase === "working" ? (
                 "Listening back…"
               ) : (
-                purpose ? "Tap to start" : `Tap to talk${person ? ` to ${callName(person)}` : " to everyone"}`
+                purpose ? "Tap to start" : `Tap to talk${toLabel ? ` to ${toLabel}` : " to everyone"}`
               )}
             </p>
             <button
@@ -436,7 +460,7 @@ function VoiceComposer({ addressee, contribution, onDone }: { addressee: string 
           </Button>
           <Button className="flex-[1.4]" onClick={() => void send()}>
             <Icon name="send" size={18} />
-            {purpose ? purpose.cta : `Send${person ? ` to ${callName(person)}` : ""}`}
+            {purpose ? purpose.cta : `Send${toLabel ? ` to ${toLabel}` : ""}`}
           </Button>
         </div>
       ) : (

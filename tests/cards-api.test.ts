@@ -49,7 +49,7 @@ describe("members API (mock store)", () => {
       family: { id: string };
     };
     expect(data.family.id).toBe("demo-family");
-    expect(data.members).toHaveLength(4);
+    expect(data.members).toHaveLength(5); // Dadi, Dada, Dad, Leo, Aria
     expect(data.members.find((m) => m.id === "dadi")?.role).toBe("elder");
   });
 

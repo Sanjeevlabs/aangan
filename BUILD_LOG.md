@@ -164,3 +164,13 @@
 - Removed the manual "Taken with Meta glasses" toggle: glasses photos are still recognised from camera metadata (EXIF Make/Model), but the app no longer lets anyone claim it by hand.
 - README: the rooms, and a "Built with Meta" section mapping each Muse model to the features it powers and the safety rails around it.
 - Verified: lint ok, typecheck ok, tests 134 passed + 3 skipped, production build ok; Playwright QA of every new screen as a grandchild (Leo) and as a grandparent (Dadi), no page errors.
+
+## 29 Oct 2026 · Stage 4: homes, not one person · the living tree
+
+- Households (`lib/households.ts`): a home is a couple (or one adult) plus the children who live with them. A child's two parents count as a couple even if nobody added "husband" (families add "mother" and "father" separately).
+- The dock talks to a home: "Talk to Maa & Papa", or "Reply to Dadi & Dada" when they're waiting on you. Otherwise it picks the far home you've spoken to least recently, so a quieter home doesn't drift (recency alone keeps you talking to the same person). The composer picks whole homes or any mix of people; voice notes can address a household.
+- Courtyard: one card per far home ("Maa & Papa's evening · 7:40 PM in India") with each parent's latest moment. Care circle forms around a home: both parents' days, needs for either, one shared Village, one "whose week" rota. Helpers serve the whole home on the server too.
+- Family tree as a living tree: the eldest couple is the trunk rooted in the ground, children are branches, partners graft on as twigs, grandchildren are leaves (leaf-shaped frames). In-laws grow as their own trunk and their branch reaches their child. Tidy-tree layout (no overlaps at any size), fits a phone down to 72% and scrolls beyond.
+- Fix: on a live database the demo family's relationships were dropped as soon as one new relationship existed (tree flattened to a row) and demo portraits were missing (initials). Live rows now merge with the seeded graph; SQL seeds the edges and portraits too.
+- Demo: Dada joins Dadi at home in India. People without photos get a warm monogram instead of a grey box.
+- Verified: lint ok, typecheck ok, tests 140 passed + 3 skipped, production build ok; browser QA on the demo and on a nine-person, two-grandparent-home family.

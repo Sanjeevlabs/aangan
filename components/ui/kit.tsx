@@ -306,11 +306,36 @@ export function Avatar({ src, name, size = 40, ring = false }: { src: string | n
       className="relative inline-block shrink-0 overflow-hidden rounded-full bg-surface"
       style={{ width: size, height: size, boxShadow: ring ? "0 0 0 2px #fff, 0 0 0 3px var(--line)" : undefined }}
     >
-      {src ? (
-        <Photo src={src} alt={name} sizes={`${size * 2}px`} position="center 30%" />
-      ) : (
-        <span className="grid h-full w-full place-items-center text-[15px] font-semibold text-ink-soft">{name.slice(0, 1)}</span>
-      )}
+      {src ? <Photo src={src} alt={name} sizes={`${size * 2}px`} position="center 30%" /> : <Monogram name={name} size={size} />}
+    </span>
+  );
+}
+
+/** Warm, stable tone per name, so a person without a photo still looks like someone. */
+const TONES: [string, string][] = [
+  ["#f4d7b5", "#c98a5a"],
+  ["#e7d3c0", "#a7705a"],
+  ["#dfe3c8", "#8c9a5f"],
+  ["#d7e2e4", "#6f8f99"],
+  ["#ecd2d0", "#b06f6a"],
+  ["#e6dcc9", "#9c8460"],
+];
+export function toneFor(name: string): [string, string] {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return TONES[h % TONES.length];
+}
+
+/** Initial in the voice serif on a soft gradient: used wherever a portrait is missing. */
+export function Monogram({ name, size }: { name: string; size: number }) {
+  const [light, deep] = toneFor(name || "?");
+  return (
+    <span
+      className="voice grid h-full w-full select-none place-items-center text-white"
+      style={{ background: `radial-gradient(120% 120% at 30% 20%, ${light}, ${deep})`, fontSize: Math.max(14, size * 0.44) }}
+      aria-hidden="true"
+    >
+      {(name || "?").trim().slice(0, 1).toUpperCase()}
     </span>
   );
 }

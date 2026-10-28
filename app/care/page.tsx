@@ -13,6 +13,7 @@ import { MOMENT_LABEL, at, quietDay, todayFor, whoseWeek } from "@/lib/presence"
 import type { Member } from "@/lib/schemas";
 import { ago, postJson, useJson } from "@/lib/use-json";
 import { cn } from "@/lib/utils";
+import { householdName, householdOf, households } from "@/lib/households";
 import { dayPartIn, placeFromTz, timeIn } from "@/lib/zones";
 
 interface CareData {
@@ -43,13 +44,16 @@ const field = "h-[52px] w-full rounded-full bg-white px-5 text-[16px] outline-no
 // trusted people in their Village who can actually go. Never surveillance,
 // never medical advice: tasks, people and reassurance.
 export default function CarePage() {
-  const { viewer, members } = useViewer();
+  const { viewer, members, relationships } = useViewer();
   const care = useJson<CareData>("/api/care");
   const pres = useJson<PresenceData>("/api/presence");
-  const parents = members.filter((m) => m.role === "elder");
+  // Care forms around a *home*: Maa and Papa together, not one of them.
+  const homes = households(members, relationships).filter((h) => h.elders);
   const [chosen, setChosen] = useState<string | null>(null);
-  const parentId = chosen ?? (viewer.role === "elder" ? viewer.id : parents[0]?.id ?? null);
-  const parent = members.find((m) => m.id === parentId);
+  const home = homes.find((h) => h.id === chosen) ?? (viewer.role === "elder" ? householdOf(viewer.id, homes) : undefined) ?? homes.find((h) => !h.members.some((m) => m.id === viewer.id)) ?? homes[0];
+  const parent = home?.members.find((m) => m.id === viewer.id && m.role === "elder") ?? home?.members[0];
+  const ids = home?.members.map((m) => m.id) ?? [];
+  const homeName = home ? householdName(home, (m) => callName(m)) : "";
   const reload = () => Promise.all([care.reload(), pres.reload()]);
 
   if (!parent) {
@@ -63,18 +67,22 @@ export default function CarePage() {
       </div>
     );
   }
-  const isParent = parent.id === viewer.id;
+  const isParent = ids.includes(viewer.id) && viewer.role === "elder";
 
   return (
     <div>
-      <RoomHeader title={isParent ? "Your care circle" : `Caring for ${callName(parent)}`} subtitle={isParent ? "Ask for anything. Your family and your Village will see it." : "Their day, what they need, and who can go"} />
+      <RoomHeader title={isParent ? "Your care circle" : `Caring for ${homeName}`} subtitle={isParent ? "Ask for anything. Your family and your Village will see it." : "Their day, what they need, and who can go"} />
 
-      {!isParent && parents.length > 1 && (
+      {!isParent && homes.length > 1 && (
         <div className="no-scrollbar -mx-5 mb-5 flex gap-2 overflow-x-auto px-5">
-          {parents.map((p) => (
-            <button key={p.id} type="button" onClick={() => setChosen(p.id)} aria-pressed={p.id === parent.id} className={cn("press flex h-11 shrink-0 items-center gap-2 rounded-full pl-1 pr-4 text-[15px] font-medium", p.id === parent.id ? "bg-black text-white" : "bg-surface")}>
-              <Avatar src={memberPhoto(p)} name={callName(p)} size={34} />
-              {callName(p)}
+          {homes.map((h) => (
+            <button key={h.id} type="button" onClick={() => setChosen(h.id)} aria-pressed={h.id === home?.id} className={cn("press flex h-11 shrink-0 items-center gap-2 rounded-full pl-1 pr-4 text-[15px] font-medium", h.id === home?.id ? "bg-black text-white" : "bg-surface")}>
+              <span className="flex -space-x-2">
+                {h.members.slice(0, 2).map((m) => (
+                  <Avatar key={m.id} src={memberPhoto(m)} name={callName(m)} size={30} />
+                ))}
+              </span>
+              {householdName(h, (m) => callName(m))}
             </button>
           ))}
         </div>
@@ -84,11 +92,17 @@ export default function CarePage() {
         <div className="skeleton h-[260px] rounded-hero" aria-busy="true" aria-label="Loading care circle" />
       ) : (
         <>
-          {!isParent && <TheirDay parent={parent} presence={pres.data.presence} settings={pres.data.settings} viewerId={viewer.id} />}
+          {!isParent && (
+            <div className="space-y-3">
+              {home!.members.filter((m) => m.role === "elder").map((m) => (
+                <TheirDay key={m.id} parent={m} presence={pres.data!.presence} settings={pres.data!.settings} viewerId={viewer.id} />
+              ))}
+            </div>
+          )}
           {isParent && <AskForHelp parent={parent} onAsked={reload} />}
-          <WhoseWeek parent={parent} rota={care.data.rotas.find((r) => r.forMemberId === parent.id)} members={members} viewerId={viewer.id} onChange={reload} isParent={isParent} />
-          <Needs parent={parent} needs={care.data.needs.filter((n) => n.forMemberId === parent.id)} helpers={care.data.helpers.filter((h) => h.forMemberId === parent.id)} members={members} viewerId={viewer.id} isParent={isParent} onChange={reload} />
-          <Village parent={parent} helpers={care.data.helpers.filter((h) => h.forMemberId === parent.id)} onChange={reload} />
+          <WhoseWeek parent={parent} homeName={homeName} rota={care.data.rotas.find((r) => ids.includes(r.forMemberId))} members={members} viewerId={viewer.id} onChange={reload} isParent={isParent} />
+          <Needs parent={parent} homeName={homeName} home={home!.members} needs={care.data.needs.filter((n) => ids.includes(n.forMemberId))} helpers={care.data.helpers.filter((h) => ids.includes(h.forMemberId))} members={members} viewerId={viewer.id} isParent={isParent} onChange={reload} />
+          <Village parent={parent} homeName={homeName} helpers={care.data.helpers.filter((h) => ids.includes(h.forMemberId))} onChange={reload} />
           {isParent && <MySharing settings={pres.data.settings.find((s) => s.memberId === viewer.id)} members={members} viewerId={viewer.id} onChange={reload} />}
         </>
       )}
@@ -189,7 +203,7 @@ function KindChips({ value, onChange }: { value: (typeof NEED_KINDS)[number]; on
   );
 }
 
-function WhoseWeek({ parent, rota, members, viewerId, onChange, isParent }: { parent: Member; rota: Rota | undefined; members: Member[]; viewerId: string; onChange: () => void; isParent: boolean }) {
+function WhoseWeek({ parent, homeName, rota, members, viewerId, onChange, isParent }: { parent: Member; homeName: string; rota: Rota | undefined; members: Member[]; viewerId: string; onChange: () => void; isParent: boolean }) {
   const name = (id: string) => (id === viewerId ? "You" : callName(members.find((m) => m.id === id)));
   if (!rota) {
     if (isParent) return null;
@@ -207,11 +221,11 @@ function WhoseWeek({ parent, rota, members, viewerId, onChange, isParent }: { pa
     <section aria-label="Whose week" className="mt-4 flex items-center gap-3 rounded-card bg-surface p-4">
       <Avatar src={memberPhoto(members.find((m) => m.id === current))} name={name(current)} size={44} />
       <div className="min-w-0 flex-1">
-        <p className="m-0 text-[16px] font-semibold">{isParent ? `${name(current)} ${current === viewerId ? "are" : "is"} checking in on you this week` : `${name(current)} ${current === viewerId ? "are" : "is"} the check-in person this week`}</p>
+        <p className="m-0 text-[16px] font-semibold">{isParent ? `${name(current)} ${current === viewerId ? "are" : "is"} checking in on you this week` : `${name(current)} ${current === viewerId ? "check" : "checks"} in on ${homeName} this week`}</p>
         {next && next !== current && <p className="m-0 text-[13px] text-ink-soft">Next week: {name(next)}</p>}
       </div>
       {!isParent && current !== viewerId && (
-        <button type="button" className="press h-10 shrink-0 rounded-full bg-white px-3.5 text-[14px] font-semibold" onClick={async () => { await postJson("/api/care", { action: "take-week", forMemberId: parent.id }); onChange(); }}>
+        <button type="button" className="press h-10 shrink-0 rounded-full bg-white px-3.5 text-[14px] font-semibold" onClick={async () => { await postJson("/api/care", { action: "take-week", forMemberId: rota.forMemberId }); onChange(); }}>
           I&rsquo;ll take it
         </button>
       )}
@@ -219,7 +233,8 @@ function WhoseWeek({ parent, rota, members, viewerId, onChange, isParent }: { pa
   );
 }
 
-function Needs({ parent, needs, helpers, members, viewerId, isParent, onChange }: { parent: Member; needs: Need[]; helpers: Helper[]; members: Member[]; viewerId: string; isParent: boolean; onChange: () => void }) {
+function Needs({ parent, homeName, home, needs, helpers, members, viewerId, isParent, onChange }: { parent: Member; homeName: string; home: Member[]; needs: Need[]; helpers: Helper[]; members: Member[]; viewerId: string; isParent: boolean; onChange: () => void }) {
+  const [forId, setForId] = useState(parent.id);
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [kind, setKind] = useState<(typeof NEED_KINDS)[number]>("other");
@@ -235,7 +250,7 @@ function Needs({ parent, needs, helpers, members, viewerId, isParent, onChange }
 
   return (
     <section aria-label="Needs">
-      <SectionTitle>{isParent ? "What you asked for" : `What ${callName(parent)} needs`}</SectionTitle>
+      <SectionTitle>{isParent ? "What you asked for" : `What ${homeName} need`}</SectionTitle>
       {open.length === 0 && <p className="m-0 text-[15px] text-ink-soft">{isParent ? "Nothing pending." : "Nothing pending. Good."}</p>}
       <ul className="m-0 list-none space-y-3 p-0">
         {open.map((n) => {
@@ -248,7 +263,8 @@ function Needs({ parent, needs, helpers, members, viewerId, isParent, onChange }
                   <p className="m-0 mt-0.5 text-[13px] text-ink-soft">
                     {NEED_LABEL[n.kind]}
                     {n.when ? ` · ${n.when}` : ""} · asked {ago(n.createdAt)}
-                    {n.askedBy !== parent.id ? ` by ${name(n.askedBy)}` : ""}
+                    {home.length > 1 ? ` · for ${name(n.forMemberId)}` : ""}
+                    {n.askedBy !== n.forMemberId ? ` · by ${name(n.askedBy)}` : ""}
                   </p>
                 </div>
                 <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-[12px] font-semibold", n.status === "open" ? "bg-[#fff0d6] text-[#8a4b00]" : "bg-[#e6f4ea] text-[#1e6b3a]")}>{n.status === "open" ? "Open" : "On it"}</span>
@@ -261,7 +277,7 @@ function Needs({ parent, needs, helpers, members, viewerId, isParent, onChange }
               {n.noteForParent && (
                 <div className="mt-3 rounded-[16px] bg-white px-3.5 py-2.5">
                   <p className="voice m-0 text-[17px] leading-snug">{n.noteForParent}</p>
-                  {!isParent && <MuseMark>note for {callName(parent)} in {language(parent.displayLang).native}</MuseMark>}
+                  {!isParent && <MuseMark>note for {name(n.forMemberId)} in {language(members.find((m) => m.id === n.forMemberId)?.displayLang ?? "en").native}</MuseMark>}
                 </div>
               )}
               {!isParent && (
@@ -303,10 +319,19 @@ function Needs({ parent, needs, helpers, members, viewerId, isParent, onChange }
           {!adding ? (
             <button type="button" onClick={() => setAdding(true)} className="press flex h-11 items-center gap-1.5 text-[15px] font-semibold">
               <Icon name="plus" size={18} />
-              Add something {callName(parent)} needs
+              Add something {homeName} need
             </button>
           ) : (
             <div className="space-y-2 rounded-card bg-surface p-4">
+              {home.filter((m) => m.role === "elder").length > 1 && (
+                <div className="flex gap-1.5" role="radiogroup" aria-label="For whom">
+                  {home.filter((m) => m.role === "elder").map((m) => (
+                    <button key={m.id} type="button" role="radio" aria-checked={forId === m.id} onClick={() => setForId(m.id)} className={cn("press h-9 rounded-full px-3.5 text-[14px] font-medium", forId === m.id ? "bg-black text-white" : "bg-white")}>
+                      For {callName(m)}
+                    </button>
+                  ))}
+                </div>
+              )}
               <input className={field} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} placeholder="Book the gas cylinder" />
               <KindChips value={kind} onChange={setKind} />
               <input className={field} value={when} onChange={(e) => setWhen(e.target.value)} maxLength={60} placeholder="When (optional)" />
@@ -315,7 +340,7 @@ function Needs({ parent, needs, helpers, members, viewerId, isParent, onChange }
                   className="flex-[1.4]"
                   disabled={title.trim().length < 3}
                   onClick={async () => {
-                    await act({ action: "need", forMemberId: parent.id, title: title.trim(), kind, when: when.trim() });
+                    await act({ action: "need", forMemberId: forId, title: title.trim(), kind, when: when.trim() });
                     setTitle("");
                     setWhen("");
                     setAdding(false);
@@ -355,7 +380,7 @@ function Needs({ parent, needs, helpers, members, viewerId, isParent, onChange }
   );
 }
 
-function Village({ parent, helpers, onChange }: { parent: Member; helpers: Helper[]; onChange: () => void }) {
+function Village({ parent, homeName, helpers, onChange }: { parent: Member; homeName: string; helpers: Helper[]; onChange: () => void }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [role, setRole] = useState<(typeof HELPER_ROLES)[number]>("groceries");
@@ -363,9 +388,9 @@ function Village({ parent, helpers, onChange }: { parent: Member; helpers: Helpe
   const [note, setNote] = useState("");
   const sorted = useMemo(() => [...helpers].sort((a, b) => a.role.localeCompare(b.role)), [helpers]);
   return (
-    <section aria-label={`${callName(parent)}'s Village`}>
-      <SectionTitle>{callName(parent)}&rsquo;s Village</SectionTitle>
-      <p className="m-0 -mt-1 mb-3 text-[14px] text-ink-soft">The trusted people near {callName(parent)}: the ones who can actually go when the family is far away.</p>
+    <section aria-label={`${homeName}'s Village`}>
+      <SectionTitle>{homeName}&rsquo;s Village</SectionTitle>
+      <p className="m-0 -mt-1 mb-3 text-[14px] text-ink-soft">The trusted people near {homeName}: the ones who can actually go when the family is far away.</p>
       {sorted.length === 0 && <EmptyLine>No one added yet. Start with the person who delivers groceries.</EmptyLine>}
       <ul className="m-0 list-none divide-y divide-[var(--line)] p-0">
         {sorted.map((h) => (
