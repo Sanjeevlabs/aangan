@@ -1,10 +1,11 @@
 "use client";
 
-import { EmptyLine, RoomHeader } from "@/components/ui/kit";
-
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Suggestions } from "@/components/suggestions";
-import { useViewer } from "@/components/viewer";
+import { EmptyLine, Icon, MuseMark, RoomHeader, SectionTitle } from "@/components/ui/kit";
+import type { MuseCall } from "@/lib/kinds";
+import { ago, useJson } from "@/lib/use-json";
+import { cn } from "@/lib/utils";
 
 interface Run {
   id: string;
@@ -13,92 +14,107 @@ interface Run {
   status: string;
   createdAt: string;
 }
-
-interface Suggestion {
-  id: string;
-  goal: string;
-  status: string;
-  createdAt: string;
+interface TraceData {
+  runs: Run[];
+  suggestions: { id: string; goal: string; status: string; createdAt: string }[];
+  museCalls: MuseCall[];
+  spendTotalUsd: number;
+  demo?: boolean;
 }
 
-// Minimal agent trace page: recent runs + suggestions + spend.
+// Transparency, not a dashboard: what Muse did for this family, in sentences,
+// with the model, time and cost of each step. Nothing Muse proposes runs
+// without a person approving it.
 export default function TracePage() {
-  const { lang } = useViewer();
-  void lang;
-  const [runs, setRuns] = useState<Run[] | null>(null);
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [spend, setSpend] = useState<number | null>(null);
-  const [failed, setFailed] = useState(false);
+  const { data, failed } = useJson<TraceData>("/api/trace");
+  const [showRuns, setShowRuns] = useState(false);
+  const calls = data?.museCalls ?? [];
+  const cached = calls.filter((c) => c.cached).length;
 
-  useEffect(() => {
-    let live = true;
-    fetch("/api/trace", { cache: "no-store" })
-      .then((r) => {
-        if (!r.ok) throw new Error("trace-fetch-failed");
-        return r.json();
-      })
-      .then((data: { runs: Run[]; suggestions: Suggestion[]; spendTotalUsd: number }) => {
-        if (!live) return;
-        setRuns(data.runs);
-        setSuggestions(data.suggestions);
-        setSpend(data.spendTotalUsd);
-      })
-      .catch(() => {
-        if (live) setFailed(true);
-      });
-    return () => {
-      live = false;
-    };
-  }, []);
-
-  // A transparency view: every step Aangan's agents took, what tools they
-  // used, and what it cost. Nothing an agent proposes runs without approval.
   return (
     <div>
-      <RoomHeader title="Agent activity" subtitle="What Aangan prepared for your family, and what it cost" />
-      <Suggestions />
-      <div className="mb-8 flex items-baseline justify-between rounded-[22px] bg-surface px-5 py-4">
-        <span className="text-[15px] text-ink-soft">Model spend</span>
-        <span className="tnum text-[22px] font-bold">
-          ${spend === null ? "…" : spend.toFixed(2)}
-          <span className="text-[14px] font-medium text-ink-faint"> / $120 cap</span>
-        </span>
+      <RoomHeader title="What Muse did" subtitle="Every step Aangan's helper took for your family, and what it cost" />
+      <div className="mb-6 rounded-card bg-surface p-5">
+        <p className="m-0 flex items-center gap-2 text-[17px] font-semibold">
+          <Icon name="sparkle" size={18} />
+          Powered by Muse, working backstage
+        </p>
+        <ul className="m-0 mt-3 list-none space-y-1.5 p-0 text-[14px] text-ink-soft">
+          <li>· Writes down voices, recipes and needs. It never speaks for anyone.</li>
+          <li>· Translates each person&rsquo;s words into the reader&rsquo;s language.</li>
+          <li>· Asks elders one gentle question a week. It never chats with them.</li>
+          <li>· Proposes. A person approves before anything happens.</li>
+        </ul>
+        {data?.demo && <p className="m-0 mt-3 text-[12px] text-ink-faint">Demo family: some entries below are sample activity.</p>}
       </div>
-      <h2 className="m-0 mb-2 text-[20px]">Runs</h2>
+
+      <Suggestions />
+
+      <div className="mb-2 grid grid-cols-3 gap-2">
+        <Stat label="Muse steps" value={data ? String(calls.length) : "…"} />
+        <Stat label="From cache" value={data ? String(cached) : "…"} />
+        <Stat label="Spent" value={data ? `$${data.spendTotalUsd.toFixed(2)}` : "…"} sub="of $120 cap" />
+      </div>
+
+      <SectionTitle>Recent steps</SectionTitle>
       {failed && <EmptyLine>Activity is unavailable offline.</EmptyLine>}
-      {runs === null && !failed && <div className="skeleton h-14" aria-busy="true" aria-label="Loading" />}
-      {runs !== null && runs.length === 0 && <EmptyLine>No agent runs yet. The daily scan runs each morning.</EmptyLine>}
+      {data === null && !failed && <div className="skeleton h-40 rounded-card" aria-busy="true" />}
+      {data && calls.length === 0 && <EmptyLine>Nothing yet. Teach a recipe or record a voice note and Muse will help.</EmptyLine>}
       <ol className="m-0 list-none p-0">
-        {(runs ?? []).map((r) => (
-          <li key={r.id} className="border-b border-[var(--line)] py-3">
+        {calls.map((c) => (
+          <li key={c.id} className="border-b border-[var(--line)] py-3">
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[16px] font-semibold">{r.goal}</span>
-              <span className="tnum shrink-0 text-[13px] text-ink-faint">{new Date(r.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+              <span className="text-[16px] font-medium leading-snug">{c.purpose}</span>
+              <span className="shrink-0 text-[12px] text-ink-faint">{ago(c.at)}</span>
             </div>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {r.tools.map((tool) => (
-                <span key={tool} className="rounded-full bg-surface px-2.5 py-1 font-mono text-[12px] text-ink-soft">
-                  {tool}
-                </span>
-              ))}
-              <span className="rounded-full bg-[#e9f7ef] px-2.5 py-1 text-[12px] font-medium text-[#13653a]">{r.status}</span>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <span className="rounded-full bg-surface px-2.5 py-1 font-mono text-[12px] text-ink-soft">{c.model}</span>
+              <span className="tnum rounded-full bg-surface px-2.5 py-1 text-[12px] text-ink-soft">{c.cached ? "cached" : `${(c.ms / 1000).toFixed(1)}s`}</span>
+              <span className="tnum rounded-full bg-surface px-2.5 py-1 text-[12px] text-ink-soft">${c.cost.toFixed(2)}</span>
+              {!c.ok && <span className="rounded-full bg-[#fdecea] px-2.5 py-1 text-[12px] font-medium text-[#b42318]">safe fallback used</span>}
             </div>
           </li>
         ))}
       </ol>
-      {suggestions.length > 0 && (
-        <>
-          <h2 className="m-0 mb-2 mt-9 text-[20px]">Proposals</h2>
-          <ul className="m-0 list-none p-0">
-            {suggestions.map((sg) => (
-              <li key={sg.id} className="flex items-baseline justify-between gap-3 border-b border-[var(--line)] py-3">
-                <span className="text-[15px]">{sg.goal}</span>
-                <span className="shrink-0 text-[13px] text-ink-soft">{sg.status}</span>
-              </li>
-            ))}
-          </ul>
-        </>
+
+      {data && data.runs.length > 0 && (
+        <div className="mt-6">
+          <button type="button" onClick={() => setShowRuns((v) => !v)} aria-expanded={showRuns} className="flex h-11 items-center gap-1.5 text-[15px] font-semibold">
+            Agent runs ({data.runs.length})
+            <Icon name="down" size={16} className={cn("transition-transform", showRuns && "rotate-180")} />
+          </button>
+          {showRuns && (
+            <ol className="m-0 list-none p-0">
+              {data.runs.map((r) => (
+                <li key={r.id} className="border-b border-[var(--line)] py-3">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-[15px] font-semibold">{r.goal}</span>
+                    <span className="shrink-0 text-[12px] text-ink-faint">{ago(r.createdAt)}</span>
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {r.tools.map((tool) => (
+                      <span key={tool} className="rounded-full bg-surface px-2.5 py-1 font-mono text-[12px] text-ink-soft">
+                        {tool}
+                      </span>
+                    ))}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
       )}
+      <MuseMark className="mt-8">Meta Muse models · structured output · validated before it reaches you</MuseMark>
+    </div>
+  );
+}
+
+function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="rounded-[20px] bg-surface px-3 py-3">
+      <p className="tnum m-0 text-[22px] font-bold leading-none">{value}</p>
+      <p className="m-0 mt-1 text-[12px] text-ink-soft">{label}</p>
+      {sub && <p className="m-0 text-[11px] text-ink-faint">{sub}</p>}
     </div>
   );
 }

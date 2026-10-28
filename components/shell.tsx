@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { callName, peopleByRecency } from "@/lib/people";
 import { useFamilyCards } from "@/lib/use-family";
+import { useLargeText } from "@/lib/use-large-text";
 import dynamic from "next/dynamic";
 import type { AddTab, ReplyContribution } from "./add-sheet";
 
@@ -96,6 +97,10 @@ function RoomsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
                 </li>
               ))}
             </ul>
+            <Link href="/trace" onClick={onClose} className="flex h-11 items-center justify-center gap-1.5 text-[13px] font-medium text-ink-soft no-underline">
+              <Icon name="sparkle" size={14} />
+              What Muse did for your family
+            </Link>
           </m.nav>
         </div>
       )}
@@ -180,6 +185,8 @@ function Dock() {
 }
 
 function ShellInner({ children }: { children: React.ReactNode }) {
+  const { viewer } = useViewer();
+  const [large] = useLargeText(viewer.role === "elder");
   const [addOpen, setAddOpen] = useState(false);
   // Mount the composer on first open, then keep it mounted so its exit animation runs.
   const [sheetLoaded, setSheetLoaded] = useState(false);
@@ -214,7 +221,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
       <PlayerProvider>
         <main
           className="relative mx-auto min-h-full w-full max-w-[480px] px-5"
-          style={{ paddingTop: "calc(16px + env(safe-area-inset-top))", paddingBottom: "calc(140px + env(safe-area-inset-bottom))" }}
+          style={{ paddingTop: "calc(16px + env(safe-area-inset-top))", paddingBottom: "calc(140px + env(safe-area-inset-bottom))", zoom: large ? 1.12 : undefined }}
         >
           {children}
         </main>

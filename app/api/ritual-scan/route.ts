@@ -1,3 +1,4 @@
+import { askWeeklyQuestions } from "@/lib/keeper";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { planRitualScan } from "@/lib/ritual-agent";
@@ -72,10 +73,12 @@ async function runScan(familyId: string): Promise<Response> {
   for (const role of plan.roles) await dbAssignDailyRole(role.memberId, role.prompt, role.roleDate, familyId);
   const created = [];
   for (const s of plan.suggestions) created.push(await dbAddSuggestion({ goal: s.goal, payload: s.payload, familyId }));
+  // Story keeper: one gentle question per elder per week (idempotent).
+  const questions = await askWeeklyQuestions(familyId, members, now).catch(() => []);
   await dbAddAgentRun({
     familyId,
     goal: `Ritual scan ${nowISO.slice(0, 10)}`,
-    tools: ["read_family_graph", "request_wish", "schedule_notification", "assign_daily_role"],
+    tools: ["read_family_graph", "request_wish", "schedule_notification", "assign_daily_role", ...(questions.length ? ["ask_elder_question"] : [])],
     status: "done",
   });
   return Response.json({
@@ -84,5 +87,6 @@ async function runScan(familyId: string): Promise<Response> {
     runsDelivered: plan.deliverRuns.length,
     rolesAssigned: plan.roles.length,
     suggestions: created.length,
+    questionsAsked: questions.length,
   });
 }

@@ -155,3 +155,12 @@
 - Sit together (replaces the meeting-style Gather): a reason (chai, cook together with a recipe, story night, festival, songs, just sit), the hours when everyone is awake, each person's local time on every sitting, a "come sit with me" open door, a no-account video room, and an .ics download.
 - Demo family seeded relative to *Dadi's* clock so the demo always reads as her real day.
 - Verified: lint ok, typecheck ok, tests 133 passed + 3 skipped, production build ok.
+
+## 29 Oct 2026 · Stage 3: powered by Muse, made visible
+
+- *What Muse did* (`/trace`): every Muse step in a sentence ("Wrote up Dadi's recipe from a voice note") with model, latency, cost and cache status; agent runs and proposals below. Linked from the rooms sheet and Settings. Demo entries are labelled as sample activity.
+- Story keeper runs in the daily scan: one gentle question per elder per week, in their language, never repeated; asks, never chats.
+- Elder mode (PRD cut, now in): larger text and targets, on by default for the grandparent generation, switchable in Settings.
+- Removed the manual "Taken with Meta glasses" toggle: glasses photos are still recognised from camera metadata (EXIF Make/Model), but the app no longer lets anyone claim it by hand.
+- README: the rooms, and a "Built with Meta" section mapping each Muse model to the features it powers and the safety rails around it.
+- Verified: lint ok, typecheck ok, tests 134 passed + 3 skipped, production build ok; Playwright QA of every new screen as a grandchild (Leo) and as a grandparent (Dadi), no page errors.

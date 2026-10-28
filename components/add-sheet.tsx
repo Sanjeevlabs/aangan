@@ -467,7 +467,9 @@ function MomentComposer({ onDone }: { onDone: () => void }) {
   const { viewer } = useViewer();
   const [files, setFiles] = useState<File[]>([]);
   const [note, setNote] = useState("");
-  const [glasses, setGlasses] = useState(false);
+  // Glasses photos are recognised from the camera metadata itself (EXIF
+  // Make/Model); there is no manual claim.
+  const glasses = false;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -548,13 +550,6 @@ function MomentComposer({ onDone }: { onDone: () => void }) {
           placeholder="Add a note (optional)"
           className="h-[52px] w-full rounded-full bg-surface px-5 text-[16px] outline-none placeholder:text-ink-faint focus:ring-2 focus:ring-marigold"
         />
-      </label>
-      <label className="mt-3 flex h-11 cursor-pointer items-center justify-between px-1 text-[15px]">
-        Taken with Meta glasses
-        <input type="checkbox" checked={glasses} onChange={(e) => setGlasses(e.target.checked)} className="peer sr-only" />
-        <span aria-hidden="true" className="flex h-7 w-12 items-center rounded-full bg-black/15 p-0.5 transition-colors peer-checked:bg-black peer-focus-visible:ring-2 peer-focus-visible:ring-marigold [&>span]:peer-checked:translate-x-5">
-          <span className="h-6 w-6 rounded-full bg-white shadow transition-transform" />
-        </span>
       </label>
       {error && (
         <p className="m-0 mt-2 text-[14px] text-[#b42318]" role="alert">

@@ -5,6 +5,7 @@ import { GET as kitchenGet, POST as kitchenPost } from "@/app/api/kitchen/route"
 import { GET as keeperGet, POST as keeperPost } from "@/app/api/keeper/route";
 import { GET as presenceGet, POST as presencePost, PUT as presencePut } from "@/app/api/presence/route";
 import { GET as sitGet, POST as sitPost } from "@/app/api/sit/route";
+import { GET as traceGet } from "@/app/api/trace/route";
 import { dbAddCard } from "@/lib/db";
 import { listDocs, putDoc, resetDocs, seedDoc } from "@/lib/family-docs";
 import { groundedIn, mockRecipe } from "@/lib/kitchen";
@@ -189,5 +190,16 @@ describe("sit together", () => {
     expect(ics).toContain("DTSTART:20261101T133000Z");
     expect(ics).toContain(String.raw`SUMMARY:Chai\, together\; Sunday`);
     expect(roomUrl("sit-<script>")).toBe("https://meet.jit.si/Aangan-sit-script");
+  });
+});
+
+describe("what Muse did", () => {
+  it("logs every Muse step so the family can see it", async () => {
+    resetDocs();
+    seedDoc("demo-family", "muse_call", { id: "m1", purpose: "Test", model: "muse-spark-1.3", at: new Date().toISOString() });
+    const t = await json<{ museCalls: { purpose: string }[]; demo: boolean }>(traceGet(req("/api/trace")));
+    expect(t.museCalls[0].purpose).toBe("Test");
+    expect(t.demo).toBe(true);
+    await carePost(req("/api/care", "arjun", { action: "need", forMemberId: "dadi", title: "Milk" }));
   });
 });
