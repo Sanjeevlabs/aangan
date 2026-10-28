@@ -1,0 +1,27 @@
+{
+  "generated_at": "2026-10-28T08:11:35.140Z",
+  "model": "muse-image-1.0",
+  "notice": "AI-generated synthetic seed assets. Not real people, places, or events.",
+  "photos": [
+    {
+      "file": "family-dadi.webp",
+      "who": "dadi",
+      "bytes": 524266
+    },
+    {
+      "file": "family-leo.webp",
+      "who": "leo",
+      "bytes": 474112
+    },
+    {
+      "file": "family-aria.webp",
+      "who": "aria",
+      "bytes": 476358
+    },
+    {
+      "file": "family-group.webp",
+      "who": "dadi,arjun,leo,aria",
+      "bytes": 466572
+    }
+  ]
+}

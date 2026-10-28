@@ -363,6 +363,23 @@ export default function BondPage() {
           </section>
           <GuidedAdd onAdded={() => void load()} />
           <KinshipLookup members={members} />
+          <section aria-label="Demo family photos" className="mb-6">
+            <h2 className="mb-2 mt-0 text-xl">Demo photos · AI-generated</h2>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { src: "/demo/family-dadi.webp", label: "Dadi" },
+                { src: "/demo/family-leo.webp", label: "Leo" },
+                { src: "/demo/family-aria.webp", label: "Aria" },
+                { src: "/demo/family-group.webp", label: "Together" },
+              ].map((p) => (
+                <figure key={p.src} className="m-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={p.src} alt="" className="art-square w-full bg-skeleton object-cover" loading="lazy" />
+                  <figcaption className="mt-1 text-[12px] text-ink-soft">{p.label} · synthetic demo photo</figcaption>
+                </figure>
+              ))}
+            </div>
+          </section>
         </>
       )}
     </div>

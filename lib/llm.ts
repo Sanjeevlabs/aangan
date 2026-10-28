@@ -89,7 +89,9 @@ async function liveCaption(
         { role: "user", content: userPrompt },
       ],
       response_format: { type: "json_object" },
-      max_tokens: 300,
+      // Reasoning models spend hundreds of tokens before answering; a low
+      // cap truncates the reply to null and trips the fallback every time.
+      max_tokens: 2000,
     }),
   });
   if (!res.ok) throw new Error(`provider-${res.status}`);
@@ -140,6 +142,7 @@ export async function captionCard(
           });
       const parsed = CaptionSchema.safeParse(out.json);
       if (!parsed.success) continue;
+      parsed.data.language = normalizeLangCode(parsed.data.language, "en");
       ledger.record(out.cost);
       store.set(key, JSON.stringify(parsed.data));
       return { caption: parsed.data, cached: false, cost: out.cost };
@@ -195,6 +198,18 @@ const KNOWN_HI_TO_LATN: Array<[RegExp, string]> = [
 
 export function containsDevanagari(s: string): boolean {
   return /[\u0900-\u097F]/.test(s);
+}
+
+// Model language codes vary ("Hindi", "HI", "hindi (devanagari)"): normalize
+// to the short codes the display layer routes on. Unknown codes fall back
+// to the caller's fallback so nothing unparseable reaches the UI.
+export function normalizeLangCode(raw: unknown, fallback: string): string {
+  const l = String(raw ?? "").trim().toLowerCase();
+  if (l.startsWith("hi-latn") || l === "hinglish") return "hi-latn";
+  if (l.startsWith("hi-deva") || l.includes("devanagari")) return "hi-deva";
+  if (l.startsWith("hi")) return "hi";
+  if (l.startsWith("en")) return "en";
+  return fallback;
 }
 
 async function mockTranscribe(audioId: string, langHint: string): Promise<{ json: unknown; cost: number }> {
@@ -333,6 +348,7 @@ export async function transcribeVoice(
           );
       const parsed = VoiceTranscriptSchema.safeParse(out.json);
       if (!parsed.success) continue;
+      parsed.data.language = normalizeLangCode(parsed.data.language, "en");
       ledger.record(out.cost);
       store.set(key, JSON.stringify(parsed.data));
       return { transcript: parsed.data, cached: false, cost: out.cost };
@@ -506,9 +522,10 @@ export async function translateText(
     try {
       const out = isMockMode()
         ? await mockTranslate(text, target)
-        : await liveJson(provider, TRANSLATE_SYSTEM, `Target language: ${target}\nText:\n${text}`, model);
+        : await liveJson(provider, TRANSLATE_SYSTEM, `Target language: ${target}\nText:\n${text}`, model, 1500);
       const parsed = TranslationSchema.safeParse(out.json);
       if (!parsed.success) continue;
+      parsed.data.language = normalizeLangCode(parsed.data.language, target);
       ledger.record(out.cost);
       store.set(key, JSON.stringify(parsed.data));
       return { translation: parsed.data, cached: false, cost: out.cost };

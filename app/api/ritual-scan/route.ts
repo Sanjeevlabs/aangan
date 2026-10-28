@@ -4,9 +4,17 @@ import { planRitualScan } from "@/lib/ritual-agent";
 import { dbAddAgentRun, dbAddSuggestion, dbAssignDailyRole, dbEnsureRitualRun, dbListDailyRoles, dbListMembers, dbListRitualRuns, dbListWishes, dbSetRitualRunStatus } from "@/lib/db";
 import { loadRitualConfig } from "@/lib/rituals";
 
-// Daily ritual/role scan. Vercel Cron hits this once a day; it is also safe
-// to call manually. Pure planning in lib/ritual-agent.ts, execution here.
+// Daily ritual/role scan. Vercel Cron (GET, see vercel.json) hits this once
+// a day; manual callers use POST. Idempotent — safe to call repeatedly.
+export async function GET(): Promise<Response> {
+  return runScan();
+}
+
 export async function POST(): Promise<Response> {
+  return runScan();
+}
+
+async function runScan(): Promise<Response> {
   const now = new Date();
   const nowISO = now.toISOString();
   const members = await dbListMembers();

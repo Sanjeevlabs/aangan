@@ -9,7 +9,7 @@ import { GOLDEN } from "./fixtures/golden";
 const RUN = process.env.RUN_GOLDEN === "1" && !!process.env.META_API_KEY;
 
 describe.skipIf(!RUN)("golden eval (live)", () => {
-  it("prints a pass/fail table plus cost", async () => {
+  it("prints a pass/fail table plus cost", { timeout: 180000 }, async () => {
     let totalCost = 0;
     const rows: string[] = [];
     for (const g of GOLDEN) {

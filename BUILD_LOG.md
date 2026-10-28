@@ -40,6 +40,17 @@
 - New maintained test `tests/m5-reel-gather.test.ts` (7 tests: reel order/joins/title, mock playlist + no invented ids, gather POST, traces delete + 404s, leave + re-leave 404, invite format/expiry/listing, wish-card linking).
 - Verified: `npm run lint` ok, `npm run typecheck` ok, `npm run test:mock` 72 passed + 2 skipped, `npm run build` ok (32 routes). Live-model cost this milestone: USD 0. Visual self-QA blocked (sandbox sockets) — build + code inspection only.
 
+## 28 Oct 2026 — M6: evals, README, seed script, demo photos, live-model retrofit
+
+- README.md (new): run commands, env vars, "Built during the hackathon", "Meta AI tooling used" (model → feature), "AI-assistance disclosure".
+- Seed script `scripts/seed.mjs` (written AND run): 4 consistent demo-family photos (Dadi, Leo, Aria, group) via `muse-image-1.0` into `public/demo/` + `family.json` manifest. Series consistency = one identical CHARACTER block + one STYLE suffix reused verbatim in every prompt. Provider returned WebP, so files are `.webp` by magic-byte detection (script handles both). Labelled AI-generated in `public/demo/README.md`; surfaced on the Bond page as "Demo photos · AI-generated" (never inside real cards). `tests/demo-assets.test.ts` extended (manifest + magic-byte checks). Also fixed a CRLF loader bug in `scripts/gen-courtyard.mjs` shared by both seed scripts.
+- Live evals: `npm run eval:golden` now actually works — fixed two real defects it exposed: (a) `vitest.config.ts` forces `MOCK=true`, which overrode the outer env, so every prior "live" run silently ran in mock (new `vitest.live.config.ts` without the forced flag; `scripts/eval-golden.mjs` loads `.env.local` CRLF-safe and uses it); (b) muse-spark-1.3 reasons ~500 tokens before answering, so the 300/500-token caps truncated every reply to null and tripped the fallback — caption budget 300→2000, translate default→1500. New `tests/live-cache.test.ts` (gated, skipped in mock/CI): second identical translate served from cache at $0 — PASSES live ($0.01 then $0.00).
+- Golden result: 9/9 PASS, total $0.09. One more real find on the way: the model returns `"language": "Hindi"`, which the display layer routes on by exact code — added `normalizeLangCode` in `lib/llm.ts` (Hindi→hi, Devanagari→hi-deva, Hinglish→hi-latn, English→en, fallback-safe) applied to caption/transcript/translation outputs + unit tests.
+- Ritual scan is now Vercel-Cron-ready: `vercel.json` daily 9am cron + GET handler on `/api/ritual-scan` (POST retained for manual runs).
+- Known gaps (not started, logged, run continues): live search-grounding for movable festival dates (fixture stays labelled; needs a search API), Playwright screenshots (sandbox denies all listen sockets — `next dev` cannot bind; verified via `next build` + code inspection; needs your eyes at 390px/1440px), `D:\refs\meta-model-cookbook` absent so recipe-intents were implemented from PRD descriptions.
+- Decisions: estimated live spend uses documented flat rates ($0.01/image, $0.01/chat call — provider returns no cost field); `MOCK=false` in `.env.local` is yours to flip (untouched); no new env vars needed.
+- Verified: `npm run lint` ok, `npm run typecheck` ok, `npm run test:mock` 75 passed + 3 skipped, `npm run build` ok (32 routes), `npm run eval:golden` 9/9 PASS + cache check PASS. Live-model cost this milestone: ~USD 0.19 (4 images $0.04 + golden $0.09 + cache $0.01 + probes/debug ~$0.05). Running total this autonomous run: ~USD 0.20 (prior milestones $0).
+
 
 ## 27 Oct 2026 — Day 1: foundation
 

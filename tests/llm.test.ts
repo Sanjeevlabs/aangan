@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { activeProvider } from "@/lib/config";
-import { captionCard, memoryStore, SpendLedger } from "@/lib/llm";
+import { captionCard, memoryStore, normalizeLangCode, SpendLedger } from "@/lib/llm";
+
+describe("normalizeLangCode", () => {
+  it("maps model language spellings to short codes", () => {
+    expect(normalizeLangCode("Hindi", "en")).toBe("hi");
+    expect(normalizeLangCode("HI", "en")).toBe("hi");
+    expect(normalizeLangCode("hi-deva", "en")).toBe("hi-deva");
+    expect(normalizeLangCode("Hindi (Devanagari)", "en")).toBe("hi-deva");
+    expect(normalizeLangCode("Hinglish", "en")).toBe("hi-latn");
+    expect(normalizeLangCode("English", "hi")).toBe("en");
+    expect(normalizeLangCode("klingon", "en")).toBe("en");
+  });
+});
 
 describe("LLM client (mock mode)", () => {
   it("returns a schema-valid caption", async () => {

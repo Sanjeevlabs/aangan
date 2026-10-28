@@ -8,7 +8,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "fs";
 function loadDotEnvLocal() {
   const env = { ...process.env };
   try {
-    for (const line of readFileSync(".env.local", "utf8").split("\n")) {
+    for (const line of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
       const m = line.match(/^\s*([A-Z0-9_]+)=(.*)$/);
       if (m && !env[m[1]]) env[m[1]] = m[2].trim().replace(/^["']|["']$/g, "");
     }
