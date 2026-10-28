@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { HELPER_ROLES, NEED_KINDS, PRESENCE_MOMENTS, SITTING_REASONS } from "./kind-values";
+import { HELPER_ROLES, NEED_KINDS, NEED_STATUSES, PET_SPECIES, PRESENCE_MOMENTS, PRIORITIES, RECURRENCE, SITTING_REASONS } from "./kind-values";
 
-export { HELPER_ROLES, NEED_KINDS, PRESENCE_MOMENTS, SITTING_REASONS };
+export { HELPER_ROLES, NEED_KINDS, NEED_STATUSES, PET_SPECIES, PRESENCE_MOMENTS, PRIORITIES, RECURRENCE, SITTING_REASONS };
 
 // Schemas for the family's "living" records: Kitchen, presence, care,
 // Village, sittings and the weekly question. They share one table
@@ -90,7 +90,15 @@ export const NeedSchema = z.object({
   title: z.string().min(1).max(120),
   kind: z.enum(NEED_KINDS).default("other"),
   when: z.string().max(60).default(""),
-  status: z.enum(["open", "claimed", "done"]).default("open"),
+  status: z.enum(NEED_STATUSES).default("open"),
+  priority: z.enum(PRIORITIES).default("normal"),
+  /** Optional due date-time for the board's ordering and nudges. */
+  dueAt: iso.nullable().default(null),
+  recurring: z.enum(RECURRENCE).default("none"),
+  /** A task can be for a pet ("Bruno's vet visit"). */
+  petId: z.string().nullable().default(null),
+  /** Every change, who and when: the ticket's timeline. */
+  history: z.array(z.object({ at: iso, by: z.string(), what: z.string().max(160) })).max(100).default([]),
   /** The family member taking responsibility (often abroad). */
   claimedBy: z.string().nullable().default(null),
   /** The Village person who will actually go. */
@@ -98,6 +106,21 @@ export const NeedSchema = z.object({
   /** Note for the parent, already in their language. */
   noteForParent: z.string().max(240).default(""),
   doneAt: iso.nullable().default(null),
+  createdAt: iso,
+});
+
+// ---------- Pets (part of a home) ----------
+export const PetSchema = z.object({
+  id,
+  name: z.string().trim().min(1).max(40),
+  species: z.enum(PET_SPECIES).default("dog"),
+  /** The person they live with; the pet belongs to that person's home. */
+  livesWith: id,
+  photoRef: z.string().nullable().default(null),
+  /** MM-DD birthday or "gotcha day", optional. */
+  birthday: z.string().regex(/^(\d{2}-\d{2})?$/).default(""),
+  note: z.string().max(160).default(""),
+  addedBy: id,
   createdAt: iso,
 });
 
@@ -198,6 +221,7 @@ export const DOC_SCHEMAS = {
   helper: HelperSchema,
   rota: RotaSchema,
   duty: DutySchema,
+  pet: PetSchema,
   sitting: SittingSchema,
   knock: KnockSchema,
   question: QuestionSchema,
@@ -216,6 +240,7 @@ export type Need = DocOf<"need">;
 export type Helper = DocOf<"helper">;
 export type Rota = DocOf<"rota">;
 export type Duty = DocOf<"duty">;
+export type Pet = DocOf<"pet">;
 export type Sitting = DocOf<"sitting">;
 export type Knock = DocOf<"knock">;
 export type Question = DocOf<"question">;

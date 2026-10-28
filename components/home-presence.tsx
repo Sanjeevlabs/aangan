@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { CareSettings, Knock, Need, Presence, PresenceMoment, Question } from "@/lib/kinds";
+import type { CareSettings, Knock, Need, Pet, Presence, PresenceMoment, Question } from "@/lib/kinds";
 import { callName, memberPhoto } from "@/lib/people";
 import { MOMENT_LABEL, SHAREABLE, latestFor, quietDay, todayFor } from "@/lib/presence";
 import type { Member } from "@/lib/schemas";
@@ -47,6 +47,9 @@ export function CourtyardNow() {
   useVisit();
   const { relationships } = useViewer();
   const farHomes = households(members, relationships).filter((h) => h.elders && !h.members.some((m) => m.id === viewer.id));
+  const care = useJson<{ needs: Need[] }>("/api/care");
+  const pets = useJson<{ pets: Pet[] }>("/api/pets");
+  const mine = (care.data?.needs ?? []).filter((n) => n.claimedBy === viewer.id && n.status !== "done" && n.status !== "cancelled");
   const knocks = (sit.data?.knocks ?? []).filter((k) => k.memberId !== viewer.id);
 
   return (
@@ -61,7 +64,22 @@ export function CourtyardNow() {
           <MyNeeds />
         </>
       ) : (
-        farHomes.map((h) => <HomeNow key={h.id} home={h} presence={pres.data?.presence ?? null} settings={pres.data?.settings ?? []} viewerId={viewer.id} />)
+        <>
+          {farHomes.map((h) => (
+            <HomeNow key={h.id} home={h} presence={pres.data?.presence ?? null} settings={pres.data?.settings ?? []} viewerId={viewer.id} pets={(pets.data?.pets ?? []).filter((p) => h.members.some((m) => m.id === p.livesWith))} />
+          ))}
+          {mine.length > 0 && (
+            <Link href="/care" className="flex items-center justify-between gap-3 rounded-card bg-surface px-4 py-3 text-ink no-underline">
+              <span className="min-w-0">
+                <span className="block text-[15px] font-semibold">
+                  {mine.length} care task{mine.length > 1 ? "s" : ""} for you
+                </span>
+                <span className="block truncate text-[13px] text-ink-soft">{mine.slice(0, 2).map((n) => n.title).join(" · ")}</span>
+              </span>
+              <Icon name="chevron" size={18} className="text-ink-faint" />
+            </Link>
+          )}
+        </>
       )}
     </div>
   );
@@ -90,7 +108,7 @@ function KnockBanner({ knock, member }: { knock: Knock; member: Member | undefin
  * time, then each parent's latest moment. A gentle flag only if a parent
  * asked for one, and only for the person they chose.
  */
-function HomeNow({ home, presence, settings, viewerId }: { home: Household; presence: Presence[] | null; settings: CareSettings[]; viewerId: string }) {
+function HomeNow({ home, presence, settings, viewerId, pets = [] }: { home: Household; presence: Presence[] | null; settings: CareSettings[]; viewerId: string; pets?: Pet[] }) {
   const { openAdd } = useShell();
   if (presence === null) return <div className="skeleton h-[96px] rounded-card" aria-busy="true" />;
   const elders = home.members.filter((m) => m.role === "elder");
@@ -144,6 +162,12 @@ function HomeNow({ home, presence, settings, viewerId }: { home: Household; pres
             </span>
           </li>
         ))}
+        {pets.length > 0 && (
+          <li className="flex items-baseline gap-2 text-[14px] text-ink-soft">
+            <span className="h-1.5 w-1.5 shrink-0 translate-y-[-2px] rounded-full bg-black/20" aria-hidden="true" />
+            {pets.map((p) => p.name).join(" & ")} {pets.length > 1 ? "are" : "is"} with them
+          </li>
+        )}
       </ul>
       {quiet.length > 0 && (
         <div className="mt-3 flex gap-2">

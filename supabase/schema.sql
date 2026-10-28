@@ -342,7 +342,7 @@ create table if not exists family_docs (
 );
 -- Kinds are validated by lib/kinds.ts; the check keeps junk out of the table.
 alter table family_docs drop constraint if exists family_docs_kind_check;
-alter table family_docs add constraint family_docs_kind_check check (kind in ('recipe','attempt','presence','care_settings','need','helper','rota','duty','sitting','knock','question','muse_call'));
+alter table family_docs add constraint family_docs_kind_check check (kind in ('recipe','attempt','presence','care_settings','need','helper','rota','duty','pet','sitting','knock','question','muse_call','safety_checkin','safety_settings','post','order'));
 create index if not exists family_docs_family_kind_idx on family_docs (family_id, kind, created_at desc);
 alter table family_docs enable row level security;
 
