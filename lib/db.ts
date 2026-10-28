@@ -5,24 +5,38 @@
 // with MOCK=true.
 import { isMockMode } from "./config";
 import {
+  addAgentRun as memAddAgentRun,
   addCard as memAddCard,
+  addGatherSession as memAddGather,
   addPlay as memAddPlay,
   addRelationship as memAddRelationship,
+  addRitualRun as memAddRitualRun,
+  addSuggestion as memAddSuggestion,
+  addWish as memAddWish,
+  assignDailyRole as memAssignRole,
   getKinshipTerms as memGetKinship,
   getMember as memGetMember,
+  listAgentRuns as memListAgentRuns,
   listCards as memListCards,
+  listDailyRoles as memListRoles,
+  listGatherSessions as memListGather,
   listMembers as memListMembers,
   listPlays as memListPlays,
   listReactions as memListReactions,
   listRelationships as memListRelationships,
+  listRitualRuns as memListRitualRuns,
+  listSuggestions as memListSuggestions,
+  listWishes as memListWishes,
   setKinshipTerms as memSetKinship,
   setMemberDisplayLang as memSetDisplayLang,
   setMemberHome as memSetHome,
   setReaction as memSetReaction,
+  setRitualRunStatus as memSetRunStatus,
+  setSuggestionStatus as memSetSuggestionStatus,
   mockAddMember as memAddMember,
 } from "./store";
 import { isDbLive, supabaseServer } from "./supabase";
-import { CardSchema, MemberSchema, PlaySchema, ReactionSchema, RelationshipSchema, type Card, type Member, type Play, type Reaction, type Relationship } from "./schemas";
+import { AgentRunSchema, CardSchema, DailyRoleSchema, GatherSessionSchema, MemberSchema, PlaySchema, ReactionSchema, RelationshipSchema, RitualRunSchema, SuggestionSchema, WishSchema, type AgentRun, type Card, type DailyRole, type GatherSession, type Member, type Play, type Reaction, type Relationship, type RitualRun, type Suggestion, type Wish } from "./schemas";
 
 function live(): boolean {
   return !isMockMode() && isDbLive();
@@ -73,7 +87,7 @@ export async function dbListCards(familyId = "demo-family"): Promise<Card[]> {
   return data.map(cardFromRow);
 }
 
-export async function dbAddCard(input: Omit<Card, "id"> & { id?: string }): Promise<Card> {
+export async function dbAddCard(input: Omit<import("zod").input<typeof CardSchema>, "id"> & { id?: string }): Promise<Card> {
   const card = CardSchema.parse({ id: input.id ?? crypto.randomUUID(), ...input });
   if (!live()) return memAddCard(card);
   const sb = supabaseServer();
@@ -310,6 +324,278 @@ export async function dbSetKinshipTerms(path: string, displayLang: string, terms
   const sb = supabaseServer();
   if (!sb) return;
   await sb.from("kinship_cache").upsert({ path, display_lang: displayLang, terms: { text: terms } });
+}
+
+// ---- Agent entities: mock-first, Supabase when live. ----
+
+function suggestionFromRow(r: Record<string, unknown>): Suggestion {
+  return SuggestionSchema.parse({
+    id: r.id,
+    familyId: r.family_id,
+    goal: r.goal ?? "",
+    payload: (r.payload as Record<string, unknown>) ?? {},
+    status: r.status ?? "pending",
+    createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : (r.created_at as string),
+  });
+}
+
+export async function dbListSuggestions(status?: Suggestion["status"]): Promise<Suggestion[]> {
+  if (!live()) return memListSuggestions(status);
+  const sb = supabaseServer();
+  if (!sb) return memListSuggestions(status);
+  let q = sb.from("suggestions").select("*").order("created_at", { ascending: false });
+  if (status) q = q.eq("status", status);
+  const { data, error } = await q;
+  if (error || !data) return memListSuggestions(status);
+  return data.map((r) => suggestionFromRow(r as Record<string, unknown>));
+}
+
+export async function dbAddSuggestion(input: { goal: string; payload?: Record<string, unknown>; familyId?: string }): Promise<Suggestion> {
+  const s = SuggestionSchema.parse({
+    id: crypto.randomUUID(),
+    familyId: input.familyId ?? "demo-family",
+    goal: input.goal,
+    payload: input.payload ?? {},
+    status: "pending",
+    createdAt: new Date().toISOString(),
+  });
+  if (!live()) return memAddSuggestion(s);
+  const sb = supabaseServer();
+  if (!sb) return memAddSuggestion(s);
+  const { error } = await sb.from("suggestions").insert({
+    id: s.id,
+    family_id: s.familyId,
+    goal: s.goal,
+    payload: s.payload,
+    status: s.status,
+  });
+  if (error) return memAddSuggestion(s);
+  return s;
+}
+
+export async function dbSetSuggestionStatus(id: string, status: Suggestion["status"]): Promise<Suggestion | undefined> {
+  if (!live()) return memSetSuggestionStatus(id, status);
+  const sb = supabaseServer();
+  if (!sb) return memSetSuggestionStatus(id, status);
+  const { error } = await sb.from("suggestions").update({ status }).eq("id", id);
+  if (error) return undefined;
+  const all = await dbListSuggestions();
+  return all.find((s) => s.id === id);
+}
+
+export async function dbListAgentRuns(): Promise<AgentRun[]> {
+  if (!live()) return memListAgentRuns();
+  const sb = supabaseServer();
+  if (!sb) return memListAgentRuns();
+  const { data, error } = await sb.from("agent_runs").select("*").order("created_at", { ascending: false }).limit(50);
+  if (error || !data) return memListAgentRuns();
+  return data.map((r) =>
+    AgentRunSchema.parse({
+      id: r.id,
+      familyId: r.family_id,
+      goal: r.goal ?? "",
+      tools: Array.isArray(r.tools) ? r.tools : [],
+      status: r.status ?? "done",
+      createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : (r.created_at as string),
+    }),
+  );
+}
+
+export async function dbAddAgentRun(input: { goal: string; tools: string[]; status?: string; familyId?: string }): Promise<AgentRun> {
+  const run = AgentRunSchema.parse({
+    id: crypto.randomUUID(),
+    familyId: input.familyId ?? "demo-family",
+    goal: input.goal,
+    tools: input.tools,
+    status: input.status ?? "done",
+    createdAt: new Date().toISOString(),
+  });
+  if (!live()) return memAddAgentRun(run);
+  const sb = supabaseServer();
+  if (!sb) return memAddAgentRun(run);
+  const { error } = await sb.from("agent_runs").insert({
+    id: run.id,
+    family_id: run.familyId,
+    goal: run.goal,
+    tools: run.tools,
+    status: run.status,
+  });
+  if (error) return memAddAgentRun(run);
+  return run;
+}
+
+export async function dbListWishes(runId?: string): Promise<Wish[]> {
+  if (!live()) return memListWishes(runId);
+  const sb = supabaseServer();
+  if (!sb) return memListWishes(runId);
+  let q = sb.from("wishes").select("*").order("created_at", { ascending: true });
+  if (runId) q = q.eq("ritual_run_id", runId);
+  const { data, error } = await q;
+  if (error || !data) return memListWishes(runId);
+  return data.map((r) =>
+    WishSchema.parse({
+      id: r.id,
+      familyId: r.family_id,
+      ritualRunId: (r.ritual_run_id as string | null) ?? null,
+      cardId: (r.card_id as string | null) ?? null,
+      memberId: r.member_id,
+      kind: r.kind,
+      createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : (r.created_at as string),
+    }),
+  );
+}
+
+export async function dbAddWish(input: { ritualRunId?: string | null; cardId?: string | null; memberId: string; kind: Wish["kind"]; familyId?: string }): Promise<Wish> {
+  const w = WishSchema.parse({
+    id: crypto.randomUUID(),
+    familyId: input.familyId ?? "demo-family",
+    ritualRunId: input.ritualRunId ?? null,
+    cardId: input.cardId ?? null,
+    memberId: input.memberId,
+    kind: input.kind,
+    createdAt: new Date().toISOString(),
+  });
+  if (!live()) return memAddWish(w);
+  const sb = supabaseServer();
+  if (!sb) return memAddWish(w);
+  const { error } = await sb.from("wishes").insert({
+    id: w.id,
+    family_id: w.familyId,
+    ritual_run_id: w.ritualRunId,
+    card_id: w.cardId,
+    member_id: w.memberId,
+    kind: w.kind,
+  });
+  if (error) return memAddWish(w);
+  return w;
+}
+
+export async function dbListRitualRuns(): Promise<RitualRun[]> {
+  if (!live()) return memListRitualRuns();
+  const sb = supabaseServer();
+  if (!sb) return memListRitualRuns();
+  const { data, error } = await sb.from("ritual_runs").select("*").order("occasion_date", { ascending: true });
+  if (error || !data) return memListRitualRuns();
+  return data.map((r) =>
+    RitualRunSchema.parse({
+      id: r.id,
+      familyId: r.family_id,
+      ritualSlug: r.ritual_slug,
+      occasionDate: typeof r.occasion_date === "string" ? r.occasion_date.slice(0, 10) : "",
+      status: r.status ?? "open",
+      createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : (r.created_at as string),
+    }),
+  );
+}
+
+export async function dbEnsureRitualRun(slug: string, occasionDate: string, familyId = "demo-family"): Promise<RitualRun> {
+  const id = `${slug}:${occasionDate}`;
+  const existing = (await dbListRitualRuns()).find((r) => r.id === id);
+  if (existing) return existing;
+  const run = RitualRunSchema.parse({
+    id,
+    familyId,
+    ritualSlug: slug,
+    occasionDate,
+    status: "collecting",
+    createdAt: new Date().toISOString(),
+  });
+  if (!live()) return memAddRitualRun(run);
+  const sb = supabaseServer();
+  if (!sb) return memAddRitualRun(run);
+  const { error } = await sb.from("ritual_runs").insert({
+    id: run.id,
+    family_id: familyId,
+    ritual_slug: slug,
+    occasion_date: occasionDate,
+    status: "collecting",
+  });
+  if (error) return memAddRitualRun(run);
+  return run;
+}
+
+export async function dbSetRitualRunStatus(id: string, status: RitualRun["status"]): Promise<RitualRun | undefined> {
+  if (!live()) return memSetRunStatus(id, status);
+  const sb = supabaseServer();
+  if (!sb) return memSetRunStatus(id, status);
+  const { error } = await sb.from("ritual_runs").update({ status }).eq("id", id);
+  if (error) return undefined;
+  return (await dbListRitualRuns()).find((r) => r.id === id);
+}
+
+export async function dbListDailyRoles(): Promise<DailyRole[]> {
+  if (!live()) return memListRoles();
+  const sb = supabaseServer();
+  if (!sb) return memListRoles();
+  const { data, error } = await sb.from("daily_roles").select("*");
+  if (error || !data) return memListRoles();
+  return data.map((r) =>
+    DailyRoleSchema.parse({
+      id: r.id,
+      familyId: r.family_id,
+      memberId: r.member_id,
+      roleDate: typeof r.role_date === "string" ? r.role_date.slice(0, 10) : "",
+      prompt: r.prompt ?? "",
+    }),
+  );
+}
+
+export async function dbAssignDailyRole(memberId: string, prompt: string, roleDate: string, familyId = "demo-family"): Promise<DailyRole> {
+  // Idempotent per (member, day): the mock seam enforces uniqueness, and the
+  // live table has a matching unique index.
+  const role = memAssignRole({ id: crypto.randomUUID(), familyId, memberId, roleDate, prompt });
+  if (!live()) return role;
+  const sb = supabaseServer();
+  if (!sb) return role;
+  await sb.from("daily_roles").upsert(
+    { id: role.id, family_id: familyId, member_id: memberId, role_date: roleDate, prompt },
+    { onConflict: "family_id,member_id,role_date" },
+  );
+  return role;
+}
+
+export async function dbListGatherSessions(): Promise<GatherSession[]> {
+  if (!live()) return memListGather();
+  const sb = supabaseServer();
+  if (!sb) return memListGather();
+  const { data, error } = await sb.from("gather_sessions").select("*").order("starts_at", { ascending: false });
+  if (error || !data) return memListGather();
+  return data.map((r) =>
+    GatherSessionSchema.parse({
+      id: r.id,
+      familyId: r.family_id,
+      title: r.title ?? "",
+      startsAt: r.starts_at instanceof Date ? r.starts_at.toISOString() : String(r.starts_at ?? ""),
+      invites: Array.isArray(r.invites) ? (r.invites as string[]) : [],
+      playlist: Array.isArray(r.playlist) ? (r.playlist as string[]) : [],
+      createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : (r.created_at as string),
+    }),
+  );
+}
+
+export async function dbAddGatherSession(input: { title: string; startsAt: string; invites?: string[]; playlist?: string[]; familyId?: string }): Promise<GatherSession> {
+  const g = GatherSessionSchema.parse({
+    id: crypto.randomUUID(),
+    familyId: input.familyId ?? "demo-family",
+    title: input.title,
+    startsAt: input.startsAt,
+    invites: input.invites ?? [],
+    playlist: input.playlist ?? [],
+    createdAt: new Date().toISOString(),
+  });
+  if (!live()) return memAddGather(g);
+  const sb = supabaseServer();
+  if (!sb) return memAddGather(g);
+  const { error } = await sb.from("gather_sessions").insert({
+    id: g.id,
+    family_id: g.familyId,
+    title: g.title,
+    starts_at: g.startsAt,
+    invites: g.invites,
+    playlist: g.playlist,
+  });
+  if (error) return memAddGather(g);
+  return g;
 }
 
 export async function dbSetReaction(input: { cardId: string; memberId: string; kind: Reaction["kind"]; familyId?: string }): Promise<Reaction> {

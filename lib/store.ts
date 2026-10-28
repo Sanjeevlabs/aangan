@@ -1,17 +1,29 @@
 import type { z } from "zod";
 import { DEMO_MEMBERS } from "./family";
 import {
+  AgentRunSchema,
   CardSchema,
+  DailyRoleSchema,
+  GatherSessionSchema,
   MemberSchema,
   PlaySchema,
   ReactionSchema,
   RelationshipSchema,
+  RitualRunSchema,
+  SuggestionSchema,
+  WishSchema,
+  type AgentRun,
   type Card,
+  type DailyRole,
+  type GatherSession,
   type Member,
   type Play,
   type Reaction,
   type ReactionKind,
   type Relationship,
+  type RitualRun,
+  type Suggestion,
+  type Wish,
 } from "./schemas";
 
 // Demo backing store. Supabase replaces this when the project is confirmed;
@@ -23,6 +35,12 @@ let plays: Play[] = [];
 let reactions: Reaction[] = [];
 let relationships: Relationship[] = [];
 const kinshipCache = new Map<string, string>();
+let suggestions: Suggestion[] = [];
+let agentRuns: AgentRun[] = [];
+let wishes: Wish[] = [];
+let ritualRuns: RitualRun[] = [];
+let dailyRoles: DailyRole[] = [];
+let gatherSessions: GatherSession[] = [];
 
 export function listCards(): Card[] {
   return [...cards].sort((a, b) => b.takenAt.localeCompare(a.takenAt));
@@ -143,7 +161,100 @@ export function resetDemo(): void {
   clearReactions();
   clearRelationships();
   kinshipCache.clear();
+  suggestions = [];
+  agentRuns = [];
+  wishes = [];
+  ritualRuns = [];
+  dailyRoles = [];
+  gatherSessions = [];
   seedDemo();
+}
+
+// Agent proposals: actions execute ONLY on approval via Review / Approve.
+export function listSuggestions(status?: Suggestion["status"]): Suggestion[] {
+  const all = [...suggestions].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return status ? all.filter((s) => s.status === status) : all;
+}
+
+export function addSuggestion(input: z.input<typeof SuggestionSchema>): Suggestion {
+  const s = SuggestionSchema.parse(input);
+  suggestions = suggestions.filter((x) => x.id !== s.id);
+  suggestions.push(s);
+  return s;
+}
+
+export function setSuggestionStatus(id: string, status: Suggestion["status"]): Suggestion | undefined {
+  const s = suggestions.find((x) => x.id === id);
+  if (!s) return undefined;
+  s.status = status;
+  return { ...s };
+}
+
+export function listAgentRuns(): AgentRun[] {
+  return [...agentRuns].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function addAgentRun(input: z.input<typeof AgentRunSchema>): AgentRun {
+  const r = AgentRunSchema.parse(input);
+  agentRuns.push(r);
+  return r;
+}
+
+export function listWishes(runId?: string): Wish[] {
+  const all = [...wishes].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return runId ? all.filter((w) => w.ritualRunId === runId) : all;
+}
+
+export function addWish(input: z.input<typeof WishSchema>): Wish {
+  const w = WishSchema.parse(input);
+  wishes = wishes.filter((x) => x.id !== w.id);
+  wishes.push(w);
+  return w;
+}
+
+export function listRitualRuns(): RitualRun[] {
+  return [...ritualRuns].sort((a, b) => a.occasionDate.localeCompare(b.occasionDate));
+}
+
+export function addRitualRun(input: z.input<typeof RitualRunSchema>): RitualRun {
+  const r = RitualRunSchema.parse(input);
+  ritualRuns = ritualRuns.filter((x) => x.id !== r.id);
+  ritualRuns.push(r);
+  return r;
+}
+
+export function setRitualRunStatus(id: string, status: RitualRun["status"]): RitualRun | undefined {
+  const r = ritualRuns.find((x) => x.id === id);
+  if (!r) return undefined;
+  r.status = status;
+  return { ...r };
+}
+
+export function dailyRoleOn(memberId: string, roleDate: string): DailyRole | undefined {
+  return dailyRoles.find((d) => d.memberId === memberId && d.roleDate === roleDate);
+}
+
+export function listDailyRoles(): DailyRole[] {
+  return [...dailyRoles];
+}
+
+export function assignDailyRole(input: z.input<typeof DailyRoleSchema>): DailyRole {
+  const existing = dailyRoleOn(input.memberId, input.roleDate);
+  if (existing) return existing;
+  const d = DailyRoleSchema.parse(input);
+  dailyRoles.push(d);
+  return d;
+}
+
+export function listGatherSessions(): GatherSession[] {
+  return [...gatherSessions].sort((a, b) => b.startsAt.localeCompare(a.startsAt));
+}
+
+export function addGatherSession(input: z.input<typeof GatherSessionSchema>): GatherSession {
+  const g = GatherSessionSchema.parse(input);
+  gatherSessions = gatherSessions.filter((x) => x.id !== g.id);
+  gatherSessions.push(g);
+  return g;
 }
 
 // Guided Family Bond edges + the viewer-relative kinship cache

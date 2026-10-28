@@ -1,0 +1,6 @@
+{
+  "note": "FIXTURE for M4/M5: movable festival dates stand in for live search-grounded dates until the M6 search-grounding wiring. Keys are ritual config slugs (data, never logic).",
+  "dates": {
+    "diwali": "2026-11-08"
+  }
+}

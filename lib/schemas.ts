@@ -176,6 +176,86 @@ export type Reaction = z.infer<typeof ReactionSchema>;
 export type ReactionKind = z.infer<typeof ReactionKindSchema>;
 export type Relationship = z.infer<typeof RelationshipSchema>;
 export type RelationKind = z.infer<typeof RelationKindSchema>;
+
+// Agents write suggestions; actions execute ONLY on approval.
+export const SuggestionStatusSchema = z.enum(["pending", "approved", "rejected", "done"]);
+
+export const SuggestionSchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+  goal: z.string(),
+  payload: z.record(z.unknown()).default({}),
+  status: SuggestionStatusSchema.default("pending"),
+  createdAt: z.string().datetime(),
+});
+
+export const CreateSuggestionRequestSchema = z.object({
+  goal: z.string().min(1).max(500),
+  payload: z.record(z.unknown()).default({}),
+});
+
+export const AgentRunSchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+  goal: z.string(),
+  tools: z.array(z.string()).default([]),
+  status: z.string().default("done"),
+  createdAt: z.string().datetime(),
+});
+
+// Wishes AND blessings (kind: wish|blessing).
+export const WishKindSchema = z.enum(["wish", "blessing"]);
+
+export const WishSchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+  ritualRunId: z.string().nullable().default(null),
+  cardId: z.string().nullable().default(null),
+  memberId: z.string(),
+  kind: WishKindSchema,
+  createdAt: z.string().datetime(),
+});
+
+export const CreateWishRequestSchema = z.object({
+  ritualRunId: z.string().nullable().default(null),
+  cardId: z.string().nullable().default(null),
+  memberId: z.string().min(1),
+  kind: WishKindSchema,
+});
+
+export const RitualRunSchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+  ritualSlug: z.string(),
+  occasionDate: z.string(),
+  status: z.enum(["open", "collecting", "delivered", "done"]).default("open"),
+  createdAt: z.string().datetime(),
+});
+
+export const DailyRoleSchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+  memberId: z.string(),
+  roleDate: z.string(),
+  prompt: z.string(),
+});
+
+export const GatherSessionSchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+  title: z.string().default(""),
+  startsAt: z.string(),
+  invites: z.array(z.string()).default([]),
+  playlist: z.array(z.string()).default([]),
+  createdAt: z.string().datetime(),
+});
+
+export type Suggestion = z.infer<typeof SuggestionSchema>;
+export type AgentRun = z.infer<typeof AgentRunSchema>;
+export type Wish = z.infer<typeof WishSchema>;
+export type RitualRun = z.infer<typeof RitualRunSchema>;
+export type DailyRole = z.infer<typeof DailyRoleSchema>;
+export type GatherSession = z.infer<typeof GatherSessionSchema>;
 export type DisplayLang = z.infer<typeof DisplayLangSchema>;
 export type RitualConfig = z.infer<typeof RitualConfigSchema>;
 export type Card = z.infer<typeof CardSchema>;

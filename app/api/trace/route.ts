@@ -1,0 +1,14 @@
+import { dbListAgentRuns, dbListSuggestions } from "@/lib/db";
+import { serverLedger } from "@/lib/llm-server";
+
+// Minimal agent trace: recent runs + suggestions + cumulative spend.
+// llm_calls rows mirror to Supabase only in live mode via db helpers;
+// the in-memory ledger total is always available.
+export async function GET(): Promise<Response> {
+  const [runs, suggestions] = await Promise.all([dbListAgentRuns(), dbListSuggestions()]);
+  return Response.json({
+    runs: runs.slice(0, 50),
+    suggestions: suggestions.slice(0, 50),
+    spendTotalUsd: Math.round(serverLedger.total * 100) / 100,
+  });
+}
