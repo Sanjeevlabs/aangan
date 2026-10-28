@@ -64,10 +64,9 @@ export const TranslateRequestSchema = z.object({
   targetLang: z.string().min(2).max(8),
 });
 
-export const TranscribeRequestSchema = z.object({
-  langHint: z.string().min(2).max(8).default("en"),
-  audioId: z.string().min(1).default("voice"),
-});
+// Transcription arrives as multipart bytes (see /api/transcribe); there is
+// no JSON transcription contract by design — no audio id can stand in for
+// the recording.
 
 export const RitualStepSchema = z.object({
   key: z.string(),

@@ -105,7 +105,10 @@ describe("display_lang (M2 language choice)", () => {
   });
 
   it("transcribe returns a schema-valid transcript", async () => {
-    const { transcript } = await transcribeVoice({ audioId: "lang-test", langHint: "hi-deva" });
+    const { transcript } = await transcribeVoice({
+      audioBytes: new Uint8Array([82, 73, 70, 70, 9, 9, 9, 9]),
+      langHint: "hi-deva",
+    });
     expect(transcript.transcript.length).toBeGreaterThan(0);
     expect(transcript.summary.length).toBeGreaterThanOrEqual(5);
   });

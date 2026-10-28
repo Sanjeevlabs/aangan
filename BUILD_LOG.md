@@ -1,5 +1,12 @@
 # BUILD_LOG.md — Aangan (Meta Global AI Developer Hackathon, Indie track)
 
+## 28 Oct 2026 — CRITICAL FIX 1: real media to models (recipes 06_muse_voice/01, 01_api_fundamentals/07)
+
+- Voice (06_muse_voice/01 `utils.py transcribe_recording` + `transcribe_file.py`): the client transcodes recordings to mono 16-bit WAV 16 kHz (`blobToWav16k`, recipe engine format) and uploads the bytes as multipart `audio`; the server forwards them as the `audio` file part with the JSON `request` part (`mode: PUSH_TO_TALK`, `model: muse-voice-transcribe-1.0` — config updated to the recipe's public name, `audioEncoding: WAV`) and parses the response `turns[].startMs` into timed lyric segments. Cache key = sha256 of the audio bytes. Missing bytes or endpoint failure → fixed `"Transcript unavailable"` (share disabled, record-again prompt) — no model-written transcript anywhere.
+- Vision (01_api_fundamentals/07 cells 5–7/10): photos travel to `muse-spark-1.3` as `image_url` data-URL parts inside a USER message (`buildVisionMessages`); video sends up to 3 client-captured key frames (`extractVideoFrames`). The vision prompt constrains names to the uploader's `taggedNames`. The live path requires images — without media there is no model call, only the fixed fallback. `/api/cards` JSON path never calls a model; multipart grounds empty photo/video captions from bytes. `TranscribeRequestSchema` (audio-id JSON contract) deleted by design.
+- Tests: new `tests/fix1-media.test.ts` (5 tests) asserts the live transcribe request body contains the audio file bytes + recipe params, turns→segments timing, USER-role `image_url` parts, and unavailable-without-bytes. Updated `m2-voice` (multipart) + `m2-language` (bytes) tests.
+- Verified: `npm run lint` ok, `npm run typecheck` ok, `npm run test:mock` 80 passed + 3 skipped, `npm run build` ok (32 routes). Live-model cost this fix: USD 0 (mock only).
+
 ## 28 Oct 2026 — Design reset + Supabase wiring (autonomous P0 run)
 
 - Design reset per the flat-courtyard spec (replaces the glass-heavy look): Ground #F6F2EC, ink #1C1917, secondary #57534E, hairlines #E2D9CE, one accent #9A3412. Now Playing ground #2A211C, played waveform #FDBA74. Instrument Serif (titles/captions/lyrics) + Inter (UI) via next/font. Radii 6–8px; no pills except the 44px round play button; glass only on sheets/mini-player. Removed the adaptive wash (wash.tsx deleted).

@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ASK_STARTERS, strings } from "@/lib/i18n";
-import { processImage, processVideo, processVoiceBlob, type ProcessedUpload } from "@/lib/media-client";
+import { blobToWav16k, extractVideoFrames, processImage, processVideo, processVoiceBlob, type ProcessedUpload } from "@/lib/media-client";
+import { getSessionMedia } from "@/lib/media-session";
 import type { TranscriptSegment } from "@/lib/schemas";
 import { cn } from "@/lib/utils";
 import { useShell } from "./shell";
@@ -17,21 +18,22 @@ export interface ReplyContribution {
   kind: "wish" | "blessing";
 }
 
-async function postCard(upload: ProcessedUpload, caption: string, lang: string): Promise<boolean> {
-  const res = await fetch("/api/cards", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      type: upload.kind === "video" ? "video" : "photo",
-      caption,
-      lang,
-      takenAt: upload.takenAt,
-      source: upload.source,
-      mediaRef: upload.mediaRef,
-      peaks: upload.peaks,
-      palette: upload.palette,
-    }),
-  });
+// Card upload carries the real bytes: `media` for the photo/video plus
+// `frames` key stills for video grounding. The server vision-grounds empty
+// captions from these bytes — never from a text prompt alone.
+async function postCard(upload: ProcessedUpload, file: File | Blob, caption: string, lang: string, frames: Blob[] = []): Promise<boolean> {
+  const form = new FormData();
+  form.append("type", upload.kind === "video" ? "video" : "photo");
+  form.append("caption", caption);
+  form.append("lang", lang);
+  form.append("takenAt", upload.takenAt);
+  form.append("source", upload.source);
+  form.append("peaks", JSON.stringify(upload.peaks));
+  form.append("palette", JSON.stringify(upload.palette));
+  form.append("taggedNames", JSON.stringify([]));
+  form.append("media", file, "media");
+  for (const frame of frames.slice(0, 3)) form.append("frames", frame, "frame.jpg");
+  const res = await fetch("/api/cards", { method: "POST", body: form });
   return res.ok;
 }
 
@@ -139,6 +141,7 @@ function VoiceTab({ onPosted, contribution }: { onPosted: () => void; contributi
 
   const start = async () => {
     setError(null);
+    setUnavailable(false);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -171,19 +174,24 @@ function VoiceTab({ onPosted, contribution }: { onPosted: () => void; contributi
     streamRef.current = null;
   };
 
+  const [unavailable, setUnavailable] = useState(false);
+
   const finish = async (blob: Blob) => {
     try {
       const upload = await processVoiceBlob(blob, { fromToday: true, fromGlassesToggle: false });
       const url = upload.previewUrl ?? "";
-      const res = await fetch("/api/transcribe", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ audioId: upload.mediaRef, langHint: viewer.displayLang ?? lang }),
-      });
+      // The recorded bytes go to the model: transcode to WAV and upload.
+      const wav = await blobToWav16k(blob);
+      const form = new FormData();
+      form.append("audio", new Blob([wav.bytes as unknown as BlobPart], { type: "audio/wav" }), "voice.wav");
+      form.append("langHint", viewer.displayLang ?? lang);
+      const res = await fetch("/api/transcribe", { method: "POST", body: form });
       if (!res.ok) throw new Error("transcribe-failed");
       const data = (await res.json()) as {
         transcript: { transcript: string; language: string; summary: string; segments: TranscriptSegment[] };
+        unavailable?: boolean;
       };
+      setUnavailable(data.unavailable === true);
       setReady({
         upload,
         url,
@@ -294,9 +302,14 @@ function VoiceTab({ onPosted, contribution }: { onPosted: () => void; contributi
               {error}
             </p>
           )}
-          <PrimaryButton className="mt-4 w-full" disabled={busy} onClick={() => void share()}>
+          <PrimaryButton className="mt-4 w-full" disabled={busy || unavailable} onClick={() => void share()}>
             {busy ? t.add.processing : t.voice.useRecording}
           </PrimaryButton>
+          {unavailable && (
+            <p className="mt-2 text-sm text-ink-soft" role="alert">
+              {ready.transcript} — record again to retry.
+            </p>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -420,7 +433,11 @@ export function AddSheet() {
           kind === "video"
             ? await processVideo(file, { fromToday, fromGlassesToggle: glasses })
             : await processImage(file, { fromToday, fromGlassesToggle: glasses });
-        const ok = await postCard(upload, caption.trim(), viewer.lang);
+        // The bytes travel with the card: compressed image, or the raw video
+        // plus key frames for vision grounding.
+        const stored = getSessionMedia(upload.mediaRef)?.blob ?? file;
+        const frames = kind === "video" ? await extractVideoFrames(file).catch(() => []) : [];
+        const ok = await postCard(upload, stored, caption.trim(), viewer.lang, frames);
         if (ok) posted += 1;
         else failures.push(file.name);
       } catch {

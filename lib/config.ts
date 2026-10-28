@@ -16,7 +16,8 @@ export const PROVIDERS: Record<ProviderName, ProviderConfig> = {
   meta: {
     baseUrl: "https://api.meta.ai/v1",
     captionModel: "muse-spark-1.3",
-    transcribeModel: "muse-voice-transcribe",
+    // Public model name per 06_muse_voice/01 (utils.py DEFAULT_MODEL).
+    transcribeModel: "muse-voice-transcribe-1.0",
     imageModel: "muse-image-1.0",
   },
   baseten: {

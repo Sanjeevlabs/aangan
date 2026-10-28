@@ -184,14 +184,19 @@ describe("M2 display_lang gating", () => {
 
 describe("M2 model routes (mock mode)", () => {
   it("transcribe validates and returns schema-valid segments", async () => {
-    const res = await postTranscribe(jsonRequest("http://test/api/transcribe", { audioId: "v1", langHint: "en" }));
+    const form = new FormData();
+    form.append("audio", new Blob([new Uint8Array([82, 73, 70, 70, 1, 2, 3, 4])], { type: "audio/wav" }), "voice.wav");
+    form.append("langHint", "en");
+    const res = await postTranscribe(new Request("http://test/api/transcribe", { method: "POST", body: form }));
     expect(res.status).toBe(200);
     const data = (await res.json()) as {
       transcript: { transcript: string; segments: { start: number; end: number; text: string }[] };
     };
     expect(data.transcript.transcript.length).toBeGreaterThan(0);
-    const bad = await postTranscribe(jsonRequest("http://test/api/transcribe", { langHint: 42 }));
-    expect(bad.status).toBe(400);
+    const missing = await postTranscribe(
+      new Request("http://test/api/transcribe", { method: "POST", body: new FormData() }),
+    );
+    expect(missing.status).toBe(400);
   });
 
   it("translate validates and never leaks script", async () => {

@@ -312,3 +312,107 @@ export async function processHomeImage(file: File): Promise<{ mediaRef: string; 
     bitmap.close();
   }
 }
+
+export async function sha256HexClient(bytes: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", bytes as unknown as BufferSource);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+// Transcode any recorded audio to mono 16-bit WAV — the recipe's engine
+// format (06_muse_voice/01: mono 16-bit WAV, 24 or 16 kHz). Resamples via an
+// offline context so MediaRecorder's webm/opus output transcribes reliably.
+export async function blobToWav16k(blob: Blob): Promise<{ bytes: Uint8Array; durationMs: number }> {
+  const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctx) throw new Error("no-audio-context");
+  const ctx = new Ctx();
+  let decoded: AudioBuffer;
+  try {
+    decoded = await ctx.decodeAudioData(await blob.arrayBuffer());
+  } finally {
+    await ctx.close().catch(() => undefined);
+  }
+  const rate = 16000;
+  const length = Math.max(1, Math.floor(decoded.duration * rate));
+  const offline = new OfflineAudioContext(1, length, rate);
+  const src = offline.createBufferSource();
+  src.buffer = decoded;
+  src.connect(offline.destination);
+  src.start(0);
+  const rendered = await offline.startRendering();
+  const samples = rendered.getChannelData(0);
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+  const writeAscii = (offset: number, text: string) => {
+    for (let i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i));
+  };
+  writeAscii(0, "RIFF");
+  view.setUint32(4, 36 + samples.length * 2, true);
+  writeAscii(8, "WAVE");
+  writeAscii(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, rate, true);
+  view.setUint32(28, rate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeAscii(36, "data");
+  view.setUint32(40, samples.length * 2, true);
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
+  return { bytes: new Uint8Array(buffer), durationMs: Math.round((samples.length / rate) * 1000) };
+}
+
+// Video key frames for vision grounding: capture up to `count` JPEG stills
+// spread across the clip. Sent as the `frames` parts of the card upload.
+export async function extractVideoFrames(file: Blob, count = 3): Promise<Blob[]> {
+  const url = URL.createObjectURL(file);
+  try {
+    const video = document.createElement("video");
+    video.muted = true;
+    video.preload = "auto";
+    video.src = url;
+    await withTimeout(
+      new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = () => resolve();
+        video.onerror = () => reject(new Error("video-meta-failed"));
+      }),
+      8000,
+      "video-meta-timeout",
+    );
+    const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
+    const out: Blob[] = [];
+    const n = Math.max(1, Math.min(3, count));
+    for (let i = 0; i < n; i++) {
+      const at = duration > 0 ? duration * ((i + 1) / (n + 1)) : 0.5;
+      try {
+        video.currentTime = Math.min(Math.max(0, at), Math.max(0, duration - 0.1));
+        await withTimeout(
+          new Promise<void>((resolve) => {
+            video.onseeked = () => resolve();
+            video.onerror = () => resolve();
+          }),
+          4000,
+          "video-seek-timeout",
+        );
+        const vw = video.videoWidth || 640;
+        const vh = video.videoHeight || 640;
+        const { w, h } = scaledSize(vw, vh, 640);
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext("2d")?.drawImage(video, 0, 0, w, h);
+        out.push(await canvasToBlob(canvas, "image/jpeg", 0.8));
+      } catch {
+        // A missed seek still leaves the other frames.
+      }
+    }
+    return out;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}

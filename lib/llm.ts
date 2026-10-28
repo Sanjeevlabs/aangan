@@ -71,10 +71,40 @@ async function mockCaption(prompt: string): Promise<{ json: unknown; cost: numbe
   };
 }
 
+export interface VisionImage {
+  bytes: Uint8Array;
+  mime: string;
+}
+
+function visionDataUrl(image: VisionImage): string {
+  const mime = image.mime === "image/jpg" ? "image/jpeg" : image.mime || "image/jpeg";
+  return `data:${mime};base64,${Buffer.from(image.bytes).toString("base64")}`;
+}
+
+// Vision message builder (01_api_fundamentals/07): the image travels as an
+// `image_url` content part inside a USER message (image content in a system
+// message is rejected with HTTP 400). Base64 data URLs for local media.
+// Pure so tests can assert the image payload without network.
+export function buildVisionMessages(
+  prompt: string,
+  images: VisionImage[],
+): { role: string; content: { type: string; text?: string; image_url?: { url: string } }[] }[] {
+  return [
+    {
+      role: "user",
+      content: [
+        { type: "text", text: prompt },
+        ...images.map((image) => ({ type: "image_url" as const, image_url: { url: visionDataUrl(image) } })),
+      ],
+    },
+  ];
+}
+
 async function liveCaption(
   provider: keyof typeof PROVIDERS,
   systemPrompt: string,
   userPrompt: string,
+  images: VisionImage[],
 ): Promise<{ json: unknown; cost: number }> {
   const cfg = PROVIDERS[provider];
   const key = process.env.META_API_KEY;
@@ -84,10 +114,7 @@ async function liveCaption(
     headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
     body: JSON.stringify({
       model: cfg.captionModel,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
+      messages: [{ role: "system", content: systemPrompt }, ...buildVisionMessages(userPrompt, images)],
       response_format: { type: "json_object" },
       // Reasoning models spend hundreds of tokens before answering; a low
       // cap truncates the reply to null and trips the fallback every time.
@@ -104,24 +131,35 @@ async function liveCaption(
 
 const CAPTION_SYSTEM =
   "Write a short family-memory caption as JSON: {caption, language, names, takenAt}. " +
+  "Describe ONLY what is visible in the attached image(s) plus the names listed below — " +
+  "never invent people, places, or events beyond the pixels. " +
   "Caption is 10-280 chars. Names must only repeat names given in the prompt. " +
   "takenAt is ISO datetime or null when unknown. Reply with JSON only.";
 
-// One retry on invalid schema, then a safe fallback card. Never throws.
+// Vision-grounded captions (01_api_fundamentals/07): the model sees the real
+// bytes. The live path REQUIRES images — without media there is no model
+// call, only the fixed fallback. Mock returns a deterministic stub keyed by
+// media hash for tests. Never throws.
 export async function captionCard(
   prompt: string,
-  opts: { mediaId?: string; store?: LlmStore; ledger?: SpendLedger } = {},
+  opts: { mediaId?: string; store?: LlmStore; ledger?: SpendLedger; images?: VisionImage[] } = {},
 ): Promise<{ caption: Caption; cached: boolean; cost: number }> {
-  const mediaId = opts.mediaId ?? "unknown";
   const store = opts.store ?? memoryStore();
   const ledger = opts.ledger ?? new SpendLedger(store);
   const provider = activeProvider();
   const model = PROVIDERS[provider].captionModel;
-  const key = `llm:${cacheKey(model, prompt, mediaId)}`;
+  const images = opts.images ?? [];
+  const mediaKey = images.length > 0 ? images.map((i) => sha256Hex(i.bytes)).join(",") : (opts.mediaId ?? "unknown");
+  const key = `llm:${cacheKey(model, prompt, mediaKey)}`;
   const hit = store.get(key);
   if (hit) {
     const parsed = CaptionSchema.safeParse(JSON.parse(hit));
     if (parsed.success) return { caption: parsed.data, cached: true, cost: 0 };
+  }
+
+  // No media, no model: the fixed fallback is not a model caption.
+  if (images.length === 0 && !isMockMode()) {
+    return { caption: FALLBACK_CAPTION, cached: false, cost: 0 };
   }
 
   const estimatedCost = isMockMode() ? 0 : 0.01;
@@ -133,10 +171,10 @@ export async function captionCard(
     try {
       const out = isMockMode()
         ? await mockCaption(prompt)
-        : await liveCaption(provider, CAPTION_SYSTEM, prompt).catch(async (err) => {
+        : await liveCaption(provider, CAPTION_SYSTEM, prompt, images).catch(async (err) => {
             // Provider fallback: Baseten only when credits confirmed, else rethrow.
             if (provider === "meta" && process.env.BASETEN_CREDITS_CONFIRMED === "1") {
-              return liveCaption("baseten", CAPTION_SYSTEM, prompt);
+              return liveCaption("baseten", CAPTION_SYSTEM, prompt, images);
             }
             throw err;
           });
@@ -153,12 +191,7 @@ export async function captionCard(
   return { caption: FALLBACK_CAPTION, cached: false, cost: 0 };
 }
 
-const FALLBACK_TRANSCRIPT: VoiceTranscript = {
-  transcript: "A short voice note.",
-  summary: "Voice note saved to Memory Lane.",
-  language: "en",
-  segments: [],
-};
+
 
 const FALLBACK_TRANSLATION: Translation = {
   text: "A family memory, kept close.",
@@ -212,7 +245,9 @@ export function normalizeLangCode(raw: unknown, fallback: string): string {
   return fallback;
 }
 
-async function mockTranscribe(audioId: string, langHint: string): Promise<{ json: unknown; cost: number }> {
+// Mock transcription stub for tests: deterministic per cache key, never a
+// model. The live path below requires real audio bytes.
+async function mockTranscribe(langHint: string): Promise<{ json: unknown; cost: number }> {
   const lang = normalizeDisplayLang(langHint);
   // hi-latn speakers speak Hindi: transcribe the Hindi source, the display
   // layer transliterates it to Latin script per card + lang.
@@ -230,7 +265,6 @@ async function mockTranscribe(audioId: string, langHint: string): Promise<{ json
       cost: 0,
     };
   }
-  void audioId;
   return {
     json: {
       transcript: "Good morning, my love. Have a wonderful day. God bless your exam.",
@@ -272,10 +306,7 @@ async function mockTranslate(text: string, targetLang: string): Promise<{ json: 
   return { json: { text: "A family memory, kept close.", language: "en" }, cost: 0 };
 }
 
-const TRANSCRIPT_SYSTEM =
-  "Transcribe the described family voice note as JSON: {transcript, summary, language, segments}. " +
-  "transcript is the full text, summary is 5-500 chars, language is a short code, " +
-  "segments is an array of {start, end, text} in seconds. Reply with JSON only.";
+
 
 const TRANSLATE_SYSTEM =
   "Translate the given family text as JSON: {text, language}. " +
@@ -315,48 +346,139 @@ async function liveJson(
 
 // Voice transcription: mock-first; live uses the chat endpoint with a
 // description (raw audio upload wiring lands with Supabase storage).
+// Shown when transcription fails: a fixed string, never a model invention.
+export const TRANSCRIPT_UNAVAILABLE = "Transcript unavailable";
+
+export function sha256Hex(bytes: Uint8Array): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+// One-shot transcribe request builder (06_muse_voice/01 utils.py
+// transcribe_recording): the params travel as a JSON part, the recording as
+// the `audio` file part, credential in the Authorization header. Pure so
+// tests can assert the audio payload is present without network.
+export function buildTranscribeForm(
+  audioBytes: Uint8Array,
+  opts: { langHint?: string; keywords?: string[]; filename?: string } = {},
+): { form: FormData; hash: string } {
+  const hash = sha256Hex(audioBytes);
+  const request: Record<string, unknown> = {
+    mode: "PUSH_TO_TALK",
+    model: PROVIDERS[activeProvider()].transcribeModel,
+    audioEncoding: "WAV",
+  };
+  if (opts.langHint) request.languageBias = [opts.langHint];
+  if (opts.keywords && opts.keywords.length > 0) request.keywords = opts.keywords;
+  const form = new FormData();
+  form.append("request", new Blob([JSON.stringify(request)], { type: "application/json" }), "request.json");
+  form.append("audio", new Blob([audioBytes as unknown as BlobPart], { type: "audio/wav" }), opts.filename ?? "voice.wav");
+  return { form, hash };
+}
+
+// Parse the one-shot response defensively (turns absent outside speech
+// modes, speaker only in DIARIZATION): turns -> timed segments for lyrics.
+export function parseTranscribeResponse(json: unknown, langHint: string): VoiceTranscript | null {
+  if (!json || typeof json !== "object") return null;
+  const raw = json as { transcript?: unknown; audioDurationMs?: unknown; turns?: unknown; language?: unknown };
+  const turns = Array.isArray(raw.turns) ? raw.turns : [];
+  const durationMs = typeof raw.audioDurationMs === "number" && raw.audioDurationMs > 0 ? raw.audioDurationMs : 0;
+  const segments = turns
+    .map((t, i) => {
+      if (!t || typeof t !== "object") return null;
+      const turn = t as { startMs?: unknown; transcript?: unknown };
+      const rawStart = turn.startMs;
+      const start = typeof rawStart === "number" && rawStart >= 0 ? rawStart / 1000 : 0;
+      const next = turns[i + 1] as { startMs?: unknown } | undefined;
+      const rawNext = next?.startMs;
+      const nextStart =
+        typeof rawNext === "number" && rawNext > (typeof rawStart === "number" ? rawStart : -1) ? rawNext / 1000 : null;
+      const end = nextStart ?? (durationMs > 0 ? durationMs / 1000 : start + 4);
+      const text = typeof turn.transcript === "string" ? turn.transcript.trim() : "";
+      if (!text) return null;
+      return { start: Math.round(start * 10) / 10, end: Math.round(Math.max(end, start + 0.5) * 10) / 10, text };
+    })
+    .filter((s): s is { start: number; end: number; text: string } => s !== null);
+  const joined = segments.map((s) => s.text).join(" ");
+  const transcript = typeof raw.transcript === "string" && raw.transcript.trim() ? raw.transcript.trim() : joined;
+  if (!transcript) return null;
+  const parsed = VoiceTranscriptSchema.safeParse({
+    transcript,
+    summary: transcript.slice(0, 500),
+    language: normalizeLangCode(raw.language, normalizeDisplayLang(langHint)),
+    segments,
+  });
+  return parsed.success ? parsed.data : null;
+}
+
+async function liveTranscribe(
+  audioBytes: Uint8Array,
+  opts: { langHint?: string; keywords?: string[] },
+): Promise<{ json: unknown; cost: number; durationMs: number }> {
+  const key = process.env.META_API_KEY;
+  if (!key) throw new Error("missing-key");
+  const { form } = buildTranscribeForm(audioBytes, opts);
+  const res = await fetch("https://api.meta.ai/v1/asr/transcribe", {
+    method: "POST",
+    headers: { authorization: `Bearer ${key}` },
+    body: form,
+  });
+  if (res.status === 413) throw new Error("audio-too-large");
+  if (!res.ok) throw new Error(`provider-${res.status}`);
+  const json = (await res.json()) as { audioDurationMs?: unknown };
+  return { json, cost: 0.01, durationMs: typeof json.audioDurationMs === "number" ? json.audioDurationMs : 0 };
+}
+
+// Voice transcription from REAL recorded audio (06_muse_voice/01).
+// Cache key = sha256 of the audio bytes, never a default id. The live path
+// requires bytes and returns "Transcript unavailable" (never a model-written
+// transcript) when the bytes are missing or the endpoint fails.
 export async function transcribeVoice(
-  input: { audioId?: string; langHint?: string },
+  input: { audioBytes?: Uint8Array; langHint?: string; keywords?: string[] },
   opts: { store?: LlmStore; ledger?: SpendLedger } = {},
-): Promise<{ transcript: VoiceTranscript; cached: boolean; cost: number }> {
-  const audioId = input.audioId ?? "voice";
+): Promise<{ transcript: VoiceTranscript; cached: boolean; cost: number; unavailable: boolean }> {
   const langHint = normalizeDisplayLang(input.langHint ?? "en");
   const store = opts.store ?? memoryStore();
   const ledger = opts.ledger ?? new SpendLedger(store);
   const provider = activeProvider();
   const model = PROVIDERS[provider].transcribeModel;
-  const key = `llm:${cacheKey(model, `transcribe:${langHint}`, audioId)}`;
-  const hit = store.get(key);
-  if (hit) {
-    const parsed = VoiceTranscriptSchema.safeParse(JSON.parse(hit));
-    if (parsed.success) return { transcript: parsed.data, cached: true, cost: 0 };
+  const hash = input.audioBytes ? sha256Hex(input.audioBytes) : null;
+  const key = hash ? `llm:${cacheKey(model, `transcribe:${langHint}`, hash)}` : null;
+  if (key) {
+    const hit = store.get(key);
+    if (hit) {
+      const parsed = VoiceTranscriptSchema.safeParse(JSON.parse(hit));
+      if (parsed.success) return { transcript: parsed.data, cached: true, cost: 0, unavailable: false };
+    }
   }
+  const unavailable = (): { transcript: VoiceTranscript; cached: boolean; cost: number; unavailable: boolean } => ({
+    transcript: { transcript: TRANSCRIPT_UNAVAILABLE, summary: TRANSCRIPT_UNAVAILABLE, language: langHint, segments: [] },
+    cached: false,
+    cost: 0,
+    unavailable: true,
+  });
+  if (!input.audioBytes || input.audioBytes.length === 0) return unavailable();
   const estimatedCost = isMockMode() ? 0 : 0.01;
-  if (!ledger.canSpend(estimatedCost)) {
-    return { transcript: FALLBACK_TRANSCRIPT, cached: false, cost: 0 };
-  }
+  if (!ledger.canSpend(estimatedCost)) return unavailable();
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const out = isMockMode()
-        ? await mockTranscribe(audioId, langHint)
-        : await liveJson(
-            provider,
-            TRANSCRIPT_SYSTEM,
-            `Voice note ${audioId}, reply in ${langHint}.`,
-            model,
-            2000,
-          );
-      const parsed = VoiceTranscriptSchema.safeParse(out.json);
-      if (!parsed.success) continue;
-      parsed.data.language = normalizeLangCode(parsed.data.language, "en");
-      ledger.record(out.cost);
-      store.set(key, JSON.stringify(parsed.data));
-      return { transcript: parsed.data, cached: false, cost: out.cost };
+      if (isMockMode()) {
+        const { json } = await mockTranscribe(langHint);
+        const parsed = VoiceTranscriptSchema.safeParse(json);
+        if (!parsed.success) continue;
+        if (key) store.set(key, JSON.stringify(parsed.data));
+        return { transcript: parsed.data, cached: false, cost: 0, unavailable: false };
+      }
+      const { json, cost } = await liveTranscribe(input.audioBytes, { langHint, keywords: input.keywords });
+      const parsed = parseTranscribeResponse(json, langHint);
+      if (!parsed) continue;
+      ledger.record(cost);
+      if (key) store.set(key, JSON.stringify(parsed));
+      return { transcript: parsed, cached: false, cost, unavailable: false };
     } catch {
       continue;
     }
   }
-  return { transcript: FALLBACK_TRANSCRIPT, cached: false, cost: 0 };
+  return unavailable();
 }
 
 const SuggestSchema = z.object({ questions: z.array(z.string().min(5).max(200)).min(1).max(5) });
