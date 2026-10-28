@@ -1,5 +1,18 @@
 # BUILD_LOG.md — Aangan (Meta Global AI Developer Hackathon, Indie track)
 
+## 28 Oct 2026 — Design reset + Supabase wiring (autonomous P0 run)
+
+- Design reset per the flat-courtyard spec (replaces the glass-heavy look): Ground #F6F2EC, ink #1C1917, secondary #57534E, hairlines #E2D9CE, one accent #9A3412. Now Playing ground #2A211C, played waveform #FDBA74. Instrument Serif (titles/captions/lyrics) + Inter (UI) via next/font. Radii 6–8px; no pills except the 44px round play button; glass only on sheets/mini-player. Removed the adaptive wash (wash.tsx deleted).
+- Home: date eyebrow, "Good {daypart}, <name>" 38px serif, "Record for them" button, elder role banner, one hero memory (full-width art, dark caption band, serif quote, 44px play, white waveform, duration, Heard line), Today shelf, "This day, years ago" 2-up grid, "Coming up" as hairline rows with "Send a wish" text actions. Profile menu (avatar button, top-right) holds the demo viewer switcher + language select + links to Family Bond / Privacy / Agent trace.
+- Flat tab bar with hairline top: Home / Lane / [+ dark rounded rect] / Rituals / Gather. Language + viewer switcher live in the profile menu, off the header.
+- Now Playing is a full-screen dark sheet: the waveform IS the scrubber (pointer drag + arrow keys; live AnalyserNode canvas when real audio plays, stored peaks otherwise), current lyric 26px serif white with muted neighbours, reactions as accent text buttons. Mini-player stays glass.
+- Memory cards are flat (6px art, serif caption, plain-text Heard line). Welcome keeps its full-bleed image + flat bottom card. Add sheet stays a glass sheet (allowed). Buttons: dark rounded rect primary, outlined secondary.
+- Supabase wiring: new `lib/supabase.ts` (server-only service-role client; never imported by client components) + `lib/db.ts` async adapter with the same shapes as `lib/store.ts`. All API routes (cards, members, display-lang, home-image, plays, reactions) go through it. Live only when keys exist AND MOCK!=="true"; any error falls back to the mock store. Tests import `lib/store.ts` directly and run with MOCK=true (vitest env), so they never touch the network. Dev goes live by setting MOCK=false in .env.local (human-owned file — not edited here). `.env.example` already lists all vars; no new env var added.
+- Cookbook note: D:\refs\meta-model-cookbook does not exist on this machine, so the referenced recipes could not be read. Proceeding from the PRD-described behaviors; each milestone below logs which recipe-intent it follows. Fallback logged, run continues.
+- Verified: `npm run lint` ok, `npm run typecheck` ok, `npm run test:mock` 54 passed + 2 skipped (live golden eval, live M2 check), `npm run build` ok (16 routes, next/font fetched fine). Live-model cost this milestone: USD 0 (no live calls).
+- Visual self-QA: blocked — this sandbox denies all listen sockets, so `next dev` cannot bind and no Playwright run is possible here. Verified via production build + code inspection instead; needs your eyes in the browser.
+
+
 ## 27 Oct 2026 — Day 1: foundation
 
 - Chose Option A: Next.js 14 + TypeScript PWA, Supabase for DB/storage, Vercel deploy.

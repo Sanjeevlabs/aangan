@@ -57,6 +57,7 @@ interface Strings {
     yearsAgo: string;
     comingUp: string;
     record: string;
+    sendWish: string;
   };
   add: {
     title: string;
@@ -119,6 +120,7 @@ const STRINGS: Record<SupportedLang, Strings> = {
       yearsAgo: "This day, years ago",
       comingUp: "Coming up",
       record: "Record for them",
+      sendWish: "Send a wish",
     },
     add: {
       title: "Add to Aangan",
@@ -188,6 +190,7 @@ const STRINGS: Record<SupportedLang, Strings> = {
       yearsAgo: "Aaj hi ke din, saalon pehle",
       comingUp: "Aane wala",
       record: "Unke liye record karein",
+      sendWish: "Shubhkaamna bhejein",
     },
     add: {
       title: "Aangan mein jodein",
@@ -257,6 +260,7 @@ const STRINGS: Record<SupportedLang, Strings> = {
       yearsAgo: "आज ही के दिन, सालों पहले",
       comingUp: "आने वाला",
       record: "उनके लिए रिकॉर्ड करें",
+      sendWish: "शुभकामना भेजें",
     },
     add: {
       title: "आँगन में जोड़ें",

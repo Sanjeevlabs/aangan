@@ -69,7 +69,7 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
       <span
         aria-hidden="true"
         className={cn(
-          "flex h-7 w-12 items-center rounded-pill border-2 px-1 transition-colors",
+          "flex h-7 w-12 items-center rounded-card border-2 px-1 transition-colors",
           checked ? "justify-end border-espresso bg-espresso" : "justify-start border-ink/40 bg-ink/10",
         )}
       >
@@ -438,7 +438,7 @@ export function AddSheet() {
               setErrors([]);
             }}
             className={cn(
-              "tap flex-1 rounded-pill text-sm font-semibold",
+              "tap flex-1 rounded-card text-sm font-semibold",
               tab === tb.key ? "bg-espresso text-espresso-ink" : "border border-ink/20",
             )}
           >

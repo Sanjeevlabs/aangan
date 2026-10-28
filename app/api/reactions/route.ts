@@ -1,9 +1,9 @@
 import { CreateReactionRequestSchema } from "@/lib/schemas";
-import { getMember, listCards, listReactions, setReaction } from "@/lib/store";
+import { dbGetMember, dbListCards, dbListReactions, dbSetReaction } from "@/lib/db";
 
 export async function GET(req: Request): Promise<Response> {
   const { searchParams } = new URL(req.url);
-  return Response.json({ reactions: listReactions(searchParams.get("cardId") ?? undefined) });
+  return Response.json({ reactions: await dbListReactions(searchParams.get("cardId") ?? undefined) });
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -17,18 +17,14 @@ export async function POST(req: Request): Promise<Response> {
   if (!parsed.success) {
     return Response.json({ error: "invalid-reaction" }, { status: 400 });
   }
-  if (!listCards().some((c) => c.id === parsed.data.cardId)) {
+  const cards = await dbListCards();
+  if (!cards.some((c) => c.id === parsed.data.cardId)) {
     return Response.json({ error: "unknown-card" }, { status: 404 });
   }
-  if (!getMember(parsed.data.memberId)) {
+  if (!(await dbGetMember(parsed.data.memberId))) {
     return Response.json({ error: "unknown-member" }, { status: 404 });
   }
   // One per member per card: setReaction replaces the member's prior kind.
-  const reaction = setReaction({
-    id: crypto.randomUUID(),
-    familyId: "demo-family",
-    createdAt: new Date().toISOString(),
-    ...parsed.data,
-  });
+  const reaction = await dbSetReaction(parsed.data);
   return Response.json({ reaction }, { status: 201 });
 }

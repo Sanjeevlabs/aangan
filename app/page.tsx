@@ -8,7 +8,7 @@ import { Welcome } from "@/components/welcome";
 const ENTERED_KEY = "aangan:entered";
 
 export default function Page() {
-  const { setWashPalette, setChromeHidden } = useShell();
+  const { setChromeHidden } = useShell();
   const [entered, setEntered] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -33,7 +33,6 @@ export default function Page() {
       <Welcome
         onEnter={() => {
           sessionStorage.setItem(ENTERED_KEY, "1");
-          setWashPalette([]);
           setEntered(true);
         }}
       />

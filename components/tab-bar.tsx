@@ -32,7 +32,8 @@ const PATHS = {
   gather: "M8 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM3 20c0-3 2.5-5 5-5s5 2 5 5M16 11a3 3 0 1 0 0-6M17 15c2 .5 4 2 4 5",
 } as const;
 
-// Glass tab bar: Home · Lane · Add (raised centre) · Rituals · Gather.
+// Flat tab bar with a hairline top: Home · Lane · [+ dark rounded rect] ·
+// Rituals · Gather. Glass lives only on sheets + mini-player, never here.
 export function TabBar() {
   const pathname = usePathname();
   const { lang } = useViewer();
@@ -58,7 +59,7 @@ export function TabBar() {
         aria-current={active ? "page" : undefined}
         className={cn(
           "tap flex w-14 flex-col items-center justify-center gap-1 text-[11px] font-medium",
-          active ? "text-accent" : "text-ink-soft",
+          active ? "text-ink" : "text-ink-soft",
         )}
       >
         <Icon d={tab.d} active={active} />
@@ -70,23 +71,23 @@ export function TabBar() {
   return (
     <nav
       aria-label="Primary"
-      className="glass glass-pill fixed bottom-4 left-1/2 z-40 flex w-[min(94vw,26rem)] -translate-x-1/2 items-end justify-between px-3 py-2"
-      style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
+      className="fixed bottom-0 left-1/2 z-40 w-full max-w-[480px] -translate-x-1/2 border-t border-line bg-paper"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      {renderTab(tabs[0])}
-      {renderTab(tabs[1])}
-      <button
-        type="button"
-        onClick={() => openAdd("photos")}
-        aria-label={t.tabs.add}
-        className="tap -translate-y-3 rounded-full bg-espresso text-espresso-ink shadow-glass transition-transform duration-150 hover:-translate-y-4"
-      >
-        <span className="flex h-14 w-14 items-center justify-center text-2xl leading-none" aria-hidden="true">
-          +
-        </span>
-      </button>
-      {renderTab(tabs[2])}
-      {renderTab(tabs[3])}
+      <div className="flex items-end justify-between px-3 py-2">
+        {renderTab(tabs[0])}
+        {renderTab(tabs[1])}
+        <button
+          type="button"
+          onClick={() => openAdd("photos")}
+          aria-label={t.tabs.add}
+          className="tap flex h-11 w-16 items-center justify-center rounded-card bg-espresso text-xl leading-none text-espresso-ink"
+        >
+          <span aria-hidden="true">+</span>
+        </button>
+        {renderTab(tabs[2])}
+        {renderTab(tabs[3])}
+      </div>
     </nav>
   );
 }

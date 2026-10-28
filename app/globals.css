@@ -27,6 +27,7 @@ h2,
 h3,
 .serif {
   font-family: var(--font-display);
+  font-weight: 400;
 }
 
 /* Visible keyboard focus everywhere. */
@@ -42,18 +43,18 @@ button {
   touch-action: manipulation;
 }
 
-/* ---- Glass (PRD spec). Solid fallback first, blur when supported. ---- */
+/* ---- Glass — ONLY on sheets + mini-player. Solid fallback first. ---- */
 .glass {
   background: var(--glass-solid);
-  border: 0.5px solid var(--glass-border);
+  border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
 }
 
-@supports (backdrop-filter: blur(40px)) or (-webkit-backdrop-filter: blur(40px)) {
+@supports (backdrop-filter: blur(24px)) or (-webkit-backdrop-filter: blur(24px)) {
   .glass {
     background: var(--glass-bg);
-    -webkit-backdrop-filter: blur(40px) saturate(1.4);
-    backdrop-filter: blur(40px) saturate(1.4);
+    -webkit-backdrop-filter: blur(24px) saturate(1.2);
+    backdrop-filter: blur(24px) saturate(1.2);
   }
 }
 
@@ -65,93 +66,35 @@ button {
   border-radius: var(--radius-pill);
 }
 
-/* ---- Adaptive light wash: 3 large blurred glows, drifting slowly. ---- */
-.wash {
-  position: fixed;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.wash-glow {
-  position: absolute;
-  width: 60vmax;
-  height: 60vmax;
-  border-radius: 9999px;
-  filter: blur(90px);
-  opacity: 0.65;
-  will-change: transform;
-  animation: wash-drift 28s ease-in-out infinite alternate;
-}
-
-.wash-glow:nth-child(1) {
-  background: var(--wash-1);
-  top: -18vmax;
-  left: -14vmax;
-}
-
-.wash-glow:nth-child(2) {
-  background: var(--wash-2);
-  bottom: -22vmax;
-  right: -12vmax;
-  animation-duration: 34s;
-  animation-delay: -12s;
-}
-
-.wash-glow:nth-child(3) {
-  background: var(--wash-3);
-  top: 32vh;
-  left: 38vw;
-  width: 44vmax;
-  height: 44vmax;
-  opacity: 0.5;
-  animation-duration: 24s;
-  animation-delay: -6s;
-}
-
-@keyframes wash-drift {
-  from {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  to {
-    transform: translate3d(4vmax, 3vmax, 0) scale(1.08);
-  }
-}
-
-/* ---- Horizontal shelves: snap, no visible scrollbar, still scrollable. ---- */
-.shelf {
+/* ---- Flat hairline rows (Coming up, calendar, lists). ---- */
+.hairline-row {
   display: flex;
-  gap: var(--space-2);
-  overflow-x: auto;
-  scroll-snap-type: x proximity;
-  padding-bottom: var(--space-1);
-  scrollbar-width: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 2px;
+  border-top: 1px solid var(--line);
 }
 
-.shelf::-webkit-scrollbar {
-  display: none;
-}
-
-.shelf > * {
-  scroll-snap-align: start;
-  flex-shrink: 0;
+.hairline-row:last-child {
+  border-bottom: 1px solid var(--line);
 }
 
 /* ---- Skeleton loaders: never a blank spinner. ---- */
 .skeleton {
   border-radius: var(--radius-card);
-  background: var(--skeleton);
+  background: var(--line);
+  opacity: 0.6;
   min-height: 96px;
   animation: skeleton-pulse var(--motion-slow) ease-in-out infinite alternate;
 }
 
 @keyframes skeleton-pulse {
   from {
-    opacity: 0.6;
+    opacity: 0.45;
   }
   to {
-    opacity: 1;
+    opacity: 0.85;
   }
 }
 
@@ -161,7 +104,7 @@ button {
   min-width: var(--touch-min);
 }
 
-/* Square artwork tiles. */
+/* Square artwork tiles, 6px radius. */
 .art-square {
   aspect-ratio: 1 / 1;
   border-radius: var(--radius-card);

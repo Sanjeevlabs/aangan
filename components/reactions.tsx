@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { grandmaName, strings } from "@/lib/i18n";
 import type { Member, Play, Reaction } from "@/lib/schemas";
+import { cn } from "@/lib/utils";
 import { useShell } from "./shell";
 import { useViewer } from "./viewer";
 import { heardLine, reactionLine } from "@/lib/voice";
@@ -24,8 +25,8 @@ async function fetchMembers(): Promise<Member[]> {
   }
 }
 
-// Glass chip for the Heard loop: the latest play by someone other than the
-// viewer, e.g. "Dadi heard this · 09:14". Renders nothing until loaded.
+// Heard loop: the latest play by someone other than the viewer,
+// e.g. "Dadi heard this · 09:14". Plain text, never a count.
 export function HeardChip({ cardId }: { cardId: string }) {
   const { viewer, displayLang } = useViewer();
   const [line, setLine] = useState<string | null>(null);
@@ -54,17 +55,15 @@ export function HeardChip({ cardId }: { cardId: string }) {
   }, [cardId, viewer.id, displayLang]);
 
   if (!line) return null;
-  return (
-    <span className="glass glass-pill inline-block px-3 py-1 text-[12px] font-semibold">{line}</span>
-  );
+  return <p className="m-0 text-[12px] text-ink-soft">{line}</p>;
 }
 
 const KINDS = ["love", "laugh", "bless"] as const;
 
-// Exactly three reactions, shown as text, never counts. One per member per
-// card — tapping replaces the member's prior kind. Long-press replies by
-// voice (Bless carries the voice-reply label).
-export function ReactionBar({ cardId }: { cardId: string }) {
+// Exactly three reactions as text buttons, never counts. One per member per
+// card — tapping replaces the member's prior kind. Long-press on Bless
+// replies by voice.
+export function ReactionBar({ cardId, compact }: { cardId: string; compact?: boolean }) {
   const { viewer, displayLang } = useViewer();
   const { openAdd } = useShell();
   const t = strings(displayLang);
@@ -134,7 +133,7 @@ export function ReactionBar({ cardId }: { cardId: string }) {
           })}
         </ul>
       )}
-      <div className="flex gap-2" role="group" aria-label={t.reactions.replyVoice}>
+      <div className="flex flex-wrap gap-x-4 gap-y-1" role="group" aria-label={t.reactions.replyVoice}>
         {KINDS.map((kind) => (
           <button
             key={kind}
@@ -145,7 +144,7 @@ export function ReactionBar({ cardId }: { cardId: string }) {
             onPointerLeave={kind === "bless" ? endPress : undefined}
             title={kind === "bless" ? `${t.reactions.bless} · ${t.reactions.replyVoice}` : labelFor(kind)}
             aria-label={kind === "bless" ? `${t.reactions.bless} · ${t.reactions.replyVoice}` : labelFor(kind)}
-            className="tap rounded-pill border border-line bg-surface/70 px-4 text-sm font-semibold"
+            className={cn("tap px-0 text-[15px] font-semibold text-accent", compact && "text-sm")}
           >
             {labelFor(kind)}
           </button>

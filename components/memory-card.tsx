@@ -5,6 +5,7 @@ import { useRef } from "react";
 import { strings } from "@/lib/i18n";
 import { resolveMediaUrl } from "@/lib/media-session";
 import type { Card } from "@/lib/schemas";
+import { cn } from "@/lib/utils";
 import { useDisplayText } from "@/lib/use-display-text";
 import { usePlayer } from "./player";
 import { HeardChip, ReactionBar } from "./reactions";
@@ -53,11 +54,9 @@ function Art({ card }: { card: Card }) {
   );
 }
 
-// Spotify-inspired square artwork card, artwork-tinted. Captions render in
-// the viewer's display_lang (skeleton while a translation loads, so Hindi
-// is never shown untranslated to en / hi-latn viewers). Tap plays in Now
-// Playing; long-press replies by voice.
-export function MemoryCard({ card }: { card: Card }) {
+// Flat memory card: 6px artwork, serif caption. Tap plays in Now Playing;
+// long-press replies by voice.
+export function MemoryCard({ card, wide }: { card: Card; wide?: boolean }) {
   const { lang } = useViewer();
   const { openAdd } = useShell();
   const { play } = usePlayer();
@@ -85,7 +84,7 @@ export function MemoryCard({ card }: { card: Card }) {
 
   return (
     <article
-      className="w-40"
+      className={cn("min-w-0", wide ? "w-full" : "w-40 shrink-0")}
       onPointerDown={beginPress}
       onPointerUp={endPress}
       onPointerLeave={endPress}
@@ -105,7 +104,7 @@ export function MemoryCard({ card }: { card: Card }) {
         <div className="art-square bg-skeleton">
           <Art card={card} />
           {card.source === "glasses" && (
-            <span className="glass glass-pill absolute left-2 top-2 px-3 py-1 text-[11px] font-semibold">
+            <span className="absolute left-2 top-2 rounded-card bg-ink/70 px-2 py-1 text-[11px] font-semibold text-white">
               {t.card.glassesBadge}
             </span>
           )}
@@ -124,7 +123,7 @@ export function MemoryCard({ card }: { card: Card }) {
       </div>
       {(card.type === "audio" || card.type === "video") && (
         <div className="mt-2">
-          <ReactionBar cardId={card.id} />
+          <ReactionBar cardId={card.id} compact />
         </div>
       )}
     </article>

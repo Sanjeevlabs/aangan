@@ -2,10 +2,10 @@ import { CreateCardRequestSchema } from "@/lib/schemas";
 import { resolveTakenAt } from "@/lib/dating";
 import { captionCard } from "@/lib/llm";
 import { serverLedger, serverStore } from "@/lib/llm-server";
-import { addCard, listCards } from "@/lib/store";
+import { dbAddCard, dbListCards } from "@/lib/db";
 
 export async function GET(): Promise<Response> {
-  return Response.json({ cards: listCards() });
+  return Response.json({ cards: await dbListCards() });
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -34,8 +34,7 @@ export async function POST(req: Request): Promise<Response> {
     data.lang = caption.language;
     data.takenAt = resolveTakenAt({ modelDate: caption.takenAt });
   }
-  const card = addCard({
-    id: crypto.randomUUID(),
+  const card = await dbAddCard({
     familyId: "demo-family",
     summary: "",
     ritualSlug: null,

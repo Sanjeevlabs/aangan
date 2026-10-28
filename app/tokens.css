@@ -1,38 +1,33 @@
-/* Aangan design tokens — the single source of truth for color, spacing, radius.
-   Light-first, dark supported. Sans UI; serif titles, captions, lyrics.
-   8pt spacing grid. System stacks only; no licensed fonts. */
+/* Aangan design tokens — flat courtyard system (Oct 2026 reset).
+   Light-first, dark supported. Serif titles/captions/lyrics, Inter UI.
+   8pt spacing grid. Fonts loaded via next/font in app/layout.tsx. */
 
 :root {
-  /* Warm palette — light mode */
-  --paper: #fffdf8;
-  --surface: #ffffff;
-  --ink: #2b2118;
-  --ink-soft: #5c4f42;
-  --line: #e7ddd0;
-  --accent: #7c2d12;
-  --accent-ink: #ffffff;
-  --skeleton: #efe7da;
+  /* Flat light system */
+  --paper: #f6f2ec;
+  --surface: #fffdf8;
+  --ink: #1c1917;
+  --ink-soft: #57534e;
+  --line: #e2d9ce;
+  --accent: #9a3412;
+  --accent-ink: #fff7ed;
 
-  /* Buttons: primary = dark espresso pill, secondary = outlined pill */
-  --espresso: #33231a;
-  --espresso-ink: #fff8f0;
-  --cream: #fff9f3;
+  /* Buttons: primary = dark rounded rect, secondary = outlined */
+  --espresso: #1c1917;
+  --espresso-ink: #f6f2ec;
 
-  /* Glass — sheets, tab bar, mini-player, player controls, photo caption
-     panels, agent suggestion cards. Solid fallback first. */
-  --glass-solid: #fff9f3;
-  --glass-bg: rgba(255, 250, 245, 0.72);
-  --glass-border: rgba(255, 255, 255, 0.6);
+  /* Glass — ONLY sheets + mini-player. Solid fallback first. */
+  --glass-solid: #fffdf8;
+  --glass-bg: rgba(255, 253, 248, 0.86);
+  --glass-border: rgba(28, 25, 23, 0.08);
   --glass-shadow: 0 20px 60px rgba(60, 40, 30, 0.18);
 
-  /* Adaptive light wash — default warm peach; seeded from home image /
-     artwork at runtime via --wash-1/2/3 overrides. */
-  --wash-1: #ffd9b8;
-  --wash-2: #ffb59a;
-  --wash-3: #ffe9d2;
-
-  /* Card art tints */
-  --art-veil: rgba(43, 33, 24, 0.28);
+  /* Now Playing (always dark) */
+  --player-ground: #2a211c;
+  --player-ink: #faf6ef;
+  --player-muted: rgba(250, 246, 239, 0.62);
+  --player-wave: #fdba74;
+  --player-wave-dim: rgba(253, 186, 116, 0.35);
 
   /* Spacing — 8pt grid */
   --space-1: 8px;
@@ -42,45 +37,38 @@
   --space-5: 40px;
   --space-6: 48px;
 
-  /* Radius */
-  --radius-sheet: 32px;
-  --radius-card: 20px;
+  /* Radius — 6–8px; no pills except the 44px round play button */
+  --radius-sheet: 8px;
+  --radius-card: 6px;
   --radius-pill: 999px;
 
   /* Touch */
   --touch-min: 44px;
 
-  /* Motion — framer-motion, 150–400ms */
+  /* Motion — 150–300ms */
   --motion-fast: 150ms;
-  --motion-base: 250ms;
-  --motion-slow: 400ms;
+  --motion-base: 200ms;
+  --motion-slow: 300ms;
 
-  /* Type — system stack only */
-  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-display: Georgia, "Times New Roman", serif;
+  /* Type — next/font vars, system fallback */
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Instrument Serif", Georgia, "Times New Roman", serif;
 }
 
 .dark {
-  --paper: #1c1611;
-  --surface: #262019;
-  --ink: #f3e9dc;
-  --ink-soft: #c9b8a6;
-  --line: #453a2e;
-  --accent: #e89b6a;
+  --paper: #1c1917;
+  --surface: #26211c;
+  --ink: #f6f2ec;
+  --ink-soft: #b8ada1;
+  --line: #3d362f;
+  --accent: #e09a63;
   --accent-ink: #241207;
-  --skeleton: #332a20;
 
-  --espresso: #f3e9dc;
-  --espresso-ink: #241207;
+  --espresso: #f6f2ec;
+  --espresso-ink: #1c1917;
 
-  --glass-solid: #2a2019;
-  --glass-bg: rgba(40, 30, 25, 0.6);
-  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-solid: #26211c;
+  --glass-bg: rgba(38, 33, 28, 0.86);
+  --glass-border: rgba(246, 242, 236, 0.12);
   --glass-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
-
-  --wash-1: #5a3a28;
-  --wash-2: #43304a;
-  --wash-3: #2e3a4a;
-
-  --art-veil: rgba(0, 0, 0, 0.4);
 }

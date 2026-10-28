@@ -1,5 +1,5 @@
 import { HomeImageRequestSchema } from "@/lib/schemas";
-import { setMemberHome } from "@/lib/store";
+import { dbSetMemberHome } from "@/lib/db";
 
 export async function POST(req: Request): Promise<Response> {
   let body: unknown;
@@ -12,7 +12,7 @@ export async function POST(req: Request): Promise<Response> {
   if (!parsed.success) {
     return Response.json({ error: "invalid-home-image" }, { status: 400 });
   }
-  const member = setMemberHome(parsed.data.memberId, parsed.data.mediaRef, parsed.data.palette);
+  const member = await dbSetMemberHome(parsed.data.memberId, parsed.data.mediaRef, parsed.data.palette);
   if (!member) {
     return Response.json({ error: "unknown-member" }, { status: 404 });
   }

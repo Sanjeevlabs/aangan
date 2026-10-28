@@ -1,6 +1,6 @@
 import { DEMO_FAMILY } from "@/lib/family";
-import { listMembers } from "@/lib/store";
+import { dbListMembers } from "@/lib/db";
 
 export async function GET(): Promise<Response> {
-  return Response.json({ members: listMembers(), family: DEMO_FAMILY });
+  return Response.json({ members: await dbListMembers(), family: DEMO_FAMILY });
 }

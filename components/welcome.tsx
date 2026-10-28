@@ -8,18 +8,16 @@ import { processHomeImage } from "@/lib/media-client";
 import { resolveMediaUrl } from "@/lib/media-session";
 import { OutlineButton, PrimaryButton } from "./ui/buttons";
 import { CourtyardArt } from "./courtyard-art";
-import { useShell } from "./shell";
 import { DEMO_FAMILY, useViewer } from "./viewer";
 
 // AI-generated fallback courtyard (see public/demo/README.md). The SVG
 // courtyard stays as an offline fallback if this image fails to load.
 const FALLBACK_COURTYARD_SRC = "/demo/courtyard.jpg";
 
-// Welcome screen, shown once per session. Renders inside the centred
-// phone-width column — nothing full-bleed beyond it — over the wash.
+// Welcome screen, shown once per session. Full-bleed home image with a flat
+// bottom card: greeting, serif welcome line, one warm signal line.
 export function Welcome({ onEnter }: { onEnter: () => void }) {
-  const { viewer, lang, displayLang, setDisplayLang, signalLine, refreshMembers } = useViewer();
-  const { setWashPalette } = useShell();
+  const { viewer, lang, displayLang, setDisplayLang, refreshMembers } = useViewer();
   const t = strings(lang);
   const fileRef = useRef<HTMLInputElement>(null);
   const [hour, setHour] = useState<number | null>(null);
@@ -38,10 +36,6 @@ export function Welcome({ onEnter }: { onEnter: () => void }) {
     setImgFailed(false);
   }, [src]);
 
-  useEffect(() => {
-    setWashPalette(viewer.homePalette.length >= 3 ? viewer.homePalette : []);
-  }, [viewer.homePalette, setWashPalette]);
-
   const pickHome = async (file: File | undefined) => {
     if (!file) return;
     setSaving(true);
@@ -54,7 +48,6 @@ export function Welcome({ onEnter }: { onEnter: () => void }) {
         body: JSON.stringify({ memberId: viewer.id, mediaRef, palette }),
       });
       if (!res.ok) throw new Error("home-save-failed");
-      setWashPalette(palette);
       await refreshMembers();
     } catch {
       setError(t.common.retry);
@@ -66,8 +59,8 @@ export function Welcome({ onEnter }: { onEnter: () => void }) {
   const greeting = t.greeting[greetingForHour(hour ?? 9)];
 
   return (
-    <div className="fixed inset-0 z-[60] flex justify-center">
-      <div className="relative h-full w-full max-w-[480px] overflow-hidden sm:shadow-[0_0_80px_rgba(60,40,30,0.25)]">
+    <div className="fixed inset-0 z-[60] flex justify-center bg-ink">
+      <div className="relative h-full w-full max-w-[480px] overflow-hidden">
         {imgFailed ? (
           <CourtyardArt className="h-full w-full" />
         ) : (
@@ -83,10 +76,9 @@ export function Welcome({ onEnter }: { onEnter: () => void }) {
           className="absolute inset-x-0 bottom-0 p-4"
           style={{ paddingBottom: "max(2rem, env(safe-area-inset-bottom))" }}
         >
-          <div className="glass glass-sheet mx-auto w-full p-6">
+          <div className="mx-auto w-full rounded-card bg-paper p-6 text-ink shadow-glass">
             <p className="m-0 text-sm text-ink-soft">{greeting}</p>
-            <h1 className="mb-1 mt-1 text-3xl font-normal leading-tight">{t.welcomeTo(viewer.firstName)}</h1>
-            <p className="mb-4 mt-0 text-[15px] text-ink-soft">{signalLine}</p>
+            <h1 className="mb-1 mt-1 text-3xl leading-tight">{t.welcomeTo(viewer.firstName)}</h1>
             {!homeRef && (
               <div className="mb-4">
                 <p className="m-0 text-sm font-semibold">{t.addHomeTitle}</p>
@@ -104,10 +96,10 @@ export function Welcome({ onEnter }: { onEnter: () => void }) {
                     aria-checked={displayLang === code}
                     onClick={() => void setDisplayLang(code)}
                     className={cn(
-                      "tap min-w-0 flex-1 basis-0 rounded-pill border px-2 text-sm font-semibold",
+                      "tap min-w-0 flex-1 basis-0 rounded-card border px-2 text-sm font-semibold",
                       displayLang === code
                         ? "border-espresso bg-espresso text-espresso-ink"
-                        : "border-ink/40 bg-transparent",
+                        : "border-ink/25 bg-transparent",
                     )}
                   >
                     {displayLangLabel(code)}

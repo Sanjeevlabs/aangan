@@ -5,15 +5,12 @@ import { AddSheet, type AddTab } from "./add-sheet";
 import { PlayerProvider } from "./player";
 import { TabBar } from "./tab-bar";
 import { ViewerProvider } from "./viewer";
-import { Wash } from "./wash";
 
 interface ShellState {
   addOpen: boolean;
   addTab: AddTab;
   openAdd: (tab?: AddTab) => void;
   closeAdd: () => void;
-  washPalette: string[];
-  setWashPalette: (palette: string[]) => void;
   refreshKey: number;
   bumpRefresh: () => void;
   chromeHidden: boolean;
@@ -31,7 +28,6 @@ export function useShell(): ShellState {
 function ShellInner({ children }: { children: React.ReactNode }) {
   const [addOpen, setAddOpen] = useState(false);
   const [addTab, setAddTab] = useState<AddTab>("photos");
-  const [washPalette, setWashPalette] = useState<string[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [chromeHidden, setChromeHidden] = useState(false);
 
@@ -43,28 +39,16 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   const bumpRefresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   const value = useMemo<ShellState>(
-    () => ({
-      addOpen,
-      addTab,
-      openAdd,
-      closeAdd,
-      washPalette,
-      setWashPalette,
-      refreshKey,
-      bumpRefresh,
-      chromeHidden,
-      setChromeHidden,
-    }),
-    [addOpen, addTab, openAdd, closeAdd, washPalette, refreshKey, bumpRefresh, chromeHidden],
+    () => ({ addOpen, addTab, openAdd, closeAdd, refreshKey, bumpRefresh, chromeHidden, setChromeHidden }),
+    [addOpen, addTab, openAdd, closeAdd, refreshKey, bumpRefresh, chromeHidden],
   );
 
   return (
     <ShellContext.Provider value={value}>
       <PlayerProvider>
-        <Wash palette={washPalette.length >= 3 ? washPalette : undefined} />
         <div
-          className="relative z-10 mx-auto min-h-full w-full max-w-[480px] px-4 pt-6"
-          style={{ paddingBottom: "calc(7rem + env(safe-area-inset-bottom))" }}
+          className="relative z-10 mx-auto min-h-full w-full max-w-[480px] bg-paper px-4 pt-6"
+          style={{ paddingBottom: "calc(6rem + env(safe-area-inset-bottom))" }}
         >
           {children}
         </div>

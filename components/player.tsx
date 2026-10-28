@@ -9,12 +9,12 @@ import {
   useRef,
   useState,
 } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { strings } from "@/lib/i18n";
 import { resolveMediaUrl } from "@/lib/media-session";
 import type { Card } from "@/lib/schemas";
-import { estimateSegments, needsDisplayText } from "@/lib/voice";
+import { estimateSegments, formatHeardTime } from "@/lib/voice";
 import { useDisplayText } from "@/lib/use-display-text";
-import { GlassSheet } from "./ui/glass";
 import { HeardChip, ReactionBar } from "./reactions";
 import { useViewer } from "./viewer";
 
@@ -53,7 +53,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [duration, setDuration] = useState(12);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const analyserRef = useRef<{ ctx: AudioContext; analyser: AnalyserNode } | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const timerRef = useRef<number | null>(null);
 
@@ -230,49 +229,45 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   return (
     <PlayerContext.Provider value={value}>
       {children}
-      <MiniPlayer
-        canvasRef={canvasRef}
-        analyserRef={analyserRef}
-        rafRef={rafRef}
-        stopWaves={stopWaves}
-      />
-      <FullPlayer
-        canvasRef={canvasRef}
-        analyserRef={analyserRef}
-        rafRef={rafRef}
-        stopWaves={stopWaves}
-      />
+      <MiniPlayer />
+      <FullPlayer analyserRef={analyserRef} />
     </PlayerContext.Provider>
   );
 }
 
-interface WaveRefs {
-  canvasRef: React.MutableRefObject<HTMLCanvasElement | null>;
-  analyserRef: React.MutableRefObject<{ ctx: AudioContext; analyser: AnalyserNode } | null>;
-  rafRef: React.MutableRefObject<number | null>;
-  stopWaves: () => void;
-}
-
-// Live voice frequency waves via Web Audio AnalyserNode when real audio
-// plays; stored peaks render when static.
-function LiveWaves({
-  isPlaying,
-  url,
-  peaks,
-  canvasRef,
+// The waveform IS the scrubber: played bars in warm amber, the rest dim.
+// Pointer down/drag seeks. Live analyser waves when real audio plays.
+function WaveScrubber({
+  card,
   analyserRef,
-  rafRef,
-  stopWaves,
-}: WaveRefs & { isPlaying: boolean; url: string | null; peaks: number[] }) {
+}: {
+  card: Card;
+  analyserRef: React.MutableRefObject<{ ctx: AudioContext; analyser: AnalyserNode } | null>;
+}) {
+  const { currentTime, duration, seek, isPlaying } = usePlayer();
+  const { displayLang } = useViewer();
+  const url = resolveMediaUrl(card.mediaRef);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [live, setLive] = useState(false);
+  const dragRef = useRef(false);
+
+  const peaks = useMemo(() => {
+    const p = card.peaks.length >= 24 ? card.peaks : new Array(48).fill(0.4);
+    return p.slice(0, 48);
+  }, [card.peaks]);
+
+  // Live waves from the AnalyserNode while real audio plays.
   useEffect(() => {
     const canvas = canvasRef.current;
     const entry = analyserRef.current;
     if (!canvas || !url || !isPlaying || !entry) {
-      stopWaves();
+      setLive(false);
       return;
     }
+    setLive(true);
     const { ctx, analyser } = entry;
     if (ctx.state === "suspended") void ctx.resume().catch(() => undefined);
+    let raf = 0;
     const draw = () => {
       const data = new Uint8Array(analyser.frequencyBinCount);
       analyser.getByteFrequencyData(data);
@@ -281,39 +276,88 @@ function LiveWaves({
         const w = canvas.width;
         const h = canvas.height;
         g.clearRect(0, 0, w, h);
-        const n = 24;
+        const n = 48;
         const bw = w / n;
         for (let i = 0; i < n; i++) {
           const v = data[Math.floor((i / n) * data.length)] / 255;
           const bh = Math.max(3, v * h);
-          g.fillStyle = "rgba(255,248,240,0.9)";
-          g.fillRect(i * bw + 1, (h - bh) / 2, bw - 2, bh);
+          const played = (i / n) * duration <= currentTime;
+          g.fillStyle = played ? "#FDBA74" : "rgba(253,186,116,0.35)";
+          g.fillRect(i * bw + 1, (h - bh) / 2, Math.max(1, bw - 2), bh);
         }
       }
-      rafRef.current = requestAnimationFrame(draw);
+      raf = requestAnimationFrame(draw);
     };
-    rafRef.current = requestAnimationFrame(draw);
-    return stopWaves;
-  }, [isPlaying, url, canvasRef, analyserRef, rafRef, stopWaves]);
+    raf = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf);
+  }, [url, isPlaying, analyserRef, duration, currentTime]);
 
-  if (url && isPlaying) {
-    return <canvas ref={canvasRef} width={220} height={48} aria-hidden="true" className="h-12 w-56" />;
-  }
-  const bars = peaks.filter((_, i) => i % 2 === 0).slice(0, 24);
+  const ratioToTime = (clientX: number, el: HTMLElement) => {
+    const rect = el.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
+    return ratio * duration;
+  };
+
+  const progress = duration > 0 ? Math.max(0, Math.min(1, currentTime / duration)) : 0;
+
   return (
-    <div className="flex h-12 w-56 items-center justify-center gap-[3px]" aria-hidden="true">
-      {(bars.length > 0 ? bars : new Array(24).fill(0.4)).map((p, i) => (
-        <span
-          key={i}
-          className="w-[4px] rounded-full bg-white/85"
-          style={{ height: `${Math.max(5, Math.round(Number(p) * 44))}px` }}
-        />
-      ))}
+    <div>
+      <div
+        role="slider"
+        aria-label="Seek"
+        aria-valuemin={0}
+        aria-valuemax={Math.round(duration)}
+        aria-valuenow={Math.round(currentTime)}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowRight") seek(currentTime + 2);
+          if (e.key === "ArrowLeft") seek(currentTime - 2);
+        }}
+        onPointerDown={(e) => {
+          dragRef.current = true;
+          (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+          seek(ratioToTime(e.clientX, e.currentTarget));
+        }}
+        onPointerMove={(e) => {
+          if (dragRef.current) seek(ratioToTime(e.clientX, e.currentTarget));
+        }}
+        onPointerUp={() => {
+          dragRef.current = false;
+        }}
+        className="tap flex h-16 w-full cursor-pointer items-center"
+      >
+        {live ? (
+          <canvas ref={canvasRef} width={480} height={64} className="h-16 w-full" aria-hidden="true" />
+        ) : (
+          <div className="flex h-16 w-full items-center gap-[2px]" aria-hidden="true">
+            {peaks.map((p, i) => {
+              const played = i / peaks.length <= progress;
+              return (
+                <span
+                  key={i}
+                  className="min-w-[2px] flex-1 rounded-full"
+                  style={{
+                    height: `${Math.max(6, Math.round(Number(p) * 56))}px`,
+                    background: played ? "#FDBA74" : "rgba(253,186,116,0.35)",
+                  }}
+                />
+              );
+            })}
+          </div>
+        )}
+      </div>
+      <div className="flex justify-between text-[12px] tabular-nums text-[var(--player-muted)]" aria-hidden="true">
+        <span>{formatHeardTime(new Date(currentTime * 1000).toISOString())}</span>
+        <span>{formatHeardTime(new Date(duration * 1000).toISOString())}</span>
+      </div>
+      <span className="sr-only">
+        {displayLang === "en" ? "Audio progress" : "progress"}
+      </span>
     </div>
   );
 }
 
-function MiniPlayer(refs: WaveRefs) {
+function MiniPlayer() {
   const { current, open, isPlaying, toggle, expand, closePlayer } = usePlayer();
   const { displayLang } = useViewer();
   const t = strings(displayLang);
@@ -383,10 +427,11 @@ function SyncedLyrics({ card, duration, currentTime }: { card: Card; duration: n
       {lines.map((l, i) => (
         <li
           key={i}
+          aria-current={i === active ? "true" : undefined}
           className={
             i === active
-              ? "serif text-[17px] font-semibold leading-snug"
-              : "serif text-[15px] leading-snug text-ink-soft"
+              ? "serif text-[26px] leading-snug text-[var(--player-ink)]"
+              : "serif mt-1 text-[17px] leading-snug text-[var(--player-muted)]"
           }
         >
           {l.text}
@@ -396,108 +441,89 @@ function SyncedLyrics({ card, duration, currentTime }: { card: Card; duration: n
   );
 }
 
-function FullPlayer(refs: WaveRefs) {
-  const { current, open, isPlaying, currentTime, duration, toggle, seek, collapse, closePlayer } = usePlayer();
+// Full-screen dark Now Playing. The waveform is the scrubber; reactions are
+// text buttons. Glass is not used here — the ground is solid #2A211C.
+function FullPlayer({
+  analyserRef,
+}: {
+  analyserRef: React.MutableRefObject<{ ctx: AudioContext; analyser: AnalyserNode } | null>;
+}) {
+  const { current, open, isPlaying, currentTime, duration, toggle, collapse, closePlayer } = usePlayer();
   const { displayLang } = useViewer();
   const t = strings(displayLang);
   const { text: caption, translated } = useDisplayText(current?.caption ?? "", current?.lang, displayLang);
 
-  const palette = current && current.palette.length >= 3 ? current.palette : ["#c96f4a", "#e8a87c", "#f4d8b4"];
-  const artUrl = current && current.type === "photo" ? resolveMediaUrl(current.mediaRef) : null;
-  const audioUrl = current ? resolveMediaUrl(current.mediaRef) : null;
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") collapse();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, collapse]);
 
   return (
-    <GlassSheet open={open && current !== null} onClose={collapse} label={t.player.nowPlaying}>
-      {current && (
-        <div>
-          <h2 className="mb-3 mt-0 pr-10 text-2xl font-normal">{t.player.nowPlaying}</h2>
-          <div className="art-square mb-3 bg-skeleton">
-            {artUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={artUrl} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <div
-                className="flex h-full w-full items-center justify-center"
-                style={{ background: `linear-gradient(135deg, ${palette[0]}, ${palette[1]} 55%, ${palette[2]})` }}
-                aria-hidden="true"
+    <AnimatePresence>
+      {open && current && (
+        <motion.div
+          role="dialog"
+          aria-modal="true"
+          aria-label={t.player.nowPlaying}
+          className="fixed inset-0 z-50 flex justify-center bg-[var(--player-ground)] text-[var(--player-ink)]"
+          initial={{ opacity: 0, y: 32 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 32 }}
+          transition={{ duration: 0.2 }}
+        >
+          <div className="flex max-h-full w-full max-w-[480px] flex-col overflow-y-auto px-5 pb-8 pt-4">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="m-0 text-[13px] font-medium text-[var(--player-muted)]">{t.player.nowPlaying}</p>
+              <button
+                type="button"
+                onClick={collapse}
+                aria-label={t.player.close}
+                className="tap flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-xl leading-none"
               >
-                {audioUrl && isPlaying ? (
-                  <LiveWaves
-                    isPlaying={isPlaying}
-                    url={audioUrl}
-                    peaks={current.peaks}
-                    canvasRef={refs.canvasRef}
-                    analyserRef={refs.analyserRef}
-                    rafRef={refs.rafRef}
-                    stopWaves={refs.stopWaves}
-                  />
-                ) : (
-                  <div className="flex h-12 items-center gap-[3px]">
-                    {(current.peaks.filter((_, i) => i % 2 === 0).slice(0, 24).length > 0
-                      ? current.peaks.filter((_, i) => i % 2 === 0).slice(0, 24)
-                      : new Array(24).fill(0.4)
-                    ).map((p, i) => (
-                      <span
-                        key={i}
-                        className="w-[4px] rounded-full bg-white/85"
-                        style={{ height: `${Math.max(6, Math.round(Number(p) * 44))}px` }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
+                ×
+              </button>
+            </div>
+            <p className="serif m-0 text-xl leading-snug">{caption ?? "…"}</p>
+            {translated && (
+              <p className="m-0 mt-1 text-[12px] font-semibold text-[var(--player-wave)]">{t.player.translatedNote}</p>
             )}
-          </div>
-          <p className="serif m-0 text-lg leading-snug">{caption ?? "…"}</p>
-          {translated && (
-            <p className="m-0 mt-1 text-[12px] font-semibold text-accent">{t.player.translatedNote}</p>
-          )}
-          <div className="mb-1 mt-3 flex items-center gap-2">
-            <HeardChip cardId={current.id} />
-          </div>
-          <label className="mt-2 block text-sm font-medium">
-            <span className="sr-only">{t.player.lyrics}</span>
-            <input
-              type="range"
-              min={0}
-              max={Math.max(1, duration)}
-              step={0.25}
-              value={Math.min(currentTime, duration)}
-              onChange={(e) => seek(Number(e.target.value))}
-              className="tap w-full"
-              aria-label={t.player.lyrics}
-            />
-          </label>
-          <div className="mb-3 flex justify-between text-[12px] text-ink-soft" aria-hidden="true">
-            <span>{currentTime.toFixed(0)}s</span>
-            <span>{duration.toFixed(0)}s</span>
-          </div>
-          <div className="glass glass-pill mb-4 flex items-center justify-center gap-3 px-4 py-2">
+            <div className="mt-2 text-[var(--player-muted)]" style={{ ["--ink-soft" as string]: "var(--player-muted)" }}>
+              <HeardChip cardId={current.id} />
+            </div>
+            <div className="mt-4">
+              <WaveScrubber card={current} analyserRef={analyserRef} />
+            </div>
+            <div className="mb-5 mt-4 flex items-center justify-center">
+              <button
+                type="button"
+                onClick={toggle}
+                className="tap flex h-11 w-11 items-center justify-center rounded-full bg-white text-xl text-ink"
+                aria-label={isPlaying ? t.player.pause : t.player.play}
+              >
+                {isPlaying ? "❚❚" : "▶"}
+              </button>
+            </div>
+            <h2 className="mb-2 mt-0 text-sm font-semibold text-[var(--player-muted)]">{t.player.lyrics}</h2>
+            <div className="mb-5">
+              <SyncedLyrics card={current} duration={duration} currentTime={currentTime} />
+            </div>
+            <div className="mb-6" style={{ ["--accent" as string]: "var(--player-wave)" }}>
+              <ReactionBar cardId={current.id} />
+            </div>
             <button
               type="button"
-              onClick={toggle}
-              className="tap flex h-12 w-12 items-center justify-center rounded-full bg-espresso text-xl text-espresso-ink"
-              aria-label={isPlaying ? t.player.pause : t.player.play}
+              onClick={closePlayer}
+              className="tap w-full rounded-card border border-white/25 text-sm font-semibold"
             >
-              {isPlaying ? "❚❚" : "▶"}
+              {t.player.close}
             </button>
           </div>
-          <h3 className="mb-2 mt-0 text-base font-semibold">{t.player.lyrics}</h3>
-          <div className="mb-4">
-            <SyncedLyrics card={current} duration={duration} currentTime={currentTime} />
-          </div>
-          <div className="mb-4">
-            <ReactionBar cardId={current.id} />
-          </div>
-          <button
-            type="button"
-            onClick={closePlayer}
-            className="tap w-full rounded-pill border border-line text-sm font-semibold"
-          >
-            {t.player.close}
-          </button>
-        </div>
+        </motion.div>
       )}
-    </GlassSheet>
+    </AnimatePresence>
   );
 }

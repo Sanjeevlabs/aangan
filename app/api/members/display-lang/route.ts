@@ -1,5 +1,5 @@
 import { DisplayLangRequestSchema } from "@/lib/schemas";
-import { setMemberDisplayLang } from "@/lib/store";
+import { dbSetMemberDisplayLang } from "@/lib/db";
 
 export async function POST(req: Request): Promise<Response> {
   let body: unknown;
@@ -12,7 +12,7 @@ export async function POST(req: Request): Promise<Response> {
   if (!parsed.success) {
     return Response.json({ error: "invalid-display-lang" }, { status: 400 });
   }
-  const member = setMemberDisplayLang(parsed.data.memberId, parsed.data.displayLang);
+  const member = await dbSetMemberDisplayLang(parsed.data.memberId, parsed.data.displayLang);
   if (!member) return Response.json({ error: "unknown-member" }, { status: 404 });
   return Response.json({ member });
 }
