@@ -1,5 +1,8 @@
 "use client";
 
+import { placeFromTz } from "@/lib/zones";
+import { PersonDetails } from "@/components/person-details";
+
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { PhotoCard, VoiceRow } from "@/components/memory-card";
@@ -11,11 +14,6 @@ import { callName, memberPhoto } from "@/lib/people";
 import { useFamilyCards } from "@/lib/use-family";
 
 // Time-zone ids name a zone, not a home (Asia/Kolkata covers all of India).
-const ZONE_PLACE: Record<string, string> = { "Asia/Kolkata": "India", "Asia/Calcutta": "India", "Europe/London": "UK", "Asia/Dubai": "UAE" };
-function placeFromTz(tz: string): string {
-  return ZONE_PLACE[tz] ?? (tz.split("/").pop() ?? tz).replace(/_/g, " ");
-}
-
 function localTime(tz: string): string {
   try {
     return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: tz }).format(new Date());
@@ -64,7 +62,7 @@ export default function PersonPage() {
         <div className="glass absolute inset-x-2.5 bottom-2.5 flex items-center justify-between rounded-[20px] px-4 py-3">
           <div>
             <p className="m-0 text-[13px] text-white/80">It&rsquo;s {now || "…"} there</p>
-            <p className="m-0 text-[17px] font-semibold">{days === 0 ? "Birthday today" : `Birthday in ${days} days`}</p>
+            <p className="m-0 text-[17px] font-semibold">{!Number.isFinite(days) ? "Birthday not added yet" : days === 0 ? "Birthday today" : days === 1 ? "Birthday tomorrow" : `Birthday in ${days} days`}</p>
           </div>
         </div>
       </div>
@@ -94,6 +92,7 @@ export default function PersonPage() {
           </div>
         </section>
       )}
+      <PersonDetails person={person} onChanged={() => undefined} />
     </div>
   );
 }

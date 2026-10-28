@@ -127,7 +127,7 @@ export function setMemberDisplayLang(memberId: string, displayLang: Member["disp
   const member = members.find((m) => m.id === memberId);
   if (!member) return undefined;
   member.displayLang = displayLang;
-  member.lang = displayLang === "hi-deva" ? "hi" : "en";
+  member.lang = displayLang.split("-")[0];
   return { ...member };
 }
 
@@ -148,9 +148,22 @@ export function findMemberByEmail(email: string): Member | undefined {
   return found ? { ...found } : undefined;
 }
 
-export function updateMemberProfile(memberId: string, patch: { firstName?: string; tz?: string; photoRef?: string | null; email?: string | null }): Member | undefined {
+export interface MemberPatch {
+  firstName?: string;
+  displayName?: string;
+  role?: Member["role"];
+  tz?: string;
+  birthday?: string;
+  photoRef?: string | null;
+  email?: string | null;
+}
+
+export function updateMemberProfile(memberId: string, patch: MemberPatch): Member | undefined {
   const member = members.find((m) => m.id === memberId);
   if (!member) return undefined;
+  if (patch.displayName !== undefined) member.displayName = patch.displayName;
+  if (patch.role !== undefined) member.role = patch.role;
+  if (patch.birthday !== undefined) member.birthday = patch.birthday;
   if (patch.email !== undefined) member.email = patch.email;
   if (patch.firstName !== undefined) member.firstName = patch.firstName;
   if (patch.tz !== undefined) member.tz = patch.tz;

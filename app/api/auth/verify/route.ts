@@ -67,7 +67,7 @@ export async function POST(req: Request): Promise<Response> {
       lang: "en",
       displayLang: "en",
       tz: validTz(parsed.data.tz),
-      birthday: parsed.data.birthday ?? "01-01",
+      birthday: parsed.data.birthday ?? "",
       email,
     });
     memberId = member.id;

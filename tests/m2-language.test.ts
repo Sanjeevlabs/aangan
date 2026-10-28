@@ -17,7 +17,11 @@ describe("display_lang (M2 language choice)", () => {
     expect(normalizeDisplayLang("hi-latn")).toBe("hi-latn");
     expect(normalizeDisplayLang("hi-deva")).toBe("hi-deva");
     expect(normalizeDisplayLang("en")).toBe("en");
-    expect(normalizeDisplayLang("fr")).toBe("en");
+    expect(normalizeDisplayLang("fr")).toBe("fr");
+    expect(normalizeDisplayLang("ta-IN")).toBe("ta");
+    expect(normalizeDisplayLang("pt_BR")).toBe("pt");
+    expect(normalizeDisplayLang("zh-Hant")).toBe("zh");
+    expect(normalizeDisplayLang("xx")).toBe("en");
     expect(normalizeDisplayLang(null)).toBe("en");
     expect(normalizeDisplayLang(undefined)).toBe("en");
   });
@@ -34,7 +38,7 @@ describe("display_lang (M2 language choice)", () => {
       expect(t.speakToYou.length).toBeGreaterThan(0);
       expect(t.language.length).toBeGreaterThan(0);
       expect(t.welcomeTo("Leo").length).toBeGreaterThan(0);
-      expect(ASK_STARTERS[lang].length).toBeGreaterThanOrEqual(3);
+      expect(ASK_STARTERS[lang]?.length ?? 0).toBeGreaterThanOrEqual(3);
     }
   });
 
@@ -54,7 +58,7 @@ describe("display_lang (M2 language choice)", () => {
       t.viewingAs,
       t.language,
       t.speakToYou,
-      ...ASK_STARTERS["hi-latn"],
+      ...(ASK_STARTERS["hi-latn"] ?? []),
     ];
     for (const s of samples) {
       expect(HAS_DEVANAGARI.test(s)).toBe(false);
@@ -111,5 +115,25 @@ describe("display_lang (M2 language choice)", () => {
     });
     expect(transcript.transcript.length).toBeGreaterThan(0);
     expect(transcript.summary.length).toBeGreaterThanOrEqual(5);
+  });
+});
+
+describe("major languages", () => {
+  it("every registered language has a native label and validates as a display language", async () => {
+    const { LANGUAGES } = await import("@/lib/languages");
+    const { DisplayLangSchema } = await import("@/lib/schemas");
+    expect(LANGUAGES.length).toBeGreaterThanOrEqual(25);
+    for (const l of LANGUAGES) {
+      expect(DisplayLangSchema.parse(l.code)).toBe(l.code);
+      expect(displayLangLabel(l.code).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("asks for a translation across languages, not within one", async () => {
+    const { needsDisplayText } = await import("@/lib/voice");
+    expect(needsDisplayText("வணக்கம்", "ta", "en")).toBe(true);
+    expect(needsDisplayText("வணக்கம்", "ta", "ta")).toBe(false);
+    expect(needsDisplayText("Good morning", "en", "ta")).toBe(true);
+    expect(needsDisplayText("Good morning", "en", "en")).toBe(false);
   });
 });

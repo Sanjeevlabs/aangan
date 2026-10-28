@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import { z } from "zod";
 import { containsDevanagari } from "./script";
+import { describeLang } from "./languages";
 import { activeProvider, isMockMode, PROVIDERS, SPEND_CAP_USD } from "./config";
 import {
   CaptionSchema,
@@ -204,6 +205,18 @@ const KNOWN_EN_TO_HI_DEVA: Array<[RegExp, string]> = [
   [/courtyard game/i, "आँगन का खेल, पूरे जोश में सुनाया।"],
   [/morning blessing|morning prayer/i, "सुबह की दुआ — आज का दिन अच्छा हो।"],
   [/lullaby/i, "एक मीठी लोरी।"],
+  // Demo-family rooms (mock mode only; live mode translates with Muse).
+  [/^How do you make your aloo paratha\?$/i, "आप आलू पराठा कैसे बनाती हैं?"],
+  [/^What did your mother cook when someone came home after a long journey\?$/i, "जब कोई लंबे सफ़र से घर लौटता था, तब आपकी माँ क्या बनाती थीं?"],
+  [/^What did the street outside your first home sound like in the morning\?$/i, "आपके पहले घर के बाहर की गली सुबह कैसी सुनाई देती थी?"],
+  [/^Which song did you sing while working in the kitchen\?$/i, "रसोई में काम करते हुए आप कौन-सा गीत गाती थीं?"],
+  [/^What is one thing your father taught you that you still do\?$/i, "आपके पिताजी की सिखाई कौन-सी बात आप आज भी करती हैं?"],
+  [/^How did your family celebrate the first rain of the year\?$/i, "साल की पहली बारिश आपका परिवार कैसे मनाता था?"],
+  [/^What was your favourite festival food as a child, and who made it\?$/i, "बचपन में त्योहार का आपका पसंदीदा खाना क्या था, और कौन बनाता था?"],
+  [/^Where did you go when you wanted to be alone as a young person\?$/i, "जवानी में जब अकेले रहना होता था, तब आप कहाँ जाती थीं?"],
+  [/^Vegetables and milk for the week$/i, "हफ़्ते भर की सब्ज़ी और दूध"],
+  [/^The gas cylinder is almost empty$/i, "गैस सिलेंडर लगभग खत्म है"],
+  [/^A ride to the temple fair$/i, "मंदिर के मेले तक जाने के लिए गाड़ी"],
 ];
 
 const KNOWN_EN_TO_LATN: Array<[RegExp, string]> = [
@@ -218,6 +231,8 @@ const KNOWN_HI_TO_EN: Array<[RegExp, string]> = [
   [/जन्मदिन का गीत/, "The family sang a birthday song together."],
   [/आँगन में धूप/, "Sunshine and tea in the courtyard."],
   [/सुबह की दुआ/, "A morning blessing for a good day."],
+  [/तूर दाल धो लो/, "Wash one katori of toor dal, three times. Two katoris of water, a little turmeric, a little salt, and three whistles in the cooker. Heat the ghee, add jeera, and when it starts to crackle, the hing. Fry the onions slowly, don't rush. Then tomato, ginger, garlic. Mix in the dal, and a little more ghee on top."],
+  [/दाल तड़का, जैसे मैं बनाती हूँ/, "Dal tadka, the way I make it."],
   [/नया शब्द/, "Aria shared a new word."],
   [/पुराना दरवाज़ा|पुरानी/i, "An old doorway in winter light."],
 ];
@@ -280,12 +295,16 @@ async function mockTranscribe(langHint: string): Promise<{ json: unknown; cost: 
 
 async function mockTranslate(text: string, targetLang: string): Promise<{ json: unknown; cost: number }> {
   const target = normalizeDisplayLang(targetLang);
+  // Mock mode has no model: other languages get the text back unchanged and
+  // honestly labelled with the target (live mode translates with Muse).
+  if (target !== "en" && target !== "hi-latn" && target !== "hi-deva") return { json: { text, language: target }, cost: 0 };
   if (target === "hi-deva") {
     for (const [re, hi] of KNOWN_EN_TO_HI_DEVA) {
       if (re.test(text)) return { json: { text: hi, language: "hi-deva" }, cost: 0 };
     }
-    if (containsDevanagari(text)) return { json: { text, language: "hi-deva" }, cost: 0 };
-    return { json: { text: "परिवार की एक प्यारी याद।", language: "hi-deva" }, cost: 0 };
+    // Unknown text: give the family's own words back rather than a made-up
+    // phrase (mock mode has no model; live mode translates with Muse).
+    return { json: { text, language: containsDevanagari(text) ? "hi-deva" : "en" }, cost: 0 };
   }
   if (target === "hi-latn") {
     for (const [re, latn] of KNOWN_HI_TO_LATN) {
@@ -311,7 +330,7 @@ const TRANSLATE_SYSTEM =
   "text is the translation in the requested target language, language is its short code. " +
   "Translate, never explain. Reply with JSON only.";
 
-async function liveJson(
+export async function liveJson(
   provider: keyof typeof PROVIDERS,
   system: string,
   user: string,
@@ -642,7 +661,7 @@ export async function translateText(
     try {
       const out = isMockMode()
         ? await mockTranslate(text, target)
-        : await liveJson(provider, TRANSLATE_SYSTEM, `Target language: ${target}\nText:\n${text}`, model, 1500);
+        : await liveJson(provider, TRANSLATE_SYSTEM, `Target language: ${describeLang(target)}\nText:\n${text}`, model, 1500);
       const parsed = TranslationSchema.safeParse(out.json);
       if (!parsed.success) continue;
       parsed.data.language = normalizeLangCode(parsed.data.language, target);

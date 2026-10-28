@@ -129,6 +129,7 @@ export function Home() {
   const next = members
     .filter((m) => m.id !== viewer.id)
     .map((member) => ({ member, days: daysUntilBirthday(member.birthday) }))
+    .filter((o) => Number.isFinite(o.days))
     .sort((a, b) => a.days - b.days)[0];
   const thisYear = new Date().getFullYear();
   const yearsAgo = (cards ?? []).find((c) => c.type === "photo" && new Date(c.takenAt).getFullYear() < thisYear);

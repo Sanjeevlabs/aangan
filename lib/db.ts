@@ -47,6 +47,8 @@ import {
   type Invite as MemInvite,
 } from "./store";
 import { isDbLive, supabaseServer } from "./supabase";
+import { baseLang } from "./languages";
+import type { MemberPatch } from "./store";
 import { AgentRunSchema, CardSchema, DailyRoleSchema, GatherSessionSchema, MemberSchema, PlaySchema, ReactionSchema, RelationshipSchema, RitualRunSchema, SuggestionSchema, WishSchema, type AgentRun, type Card, type DailyRole, type GatherSession, type Member, type Play, type Reaction, type Relationship, type RitualRun, type Suggestion, type Wish } from "./schemas";
 
 // Postgres returns "2026-10-27 08:10:00+00" / "...+00:00"; the schemas (and
@@ -95,7 +97,7 @@ function memberFromRow(r: Record<string, unknown>): Member {
     lang: r.lang ?? "en",
     displayLang: r.display_lang ?? "en",
     tz: r.tz ?? "UTC",
-    birthday: r.birthday ?? "01-01",
+    birthday: typeof r.birthday === "string" && /^\d{2}-\d{2}$/.test(r.birthday) ? r.birthday : "",
     homeImageRef: (r.home_image_ref as string | null) ?? null,
     homePalette: Array.isArray(r.home_palette) ? (r.home_palette as string[]) : [],
     photoRef: (r.photo_ref as string | null) ?? null,
@@ -240,12 +242,15 @@ export async function dbFindMemberByEmail(email: string): Promise<Member | undef
   return memberFromRow(data[0] as Record<string, unknown>);
 }
 
-export async function dbUpdateMemberProfile(memberId: string, patch: { firstName?: string; tz?: string; photoRef?: string | null; email?: string | null }): Promise<Member | undefined> {
+export async function dbUpdateMemberProfile(memberId: string, patch: MemberPatch): Promise<Member | undefined> {
   if (!live()) return memUpdateProfile(memberId, patch);
   const sb = supabaseServer();
   if (!sb) return memUpdateProfile(memberId, patch);
   const row: Record<string, unknown> = {};
   if (patch.firstName !== undefined) row.first_name = patch.firstName;
+  if (patch.displayName !== undefined) row.display_name = patch.displayName;
+  if (patch.role !== undefined) row.role = patch.role;
+  if (patch.birthday !== undefined) row.birthday = patch.birthday;
   if (patch.tz !== undefined) row.tz = patch.tz;
   if (patch.photoRef !== undefined) row.photo_ref = patch.photoRef;
   if (patch.email !== undefined) row.email = patch.email ? patch.email.toLowerCase() : null;
@@ -258,7 +263,7 @@ export async function dbSetMemberDisplayLang(memberId: string, displayLang: Memb
   if (!live()) return memSetDisplayLang(memberId, displayLang);
   const sb = supabaseServer();
   if (!sb) return memSetDisplayLang(memberId, displayLang);
-  const lang = displayLang === "hi-deva" ? "hi" : "en";
+  const lang = baseLang(displayLang);
   const { error } = await sb.from("members").update({ display_lang: displayLang, lang }).eq("id", memberId);
   if (error) return undefined;
   return dbGetMember(memberId);
@@ -351,12 +356,23 @@ export function canonicalKindFor(relation: string): Relationship["canonicalKind"
   return "sibling";
 }
 
+/** A sensible default generation for someone added by relation; editable afterwards. */
+export function inferRole(relation: string, anchorRole: Member["role"] = "adult"): Member["role"] {
+  const kind = canonicalKindFor(relation);
+  if (kind === "parent") return anchorRole === "child" ? "adult" : "elder";
+  if (kind === "child") return anchorRole === "elder" ? "adult" : "child";
+  return anchorRole;
+}
+
 export async function dbAddRelationship(input: {
   memberId: string;
   newMemberName: string;
   newMemberRole?: Member["role"];
   relation: string;
   familyId?: string;
+  tz?: string;
+  birthday?: string;
+  anchorRole?: Member["role"];
 }): Promise<{ member: Member; relationship: Relationship }> {
   const familyId = input.familyId ?? "demo-family";
   const memberId = `member-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
@@ -365,11 +381,11 @@ export async function dbAddRelationship(input: {
     familyId,
     firstName: input.newMemberName,
     displayName: input.newMemberName,
-    role: input.newMemberRole ?? "adult",
+    role: input.newMemberRole ?? inferRole(input.relation, input.anchorRole),
     lang: "en",
     displayLang: "en",
-    tz: "UTC",
-    birthday: "01-01",
+    tz: input.tz ?? "UTC",
+    birthday: input.birthday ?? "",
     homeImageRef: null,
     homePalette: [],
   });
