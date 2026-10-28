@@ -37,8 +37,12 @@ export function getSessionMedia(ref: string): { blob: Blob; url: string | null }
 }
 
 // Single swap point: every component resolves card/home media through here.
+// Private-bucket refs (`storage:<path>`) resolve to the signed-URL proxy,
+// which redirects (307) to a short-lived signed URL per request — media
+// survives reloads. Session refs (this tab only) still work as before.
 export function resolveMediaUrl(ref: string | null | undefined): string | null {
   if (!ref) return null;
+  if (ref.startsWith("storage:")) return `/api/media/${ref.slice("storage:".length)}`;
   if (ref.startsWith("http") || ref.startsWith("/") || ref.startsWith("blob:")) return ref;
   return blobs.get(ref)?.url ?? null;
 }

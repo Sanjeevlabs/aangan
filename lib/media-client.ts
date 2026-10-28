@@ -179,6 +179,7 @@ export async function processImage(file: File, opts: ProcessOptions): Promise<Pr
     });
     const takenAtSource = dateSourceUsed({ exifDate: tags.exifDate });
     const stored = putSessionMedia(blob);
+    const persisted = await uploadToStorage(blob, "photo.jpg", blob.type || "image/jpeg");
     return {
       kind: "photo" satisfies MediaKind,
       bytes: blob.size,
@@ -193,7 +194,7 @@ export async function processImage(file: File, opts: ProcessOptions): Promise<Pr
       }),
       palette,
       peaks: [],
-      mediaRef: stored.ref,
+      mediaRef: persisted ?? stored.ref,
       previewUrl: stored.url,
       thumbnailRef: null,
       thumbnailUrl: null,
@@ -232,6 +233,7 @@ export async function processVideo(file: File, opts: ProcessOptions): Promise<Pr
   const takenAtSource = dateSourceUsed({ exifDate: tags.exifDate });
   const stored = putSessionMedia(file);
   const thumbStored = thumbnail ? putSessionMedia(thumbnail) : null;
+  const persisted = await uploadToStorage(file, "video.mp4", file.type || "video/mp4");
   return {
     kind: "video" satisfies MediaKind,
     bytes: file.size,
@@ -247,7 +249,7 @@ export async function processVideo(file: File, opts: ProcessOptions): Promise<Pr
     }),
     palette,
     peaks,
-    mediaRef: stored.ref,
+    mediaRef: persisted ?? stored.ref,
     previewUrl: stored.url,
     thumbnailRef: thumbStored?.ref ?? null,
     thumbnailUrl: thumbStored?.url ?? null,
@@ -278,6 +280,7 @@ export async function processVoiceBlob(blob: Blob, opts: ProcessOptions): Promis
   const takenAt = resolveTakenAt({ fileModifiedAt: new Date().toISOString() });
   const takenAtSource = dateSourceUsed({});
   const stored = putSessionMedia(blob);
+  const persisted = await uploadToStorage(blob, "voice.webm", blob.type || "audio/webm");
   return {
     kind: "audio" satisfies MediaKind,
     bytes: blob.size,
@@ -291,7 +294,7 @@ export async function processVoiceBlob(blob: Blob, opts: ProcessOptions): Promis
     }),
     palette: ["#c96f4a", "#e8a87c", "#f4d8b4"],
     peaks,
-    mediaRef: stored.ref,
+    mediaRef: persisted ?? stored.ref,
     previewUrl: stored.url,
     thumbnailRef: null,
     thumbnailUrl: null,
@@ -300,6 +303,27 @@ export async function processVoiceBlob(blob: Blob, opts: ProcessOptions): Promis
 
 // Home image: same pipeline, smaller output; returns the stored ref + palette
 // so the Welcome screen can seed the member's adaptive wash.
+// Persist to the private bucket via a server-issued signed upload URL.
+// Returns the `storage:` ref on success, null when unavailable (mock upload
+// endpoint or offline) — callers fall back to the session ref.
+export async function uploadToStorage(blob: Blob, filename: string, mime: string): Promise<string | null> {
+  try {
+    const res = await fetch("/api/media/upload-url", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ filename, mime }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { path?: string; uploadUrl?: string; ref?: string };
+    if (!data.uploadUrl || !data.ref) return null;
+    const put = await fetch(data.uploadUrl, { method: "PUT", body: blob, headers: { "content-type": mime } });
+    if (!put.ok) return null;
+    return data.ref;
+  } catch {
+    return null;
+  }
+}
+
 export async function processHomeImage(file: File): Promise<{ mediaRef: string; palette: string[]; url: string | null }> {
   const bitmap = await createImageBitmap(file).catch(() => {
     throw new Error("unreadable-image");
@@ -307,7 +331,8 @@ export async function processHomeImage(file: File): Promise<{ mediaRef: string; 
   try {
     const { blob, palette } = await compressAndStrip(bitmap, 1200);
     const stored = putSessionMedia(blob);
-    return { mediaRef: stored.ref, palette, url: stored.url };
+    const persisted = await uploadToStorage(blob, "home.jpg", blob.type || "image/jpeg");
+    return { mediaRef: persisted ?? stored.ref, palette, url: stored.url };
   } finally {
     bitmap.close();
   }
