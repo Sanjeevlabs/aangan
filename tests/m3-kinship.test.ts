@@ -2,15 +2,20 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { findKinshipPath, genericTerm, resolveKinship } from "@/lib/kinship";
 import type { Relationship } from "@/lib/schemas";
 import { resetDemo } from "@/lib/store";
+import { sessionCookie } from "./auth-helper";
 import { GET as kinshipGET } from "@/app/api/kinship/route";
 import { GET as relGET, POST as relPOST } from "@/app/api/relationships/route";
 
-function jsonRequest(url: string, body: unknown): Request {
+function jsonRequest(url: string, body: unknown, memberId = "arjun"): Request {
   return new Request(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", cookie: sessionCookie(memberId) },
     body: JSON.stringify(body),
   });
+}
+
+function authedGet(url: string, memberId = "arjun"): Request {
+  return new Request(url, { headers: { cookie: sessionCookie(memberId) } });
 }
 
 const RELS: Relationship[] = [
@@ -100,11 +105,11 @@ describe("relationships + kinship API (mock store)", () => {
     expect(created.member.id).toBeTruthy();
     expect(created.relationship.relation).toBe("sister");
 
-    const listed = (await (await relGET()).json()) as { relationships: { id: string }[] };
+    const listed = (await (await relGET(authedGet("http://test/api/relationships"))).json()) as { relationships: { id: string }[] };
     expect(listed.relationships.some((r) => r.id === created.relationship.id || true)).toBe(true);
 
     const kin = (await (
-      await kinshipGET(new Request(`http://test/api/kinship?from=meera-x&to=dadi&lang=en`))
+      await kinshipGET(authedGet(`http://test/api/kinship?from=meera-x&to=dadi&lang=en`))
     ).json()) as { terms: string };
     expect(typeof kin.terms).toBe("string");
   });
@@ -120,12 +125,28 @@ describe("relationships + kinship API (mock store)", () => {
     expect(dup.status).toBe(409);
 
     const missing = await relPOST(
-      jsonRequest("http://test/api/relationships", {
-        memberId: "nobody",
-        newMemberName: "Zara",
-        relation: "sister",
-      }),
+      jsonRequest(
+        "http://test/api/relationships",
+        {
+          memberId: "nobody",
+          newMemberName: "Zara",
+          relation: "sister",
+        },
+        "nobody",
+      ),
     );
     expect(missing.status).toBe(404);
+    const crossAnchor = await relPOST(
+      jsonRequest(
+        "http://test/api/relationships",
+        {
+          memberId: "dadi",
+          newMemberName: "Zara",
+          relation: "sister",
+        },
+        "arjun",
+      ),
+    );
+    expect(crossAnchor.status).toBe(403);
   });
 });

@@ -4,6 +4,7 @@ import { dbGetKinshipTerms, dbListRelationships, dbSetKinshipTerms } from "@/lib
 import { translateText } from "@/lib/llm";
 import { serverLedger, serverStore } from "@/lib/llm-server";
 import { normalizeDisplayLang } from "@/lib/i18n";
+import { requireSession } from "@/lib/auth";
 
 const QuerySchema = z.object({
   from: z.string().min(1),
@@ -14,6 +15,8 @@ const QuerySchema = z.object({
 // Viewer-relative kinship: deterministic BFS path -> kinship_cache keyed by
 // (path, display_lang). The model (translate) runs only on a cache miss.
 export async function GET(req: Request): Promise<Response> {
+  const auth = requireSession(req);
+  if (auth instanceof Response) return auth;
   const { searchParams } = new URL(req.url);
   const parsed = QuerySchema.safeParse({
     from: searchParams.get("from") ?? undefined,

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { sessionCookie } from "./auth-helper";
 import { GET as getPlays, POST as postPlay } from "@/app/api/plays/route";
 import { GET as getReactions, POST as postReaction } from "@/app/api/reactions/route";
 import { POST as postTranscribe } from "@/app/api/transcribe/route";
@@ -24,12 +25,20 @@ import {
 
 const HAS_DEVANAGARI = /[\u0900-\u097F]/;
 
-function jsonRequest(url: string, body: unknown): Request {
+function jsonRequest(url: string, body: unknown, memberId = "dadi"): Request {
   return new Request(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", cookie: sessionCookie(memberId) },
     body: JSON.stringify(body),
   });
+}
+
+function authedForm(url: string, form: FormData, memberId = "dadi"): Request {
+  return new Request(url, { method: "POST", headers: { cookie: sessionCookie(memberId) }, body: form });
+}
+
+function authedGet(url: string, memberId = "dadi"): Request {
+  return new Request(url, { headers: { cookie: sessionCookie(memberId) } });
 }
 
 describe("M2 Heard loop (plays)", () => {
@@ -64,14 +73,18 @@ describe("M2 Heard loop (plays)", () => {
     const badCard = await postPlay(jsonRequest("http://test/api/plays", { cardId: "nope", memberId: "dadi" }));
     expect(badCard.status).toBe(404);
     const badMember = await postPlay(
-      jsonRequest("http://test/api/plays", { cardId: "demo-bday-1", memberId: "nope" }),
+      jsonRequest("http://test/api/plays", { cardId: "demo-bday-1", memberId: "nope" }, "nope"),
     );
     expect(badMember.status).toBe(404);
+    const crossMember = await postPlay(
+      jsonRequest("http://test/api/plays", { cardId: "demo-bday-1", memberId: "leo" }, "dadi"),
+    );
+    expect(crossMember.status).toBe(403);
   });
 
   it("GET filters by card", async () => {
     await postPlay(jsonRequest("http://test/api/plays", { cardId: "demo-bday-1", memberId: "dadi" }));
-    const data = (await (await getPlays(new Request("http://test/api/plays?cardId=demo-bday-1"))).json()) as {
+    const data = (await (await getPlays(authedGet("http://test/api/plays?cardId=demo-bday-1"))).json()) as {
       plays: { cardId: string }[];
     };
     expect(data.plays.length).toBeGreaterThanOrEqual(1);
@@ -124,20 +137,20 @@ describe("M2 reactions (Love, Laugh, Bless)", () => {
 
   it("POST dedupes per member and 404s unknowns", async () => {
     const first = await postReaction(
-      jsonRequest("http://test/api/reactions", { cardId: "demo-bday-1", memberId: "leo", kind: "love" }),
+      jsonRequest("http://test/api/reactions", { cardId: "demo-bday-1", memberId: "leo", kind: "love" }, "leo"),
     );
     expect(first.status).toBe(201);
     const second = await postReaction(
-      jsonRequest("http://test/api/reactions", { cardId: "demo-bday-1", memberId: "leo", kind: "bless" }),
+      jsonRequest("http://test/api/reactions", { cardId: "demo-bday-1", memberId: "leo", kind: "bless" }, "leo"),
     );
     expect(second.status).toBe(201);
     const data = (await (
-      await getReactions(new Request("http://test/api/reactions?cardId=demo-bday-1"))
+      await getReactions(authedGet("http://test/api/reactions?cardId=demo-bday-1", "leo"))
     ).json()) as { reactions: { kind: string }[] };
     expect(data.reactions).toHaveLength(1);
     expect(data.reactions[0].kind).toBe("bless");
     const badKind = await postReaction(
-      jsonRequest("http://test/api/reactions", { cardId: "demo-bday-1", memberId: "leo", kind: "wow" }),
+      jsonRequest("http://test/api/reactions", { cardId: "demo-bday-1", memberId: "leo", kind: "wow" }, "leo"),
     );
     expect(badKind.status).toBe(400);
   });
@@ -187,15 +200,13 @@ describe("M2 model routes (mock mode)", () => {
     const form = new FormData();
     form.append("audio", new Blob([new Uint8Array([82, 73, 70, 70, 1, 2, 3, 4])], { type: "audio/wav" }), "voice.wav");
     form.append("langHint", "en");
-    const res = await postTranscribe(new Request("http://test/api/transcribe", { method: "POST", body: form }));
+    const res = await postTranscribe(authedForm("http://test/api/transcribe", form));
     expect(res.status).toBe(200);
     const data = (await res.json()) as {
       transcript: { transcript: string; segments: { start: number; end: number; text: string }[] };
     };
     expect(data.transcript.transcript.length).toBeGreaterThan(0);
-    const missing = await postTranscribe(
-      new Request("http://test/api/transcribe", { method: "POST", body: new FormData() }),
-    );
+    const missing = await postTranscribe(authedForm("http://test/api/transcribe", new FormData()));
     expect(missing.status).toBe(400);
   });
 
@@ -212,7 +223,7 @@ describe("M2 model routes (mock mode)", () => {
 
   it("suggest returns localized questions per display_lang", async () => {
     for (const displayLang of ["en", "hi-latn", "hi-deva"]) {
-      const res = await getSuggest(new Request(`http://test/api/suggest?memberId=dadi&displayLang=${displayLang}`));
+      const res = await getSuggest(authedGet(`http://test/api/suggest?memberId=dadi&displayLang=${displayLang}`));
       expect(res.status).toBe(200);
       const data = (await res.json()) as { questions: string[]; displayLang: string };
       expect(data.displayLang).toBe(displayLang);

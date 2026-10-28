@@ -119,7 +119,7 @@ function ProfileMenu() {
                 key={m.id}
                 type="button"
                 onClick={() => {
-                  setViewerId(m.id);
+                  void setViewerId(m.id);
                   setOpen(false);
                 }}
                 aria-pressed={m.id === viewer.id}

@@ -5,6 +5,7 @@ import { planRitualScan } from "@/lib/ritual-agent";
 import { DEMO_MEMBERS } from "@/lib/family";
 import { MemberSchema } from "@/lib/schemas";
 import { listCards, resetDemo } from "@/lib/store";
+import { authedGet, authedJson, sessionCookie } from "./auth-helper";
 import { POST as scanPOST } from "@/app/api/ritual-scan/route";
 import { GET as suggGET, POST as suggPOST } from "@/app/api/suggestions/route";
 import { POST as approvePOST } from "@/app/api/suggestions/[id]/approve/route";
@@ -82,34 +83,36 @@ describe("ritual-scan + suggestions API (mock store)", () => {
 
   it("scan assigns elder roles and suggest->approve executes once", async () => {
     // Date-independent: whatever today is, elders always get a daily role.
-    const first = (await (await scanPOST()).json()) as { runsEnsured: number; suggestions: number; rolesAssigned: number };
+    const first = (await (await scanPOST(authedJson("http://test/api/ritual-scan", {}))).json()) as { runsEnsured: number; suggestions: number; rolesAssigned: number };
     expect(first.rolesAssigned).toBeGreaterThan(0);
 
     // Agent-created suggestion with an explicit goal persists, then
     // approving it executes the drafted role exactly once.
     const created = await suggPOST(
-      new Request("http://test/api/suggestions", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ goal: "Teach Aria one word today", payload: {} }),
-      }),
+      authedJson("http://test/api/suggestions", { goal: "Teach Aria one word today", payload: {} }),
     );
     expect(created.status).toBe(201);
 
-    const pending = (await (await suggGET(new Request("http://test/api/suggestions?status=pending"))).json()) as {
+    const pending = (await (await suggGET(authedGet("http://test/api/suggestions?status=pending"))).json()) as {
       suggestions: { id: string; goal: string; payload: { action?: string } }[];
     };
     expect(pending.suggestions.length).toBeGreaterThan(0);
 
     const target = pending.suggestions[0];
-    const approved = await approvePOST(new Request("http://test/api/approve", { method: "POST" }), {
-      params: { id: target.id },
-    });
+    const approved = await approvePOST(
+      new Request("http://test/api/approve", { method: "POST", headers: { cookie: sessionCookie() } }),
+      {
+        params: { id: target.id },
+      },
+    );
     expect(approved.status).toBe(200);
 
-    const again = await approvePOST(new Request("http://test/api/approve", { method: "POST" }), {
-      params: { id: target.id },
-    });
+    const again = await approvePOST(
+      new Request("http://test/api/approve", { method: "POST", headers: { cookie: sessionCookie() } }),
+      {
+        params: { id: target.id },
+      },
+    );
     expect(again.status).toBe(409);
   });
 });

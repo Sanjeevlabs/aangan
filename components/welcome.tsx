@@ -14,9 +14,9 @@ import { DEMO_FAMILY, useViewer } from "./viewer";
 // courtyard stays as an offline fallback if this image fails to load.
 const FALLBACK_COURTYARD_SRC = "/demo/courtyard.jpg";
 
-// Welcome screen, shown once per session. Full-bleed home image with a flat
-// bottom card: greeting, serif welcome line, one warm signal line.
-export function Welcome({ onEnter }: { onEnter: () => void }) {
+// Welcome screen. Full-bleed home image with a flat bottom card: greeting,
+// serif welcome line, invite-code gate when no session exists yet.
+export function Welcome({ onEnter, needCode }: { onEnter: () => void; needCode?: boolean }) {
   const { viewer, lang, displayLang, setDisplayLang, refreshMembers } = useViewer();
   const t = strings(lang);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -24,6 +24,8 @@ export function Welcome({ onEnter }: { onEnter: () => void }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
+  const [code, setCode] = useState("");
+  const [joining, setJoining] = useState(false);
 
   useEffect(() => {
     setHour(new Date().getHours());
@@ -54,6 +56,31 @@ export function Welcome({ onEnter }: { onEnter: () => void }) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const stepInside = async () => {
+    if (joining) return;
+    if (needCode) {
+      const clean = code.trim();
+      if (!clean) return;
+      setJoining(true);
+      setError(null);
+      try {
+        const res = await fetch("/api/session", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ inviteCode: clean, memberId: viewer.id }),
+        });
+        if (!res.ok) throw new Error(res.status === 403 ? "invalid-code" : "join-failed");
+        await refreshMembers().catch(() => undefined);
+      } catch {
+        setError(t.common.retry);
+        setJoining(false);
+        return;
+      }
+      setJoining(false);
+    }
+    onEnter();
   };
 
   const greeting = t.greeting[greetingForHour(hour ?? 9)];
@@ -115,6 +142,27 @@ export function Welcome({ onEnter }: { onEnter: () => void }) {
                 {error}
               </p>
             )}
+            {needCode && (
+              <div className="mb-4">
+                <label className="block text-sm font-semibold" htmlFor="aangan-invite">
+                  Family invite code
+                </label>
+                <input
+                  id="aangan-invite"
+                  type="text"
+                  value={code}
+                  maxLength={64}
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                  onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))}
+                  placeholder="AANGAN-DEMO"
+                  className="tap mt-1 w-full rounded-card border border-line bg-paper px-3 text-[15px] tracking-widest"
+                />
+                <p className="m-0 mt-1 text-[12px] text-ink-soft">
+                  Ask your family for a code (Privacy → Family invites), or use the demo code for the demo family.
+                </p>
+              </div>
+            )}
             <div className="flex gap-3">
               <OutlineButton
                 className="min-w-0 flex-1 basis-0 overflow-hidden text-ellipsis whitespace-nowrap"
@@ -125,7 +173,8 @@ export function Welcome({ onEnter }: { onEnter: () => void }) {
               </OutlineButton>
               <PrimaryButton
                 className="min-w-0 flex-1 basis-0 overflow-hidden text-ellipsis whitespace-nowrap"
-                onClick={onEnter}
+                disabled={joining || ((needCode ?? false) && code.trim().length === 0)}
+                onClick={() => void stepInside()}
               >
                 {t.stepInside}
               </PrimaryButton>

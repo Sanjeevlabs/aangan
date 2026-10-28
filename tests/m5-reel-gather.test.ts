@@ -10,11 +10,16 @@ import { DELETE as removeMemories } from "@/app/api/privacy/cards/route";
 import { DELETE as leaveFamily } from "@/app/api/privacy/membership/route";
 import { POST as wishesPOST } from "@/app/api/wishes/route";
 import { addPlay, addWish, setReaction } from "@/lib/store";
+import { authedGet, authedJson, sessionCookie } from "./auth-helper";
 
 const members = DEMO_MEMBERS.map((m) => MemberSchema.parse(m));
 
-function jsonRequest(url: string, body: unknown, method = "POST"): Request {
-  return new Request(url, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+function jsonRequest(url: string, body: unknown, method = "POST", memberId = "dadi"): Request {
+  return new Request(url, {
+    method,
+    headers: { "content-type": "application/json", cookie: sessionCookie(memberId) },
+    body: JSON.stringify(body),
+  });
 }
 
 const RUN: RitualRun = {
@@ -88,25 +93,25 @@ describe("privacy set + invites (mock store)", () => {
     setReaction({ id: "y", familyId: "demo-family", cardId: "c", memberId: "leo", kind: "love", createdAt: new Date().toISOString() });
     addPlay({ id: "z", familyId: "demo-family", cardId: "c", memberId: "leo", playedAt: new Date().toISOString() });
 
-    const res = await removeMemories(jsonRequest("http://test/privacy", { memberId: "leo" }, "DELETE"));
+    const res = await removeMemories(jsonRequest("http://test/privacy", { memberId: "leo" }, "DELETE", "leo"));
     expect(res.status).toBe(200);
     const { deleted } = (await res.json()) as { deleted: Record<string, number> };
     expect(deleted.wishes).toBe(1);
     expect(deleted.reactions).toBe(1);
 
     // Unknown members 404.
-    const missing = await removeMemories(jsonRequest("http://test/privacy", { memberId: "nobody" }, "DELETE"));
+    const missing = await removeMemories(jsonRequest("http://test/privacy", { memberId: "nobody" }, "DELETE", "nobody"));
     expect(missing.status).toBe(404);
   });
 
   it("leave-family removes the member, and invites expire in 7 days", async () => {
-    const left = await leaveFamily(jsonRequest("http://test/privacy", { memberId: "aria" }, "DELETE"));
+    const left = await leaveFamily(jsonRequest("http://test/privacy", { memberId: "aria" }, "DELETE", "aria"));
     expect(left.status).toBe(200);
 
-    const again = await leaveFamily(jsonRequest("http://test/privacy", { memberId: "aria" }, "DELETE"));
+    const again = await leaveFamily(jsonRequest("http://test/privacy", { memberId: "aria" }, "DELETE", "aria"));
     expect(again.status).toBe(404);
 
-    const invite = (await (await invitesPOST(new Request("http://test/api/invites", { method: "POST" }))).json()) as {
+    const invite = (await (await invitesPOST(authedJson("http://test/api/invites", {}))).json()) as {
       invite: { code: string; expiresAt: string };
     };
     expect(invite.invite.code).toMatch(/^[A-Z2-9]{6}$/);
@@ -114,13 +119,13 @@ describe("privacy set + invites (mock store)", () => {
     expect(ms).toBeGreaterThan(6 * 86400000);
     expect(ms).toBeLessThanOrEqual(7 * 86400000 + 60000);
 
-    const listed = (await (await invitesGET()).json()) as { invites: { code: string }[] };
+    const listed = (await (await invitesGET(authedGet("http://test/api/invites"))).json()) as { invites: { code: string }[] };
     expect(listed.invites.some((i) => i.code === invite.invite.code)).toBe(true);
   });
 
   it("wishes link voice cards to a run (reel replies)", async () => {
     const res = await wishesPOST(
-      jsonRequest("http://test/api/wishes", { ritualRunId: RUN.id, cardId: "c1", memberId: "leo", kind: "wish" }),
+      jsonRequest("http://test/api/wishes", { ritualRunId: RUN.id, cardId: "c1", memberId: "leo", kind: "wish" }, "POST", "leo"),
     );
     expect(res.status).toBe(201);
   });

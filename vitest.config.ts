@@ -9,6 +9,7 @@ export default defineConfig({
   },
   test: {
     include: ["tests/**/*.test.ts"],
-    env: { MOCK: "true" },
+    // Mock-only: no network, fixed test secrets (never real env).
+    env: { MOCK: "true", SESSION_SECRET: "test-session-secret", CRON_SECRET: "test-cron-secret" },
   },
 });

@@ -14,6 +14,14 @@
 - Tests: `tests/fix2-storage.test.ts` (4 tests: issue→PUT→GET round trip, empty/unknown rejection, proxy path-traversal guard, filename sanitization).
 - Verified: `npm run lint` ok, `npm run typecheck` ok, `npm run test:mock` 84 passed + 3 skipped, `npm run build` ok (36 routes). Live-model cost this fix: USD 0.
 
+## 28 Oct 2026 — CRITICAL FIX 3: session auth, ownership, rate limits, cron secret (no cookbook recipe — access control)
+
+- `lib/auth.ts` (new): invite code → `POST /api/session` mints an httpOnly (`Secure` in prod, `SameSite=Lax`, 30-day) HMAC-SHA256 session cookie (`SESSION_SECRET`), payload `{familyId, memberId, exp}` with timing-safe verify. `GET /api/session` (who am I), `DELETE` (logout), `POST /api/session/switch` (same-family viewer switching without re-entering the code). Welcome shows the code gate only when no session exists; the viewer switcher syncs the cookie.
+- Every API route requires the session (`requireSession` → 401) with family scoping; write routes enforce member ownership (`requireMember` → 403) — plays/reactions/wishes/privacy/display-lang/home-image/relationships-anchor/invites-family/media-paths. Model routes (transcribe/translate/suggest/cards/gather/suggestions) rate-limit per session at 30/min (`checkRateLimit` → 429). `/api/ritual-scan` GET requires `Authorization: Bearer` + `CRON_SECRET` (Vercel cron); manual POST uses a session.
+- Documented, labelled demo backdoor: `AANGAN-DEMO` redeems a session for the synthetic demo family only (real families use Privacy-generated expiring codes). Logged here as a conscious V1 tradeoff for the judged demo.
+- Tests: `tests/fix3-auth.test.ts` (5 tests: HMAC sign/verify/tamper/expiry, exchange + HttpOnly flag + bad-code 403, 401s, 30→429 per-session with a second member unaffected, cron 401/200 + session POST). All pre-existing route tests updated to send session cookies (incl. new 403 cross-member cases). New env names in `.env.example`: `SESSION_SECRET`, `CRON_SECRET`.
+- Verified: `npm run lint` ok, `npm run typecheck` ok, `npm run test:mock` 89 passed + 3 skipped (incl. 5 new auth tests), `npm run build` ok (39 routes). Live-model cost this fix: USD 0.
+
 ## 28 Oct 2026 — Design reset + Supabase wiring (autonomous P0 run)
 
 - Design reset per the flat-courtyard spec (replaces the glass-heavy look): Ground #F6F2EC, ink #1C1917, secondary #57534E, hairlines #E2D9CE, one accent #9A3412. Now Playing ground #2A211C, played waveform #FDBA74. Instrument Serif (titles/captions/lyrics) + Inter (UI) via next/font. Radii 6–8px; no pills except the 44px round play button; glass only on sheets/mini-player. Removed the adaptive wash (wash.tsx deleted).

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { serverLedger, serverStore } from "@/lib/llm-server";
 import { normalizeDisplayLang } from "@/lib/i18n";
 import { suggestQuestions } from "@/lib/llm";
+import { checkRateLimit, requireSession } from "@/lib/auth";
 
 const QuerySchema = z.object({
   memberId: z.string().min(1).default("dadi"),
@@ -9,6 +10,9 @@ const QuerySchema = z.object({
 });
 
 export async function GET(req: Request): Promise<Response> {
+  const auth = requireSession(req);
+  if (auth instanceof Response) return auth;
+  if (!checkRateLimit(auth, "/api/suggest")) return Response.json({ error: "rate-limited" }, { status: 429 });
   const { searchParams } = new URL(req.url);
   const parsed = QuerySchema.safeParse({
     memberId: searchParams.get("memberId") ?? undefined,

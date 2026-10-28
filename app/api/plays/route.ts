@@ -1,12 +1,17 @@
 import { CreatePlayRequestSchema } from "@/lib/schemas";
 import { dbAddPlay, dbGetMember, dbListCards, dbListPlays } from "@/lib/db";
+import { requireMember, requireSession } from "@/lib/auth";
 
 export async function GET(req: Request): Promise<Response> {
+  const auth = requireSession(req);
+  if (auth instanceof Response) return auth;
   const { searchParams } = new URL(req.url);
   return Response.json({ plays: await dbListPlays(searchParams.get("cardId") ?? undefined) });
 }
 
 export async function POST(req: Request): Promise<Response> {
+  const auth = requireSession(req);
+  if (auth instanceof Response) return auth;
   let body: unknown;
   try {
     body = await req.json();
@@ -17,6 +22,8 @@ export async function POST(req: Request): Promise<Response> {
   if (!parsed.success) {
     return Response.json({ error: "invalid-play" }, { status: 400 });
   }
+  const ownership = requireMember(auth, parsed.data.memberId);
+  if (ownership) return ownership;
   const cards = await dbListCards();
   if (!cards.some((c) => c.id === parsed.data.cardId)) {
     return Response.json({ error: "unknown-card" }, { status: 404 });

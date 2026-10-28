@@ -1,7 +1,10 @@
 import { DisplayLangRequestSchema } from "@/lib/schemas";
 import { dbSetMemberDisplayLang } from "@/lib/db";
+import { requireMember, requireSession } from "@/lib/auth";
 
 export async function POST(req: Request): Promise<Response> {
+  const auth = requireSession(req);
+  if (auth instanceof Response) return auth;
   let body: unknown;
   try {
     body = await req.json();
@@ -12,6 +15,8 @@ export async function POST(req: Request): Promise<Response> {
   if (!parsed.success) {
     return Response.json({ error: "invalid-display-lang" }, { status: 400 });
   }
+  const ownership = requireMember(auth, parsed.data.memberId);
+  if (ownership) return ownership;
   const member = await dbSetMemberDisplayLang(parsed.data.memberId, parsed.data.displayLang);
   if (!member) return Response.json({ error: "unknown-member" }, { status: 404 });
   return Response.json({ member });

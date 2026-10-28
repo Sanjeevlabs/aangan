@@ -1,9 +1,12 @@
 import { dbAddCard, dbAddGatherSession, dbAddSuggestion, dbAddWish, dbAssignDailyRole, dbListSuggestions, dbSetRitualRunStatus, dbSetSuggestionStatus } from "@/lib/db";
+import { requireSession } from "@/lib/auth";
 
 // Review / Approve: the ONLY place agent proposals become actions.
 // Payload actions: create_card | assign_daily_role | request_wish |
 // schedule_notification (acknowledge) | create_gather_session | assemble_reel.
 export async function POST(req: Request, { params }: { params: { id: string } }): Promise<Response> {
+  const auth = requireSession(req);
+  if (auth instanceof Response) return auth;
   const all = await dbListSuggestions();
   const found = all.find((s) => s.id === params.id);
   if (!found) return Response.json({ error: "unknown-suggestion" }, { status: 404 });

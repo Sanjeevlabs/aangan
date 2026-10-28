@@ -2,10 +2,13 @@ import { CreateSuggestionRequestSchema } from "@/lib/schemas";
 import { dbAddAgentRun, dbAddSuggestion, dbListSuggestions } from "@/lib/db";
 import { runAgent } from "@/lib/agent";
 import { agentTools } from "@/lib/agent-tools";
+import { checkRateLimit, requireSession } from "@/lib/auth";
 
 // Agents write suggestions; nothing executes here. Approval happens at
 // /api/suggestions/[id]/approve after Review.
 export async function GET(req: Request): Promise<Response> {
+  const auth = requireSession(req);
+  if (auth instanceof Response) return auth;
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");
   const list =
@@ -16,6 +19,9 @@ export async function GET(req: Request): Promise<Response> {
 }
 
 export async function POST(req: Request): Promise<Response> {
+  const auth = requireSession(req);
+  if (auth instanceof Response) return auth;
+  if (!checkRateLimit(auth, "/api/suggestions")) return Response.json({ error: "rate-limited" }, { status: 429 });
   let body: unknown;
   try {
     body = await req.json();

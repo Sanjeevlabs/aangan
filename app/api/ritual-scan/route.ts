@@ -3,14 +3,19 @@ import { join } from "path";
 import { planRitualScan } from "@/lib/ritual-agent";
 import { dbAddAgentRun, dbAddSuggestion, dbAssignDailyRole, dbEnsureRitualRun, dbListDailyRoles, dbListMembers, dbListRitualRuns, dbListWishes, dbSetRitualRunStatus } from "@/lib/db";
 import { loadRitualConfig } from "@/lib/rituals";
+import { cronAuthorized, requireSession } from "@/lib/auth";
 
-// Daily ritual/role scan. Vercel Cron (GET, see vercel.json) hits this once
-// a day; manual callers use POST. Idempotent — safe to call repeatedly.
-export async function GET(): Promise<Response> {
+// Daily ritual/role scan. Vercel Cron (GET, see vercel.json) hits this with
+// Authorization: Bearer CRON_SECRET; manual callers use POST with a session.
+// Idempotent — safe to call repeatedly.
+export async function GET(req: Request): Promise<Response> {
+  if (!cronAuthorized(req)) return Response.json({ error: "unauthorized-cron" }, { status: 401 });
   return runScan();
 }
 
-export async function POST(): Promise<Response> {
+export async function POST(req: Request): Promise<Response> {
+  const auth = requireSession(req);
+  if (auth instanceof Response) return auth;
   return runScan();
 }
 

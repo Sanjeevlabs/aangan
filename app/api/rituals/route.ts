@@ -2,10 +2,13 @@ import { readFileSync, readdirSync } from "fs";
 import { join } from "path";
 import { loadRitualConfig } from "@/lib/rituals";
 import { dbListMembers, dbListRitualRuns } from "@/lib/db";
+import { requireSession } from "@/lib/auth";
 
 // Ritual calendar data: every config in rituals/*.json (never hard-coded in
 // logic) + member birthdays from the family graph + movable-date fixture.
-export async function GET(): Promise<Response> {
+export async function GET(req: Request): Promise<Response> {
+  const auth = requireSession(req);
+  if (auth instanceof Response) return auth;
   const dir = join(process.cwd(), "rituals");
   const configs: { slug: string; title: string; cultureNotes: string; steps: unknown[] }[] = [];
   try {

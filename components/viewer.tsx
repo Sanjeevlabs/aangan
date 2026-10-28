@@ -11,7 +11,7 @@ interface ViewerState {
   lang: SupportedLang;
   displayLang: SupportedLang;
   signalLine: string;
-  setViewerId: (id: string) => void;
+  setViewerId: (id: string) => Promise<void>;
   setDisplayLang: (lang: SupportedLang) => Promise<void>;
   refreshMembers: () => Promise<void>;
 }
@@ -30,7 +30,22 @@ async function fetchMembers(): Promise<Member[]> {
 
 export function ViewerProvider({ children }: { children: React.ReactNode }) {
   const [members, setMembers] = useState<Member[]>(DEMO_MEMBERS);
-  const [viewerId, setViewerId] = useState<string>(DEFAULT_VIEWER_ID);
+  const [viewerId, setViewerIdState] = useState<string>(DEFAULT_VIEWER_ID);
+
+  // Viewer switcher keeps the httpOnly session in sync: the server mints a
+  // fresh cookie for the same family (no invite code needed twice).
+  const setViewerId = useCallback(async (id: string) => {
+    try {
+      await fetch("/api/session/switch", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ memberId: id }),
+      });
+    } catch {
+      // Offline: local state still switches.
+    }
+    setViewerIdState(id);
+  }, []);
 
   const refreshMembers = useCallback(async () => {
     try {
@@ -76,7 +91,7 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
       setDisplayLang,
       refreshMembers,
     };
-  }, [members, viewerId, refreshMembers, setDisplayLang]);
+  }, [members, viewerId, refreshMembers, setDisplayLang, setViewerId]);
 
   return <ViewerContext.Provider value={value}>{children}</ViewerContext.Provider>;
 }
