@@ -1,3 +1,5 @@
+import { seedDemoRooms } from "./demo-rooms";
+import { resetDocs } from "./family-docs";
 import type { z } from "zod";
 import { DEMO_MEMBERS } from "./family";
 import {
@@ -172,6 +174,7 @@ export function updateMemberProfile(memberId: string, patch: MemberPatch): Membe
 }
 
 export function seedDemo(): void {
+  seedDemoRooms();
   clearCards();
   addCard({
     id: "demo-diya-1",
@@ -209,6 +212,7 @@ export function resetDemo(): void {
   gatherSessions = [];
   clearInvites();
   clearMovableCache();
+  resetDocs();
   seedDemo();
 }
 

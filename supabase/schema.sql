@@ -326,6 +326,21 @@ on conflict (id) do nothing;
 
 drop policy if exists "anon upload to family bucket" on storage.objects;
 
+-- ------------------------------------------------------------ family_docs
+-- One validated document table for the living rooms (Kitchen, presence,
+-- care circle, Village, sittings, weekly questions, Muse call log). Each
+-- kind has a Zod schema in lib/kinds.ts, checked on every read and write.
+create table if not exists family_docs (
+  id text primary key,
+  family_id text not null,
+  kind text not null check (kind in ('recipe','attempt','presence','care_settings','need','helper','rota','sitting','knock','question','muse_call')),
+  data jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists family_docs_family_kind_idx on family_docs (family_id, kind, created_at desc);
+alter table family_docs enable row level security;
+
 -- -------------------------------------------------------------------- seed
 insert into families (id, name) values ('demo-family', 'Demo Family')
 on conflict (id) do nothing;

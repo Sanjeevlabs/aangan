@@ -39,9 +39,11 @@ export function useShell(): ShellState {
 }
 
 const ROOMS = [
+  { href: "/care", icon: "care", title: "Care circle", note: "Their day, their needs, their Village" },
+  { href: "/kitchen", icon: "pot", title: "Kitchen", note: "Recipes in the voices that taught them" },
+  { href: "/gather", icon: "door", title: "Sit together", note: "A reason to be in the same room" },
   { href: "/lane", icon: "lane", title: "Memory Lane", note: "Walk back through the years" },
   { href: "/rituals", icon: "calendar", title: "Occasions", note: "Birthdays and festivals ahead" },
-  { href: "/gather", icon: "gather", title: "Gather", note: "Plan an evening together" },
   { href: "/bond", icon: "tree", title: "Family tree", note: "Everyone, and how you're related" },
   { href: "/settings", icon: "settings", title: "Settings", note: "Language, time zone, privacy" },
 ] as const;
@@ -80,7 +82,7 @@ function RoomsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
                   <Link
                     href={r.href}
                     onClick={onClose}
-                    className="press flex items-center gap-4 rounded-[22px] px-4 py-3.5 text-ink no-underline hover:bg-black/[.04]"
+                    className="press flex items-center gap-4 rounded-[22px] px-4 py-2.5 text-ink no-underline hover:bg-black/[.04]"
                   >
                     <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-black/[.05]">
                       <Icon name={r.icon} />

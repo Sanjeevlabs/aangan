@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/auth";
 import { dbGetMember, dbRemoveMember, dbUpdateMemberProfile } from "@/lib/db";
+import { deleteDocsForMember } from "@/lib/family-docs";
 import { UpdateMemberRequestSchema, type Member } from "@/lib/schemas";
 
 // Editing and removing people in the tree.
@@ -41,5 +42,6 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   if (t.member.email) return Response.json({ error: "has-account" }, { status: 403 });
   const ok = await dbRemoveMember(t.member.id);
   if (!ok) return Response.json({ error: "remove-failed" }, { status: 500 });
+  await deleteDocsForMember(t.auth.familyId, t.member.id);
   return Response.json({ removed: t.member.id });
 }

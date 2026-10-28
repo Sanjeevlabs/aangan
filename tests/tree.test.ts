@@ -4,6 +4,7 @@ import { POST as addRelative } from "@/app/api/relationships/route";
 import { GET as getMembers } from "@/app/api/members/route";
 import { inferRole } from "@/lib/db";
 import { resetDemo } from "@/lib/store";
+import { resetDocs } from "@/lib/family-docs";
 import { authedGet, authedJson, sessionCookie } from "./auth-helper";
 
 const call = (method: string, id: string, body?: unknown, member = "leo", family = "demo-family") =>
@@ -20,6 +21,7 @@ async function members(member = "leo") {
 describe("family tree: add, edit, remove", () => {
   beforeEach(() => {
     resetDemo();
+    resetDocs();
   });
 
   it("adds a relative of someone else (Dad's mother), not only of yourself", async () => {

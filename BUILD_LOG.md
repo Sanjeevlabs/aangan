@@ -144,3 +144,14 @@
 - Languages: one registry (`lib/languages.ts`) of 29 languages (Indian and world). The app stays English; voices, captions and notes are translated by Muse into each reader's language. Searchable language picker in Settings. The database constraint now accepts any registered code.
 - Mock mode no longer swaps unknown text for a placeholder phrase: it returns the family's own words.
 - Verified: lint ok, typecheck ok, tests 117 passed + 3 skipped, production build ok.
+
+## 29 Oct 2026 · Stage 2: the living rooms (Kitchen, Sit together, Care circle + Village, presence)
+
+- Foundation: one validated document table (`family_docs`, jsonb) behind the new rooms; every kind has a Zod schema (`lib/kinds.ts`) checked on read and write, family-scoped, a bad row is skipped and logged. `lib/muse.ts` is the single door for new Muse calls: structured output, one retry, safe fallback, cached by input, spend cap, and a `muse_call` log row per call.
+- Kitchen: an elder teaches by voice (the composer now has purposes: recipe, answer, need, wish); Muse writes the recipe card in the cook's own measures with a cautious "≈" for kitchens abroad; a grounding check rejects any card with ingredients the cook didn't say. Whole-card translation per reader, cached. "I made this" with a photo; the cook blesses attempts (you can't bless your own). Grandchildren can ask an elder for a recipe.
+- Questions for elders (`/api/keeper`): family asks and the weekly Muse question, answered by voice.
+- Presence: a parent shares their day in one tap ("Chai · On the verandah"); opening Aangan can count as "in the courtyard" if they allow it (30-min throttle). Children see each parent's day at the top of their courtyard. The quiet-day note is opt-in, owned by the parent, goes to one chosen person, and is judged against the parent's own usual first-moment hour plus grace, never at night.
+- Care circle: needs open → claimed → done; Muse writes the reassurance note in the parent's language; whose week it is to check in; the parent's **Village** (trusted local people: groceries, house help, driver, gas booking, neighbour) with call buttons; a spoken request becomes a task (feeling unwell always becomes "someone visit me", never advice).
+- Sit together (replaces the meeting-style Gather): a reason (chai, cook together with a recipe, story night, festival, songs, just sit), the hours when everyone is awake, each person's local time on every sitting, a "come sit with me" open door, a no-account video room, and an .ics download.
+- Demo family seeded relative to *Dadi's* clock so the demo always reads as her real day.
+- Verified: lint ok, typecheck ok, tests 133 passed + 3 skipped, production build ok.

@@ -2,6 +2,7 @@
 
 import { AnimatePresence, m } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ASK_STARTERS } from "@/lib/i18n";
 import { blobToWav16k, extractVideoFrames, processImage, processVideo, processVoiceBlob, type ProcessedUpload } from "@/lib/media-client";
 import { getSessionMedia } from "@/lib/media-session";
@@ -14,9 +15,34 @@ import { useViewer } from "./viewer";
 
 export type AddTab = "photos" | "voice" | "video" | "ask";
 
-export interface ReplyContribution {
-  runId: string;
-  kind: "wish" | "blessing";
+/**
+ * What a recording is *for*. One recorder serves every voice-first path:
+ * birthday wishes, teaching a recipe, answering the weekly question, and
+ * asking the family for help. Muse turns the words into the right thing.
+ */
+export type ReplyContribution =
+  | { kind: "wish" | "blessing"; runId: string }
+  | { kind: "recipe"; title?: string; questionId?: string }
+  | { kind: "answer"; questionId: string; prompt: string }
+  | { kind: "need"; forMemberId?: string };
+
+const PURPOSE: Record<"recipe" | "answer" | "need", { title: string; hint: string; cta: string }> = {
+  recipe: {
+    title: "Teach a recipe",
+    hint: "Talk while you cook, the way you'd teach at the stove. Say the amounts your way. Muse writes it into a recipe card for the family.",
+    cta: "Save to the Kitchen",
+  },
+  answer: { title: "Your answer", hint: "Take your time. Your voice is kept for the family, word for word.", cta: "Keep my answer" },
+  need: {
+    title: "Ask for help",
+    hint: "Say what you need: groceries, a ride, something to fix. Your family abroad and the people in your Village will see it.",
+    cta: "Ask the family",
+  },
+};
+
+export function purposeTitle(c: ReplyContribution | null): string | null {
+  if (!c || c.kind === "wish" || c.kind === "blessing") return null;
+  return PURPOSE[c.kind].title;
 }
 
 /* ------------------------------------------------------------------ data */
@@ -150,7 +176,9 @@ interface VoiceReady {
 }
 
 function VoiceComposer({ addressee, contribution, onDone }: { addressee: string | null; contribution: ReplyContribution | null; onDone: () => void }) {
+  const router = useRouter();
   const { viewer, members, displayLang } = useViewer();
+  const purpose = contribution && contribution.kind !== "wish" && contribution.kind !== "blessing" ? PURPOSE[contribution.kind] : null;
   const [to, setTo] = useState<string | null>(addressee);
   const [consent, setConsent] = useState<boolean | null>(null);
   const [phase, setPhase] = useState<"idle" | "recording" | "working" | "ready">("idle");
@@ -263,11 +291,24 @@ function VoiceComposer({ addressee, contribution, onDone }: { addressee: string 
       return;
     }
     if (contribution && posted.id) {
-      await fetch("/api/wishes", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ritualRunId: contribution.runId, cardId: posted.id, memberId: viewer.id, kind: contribution.kind }),
-      }).catch(() => undefined);
+      const json = (url: string, body: unknown) =>
+        fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then((r) => (r.ok ? (r.json() as Promise<Record<string, unknown>>) : null)).catch(() => null);
+      if (contribution.kind === "wish" || contribution.kind === "blessing") {
+        await json("/api/wishes", { ritualRunId: contribution.runId, cardId: posted.id, memberId: viewer.id, kind: contribution.kind });
+      } else if (contribution.kind === "recipe") {
+        const out = await json("/api/kitchen", { action: "teach", cardId: posted.id, title: contribution.title, questionId: contribution.questionId });
+        const recipe = out?.recipe as { id?: string } | undefined;
+        onDone();
+        if (recipe?.id) router.push(`/kitchen/${recipe.id}`);
+        return;
+      } else if (contribution.kind === "answer") {
+        await json("/api/keeper", { action: "answer", questionId: contribution.questionId, cardId: posted.id });
+      } else if (contribution.kind === "need") {
+        await json("/api/care", { action: "need-from-voice", cardId: posted.id, forMemberId: contribution.forMemberId ?? viewer.id });
+        onDone();
+        router.push("/care");
+        return;
+      }
     }
     onDone();
   };
@@ -301,8 +342,18 @@ function VoiceComposer({ addressee, contribution, onDone }: { addressee: string 
 
   return (
     <div className="flex min-h-[460px] flex-col">
-      <p className="m-0 mb-3 text-[13px] font-medium text-ink-soft">To</p>
-      <Recipients value={to} onChange={setTo} />
+      {purpose ? (
+        <div className="rounded-[20px] bg-surface px-4 py-3">
+          {contribution?.kind === "answer" && <p className="voice m-0 mb-1 text-[19px] leading-snug text-ink">“{contribution.prompt}”</p>}
+          {contribution?.kind === "recipe" && contribution.title && <p className="m-0 mb-1 text-[17px] font-semibold">{contribution.title}</p>}
+          <p className="m-0 text-[14px] text-ink-soft">{purpose.hint}</p>
+        </div>
+      ) : (
+        <>
+          <p className="m-0 mb-3 text-[13px] font-medium text-ink-soft">To</p>
+          <Recipients value={to} onChange={setTo} />
+        </>
+      )}
 
       <div className="flex flex-1 flex-col items-center justify-center py-6 text-center">
         {phase === "ready" && ready ? (
@@ -356,7 +407,7 @@ function VoiceComposer({ addressee, contribution, onDone }: { addressee: string 
               ) : phase === "working" ? (
                 "Listening back…"
               ) : (
-                `Tap to talk${person ? ` to ${callName(person)}` : " to everyone"}`
+                purpose ? "Tap to start" : `Tap to talk${person ? ` to ${callName(person)}` : " to everyone"}`
               )}
             </p>
             <button
@@ -385,11 +436,11 @@ function VoiceComposer({ addressee, contribution, onDone }: { addressee: string 
           </Button>
           <Button className="flex-[1.4]" onClick={() => void send()}>
             <Icon name="send" size={18} />
-            Send{person ? ` to ${callName(person)}` : ""}
+            {purpose ? purpose.cta : `Send${person ? ` to ${callName(person)}` : ""}`}
           </Button>
         </div>
       ) : (
-        phase === "idle" && (
+        phase === "idle" && !purpose && (
           <div>
             <button type="button" onClick={() => setIdeas((v) => !v)} aria-expanded={ideas} className="press mx-auto flex h-11 items-center gap-1.5 text-[15px] font-medium text-ink-soft">
               Need something to say?
@@ -557,7 +608,7 @@ export function AddSheet() {
           >
             <span className="mx-auto mb-2 block h-1.5 w-10 rounded-full bg-black/15" aria-hidden="true" />
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="m-0 text-[22px]">{voice ? "New voice note" : "Share a moment"}</h2>
+              <h2 className="m-0 text-[22px]">{voice ? (purposeTitle(replyTo) ?? "New voice note") : "Share a moment"}</h2>
               <button type="button" onClick={closeAdd} aria-label="Close" className="press -mr-2 grid h-11 w-11 place-items-center rounded-full text-ink-soft">
                 <Icon name="close" />
               </button>
