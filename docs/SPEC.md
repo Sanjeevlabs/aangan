@@ -350,14 +350,14 @@ Judges score: impact, Meta tooling, technical quality, design. Five build days l
 
 ---
 
-## 15. Decisions needed from you
+## 15. Decisions (agreed 29 Oct 2026)
 
-1. **Primary family view:** Aangan map (recommended) with the living tree as *Lineage* — or keep the tree primary?
-2. **Safe & sound:** confirm *no continuous location*; one-time location only on *I need help*.
-3. **Pricing:** ₹399 / ₹999 as above, and the Free tier limits — agree?
-4. **Concierge in the demo:** a clearly-labelled prototype with a fixed catalog (no real orders) — agree?
-5. **Medicines:** park until a licensed partner is signed — agree?
-6. **Logo:** concept #1 (open square + marigold dot)?
+1. **Primary family view:** the Aangan map, with the living tree one tap away as *Lineage*.
+2. **Safe & sound:** status check-ins and overdue alerts; location is sent **once, only on "I need help"**. No continuous location.
+3. **Pricing:** ₹399 Family / ₹999 Family Plus (global equivalents), as in §8.
+4. **Concierge in the demo:** a clearly-labelled prototype — fixed curated catalog, the order becomes a care ticket, no real payment or partner order.
+5. **Medicines:** parked until a licensed partner is signed.
+6. **Logo:** open square + marigold dot.
 
 ---
 

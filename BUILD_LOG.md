@@ -174,3 +174,11 @@
 - Fix: on a live database the demo family's relationships were dropped as soon as one new relationship existed (tree flattened to a row) and demo portraits were missing (initials). Live rows now merge with the seeded graph; SQL seeds the edges and portraits too.
 - Demo: Dada joins Dadi at home in India. People without photos get a warm monogram instead of a grey box.
 - Verified: lint ok, typecheck ok, tests 140 passed + 3 skipped, production build ok; browser QA on the demo and on a nine-person, two-grandparent-home family.
+
+## 29 Oct 2026 · Stage 5: roles, care duties, complete CRUD, spec v2
+
+- Access roles (admin / member / child), separate from generation, in one permissions table (`lib/permissions.ts`) enforced by the routes; the family always keeps an admin (role changes, removals and leaving are guarded). Settings → People & roles.
+- Care duties: "who handles what" per home; a new need of that kind goes straight to that person, with a note to the parent in their language.
+- Every gap from the CRUD audit closed: edit/delete voice notes and photos (author; admin can remove), edit/delete recipes (cook), delete attempts, take back a blessing, withdraw or skip questions, undo a shared moment, edit/withdraw needs, edit Village contacts, leave the rota, revoke invites, link two existing people and remove a link, take back a reaction, RSVP and reschedule sittings.
+- `docs/SPEC.md` v2: what families far apart care about, every screen's operations and states, Care as a ticket tracker, Safe & sound (no tracking), pets, extended family, the Aangan map, plans (₹399 / ₹999), curated concierge (ONDC / Instacart / licensed partners; no marketplace), brand. Decisions recorded in §15.
+- Verified: lint ok, typecheck ok, tests 152 passed + 3 skipped, production build ok; role-based UI probe (admin vs child) matches the rules; no page errors.
