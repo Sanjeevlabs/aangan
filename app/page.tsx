@@ -3,59 +3,58 @@
 import { useEffect, useState } from "react";
 import { Home } from "@/components/home";
 import { useShell } from "@/components/shell";
-import { Welcome } from "@/components/welcome";
+import { useViewer } from "@/components/viewer";
+import { Landing, Welcome } from "@/components/welcome";
+import { resetFamilyCards } from "@/lib/use-family";
 
 const ENTERED_KEY = "aangan:entered";
 
-// Gate: a valid httpOnly session cookie skips the invite-code step.
-// First visit (or expired cookie) shows the code gate inside Welcome.
-type Gate = "checking" | "gate" | "intro" | "home";
-
+// Signed out -> Landing. Signed in -> the Welcome greeting once per session,
+// then the courtyard.
 export default function Page() {
   const { setChromeHidden } = useShell();
-  const [gate, setGate] = useState<Gate>("checking");
+  const { ready, signedIn } = useViewer();
+  const [entered, setEntered] = useState<boolean | null>(null);
 
   useEffect(() => {
-    let live = true;
-    fetch("/api/session", { cache: "no-store" })
-      .then((r) => {
-        if (!live) return;
-        if (r.ok) {
-          setGate(sessionStorage.getItem(ENTERED_KEY) === "1" ? "home" : "intro");
-        } else {
-          setGate("gate");
-        }
-      })
-      .catch(() => {
-        if (live) setGate("gate");
-      });
-    return () => {
-      live = false;
-    };
+    try {
+      setEntered(sessionStorage.getItem(ENTERED_KEY) === "1");
+    } catch {
+      setEntered(true);
+    }
   }, []);
 
+  const gate = !ready || entered === null ? "checking" : !signedIn ? "landing" : entered ? "home" : "welcome";
+
   useEffect(() => {
-    setChromeHidden(gate === "gate" || gate === "intro");
+    setChromeHidden(gate !== "home");
   }, [gate, setChromeHidden]);
 
-  if (gate === "checking") {
+  if (gate === "checking") return <div className="fixed inset-0 z-30 bg-white" aria-busy="true" aria-label="Opening Aangan" />;
+  if (gate === "landing")
     return (
-      <div aria-busy="true" aria-label="Loading">
-        <div className="skeleton mb-2 h-10 w-40" />
-        <div className="skeleton h-40" />
-      </div>
+      <Landing
+        onDemo={async () => {
+          const res = await fetch("/api/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ inviteCode: "AANGAN-DEMO", memberId: "leo" }) });
+          if (res.ok) {
+            resetFamilyCards();
+            window.dispatchEvent(new Event("aangan:auth"));
+          }
+        }}
+      />
     );
-  }
-
-  if (gate === "home") return <Home />;
-
-  return (
-    <Welcome
-      needCode={gate === "gate"}
-      onEnter={() => {
-        sessionStorage.setItem(ENTERED_KEY, "1");
-        setGate("home");
-      }}
-    />
-  );
+  if (gate === "welcome")
+    return (
+      <Welcome
+        onEnter={() => {
+          try {
+            sessionStorage.setItem(ENTERED_KEY, "1");
+          } catch {
+            /* private mode */
+          }
+          setEntered(true);
+        }}
+      />
+    );
+  return <Home />;
 }

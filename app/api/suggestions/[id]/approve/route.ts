@@ -7,7 +7,7 @@ import { requireSession } from "@/lib/auth";
 export async function POST(req: Request, { params }: { params: { id: string } }): Promise<Response> {
   const auth = requireSession(req);
   if (auth instanceof Response) return auth;
-  const all = await dbListSuggestions();
+  const all = await dbListSuggestions(undefined, auth.familyId);
   const found = all.find((s) => s.id === params.id);
   if (!found) return Response.json({ error: "unknown-suggestion" }, { status: 404 });
   if (found.status !== "pending") return Response.json({ error: "already-reviewed", suggestion: found }, { status: 409 });

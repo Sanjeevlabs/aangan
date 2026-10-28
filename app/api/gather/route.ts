@@ -7,7 +7,7 @@ import { checkRateLimit, requireSession } from "@/lib/auth";
 export async function GET(req: Request): Promise<Response> {
   const auth = requireSession(req);
   if (auth instanceof Response) return auth;
-  const [sessions, members] = await Promise.all([dbListGatherSessions(), dbListMembers(auth.familyId)]);
+  const [sessions, members] = await Promise.all([dbListGatherSessions(auth.familyId), dbListMembers(auth.familyId)]);
   return Response.json({ sessions, members });
 }
 
@@ -33,7 +33,7 @@ export async function POST(req: Request): Promise<Response> {
   if (!parsed.success) {
     return Response.json({ error: "invalid-gather" }, { status: 400 });
   }
-  const cards = await dbListCards();
+  const cards = await dbListCards(auth.familyId);
   const audio = cards.filter((c) => c.type === "audio").slice(0, 20);
   const { tracks } = await curatePlaylist(
     audio.map((c) => ({ id: c.id, caption: c.caption })),

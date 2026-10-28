@@ -1,35 +1,42 @@
-/* Aangan design tokens — flat courtyard system (Oct 2026 reset).
-   Light-first, dark supported. Serif titles/captions/lyrics, Inter UI.
-   8pt spacing grid. Fonts loaded via next/font in app/layout.tsx. */
+/* Aangan tokens. See docs/DESIGN.md §3.
+   White ground; colour comes from the family's photos. Marigold is the only
+   brand colour and means "live": heard, playing, recording. */
 
 :root {
-  /* Flat light system */
-  --paper: #f6f2ec;
-  --surface: #fffdf8;
-  --ink: #1c1917;
-  --ink-soft: #57534e;
-  --line: #e2d9ce;
-  --accent: #9a3412;
-  --accent-ink: #fff7ed;
+  --paper: #ffffff;
+  --surface: #f4f4f6;
+  --ink: rgba(0, 0, 0, 0.88);
+  --ink-soft: rgba(0, 0, 0, 0.56);
+  --ink-faint: rgba(0, 0, 0, 0.38);
+  --line: rgba(0, 0, 0, 0.08);
+  --accent: #b76a00; /* marigold, darkened to pass 4.5:1 for text on white */
+  --accent-ink: #ffffff;
+  --marigold: #f5a524;
+  --marigold-glow: rgba(245, 165, 36, 0.28);
 
-  /* Buttons: primary = dark rounded rect, secondary = outlined */
-  --espresso: #1c1917;
-  --espresso-ink: #f6f2ec;
+  --espresso: #000000;
+  --espresso-ink: #ffffff;
 
-  /* Glass — ONLY sheets + mini-player. Solid fallback first. */
-  --glass-solid: #fffdf8;
-  --glass-bg: rgba(255, 253, 248, 0.86);
-  --glass-border: rgba(28, 25, 23, 0.08);
-  --glass-shadow: 0 20px 60px rgba(60, 40, 30, 0.18);
+  /* Glass over imagery */
+  --glass-solid: rgba(40, 32, 28, 0.72);
+  --glass-bg: rgba(255, 255, 255, 0.16);
+  --glass-border: rgba(255, 255, 255, 0.32);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  --glass-shadow: 0 20px 50px rgba(0, 0, 0, 0.18);
 
-  /* Now Playing (always dark) */
-  --player-ground: #2a211c;
-  --player-ink: #faf6ef;
-  --player-muted: rgba(250, 246, 239, 0.62);
-  --player-wave: #fdba74;
-  --player-wave-dim: rgba(253, 186, 116, 0.35);
+  /* Glass over the white page (dock, sheets) */
+  --frost-bg: rgba(255, 255, 255, 0.72);
+  --frost-solid: #ffffff;
+  --frost-border: rgba(0, 0, 0, 0.06);
+  --frost-shadow: 0 12px 40px rgba(0, 0, 0, 0.14);
 
-  /* Spacing — 8pt grid */
+  /* Now playing */
+  --player-ground: #1d1714;
+  --player-ink: #ffffff;
+  --player-muted: rgba(255, 255, 255, 0.6);
+  --player-wave: #ffffff;
+  --player-wave-dim: rgba(255, 255, 255, 0.36);
+
   --space-1: 8px;
   --space-2: 16px;
   --space-3: 24px;
@@ -37,38 +44,20 @@
   --space-5: 40px;
   --space-6: 48px;
 
-  /* Radius — 6–8px; no pills except the 44px round play button */
-  --radius-sheet: 8px;
-  --radius-card: 6px;
+  --radius-hero: 30px;
+  --radius-sheet: 32px;
+  --radius-card: 24px;
+  --radius-cover: 20px;
   --radius-pill: 999px;
 
-  /* Touch */
   --touch-min: 44px;
 
-  /* Motion — 150–300ms */
-  --motion-fast: 150ms;
-  --motion-base: 200ms;
-  --motion-slow: 300ms;
+  --motion-fast: 160ms;
+  --motion-base: 240ms;
+  --motion-slow: 320ms;
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
 
-  /* Type — next/font vars, system fallback */
-  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-display: "Instrument Serif", Georgia, "Times New Roman", serif;
-}
-
-.dark {
-  --paper: #1c1917;
-  --surface: #26211c;
-  --ink: #f6f2ec;
-  --ink-soft: #b8ada1;
-  --line: #3d362f;
-  --accent: #e09a63;
-  --accent-ink: #241207;
-
-  --espresso: #f6f2ec;
-  --espresso-ink: #1c1917;
-
-  --glass-solid: #26211c;
-  --glass-bg: rgba(38, 33, 28, 0.86);
-  --glass-border: rgba(246, 242, 236, 0.12);
-  --glass-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  --font-body: "Onest", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-voice: "Literata", Georgia, serif;
+  --font-display: var(--font-body);
 }

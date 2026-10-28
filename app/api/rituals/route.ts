@@ -46,6 +46,6 @@ export async function GET(req: Request): Promise<Response> {
       fixture: (slug) => fixture[slug] ?? null,
     },
   );
-  const [members, runs] = await Promise.all([dbListMembers(), dbListRitualRuns()]);
+  const [members, runs] = await Promise.all([dbListMembers(auth.familyId), dbListRitualRuns(auth.familyId)]);
   return Response.json({ configs, movable, movableFixture: !grounded, members, runs });
 }

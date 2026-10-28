@@ -1,3 +1,4 @@
+import { ritualRunId } from "./rituals";
 // Data-access seam: mock memory store vs Supabase.
 // Every route handler goes through these async functions; the shapes match
 // lib/store.ts (plus the M3–M5 entities below). Tests import lib/store.ts
@@ -35,6 +36,9 @@ import {
   removeMemberCompletely as memRemoveMember,
   setKinshipTerms as memSetKinship,
   setMemberDisplayLang as memSetDisplayLang,
+  updateMemberProfile as memUpdateProfile,
+  createFamily as memCreateFamily,
+  findMemberByEmail as memFindByEmail,
   setMemberHome as memSetHome,
   setReaction as memSetReaction,
   setRitualRunStatus as memSetRunStatus,
@@ -66,6 +70,9 @@ function cardFromRow(r: Record<string, unknown>): Card {
     transcript: (r.transcript as string) ?? "",
     transcriptLang: (r.transcript_lang as string) ?? "en",
     segments: Array.isArray(r.segments) ? r.segments : [],
+    authorId: (r.author_id as string | null) ?? null,
+    coverRef: (r.cover_ref as string | null) ?? null,
+    addressedTo: (r.addressed_to as string | null) ?? null,
   });
 }
 
@@ -82,15 +89,37 @@ function memberFromRow(r: Record<string, unknown>): Member {
     birthday: r.birthday ?? "01-01",
     homeImageRef: (r.home_image_ref as string | null) ?? null,
     homePalette: Array.isArray(r.home_palette) ? (r.home_palette as string[]) : [],
+    photoRef: (r.photo_ref as string | null) ?? null,
+    email: (r.email as string | null) ?? null,
   });
 }
 
-export async function dbListCards(familyId = "demo-family"): Promise<Card[]> {
-  if (!live()) return memListCards();
+
+/** Every family id, for jobs that run across families (the daily ritual scan). */
+export async function dbListFamilyIds(): Promise<string[]> {
+  const fromMem = Array.from(new Set(memListMembers().map((m) => m.familyId)));
+  if (!live()) return fromMem;
   const sb = supabaseServer();
-  if (!sb) return memListCards();
+  if (!sb) return fromMem;
+  const { data, error } = await sb.from("families").select("id");
+  if (error || !data) return fromMem;
+  return data.map((r) => String(r.id));
+}
+
+// Tenancy: every list is scoped to one family. In-memory results (mock mode or
+// a live error) are filtered the same way, so a new family never sees another
+// family's rows.
+const DEMO_FAMILY = "demo-family";
+function scoped<T extends { familyId?: string | null }>(rows: T[], familyId: string | undefined): T[] {
+  return familyId ? rows.filter((r) => (r.familyId ?? DEMO_FAMILY) === familyId) : rows;
+}
+
+export async function dbListCards(familyId: string = DEMO_FAMILY): Promise<Card[]> {
+  if (!live()) return scoped(memListCards(), familyId);
+  const sb = supabaseServer();
+  if (!sb) return scoped(memListCards(), familyId);
   const { data, error } = await sb.from("cards").select("*").eq("family_id", familyId).order("taken_at", { ascending: false });
-  if (error || !data) return memListCards();
+  if (error || !data) return scoped(memListCards(), familyId);
   return data.map(cardFromRow);
 }
 
@@ -115,17 +144,20 @@ export async function dbAddCard(input: Omit<import("zod").input<typeof CardSchem
     transcript: card.transcript,
     transcript_lang: card.transcriptLang,
     segments: card.segments,
+    author_id: card.authorId,
+    cover_ref: card.coverRef,
+    addressed_to: card.addressedTo,
   });
   if (error) return memAddCard(card);
   return card;
 }
 
-export async function dbListMembers(familyId = "demo-family"): Promise<Member[]> {
-  if (!live()) return memListMembers();
+export async function dbListMembers(familyId: string = DEMO_FAMILY): Promise<Member[]> {
+  if (!live()) return scoped(memListMembers(), familyId);
   const sb = supabaseServer();
-  if (!sb) return memListMembers();
+  if (!sb) return scoped(memListMembers(), familyId);
   const { data, error } = await sb.from("members").select("*").eq("family_id", familyId);
-  if (error || !data || data.length === 0) return memListMembers();
+  if (error || !data || (data.length === 0 && familyId === DEMO_FAMILY)) return scoped(memListMembers(), familyId);
   return data.map(memberFromRow);
 }
 
@@ -143,6 +175,63 @@ export async function dbSetMemberHome(memberId: string, homeImageRef: string, ho
   const sb = supabaseServer();
   if (!sb) return memSetHome(memberId, homeImageRef, homePalette);
   const { error } = await sb.from("members").update({ home_image_ref: homeImageRef, home_palette: homePalette }).eq("id", memberId);
+  if (error) return undefined;
+  return dbGetMember(memberId);
+}
+
+export async function dbCreateFamily(name: string): Promise<string> {
+  const id = `fam-${crypto.randomUUID().slice(0, 12)}`;
+  memCreateFamily(id, name);
+  if (!live()) return id;
+  const sb = supabaseServer();
+  if (!sb) return id;
+  const { error } = await sb.from("families").insert({ id, name });
+  if (error) throw new Error("family-create-failed");
+  return id;
+}
+
+export async function dbAddMember(input: Omit<import("zod").input<typeof MemberSchema>, "id">): Promise<Member> {
+  const member = MemberSchema.parse({ id: `m-${crypto.randomUUID().slice(0, 12)}`, ...input });
+  if (!live()) return memAddMember(member);
+  const sb = supabaseServer();
+  if (!sb) return memAddMember(member);
+  const { error } = await sb.from("members").insert({
+    id: member.id,
+    family_id: member.familyId,
+    first_name: member.firstName,
+    display_name: member.displayName,
+    role: member.role,
+    lang: member.lang,
+    display_lang: member.displayLang,
+    tz: member.tz,
+    birthday: member.birthday,
+    email: member.email ? member.email.toLowerCase() : null,
+    photo_ref: member.photoRef,
+  });
+  if (error) throw new Error("member-create-failed");
+  return member;
+}
+
+export async function dbFindMemberByEmail(email: string): Promise<Member | undefined> {
+  const e = email.trim().toLowerCase();
+  if (!live()) return memFindByEmail(e);
+  const sb = supabaseServer();
+  if (!sb) return memFindByEmail(e);
+  const { data, error } = await sb.from("members").select("*").ilike("email", e).limit(1);
+  if (error || !data || data.length === 0) return undefined;
+  return memberFromRow(data[0] as Record<string, unknown>);
+}
+
+export async function dbUpdateMemberProfile(memberId: string, patch: { firstName?: string; tz?: string; photoRef?: string | null; email?: string | null }): Promise<Member | undefined> {
+  if (!live()) return memUpdateProfile(memberId, patch);
+  const sb = supabaseServer();
+  if (!sb) return memUpdateProfile(memberId, patch);
+  const row: Record<string, unknown> = {};
+  if (patch.firstName !== undefined) row.first_name = patch.firstName;
+  if (patch.tz !== undefined) row.tz = patch.tz;
+  if (patch.photoRef !== undefined) row.photo_ref = patch.photoRef;
+  if (patch.email !== undefined) row.email = patch.email ? patch.email.toLowerCase() : null;
+  const { error } = await sb.from("members").update(row).eq("id", memberId);
   if (error) return undefined;
   return dbGetMember(memberId);
 }
@@ -217,12 +306,12 @@ export async function dbListReactions(cardId?: string): Promise<Reaction[]> {
   );
 }
 
-export async function dbListRelationships(familyId = "demo-family"): Promise<Relationship[]> {
-  if (!live()) return memListRelationships();
+export async function dbListRelationships(familyId: string = DEMO_FAMILY): Promise<Relationship[]> {
+  if (!live()) return scoped(memListRelationships(), familyId);
   const sb = supabaseServer();
-  if (!sb) return memListRelationships();
+  if (!sb) return scoped(memListRelationships(), familyId);
   const { data, error } = await sb.from("relationships").select("*").eq("family_id", familyId);
-  if (error || !data || data.length === 0) return memListRelationships();
+  if (error || !data || (data.length === 0 && familyId === DEMO_FAMILY)) return scoped(memListRelationships(), familyId);
   return data.map((r) =>
     RelationshipSchema.parse({
       id: r.id,
@@ -346,14 +435,15 @@ function suggestionFromRow(r: Record<string, unknown>): Suggestion {
   });
 }
 
-export async function dbListSuggestions(status?: Suggestion["status"]): Promise<Suggestion[]> {
-  if (!live()) return memListSuggestions(status);
+export async function dbListSuggestions(status?: Suggestion["status"], familyId?: string): Promise<Suggestion[]> {
+  if (!live()) return scoped(memListSuggestions(status), familyId);
   const sb = supabaseServer();
-  if (!sb) return memListSuggestions(status);
+  if (!sb) return scoped(memListSuggestions(status), familyId);
   let q = sb.from("suggestions").select("*").order("created_at", { ascending: false });
   if (status) q = q.eq("status", status);
+  if (familyId) q = q.eq("family_id", familyId);
   const { data, error } = await q;
-  if (error || !data) return memListSuggestions(status);
+  if (error || !data) return scoped(memListSuggestions(status), familyId);
   return data.map((r) => suggestionFromRow(r as Record<string, unknown>));
 }
 
@@ -390,12 +480,14 @@ export async function dbSetSuggestionStatus(id: string, status: Suggestion["stat
   return all.find((s) => s.id === id);
 }
 
-export async function dbListAgentRuns(): Promise<AgentRun[]> {
-  if (!live()) return memListAgentRuns();
+export async function dbListAgentRuns(familyId?: string): Promise<AgentRun[]> {
+  if (!live()) return scoped(memListAgentRuns(), familyId);
   const sb = supabaseServer();
-  if (!sb) return memListAgentRuns();
-  const { data, error } = await sb.from("agent_runs").select("*").order("created_at", { ascending: false }).limit(50);
-  if (error || !data) return memListAgentRuns();
+  if (!sb) return scoped(memListAgentRuns(), familyId);
+  let q = sb.from("agent_runs").select("*").order("created_at", { ascending: false }).limit(50);
+  if (familyId) q = q.eq("family_id", familyId);
+  const { data, error } = await q;
+  if (error || !data) return scoped(memListAgentRuns(), familyId);
   return data.map((r) =>
     AgentRunSchema.parse({
       id: r.id,
@@ -431,14 +523,15 @@ export async function dbAddAgentRun(input: { goal: string; tools: string[]; stat
   return run;
 }
 
-export async function dbListWishes(runId?: string): Promise<Wish[]> {
-  if (!live()) return memListWishes(runId);
+export async function dbListWishes(runId?: string, familyId?: string): Promise<Wish[]> {
+  if (!live()) return scoped(memListWishes(runId), familyId);
   const sb = supabaseServer();
-  if (!sb) return memListWishes(runId);
+  if (!sb) return scoped(memListWishes(runId), familyId);
   let q = sb.from("wishes").select("*").order("created_at", { ascending: true });
   if (runId) q = q.eq("ritual_run_id", runId);
+  if (familyId) q = q.eq("family_id", familyId);
   const { data, error } = await q;
-  if (error || !data) return memListWishes(runId);
+  if (error || !data) return scoped(memListWishes(runId), familyId);
   return data.map((r) =>
     WishSchema.parse({
       id: r.id,
@@ -477,12 +570,14 @@ export async function dbAddWish(input: { ritualRunId?: string | null; cardId?: s
   return w;
 }
 
-export async function dbListRitualRuns(): Promise<RitualRun[]> {
-  if (!live()) return memListRitualRuns();
+export async function dbListRitualRuns(familyId?: string): Promise<RitualRun[]> {
+  if (!live()) return scoped(memListRitualRuns(), familyId);
   const sb = supabaseServer();
-  if (!sb) return memListRitualRuns();
-  const { data, error } = await sb.from("ritual_runs").select("*").order("occasion_date", { ascending: true });
-  if (error || !data) return memListRitualRuns();
+  if (!sb) return scoped(memListRitualRuns(), familyId);
+  let q = sb.from("ritual_runs").select("*").order("occasion_date", { ascending: true });
+  if (familyId) q = q.eq("family_id", familyId);
+  const { data, error } = await q;
+  if (error || !data) return scoped(memListRitualRuns(), familyId);
   return data.map((r) =>
     RitualRunSchema.parse({
       id: r.id,
@@ -496,8 +591,8 @@ export async function dbListRitualRuns(): Promise<RitualRun[]> {
 }
 
 export async function dbEnsureRitualRun(slug: string, occasionDate: string, familyId = "demo-family"): Promise<RitualRun> {
-  const id = `${slug}:${occasionDate}`;
-  const existing = (await dbListRitualRuns()).find((r) => r.id === id);
+  const id = ritualRunId(familyId, slug, occasionDate);
+  const existing = (await dbListRitualRuns(familyId)).find((r) => r.id === id);
   if (existing) return existing;
   const run = RitualRunSchema.parse({
     id,
@@ -530,12 +625,14 @@ export async function dbSetRitualRunStatus(id: string, status: RitualRun["status
   return (await dbListRitualRuns()).find((r) => r.id === id);
 }
 
-export async function dbListDailyRoles(): Promise<DailyRole[]> {
-  if (!live()) return memListRoles();
+export async function dbListDailyRoles(familyId?: string): Promise<DailyRole[]> {
+  if (!live()) return scoped(memListRoles(), familyId);
   const sb = supabaseServer();
-  if (!sb) return memListRoles();
-  const { data, error } = await sb.from("daily_roles").select("*");
-  if (error || !data) return memListRoles();
+  if (!sb) return scoped(memListRoles(), familyId);
+  let q = sb.from("daily_roles").select("*");
+  if (familyId) q = q.eq("family_id", familyId);
+  const { data, error } = await q;
+  if (error || !data) return scoped(memListRoles(), familyId);
   return data.map((r) =>
     DailyRoleSchema.parse({
       id: r.id,
@@ -561,12 +658,14 @@ export async function dbAssignDailyRole(memberId: string, prompt: string, roleDa
   return role;
 }
 
-export async function dbListGatherSessions(): Promise<GatherSession[]> {
-  if (!live()) return memListGather();
+export async function dbListGatherSessions(familyId?: string): Promise<GatherSession[]> {
+  if (!live()) return scoped(memListGather(), familyId);
   const sb = supabaseServer();
-  if (!sb) return memListGather();
-  const { data, error } = await sb.from("gather_sessions").select("*").order("starts_at", { ascending: false });
-  if (error || !data) return memListGather();
+  if (!sb) return scoped(memListGather(), familyId);
+  let q = sb.from("gather_sessions").select("*").order("starts_at", { ascending: false });
+  if (familyId) q = q.eq("family_id", familyId);
+  const { data, error } = await q;
+  if (error || !data) return scoped(memListGather(), familyId);
   return data.map((r) =>
     GatherSessionSchema.parse({
       id: r.id,

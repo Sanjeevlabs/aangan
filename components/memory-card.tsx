@@ -1,131 +1,75 @@
 "use client";
 
-import type { CSSProperties } from "react";
-import { useRef } from "react";
-import { strings } from "@/lib/i18n";
-import { resolveMediaUrl } from "@/lib/media-session";
+import { callName, cardCover, cardDuration, formatDuration, relativeDay, tintShadow } from "@/lib/people";
 import type { Card } from "@/lib/schemas";
-import { cn } from "@/lib/utils";
 import { useDisplayText } from "@/lib/use-display-text";
+import { cn } from "@/lib/utils";
 import { usePlayer } from "./player";
-import { HeardChip, ReactionBar } from "./reactions";
-import { useShell } from "./shell";
+import { Icon, LiveDot, Photo, PlayButton } from "./ui/kit";
 import { useViewer } from "./viewer";
 
-const FALLBACK_PALETTE = ["#c96f4a", "#e8a87c", "#f4d8b4"];
-
-function Art({ card }: { card: Card }) {
-  const url = card.type === "photo" ? resolveMediaUrl(card.mediaRef) : null;
-  const palette = card.palette.length >= 3 ? card.palette : FALLBACK_PALETTE;
-  if (url) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={url} alt="" className="h-full w-full object-cover" />;
-  }
-  const style = {
-    background: `linear-gradient(135deg, ${palette[0]}, ${palette[1]} 55%, ${palette[2]})`,
-  } as CSSProperties;
+/** A voice note as a track: album art, who, their words, play. */
+export function VoiceRow({ card, showAuthor = true }: { card: Card; showAuthor?: boolean }) {
+  const { members, displayLang } = useViewer();
+  const { play, current, isPlaying, toggle } = usePlayer();
+  const { text } = useDisplayText(card.transcript || card.caption, card.transcript ? card.transcriptLang : card.lang, displayLang);
+  const author = members.find((m) => m.id === card.authorId);
+  const active = current?.id === card.id;
   return (
-    <div className="flex h-full w-full items-center justify-center" style={style} aria-hidden="true">
-      {card.type === "audio" && card.peaks.length > 0 ? (
-        <div className="flex h-12 items-center gap-[3px]">
-          {card.peaks
-            .filter((_, i) => i % 2 === 0)
-            .slice(0, 18)
-            .map((p, i) => (
-              <span
-                key={i}
-                className="w-[3px] rounded-full bg-white/85"
-                style={{ height: `${Math.max(6, Math.round(p * 44))}px` }}
-              />
-            ))}
-        </div>
-      ) : card.type === "video" ? (
-        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" opacity="0.9">
-          <circle cx="12" cy="12" r="9" />
-          <path d="M10 8.5v7l5.5-3.5z" fill="white" stroke="none" />
-        </svg>
-      ) : (
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.6" opacity="0.9">
-          <path d="M5 20v-8a7 7 0 0 1 14 0v8" />
-          <rect x="3" y="20" width="18" height="2" rx="1" />
-        </svg>
-      )}
+    <div className="flex items-center gap-3.5 py-2.5">
+      <button
+        type="button"
+        onClick={() => (active ? toggle() : play(card))}
+        aria-label={`Play ${callName(author)}'s voice note`}
+        className="press relative h-16 w-16 shrink-0 overflow-hidden rounded-[16px] bg-surface"
+        style={{ boxShadow: tintShadow(card, 0.35) }}
+      >
+        <Photo src={cardCover(card, members)} alt="" sizes="128px" position="center 30%" />
+        <span className="glass absolute bottom-1.5 right-1.5 grid h-7 w-7 place-items-center rounded-full">
+          <Icon name={active && isPlaying ? "pause" : "play"} size={12} />
+        </span>
+      </button>
+      <div className="min-w-0 flex-1">
+        <p className="m-0 flex items-center gap-1.5 text-[13px] text-ink-soft">
+          {active && isPlaying && <LiveDot />}
+          {showAuthor ? `${callName(author)} · ` : ""}
+          {relativeDay(card.takenAt)}
+        </p>
+        <p className="voice m-0 line-clamp-2 text-[17px] leading-snug text-ink">{text ?? "…"}</p>
+      </div>
+      <span className="tnum shrink-0 text-[13px] text-ink-faint">{formatDuration(cardDuration(card))}</span>
     </div>
   );
 }
 
-// Flat memory card: 6px artwork, serif caption. Tap plays in Now Playing;
-// long-press replies by voice.
-export function MemoryCard({ card, wide }: { card: Card; wide?: boolean }) {
-  const { lang } = useViewer();
-  const { openAdd } = useShell();
-  const { play } = usePlayer();
-  const t = strings(lang);
-  const pressTimer = useRef<number | null>(null);
-  const longPressed = useRef(false);
-
-  const { text: caption, translated } = useDisplayText(card.caption, card.lang, lang);
-
-  const beginPress = () => {
-    longPressed.current = false;
-    if (pressTimer.current) window.clearTimeout(pressTimer.current);
-    pressTimer.current = window.setTimeout(() => {
-      longPressed.current = true;
-      pressTimer.current = null;
-      openAdd("voice");
-    }, 550);
-  };
-  const endPress = () => {
-    if (pressTimer.current) {
-      window.clearTimeout(pressTimer.current);
-      pressTimer.current = null;
-    }
-  };
-
+/** A photo or video as a full-width card with a glass caption. */
+export function PhotoCard({ card, tall = false }: { card: Card; tall?: boolean }) {
+  const { members, displayLang } = useViewer();
+  const { text, translated } = useDisplayText(card.caption, card.lang, displayLang);
+  const author = members.find((m) => m.id === card.authorId);
   return (
-    <article
-      className={cn("min-w-0", wide ? "w-full" : "w-40 shrink-0")}
-      onPointerDown={beginPress}
-      onPointerUp={endPress}
-      onPointerLeave={endPress}
-    >
-      <button
-        type="button"
-        onClick={() => {
-          if (longPressed.current) {
-            longPressed.current = false;
-            return;
-          }
-          play(card);
-        }}
-        className="block w-full p-0 text-left"
-        aria-label={caption ?? card.caption}
-      >
-        <div className="art-square bg-skeleton">
-          <Art card={card} />
-          {card.source === "glasses" && (
-            <span className="absolute left-2 top-2 rounded-card bg-ink/70 px-2 py-1 text-[11px] font-semibold text-white">
-              {t.card.glassesBadge}
-            </span>
-          )}
-        </div>
-      </button>
-      {caption === null ? (
-        <div className="skeleton mb-0 mt-2 h-[22px]" aria-busy="true" aria-label="Loading" />
-      ) : (
-        <p className="serif mb-0 mt-2 line-clamp-2 text-[15px] leading-snug">{caption || t.card.untitled}</p>
+    <figure className={cn("relative m-0 overflow-hidden rounded-card bg-surface", tall ? "h-[420px]" : "h-[300px]")} style={{ boxShadow: tintShadow(card, 0.45) }}>
+      <Photo src={cardCover(card, members)} alt={text ?? "Family photo"} sizes="(max-width: 480px) 100vw, 440px" />
+      {card.type === "video" && (
+        <span className="glass absolute left-3 top-3 grid h-10 w-10 place-items-center rounded-full">
+          <Icon name="play" size={16} />
+        </span>
       )}
-      {translated && (
-        <p className="m-0 mt-1 text-[11px] font-semibold text-accent">{t.player.translatedNote}</p>
-      )}
-      <div className="mt-1 flex flex-col gap-1">
-        <HeardChip cardId={card.id} />
-      </div>
-      {(card.type === "audio" || card.type === "video") && (
-        <div className="mt-2">
-          <ReactionBar cardId={card.id} compact />
-        </div>
-      )}
-    </article>
+      {card.source === "glasses" && <span className="glass absolute right-3 top-3 rounded-full px-3 py-1.5 text-[12px] font-medium">Captured hands-free</span>}
+      <figcaption className="glass absolute inset-x-2.5 bottom-2.5 rounded-[18px] px-4 py-3">
+        <p className="m-0 text-[13px] text-white/80">
+          {callName(author)} · {relativeDay(card.takenAt)}
+          {translated ? " · translated" : ""}
+        </p>
+        <p className="m-0 text-[17px] font-semibold leading-snug">{text || "Untitled moment"}</p>
+      </figcaption>
+    </figure>
   );
 }
+
+/** Legacy export kept for any remaining callers. */
+export function MemoryCard({ card }: { card: Card; wide?: boolean }) {
+  return card.type === "audio" ? <VoiceRow card={card} /> : <PhotoCard card={card} />;
+}
+
+export { PlayButton };

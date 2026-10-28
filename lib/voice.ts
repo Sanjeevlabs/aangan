@@ -1,5 +1,5 @@
 import type { TranscriptSegment } from "./schemas";
-import { containsDevanagari } from "./llm";
+import { containsDevanagari } from "./script";
 
 // Pure M2 voice helpers. No model calls, no browser APIs — unit-tested.
 

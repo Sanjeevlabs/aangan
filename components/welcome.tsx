@@ -1,198 +1,78 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { SUPPORTED_LANGS, displayLangLabel, greetingForHour, strings } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
-import { resolveHomeImage } from "@/lib/media";
-import { processHomeImage } from "@/lib/media-client";
+import Link from "next/link";
+import { useState } from "react";
+import { greetingForHour } from "@/lib/i18n";
 import { resolveMediaUrl } from "@/lib/media-session";
-import { OutlineButton, PrimaryButton } from "./ui/buttons";
-import { CourtyardArt } from "./courtyard-art";
-import { DEMO_FAMILY, useViewer } from "./viewer";
+import { Button, Photo } from "./ui/kit";
+import { useViewer } from "./viewer";
 
-// AI-generated fallback courtyard (see public/demo/README.md). The SVG
-// courtyard stays as an offline fallback if this image fails to load.
-const FALLBACK_COURTYARD_SRC = "/demo/courtyard.jpg";
+const COURTYARD = "/demo/courtyard.jpg";
 
-// Welcome screen. Full-bleed home image with a flat bottom card: greeting,
-// serif welcome line, invite-code gate when no session exists yet.
-export function Welcome({ onEnter, needCode }: { onEnter: () => void; needCode?: boolean }) {
-  const { viewer, lang, displayLang, setDisplayLang, refreshMembers } = useViewer();
-  const t = strings(lang);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [hour, setHour] = useState<number | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [imgFailed, setImgFailed] = useState(false);
-  const [code, setCode] = useState("");
-  const [joining, setJoining] = useState(false);
-
-  useEffect(() => {
-    setHour(new Date().getHours());
-  }, []);
-
-  const homeRef = resolveHomeImage(viewer.homeImageRef, DEMO_FAMILY.defaultHomeImageRef);
-  const src = resolveMediaUrl(homeRef) ?? FALLBACK_COURTYARD_SRC;
-
-  useEffect(() => {
-    setImgFailed(false);
-  }, [src]);
-
-  const pickHome = async (file: File | undefined) => {
-    if (!file) return;
-    setSaving(true);
-    setError(null);
-    try {
-      const { mediaRef, palette } = await processHomeImage(file);
-      const res = await fetch("/api/members/home-image", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ memberId: viewer.id, mediaRef, palette }),
-      });
-      if (!res.ok) throw new Error("home-save-failed");
-      await refreshMembers();
-    } catch {
-      setError(t.common.retry);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const stepInside = async () => {
-    if (joining) return;
-    if (needCode) {
-      const clean = code.trim();
-      if (!clean) return;
-      setJoining(true);
-      setError(null);
-      try {
-        const res = await fetch("/api/session", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ inviteCode: clean, memberId: viewer.id }),
-        });
-        if (!res.ok) throw new Error(res.status === 403 ? "invalid-code" : "join-failed");
-        await refreshMembers().catch(() => undefined);
-      } catch {
-        setError(t.common.retry);
-        setJoining(false);
-        return;
-      }
-      setJoining(false);
-    }
-    onEnter();
-  };
-
-  const greeting = t.greeting[greetingForHour(hour ?? 9)];
-
+/** Full-bleed photo with a glass card at the bottom: the frame for every entry screen. */
+export function EntryFrame({ image = COURTYARD, children }: { image?: string; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-[60] flex justify-center bg-ink">
-      <div className="relative h-full w-full max-w-[480px] overflow-hidden">
-        {imgFailed ? (
-          <CourtyardArt className="h-full w-full" />
-        ) : (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={src}
-            alt=""
-            className="h-full w-full object-cover"
-            onError={() => setImgFailed(true)}
-          />
-        )}
-        <div
-          className="absolute inset-x-0 bottom-0 p-4"
-          style={{ paddingBottom: "max(2rem, env(safe-area-inset-bottom))" }}
-        >
-          <div className="mx-auto w-full rounded-card bg-paper p-6 text-ink shadow-glass">
-            <p className="m-0 text-sm text-ink-soft">{greeting}</p>
-            <h1 className="mb-1 mt-1 text-3xl leading-tight">{t.welcomeTo(viewer.firstName)}</h1>
-            {!homeRef && (
-              <div className="mb-4">
-                <p className="m-0 text-sm font-semibold">{t.addHomeTitle}</p>
-                <p className="m-0 mt-1 text-[13px] text-ink-soft">{t.addHomeHint}</p>
-              </div>
-            )}
-            <div className="mb-4">
-              <p className="m-0 text-sm font-semibold">{t.speakToYou}</p>
-              <div className="mt-2 flex gap-2" role="radiogroup" aria-label={t.speakToYou}>
-                {SUPPORTED_LANGS.map((code) => (
-                  <button
-                    key={code}
-                    type="button"
-                    role="radio"
-                    aria-checked={displayLang === code}
-                    onClick={() => void setDisplayLang(code)}
-                    className={cn(
-                      "tap min-w-0 flex-1 basis-0 rounded-card border px-2 text-sm font-semibold",
-                      displayLang === code
-                        ? "border-espresso bg-espresso text-espresso-ink"
-                        : "border-ink/25 bg-transparent",
-                    )}
-                  >
-                    {displayLangLabel(code)}
-                    <span className="block text-[11px] font-normal opacity-80">
-                      {code === "en" ? "English" : code === "hi-latn" ? "Hindi in English letters" : "हिंदी"}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            {error && (
-              <p className="mb-3 mt-0 text-sm text-accent" role="alert">
-                {error}
-              </p>
-            )}
-            {needCode && (
-              <div className="mb-4">
-                <label className="block text-sm font-semibold" htmlFor="aangan-invite">
-                  Family invite code
-                </label>
-                <input
-                  id="aangan-invite"
-                  type="text"
-                  value={code}
-                  maxLength={64}
-                  autoComplete="off"
-                  autoCapitalize="characters"
-                  onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))}
-                  placeholder="AANGAN-DEMO"
-                  className="tap mt-1 w-full rounded-card border border-line bg-paper px-3 text-[15px] tracking-widest"
-                />
-                <p className="m-0 mt-1 text-[12px] text-ink-soft">
-                  Ask your family for a code (Privacy → Family invites), or use the demo code for the demo family.
-                </p>
-              </div>
-            )}
-            <div className="flex gap-3">
-              <OutlineButton
-                className="min-w-0 flex-1 basis-0 overflow-hidden text-ellipsis whitespace-nowrap"
-                disabled={saving}
-                onClick={() => fileRef.current?.click()}
-              >
-                {t.changeHome}
-              </OutlineButton>
-              <PrimaryButton
-                className="min-w-0 flex-1 basis-0 overflow-hidden text-ellipsis whitespace-nowrap"
-                disabled={joining || ((needCode ?? false) && code.trim().length === 0)}
-                onClick={() => void stepInside()}
-              >
-                {t.stepInside}
-              </PrimaryButton>
-            </div>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              aria-label={t.addHomeTitle}
-              onChange={(e) => {
-                void pickHome(e.target.files?.[0]);
-                e.target.value = "";
-              }}
-            />
-          </div>
-        </div>
+    <div className="fixed inset-0 z-30 overflow-hidden bg-[#2a211c]">
+      <Photo src={image} alt="" sizes="100vw" priority />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/30" aria-hidden="true" />
+      <div className="relative mx-auto flex h-full max-w-[480px] flex-col px-4" style={{ paddingTop: "calc(20px + env(safe-area-inset-top))", paddingBottom: "calc(16px + env(safe-area-inset-bottom))" }}>
+        <p className="m-0 px-2 text-[22px] font-bold tracking-[-0.02em] text-white drop-shadow">Aangan</p>
+        <div className="flex-1" />
+        <div className="glass rounded-[30px] p-6">{children}</div>
       </div>
     </div>
+  );
+}
+
+/** Signed out: say what Aangan is, and offer the three ways in. */
+export function Landing({ onDemo }: { onDemo: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <EntryFrame>
+      <h1 className="m-0 text-[30px] leading-[1.1] text-white">Hear the people you love, every day.</h1>
+      <p className="m-0 mt-2 text-[16px] leading-snug text-white/80">A private courtyard for your family&rsquo;s voices, photos and occasions, wherever everyone lives.</p>
+      <div className="mt-6 space-y-2.5">
+        <Link href="/create" className="press flex h-[52px] items-center justify-center rounded-full bg-white text-[16px] font-semibold text-black no-underline">
+          Start your family&rsquo;s Aangan
+        </Link>
+        <Link href="/join" className="press flex h-[52px] items-center justify-center rounded-full bg-white/20 text-[16px] font-semibold text-white no-underline">
+          I have an invite code
+        </Link>
+      </div>
+      <div className="mt-4 flex items-center justify-between px-1 text-[15px]">
+        <Link href="/signin" className="flex h-11 items-center font-medium text-white no-underline">
+          Sign in
+        </Link>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            await onDemo();
+            setBusy(false);
+          }}
+          className="flex h-11 items-center font-medium text-white/80"
+        >
+          {busy ? "Opening…" : "Explore a demo family"}
+        </button>
+      </div>
+    </EntryFrame>
+  );
+}
+
+/** Signed in, once per session: the home you miss, and one warm signal. */
+export function Welcome({ onEnter }: { onEnter: () => void }) {
+  const { viewer, signalLine } = useViewer();
+  const [hour] = useState(() => new Date().getHours());
+  const home = resolveMediaUrl(viewer.homeImageRef) ?? COURTYARD;
+  return (
+    <EntryFrame image={home}>
+      <p className="m-0 text-[15px] text-white/80">Good {greetingForHour(hour)}</p>
+      <h1 className="m-0 mt-1 text-[32px] leading-[1.05] text-white">Welcome to {viewer.firstName}&rsquo;s Aangan</h1>
+      {signalLine && <p className="voice m-0 mt-3 text-[18px] leading-snug text-white/90">{signalLine}</p>}
+      <Button className="mt-6 w-full !bg-white !text-black" onClick={onEnter}>
+        Step inside
+      </Button>
+    </EntryFrame>
   );
 }

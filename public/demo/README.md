@@ -14,3 +14,6 @@ inside real memory cards, which must only show the family's own uploads.
 - `family-dadi.webp`, `family-leo.webp`, `family-aria.webp`,
   `family-group.webp` (28 Oct 2026, `node scripts/seed.mjs`): consistent
   demo-family portraits. Manifest: `family.json`.
+
+
+portrait-*.webp are square crops of the AI-generated family photos above (same synthetic people), used as each person's album portrait.

@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { strings } from "@/lib/i18n";
 import type { Suggestion } from "@/lib/schemas";
-import { PrimaryButton } from "./ui/buttons";
 import { useViewer } from "./viewer";
 
 // "Aangan suggests · Review / Approve" — flat surface card. Actions execute
@@ -46,37 +45,37 @@ export function Suggestions({ compact }: { compact?: boolean }) {
 
   if (items === null) {
     if (failed) return null;
-    return (
-      <div aria-busy="true" aria-label="Loading" className={compact ? "" : "mb-6"}>
-        <div className="skeleton h-16" />
-      </div>
-    );
+    return null;
   }
   if (items.length === 0) return null;
 
+  // Agent proposals: nothing happens until a person approves.
   return (
-    <section aria-label="Aangan suggests" className={compact ? "mb-4" : "mb-6"}>
-      {!compact && <h2 className="mb-2 mt-0 text-xl">Aangan suggests</h2>}
-      <ul className="m-0 list-none p-0">
+    <section aria-label="Aangan suggests" className="mb-6">
+      <ul className="m-0 list-none space-y-2 p-0">
         {items.map((s) => (
-          <li key={s.id} className="mb-2 rounded-card border border-line bg-surface px-4 py-3">
-            <p className="serif m-0 text-[16px] leading-snug">{s.goal}</p>
-            <p className="m-1 text-[12px] text-ink-soft">Review · Approve to let Aangan act</p>
-            <div className="mt-2 flex gap-2">
-              <PrimaryButton
-                className="!min-h-[44px] px-5 py-2 text-sm"
+          <li key={s.id} className="rounded-[22px] bg-[#fff6e6] px-4 py-3.5">
+            <p className="m-0 flex items-center gap-2 text-[13px] font-semibold text-[#8a4b00]">
+              <span className="inline-block h-[7px] w-[7px] rounded-full bg-marigold" aria-hidden="true" />
+              Aangan suggests
+            </p>
+            <p className="m-0 mt-1 text-[16px] leading-snug text-ink">{s.goal}</p>
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
                 disabled={busyId === s.id}
                 onClick={() => void act(s.id, true)}
+                className="press h-10 rounded-full bg-black px-5 text-[14px] font-semibold text-white disabled:opacity-40"
               >
-                Approve
-              </PrimaryButton>
+                Do it
+              </button>
               <button
                 type="button"
                 disabled={busyId === s.id}
                 onClick={() => void act(s.id, false)}
-                className="tap rounded-card border border-ink/25 px-5 text-sm font-semibold"
+                className="press h-10 rounded-full px-4 text-[14px] font-semibold text-ink-soft disabled:opacity-40"
               >
-                {t.common.cancel}
+                Not now
               </button>
             </div>
           </li>

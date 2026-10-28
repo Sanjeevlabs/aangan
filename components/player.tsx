@@ -10,12 +10,14 @@ import {
   useState,
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { strings } from "@/lib/i18n";
 import { resolveMediaUrl } from "@/lib/media-session";
 import type { Card } from "@/lib/schemas";
-import { estimateSegments, formatHeardTime } from "@/lib/voice";
+import { estimateSegments } from "@/lib/voice";
+import { callName, cardCover, formatDuration } from "@/lib/people";
+import { useShell } from "./shell";
+import { Icon, Photo, PlayButton } from "./ui/kit";
 import { useDisplayText } from "@/lib/use-display-text";
-import { HeardChip, ReactionBar } from "./reactions";
+import { ReactionBar } from "./reactions";
 import { useViewer } from "./viewer";
 
 interface PlayerState {
@@ -282,7 +284,7 @@ function WaveScrubber({
           const v = data[Math.floor((i / n) * data.length)] / 255;
           const bh = Math.max(3, v * h);
           const played = (i / n) * duration <= currentTime;
-          g.fillStyle = played ? "#FDBA74" : "rgba(253,186,116,0.35)";
+          g.fillStyle = played ? "#ffffff" : "rgba(255,255,255,0.36)";
           g.fillRect(i * bw + 1, (h - bh) / 2, Math.max(1, bw - 2), bh);
         }
       }
@@ -324,21 +326,21 @@ function WaveScrubber({
         onPointerUp={() => {
           dragRef.current = false;
         }}
-        className="tap flex h-16 w-full cursor-pointer items-center"
+        className="flex h-14 w-full cursor-pointer touch-none items-center"
       >
         {live ? (
-          <canvas ref={canvasRef} width={480} height={64} className="h-16 w-full" aria-hidden="true" />
+          <canvas ref={canvasRef} width={480} height={56} className="h-14 w-full" aria-hidden="true" />
         ) : (
-          <div className="flex h-16 w-full items-center gap-[2px]" aria-hidden="true">
+          <div className="flex h-14 w-full items-center gap-[2.5px]" aria-hidden="true">
             {peaks.map((p, i) => {
               const played = i / peaks.length <= progress;
               return (
                 <span
                   key={i}
-                  className="min-w-[2px] flex-1 rounded-full"
+                  className="min-w-[2px] max-w-[4px] flex-1 rounded-full"
                   style={{
-                    height: `${Math.max(6, Math.round(Number(p) * 56))}px`,
-                    background: played ? "#FDBA74" : "rgba(253,186,116,0.35)",
+                    height: `${Math.max(6, Math.round(Number(p) * 50))}px`,
+                    background: played ? "#ffffff" : "rgba(255,255,255,0.36)",
                   }}
                 />
               );
@@ -346,9 +348,9 @@ function WaveScrubber({
           </div>
         )}
       </div>
-      <div className="flex justify-between text-[12px] tabular-nums text-[var(--player-muted)]" aria-hidden="true">
-        <span>{formatHeardTime(new Date(currentTime * 1000).toISOString())}</span>
-        <span>{formatHeardTime(new Date(duration * 1000).toISOString())}</span>
+      <div className="mt-1 flex justify-between text-[12px] tabular-nums text-white/60" aria-hidden="true">
+        <span>{formatDuration(currentTime)}</span>
+        <span>-{formatDuration(Math.max(0, duration - currentTime))}</span>
       </div>
       <span className="sr-only">
         {displayLang === "en" ? "Audio progress" : "progress"}
@@ -358,42 +360,36 @@ function WaveScrubber({
 }
 
 function MiniPlayer() {
-  const { current, open, isPlaying, toggle, expand, closePlayer } = usePlayer();
-  const { displayLang } = useViewer();
-  const t = strings(displayLang);
+  const { current, open, isPlaying, toggle, expand, closePlayer, currentTime, duration } = usePlayer();
+  const { displayLang, members } = useViewer();
   const { text } = useDisplayText(current?.caption ?? "", current?.lang, displayLang);
-
   if (!current || open) return null;
+  const author = members.find((m) => m.id === current.authorId);
   return (
     <div
-      className="glass glass-pill fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-1/2 z-40 flex w-[min(94vw,26rem)] -translate-x-1/2 items-center gap-3 px-4 py-2"
+      className="fixed inset-x-0 z-40 flex justify-center px-3"
+      style={{ bottom: "calc(12px + env(safe-area-inset-bottom))" }}
       role="region"
-      aria-label={t.player.nowPlaying}
+      aria-label="Now playing"
     >
-      <button
-        type="button"
-        onClick={expand}
-        className="tap min-w-0 flex-1 truncate text-left text-sm font-semibold"
-        aria-label={t.player.nowPlaying}
-      >
-        {text ?? "…"}
-      </button>
-      <button
-        type="button"
-        onClick={toggle}
-        className="tap flex h-11 w-11 items-center justify-center rounded-full bg-espresso text-lg text-espresso-ink"
-        aria-label={isPlaying ? t.player.pause : t.player.play}
-      >
-        {isPlaying ? "❚❚" : "▶"}
-      </button>
-      <button
-        type="button"
-        onClick={closePlayer}
-        className="tap flex h-11 w-11 items-center justify-center rounded-full border border-line text-lg"
-        aria-label={t.player.close}
-      >
-        ×
-      </button>
+      <div className="frost relative flex w-full max-w-[460px] items-center gap-3 overflow-hidden rounded-[22px] p-2 pr-2">
+        <button type="button" onClick={expand} className="press flex min-w-0 flex-1 items-center gap-3 text-left" aria-label="Open player">
+          <span className="relative h-12 w-12 shrink-0 overflow-hidden rounded-[14px] bg-surface">
+            <Photo src={cardCover(current, members)} alt="" sizes="96px" />
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-[15px] font-semibold">{callName(author)}</span>
+            <span className="block truncate text-[13px] text-ink-soft">{text ?? "…"}</span>
+          </span>
+        </button>
+        <PlayButton playing={isPlaying} onClick={toggle} size={44} tone="dark" label={isPlaying ? "Pause" : "Play"} />
+        <button type="button" onClick={closePlayer} aria-label="Stop and close" className="press grid h-11 w-11 place-items-center rounded-full text-ink-soft">
+          <Icon name="close" size={20} />
+        </button>
+        <span className="absolute inset-x-4 bottom-0 h-[2px] rounded-full bg-black/5" aria-hidden="true">
+          <span className="block h-full rounded-full bg-marigold" style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }} />
+        </span>
+      </div>
     </div>
   );
 }
@@ -412,9 +408,9 @@ function SyncedLyrics({ card, duration, currentTime }: { card: Card; duration: n
 
   if (lines === null) {
     return (
-      <div aria-busy="true" aria-label="Loading">
-        <div className="skeleton mb-2 h-6" />
-        <div className="skeleton h-6 w-2/3" />
+      <div aria-busy="true" aria-label="Loading words">
+        <div className="mb-3 h-7 w-4/5 rounded-lg bg-white/15" />
+        <div className="h-5 w-1/2 rounded-lg bg-white/10" />
       </div>
     );
   }
@@ -423,44 +419,53 @@ function SyncedLyrics({ card, duration, currentTime }: { card: Card; duration: n
     if (currentTime >= l.start) active = i;
   });
   return (
-    <ol className="m-0 list-none p-0">
-      {lines.map((l, i) => (
-        <li
-          key={i}
-          aria-current={i === active ? "true" : undefined}
-          className={
-            i === active
-              ? "serif text-[26px] leading-snug text-[var(--player-ink)]"
-              : "serif mt-1 text-[17px] leading-snug text-[var(--player-muted)]"
-          }
-        >
-          {l.text}
-        </li>
-      ))}
+    <ol className="m-0 list-none p-0" aria-live="polite">
+      {lines.map((l, i) =>
+        i < active - 1 ? null : (
+          <li
+            key={i}
+            aria-current={i === active ? "true" : undefined}
+            className={
+              i === active
+                ? "voice mb-3 text-[26px] leading-[1.25] text-white transition-all"
+                : "mb-3 text-[17px] leading-snug text-white/45 transition-all"
+            }
+          >
+            {l.text}
+          </li>
+        ),
+      )}
     </ol>
   );
 }
 
-// Full-screen dark Now Playing. The waveform is the scrubber; reactions are
-// text buttons. Glass is not used here — the ground is solid #2A211C.
+// Full-screen Now Playing: the photo becomes the room. Blurred art fills the
+// screen, the waveform is the scrubber, and the words arrive like lyrics.
 function FullPlayer({
   analyserRef,
 }: {
   analyserRef: React.MutableRefObject<{ ctx: AudioContext; analyser: AnalyserNode } | null>;
 }) {
-  const { current, open, isPlaying, currentTime, duration, toggle, collapse, closePlayer } = usePlayer();
-  const { displayLang } = useViewer();
-  const t = strings(displayLang);
-  const { text: caption, translated } = useDisplayText(current?.caption ?? "", current?.lang, displayLang);
+  const { current, open, isPlaying, currentTime, duration, toggle, collapse } = usePlayer();
+  const { displayLang, members } = useViewer();
+  const { openAdd } = useShell();
+  const { translated } = useDisplayText(current?.caption ?? "", current?.lang, displayLang);
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") collapse();
+      if (e.key === " ") {
+        e.preventDefault();
+        toggle();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, collapse]);
+  }, [open, collapse, toggle]);
+
+  const author = current ? members.find((m) => m.id === current.authorId) : undefined;
+  const art = current ? cardCover(current, members) : "";
 
   return (
     <AnimatePresence>
@@ -468,59 +473,63 @@ function FullPlayer({
         <motion.div
           role="dialog"
           aria-modal="true"
-          aria-label={t.player.nowPlaying}
-          className="fixed inset-0 z-50 flex justify-center bg-[var(--player-ground)] text-[var(--player-ink)]"
-          initial={{ opacity: 0, y: 32 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 32 }}
-          transition={{ duration: 0.2 }}
+          aria-label={`Voice note from ${callName(author)}`}
+          className="fixed inset-0 z-50 overflow-hidden bg-[var(--player-ground)] text-white"
+          initial={{ y: "100%" }}
+          animate={{ y: 0 }}
+          exit={{ y: "100%" }}
+          transition={{ type: "spring", stiffness: 300, damping: 34 }}
+          drag="y"
+          dragConstraints={{ top: 0, bottom: 0 }}
+          dragElastic={{ top: 0, bottom: 0.6 }}
+          onDragEnd={(_, info) => {
+            if (info.offset.y > 140 || info.velocity.y > 600) collapse();
+          }}
         >
-          <div className="flex max-h-full w-full max-w-[480px] flex-col overflow-y-auto px-5 pb-8 pt-4">
-            <div className="mb-2 flex items-center justify-between">
-              <p className="m-0 text-[13px] font-medium text-[var(--player-muted)]">{t.player.nowPlaying}</p>
-              <button
-                type="button"
-                onClick={collapse}
-                aria-label={t.player.close}
-                className="tap flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-xl leading-none"
-              >
-                ×
+          <div className="absolute inset-[-60px] scale-110" aria-hidden="true" style={{ filter: "blur(60px) saturate(1.4) brightness(.62)" }}>
+            <Photo src={art} alt="" sizes="200px" />
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/45" aria-hidden="true" />
+          <div
+            className="relative mx-auto flex h-full w-full max-w-[480px] flex-col px-6"
+            style={{ paddingTop: "calc(14px + env(safe-area-inset-top))", paddingBottom: "calc(24px + env(safe-area-inset-bottom))" }}
+          >
+            <div className="flex items-center justify-between">
+              <button type="button" onClick={collapse} aria-label="Minimise player" className="press -ml-2 grid h-11 w-11 place-items-center rounded-full">
+                <Icon name="down" size={26} />
               </button>
+              <span className="mx-auto block h-1.5 w-10 rounded-full bg-white/35" aria-hidden="true" />
+              <span className="w-11" aria-hidden="true" />
             </div>
-            <p className="serif m-0 text-xl leading-snug">{caption ?? "…"}</p>
-            {translated && (
-              <p className="m-0 mt-1 text-[12px] font-semibold text-[var(--player-wave)]">{t.player.translatedNote}</p>
-            )}
-            <div className="mt-2 text-[var(--player-muted)]" style={{ ["--ink-soft" as string]: "var(--player-muted)" }}>
-              <HeardChip cardId={current.id} />
+
+            <div className="relative mx-auto mt-4 aspect-square w-full max-w-[340px] overflow-hidden rounded-[28px]" style={{ boxShadow: "0 30px 60px rgba(0,0,0,.45)" }}>
+              <Photo src={art} alt={`${callName(author)}`} sizes="680px" priority position="center 30%" />
             </div>
+
+            <div className="mt-6 flex items-end justify-between gap-3">
+              <div className="min-w-0">
+                <p className="m-0 truncate text-[24px] font-bold leading-tight">{callName(author)}</p>
+                <p className="m-0 mt-0.5 text-[15px] text-white/65">{translated ? "Translated for you" : "Voice note"}</p>
+              </div>
+              <PlayButton playing={isPlaying} onClick={toggle} size={60} label={isPlaying ? "Pause" : "Play"} />
+            </div>
+
             <div className="mt-4">
               <WaveScrubber card={current} analyserRef={analyserRef} />
             </div>
-            <div className="mb-5 mt-4 flex items-center justify-center">
-              <button
-                type="button"
-                onClick={toggle}
-                className="tap flex h-11 w-11 items-center justify-center rounded-full bg-white text-xl text-ink"
-                aria-label={isPlaying ? t.player.pause : t.player.play}
-              >
-                {isPlaying ? "❚❚" : "▶"}
-              </button>
-            </div>
-            <h2 className="mb-2 mt-0 text-sm font-semibold text-[var(--player-muted)]">{t.player.lyrics}</h2>
-            <div className="mb-5">
+
+            <div className="no-scrollbar mt-4 min-h-0 flex-1 overflow-y-auto">
               <SyncedLyrics card={current} duration={duration} currentTime={currentTime} />
             </div>
-            <div className="mb-6" style={{ ["--accent" as string]: "var(--player-wave)" }}>
-              <ReactionBar cardId={current.id} />
-            </div>
-            <button
-              type="button"
-              onClick={closePlayer}
-              className="tap w-full rounded-card border border-white/25 text-sm font-semibold"
-            >
-              {t.player.close}
-            </button>
+
+            <ReactionBar
+              cardId={current.id}
+              tone="glass"
+              onReply={() => {
+                collapse();
+                openAdd("voice", null, current.authorId);
+              }}
+            />
           </div>
         </motion.div>
       )}

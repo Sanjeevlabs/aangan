@@ -6,6 +6,9 @@ import { normalizeDisplayLang, type SupportedLang } from "@/lib/i18n";
 import type { Member } from "@/lib/schemas";
 
 interface ViewerState {
+  /** True once the session and family have loaded (or there is no session). */
+  ready: boolean;
+  signedIn: boolean;
   viewer: Member;
   members: Member[];
   lang: SupportedLang;
@@ -31,6 +34,8 @@ async function fetchMembers(): Promise<Member[]> {
 export function ViewerProvider({ children }: { children: React.ReactNode }) {
   const [members, setMembers] = useState<Member[]>(DEMO_MEMBERS);
   const [viewerId, setViewerIdState] = useState<string>(DEFAULT_VIEWER_ID);
+  const [ready, setReady] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
 
   // Viewer switcher keeps the httpOnly session in sync: the server mints a
   // fresh cookie for the same family (no invite code needed twice).
@@ -56,9 +61,32 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // The viewer is whoever the session cookie says, never a hard-coded member.
+  const syncSession = useCallback(async () => {
+    try {
+      const res = await fetch("/api/session", { cache: "no-store" });
+      if (res.ok) {
+        const s = (await res.json()) as { memberId: string };
+        const fresh = await fetchMembers().catch(() => [] as Member[]);
+        if (fresh.length > 0) setMembers(fresh);
+        setViewerIdState(s.memberId);
+        setSignedIn(true);
+      } else {
+        setSignedIn(false);
+      }
+    } catch {
+      setSignedIn(false);
+    } finally {
+      setReady(true);
+    }
+  }, []);
+
   useEffect(() => {
-    void refreshMembers();
-  }, [refreshMembers]);
+    void syncSession();
+    const onAuth = () => void syncSession();
+    window.addEventListener("aangan:auth", onAuth);
+    return () => window.removeEventListener("aangan:auth", onAuth);
+  }, [syncSession]);
 
   const setDisplayLang = useCallback(
     async (lang: SupportedLang) => {
@@ -82,6 +110,8 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
     const viewer = members.find((m) => m.id === viewerId) ?? fallbackViewer();
     const displayLang = normalizeDisplayLang(viewer.displayLang ?? viewer.lang);
     return {
+      ready,
+      signedIn,
       viewer,
       members,
       lang: displayLang,
@@ -91,7 +121,7 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
       setDisplayLang,
       refreshMembers,
     };
-  }, [members, viewerId, refreshMembers, setDisplayLang, setViewerId]);
+  }, [members, viewerId, ready, signedIn, refreshMembers, setDisplayLang, setViewerId]);
 
   return <ViewerContext.Provider value={value}>{children}</ViewerContext.Provider>;
 }

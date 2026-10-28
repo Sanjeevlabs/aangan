@@ -26,7 +26,7 @@ export async function GET(req: Request): Promise<Response> {
   if (!parsed.success) return Response.json({ error: "invalid-kinship" }, { status: 400 });
   const displayLang = normalizeDisplayLang(parsed.data.lang);
   const result = await resolveKinship(parsed.data.from, parsed.data.to, displayLang, {
-    relationships: await dbListRelationships(),
+    relationships: await dbListRelationships(auth.familyId),
     getCached: (p, l) => dbGetKinshipTerms(p, l),
     setCached: (p, l, t) => dbSetKinshipTerms(p, l, t),
     translate: async (text, lang) => {

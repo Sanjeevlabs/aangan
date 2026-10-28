@@ -27,7 +27,7 @@ export async function POST(req: Request): Promise<Response> {
   if (ownership) return ownership;
   const anchor = await dbGetMember(parsed.data.memberId);
   if (!anchor) return Response.json({ error: "unknown-member" }, { status: 404 });
-  const names = new Set((await dbListMembers()).map((m) => m.displayName.toLowerCase()));
+  const names = new Set((await dbListMembers(auth.familyId)).map((m) => m.displayName.toLowerCase()));
   if (names.has(parsed.data.newMemberName.toLowerCase())) {
     return Response.json({ error: "duplicate-member" }, { status: 409 });
   }

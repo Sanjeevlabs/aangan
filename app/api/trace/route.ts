@@ -8,7 +8,7 @@ import { requireSession } from "@/lib/auth";
 export async function GET(req: Request): Promise<Response> {
   const auth = requireSession(req);
   if (auth instanceof Response) return auth;
-  const [runs, suggestions] = await Promise.all([dbListAgentRuns(), dbListSuggestions()]);
+  const [runs, suggestions] = await Promise.all([dbListAgentRuns(auth.familyId), dbListSuggestions(undefined, auth.familyId)]);
   return Response.json({
     runs: runs.slice(0, 50),
     suggestions: suggestions.slice(0, 50),

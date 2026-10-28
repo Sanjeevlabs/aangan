@@ -90,10 +90,11 @@ export function clearSessionCookieHeader(): string {
 }
 
 /** Route guard: 401 response when the session is missing/invalid/family-mismatched. */
-export function requireSession(req: Request, familyId = DEMO_FAMILY_ID): Session | Response {
+/** Any signed-in member. Pass a family id only when a route must pin one. */
+export function requireSession(req: Request, familyId?: string): Session | Response {
   const session = sessionFromRequest(req);
   if (!session) return Response.json({ error: "unauthorized" }, { status: 401 });
-  if (session.familyId !== familyId) return Response.json({ error: "forbidden-family" }, { status: 403 });
+  if (familyId && session.familyId !== familyId) return Response.json({ error: "forbidden-family" }, { status: 403 });
   return session;
 }
 

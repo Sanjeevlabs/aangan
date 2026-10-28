@@ -131,6 +131,33 @@ export function setMemberDisplayLang(memberId: string, displayLang: Member["disp
   return { ...member };
 }
 
+const familyNames = new Map<string, string>([["demo-family", "Demo Family"]]);
+
+export function createFamily(id: string, name: string): void {
+  familyNames.set(id, name);
+}
+
+export function familyName(id: string): string | undefined {
+  return familyNames.get(id);
+}
+
+
+export function findMemberByEmail(email: string): Member | undefined {
+  const e = email.trim().toLowerCase();
+  const found = members.find((m) => (m.email ?? "").toLowerCase() === e);
+  return found ? { ...found } : undefined;
+}
+
+export function updateMemberProfile(memberId: string, patch: { firstName?: string; tz?: string; photoRef?: string | null; email?: string | null }): Member | undefined {
+  const member = members.find((m) => m.id === memberId);
+  if (!member) return undefined;
+  if (patch.email !== undefined) member.email = patch.email;
+  if (patch.firstName !== undefined) member.firstName = patch.firstName;
+  if (patch.tz !== undefined) member.tz = patch.tz;
+  if (patch.photoRef !== undefined) member.photoRef = patch.photoRef;
+  return { ...member };
+}
+
 export function seedDemo(): void {
   clearCards();
   addCard({
@@ -352,6 +379,17 @@ export function clearRelationships(): void {
     relation: "mother",
     canonicalKind: "parent",
   });
+  // Leo and Aria are Arjun's children.
+  for (const kid of ["leo", "aria"]) {
+    addRelationship({
+      id: `rel-${kid}-arjun`,
+      familyId: "demo-family",
+      memberId: kid,
+      relationMemberId: "arjun",
+      relation: "father",
+      canonicalKind: "parent",
+    });
+  }
 }
 
 export function getKinshipTerms(path: string, displayLang: string): string | undefined {

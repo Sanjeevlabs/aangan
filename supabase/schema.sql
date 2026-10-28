@@ -45,6 +45,9 @@ alter table members add column if not exists tz text default 'UTC';
 alter table members add column if not exists birthday text;
 alter table members add column if not exists home_image_ref text;
 alter table members add column if not exists home_palette text[] default '{}';
+alter table members add column if not exists photo_ref text;
+alter table members add column if not exists email text;
+create unique index if not exists members_email_idx on members (lower(email)) where email is not null;
 
 -- ------------------------------------------------------------ relationships
 -- Guided Bond adds, e.g. ('arjun','dadi','parent'). No culture in logic:
@@ -90,6 +93,9 @@ alter table cards add column if not exists palette text[] default '{}';
 alter table cards add column if not exists transcript text default '';
 alter table cards add column if not exists transcript_lang text default 'en';
 alter table cards add column if not exists segments jsonb default '[]';
+alter table cards add column if not exists author_id text references members(id) on delete set null;
+alter table cards add column if not exists cover_ref text;
+alter table cards add column if not exists addressed_to text references members(id) on delete set null;
 
 -- ------------------------------------------------------------------- media
 -- Private-bucket objects referenced by cards. storage_path is the object key

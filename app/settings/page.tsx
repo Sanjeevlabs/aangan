@@ -1,0 +1,312 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { Avatar, Button, Icon, Photo, RoomHeader } from "@/components/ui/kit";
+import { useViewer } from "@/components/viewer";
+import { SUPPORTED_LANGS, type SupportedLang } from "@/lib/i18n";
+import { processHomeImage } from "@/lib/media-client";
+import { resolveMediaUrl } from "@/lib/media-session";
+import { memberPhoto } from "@/lib/people";
+import { resetFamilyCards } from "@/lib/use-family";
+import { cn } from "@/lib/utils";
+
+interface Invite {
+  code: string;
+  expiresAt: string;
+}
+
+const LANG_OPTION: Record<SupportedLang, { label: string; note: string }> = {
+  en: { label: "English", note: "Everything in English" },
+  "hi-latn": { label: "Hinglish", note: "Hindi in English letters" },
+  "hi-deva": { label: "हिंदी", note: "Hindi in Devanagari" },
+};
+
+const ZONES = [
+  "Asia/Kolkata",
+  "Asia/Dubai",
+  "Asia/Singapore",
+  "Europe/London",
+  "Europe/Berlin",
+  "America/New_York",
+  "America/Chicago",
+  "America/Los_Angeles",
+  "America/Toronto",
+  "Australia/Sydney",
+];
+
+function Group({ title, id, children }: { title: string; id?: string; children: React.ReactNode }) {
+  return (
+    <section aria-label={title} id={id} className="mt-9 scroll-mt-6">
+      <h2 className="m-0 mb-3 text-[20px]">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+export default function SettingsPage() {
+  const router = useRouter();
+  const { viewer, displayLang, setDisplayLang, refreshMembers } = useViewer();
+  const [name, setName] = useState(viewer.firstName);
+  const [tz, setTz] = useState(viewer.tz);
+  const [saved, setSaved] = useState<string | null>(null);
+  const [invite, setInvite] = useState<Invite | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const portraitRef = useRef<HTMLInputElement>(null);
+  const homeRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setName(viewer.firstName);
+    setTz(viewer.tz);
+  }, [viewer.firstName, viewer.tz]);
+
+  useEffect(() => {
+    fetch("/api/invites", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { invites?: Invite[] } | null) => {
+        const live = (d?.invites ?? []).filter((i) => new Date(i.expiresAt).getTime() > Date.now());
+        setInvite(live[0] ?? null);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const flash = (msg: string) => {
+    setSaved(msg);
+    window.setTimeout(() => setSaved(null), 2200);
+  };
+
+  const saveProfile = async (patch: { firstName?: string; tz?: string; photoRef?: string }) => {
+    const res = await fetch("/api/members/profile", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(patch) });
+    if (res.ok) {
+      await refreshMembers();
+      flash("Saved");
+    } else flash("Couldn't save. Try again.");
+  };
+
+  const uploadImage = async (file: File, kind: "portrait" | "home") => {
+    setBusy(kind);
+    try {
+      const { mediaRef, palette } = await processHomeImage(file);
+      if (kind === "portrait") await saveProfile({ photoRef: mediaRef });
+      else {
+        await fetch("/api/members/home-image", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ memberId: viewer.id, mediaRef, palette }) });
+        await refreshMembers();
+        flash("Home photo updated");
+      }
+    } catch {
+      flash("That photo couldn't be read. Try another.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const newInvite = async () => {
+    setBusy("invite");
+    try {
+      const res = await fetch("/api/invites", { method: "POST" });
+      if (res.ok) setInvite(((await res.json()) as { invite: Invite }).invite);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const shareInvite = async () => {
+    if (!invite) return;
+    const text = `Join our family on Aangan. Your code: ${invite.code}`;
+    try {
+      if (navigator.share) await navigator.share({ title: "Aangan", text, url: window.location.origin });
+      else {
+        await navigator.clipboard.writeText(`${text}\n${window.location.origin}`);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 2000);
+      }
+    } catch {
+      /* share sheet dismissed */
+    }
+  };
+
+  const removeMemories = async () => {
+    setBusy("remove");
+    const res = await fetch("/api/privacy/cards", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ memberId: viewer.id }) });
+    setBusy(null);
+    flash(res.ok ? "Your wishes, reactions and listens were deleted" : "Couldn't delete. Try again.");
+  };
+
+  const leave = async () => {
+    setBusy("leave");
+    const res = await fetch("/api/privacy/membership", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ memberId: viewer.id }) });
+    if (res.ok) {
+      await fetch("/api/session", { method: "DELETE" }).catch(() => undefined);
+      resetFamilyCards();
+      window.dispatchEvent(new Event("aangan:auth"));
+      router.replace("/");
+    } else {
+      setBusy(null);
+      flash("Couldn't leave. Try again.");
+    }
+  };
+
+  const signOut = async () => {
+    await fetch("/api/session", { method: "DELETE" }).catch(() => undefined);
+    try {
+      sessionStorage.clear();
+    } catch {
+      /* ignore */
+    }
+    resetFamilyCards();
+    window.dispatchEvent(new Event("aangan:auth"));
+    router.replace("/");
+  };
+
+  const home = resolveMediaUrl(viewer.homeImageRef) ?? "/demo/courtyard.jpg";
+
+  return (
+    <div>
+      <RoomHeader title="Settings" />
+
+      <div className="flex items-center gap-4">
+        <button type="button" onClick={() => portraitRef.current?.click()} className="press relative rounded-full" aria-label="Change your photo">
+          <Avatar src={memberPhoto(viewer)} name={viewer.firstName} size={76} ring />
+          <span className="absolute -bottom-0.5 -right-0.5 grid h-7 w-7 place-items-center rounded-full bg-black text-white">
+            <Icon name="camera" size={14} />
+          </span>
+        </button>
+        <div className="min-w-0 flex-1">
+          <label className="block">
+            <span className="sr-only">Your first name</span>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={() => name.trim() && name.trim() !== viewer.firstName && void saveProfile({ firstName: name.trim() })}
+              className="w-full bg-transparent text-[24px] font-bold outline-none focus:underline"
+              maxLength={40}
+            />
+          </label>
+          <p className="m-0 text-[14px] text-ink-soft">The family calls you {viewer.displayName}</p>
+        </div>
+        <input ref={portraitRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && void uploadImage(e.target.files[0], "portrait")} />
+      </div>
+
+      <Group title="Language">
+        <div className="space-y-2" role="radiogroup" aria-label="Language">
+          {SUPPORTED_LANGS.map((code) => {
+            const on = displayLang === code;
+            return (
+              <button
+                key={code}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                onClick={() => {
+                  void setDisplayLang(code);
+                  flash("Language updated");
+                }}
+                className={cn("press flex w-full items-center justify-between rounded-[20px] px-4 py-3.5 text-left", on ? "bg-black text-white" : "bg-surface")}
+              >
+                <span>
+                  <span className="block text-[17px] font-semibold">{LANG_OPTION[code].label}</span>
+                  <span className={cn("block text-[14px]", on ? "text-white/70" : "text-ink-soft")}>{LANG_OPTION[code].note}</span>
+                </span>
+                {on && <Icon name="check" />}
+              </button>
+            );
+          })}
+        </div>
+        <p className="m-0 mt-2 text-[13px] text-ink-faint">Voices from family are translated into your language. Names stay as the family says them.</p>
+      </Group>
+
+      <Group title="Where you are">
+        <label className="block">
+          <span className="mb-1.5 block text-[13px] font-medium text-ink-soft">Time zone, so family sees your local time</span>
+          <select
+            value={tz}
+            onChange={(e) => {
+              setTz(e.target.value);
+              void saveProfile({ tz: e.target.value });
+            }}
+            className="h-[52px] w-full appearance-none rounded-full bg-surface px-5 text-[16px] outline-none focus:ring-2 focus:ring-marigold"
+          >
+            {Array.from(new Set([viewer.tz, ...ZONES])).map((z) => (
+              <option key={z} value={z}>
+                {z.replace(/_/g, " ").replace("/", " · ")}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="relative mt-4 h-[160px] overflow-hidden rounded-card bg-surface">
+          <Photo src={home} alt="Your home photo" sizes="440px" />
+          <div className="glass absolute inset-x-2.5 bottom-2.5 flex items-center justify-between rounded-[18px] py-2.5 pl-4 pr-2.5">
+            <span className="text-[15px] font-semibold">The home you miss</span>
+            <button type="button" onClick={() => homeRef.current?.click()} className="press h-9 rounded-full bg-white px-4 text-[14px] font-semibold text-black">
+              {busy === "home" ? "Uploading…" : "Change"}
+            </button>
+          </div>
+          <input ref={homeRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && void uploadImage(e.target.files[0], "home")} />
+        </div>
+      </Group>
+
+      <Group title="Invite family" id="invite">
+        {invite ? (
+          <div className="rounded-[22px] bg-surface p-4">
+            <p className="m-0 text-[13px] text-ink-soft">Share this code. It works for 7 days.</p>
+            <p className="tnum m-0 mt-1 text-[28px] font-bold tracking-[0.12em]">{invite.code}</p>
+            <Button className="mt-3 w-full" onClick={() => void shareInvite()}>
+              {copied ? "Copied" : "Share invite"}
+            </Button>
+          </div>
+        ) : (
+          <Button className="w-full" disabled={busy === "invite"} onClick={() => void newInvite()}>
+            {busy === "invite" ? "Creating…" : "Create an invite code"}
+          </Button>
+        )}
+      </Group>
+
+      <Group title="Privacy">
+        <ul className="m-0 list-none space-y-2 p-0 text-[15px] text-ink-soft">
+          <li>Only your family sees what you share. Photos lose their location before upload.</li>
+          <li>Voices are never cloned. No face recognition, and no tagging of children.</li>
+          <li>Demo mode: Meta&rsquo;s AI models process content to caption, transcribe and translate.</li>
+        </ul>
+        <div className="mt-4 overflow-hidden rounded-[22px] bg-surface">
+          <button type="button" onClick={() => void removeMemories()} disabled={busy === "remove"} className="press flex w-full items-center justify-between px-4 py-4 text-left text-[16px] font-medium">
+            Delete my reactions, wishes and listens
+            <Icon name="chevron" size={18} className="text-ink-faint" />
+          </button>
+          <div className="mx-4 h-px bg-[var(--line)]" />
+          {confirmLeave ? (
+            <div className="px-4 py-4">
+              <p className="m-0 text-[15px]">Leave the family? Your profile and place in the tree are deleted. Shared memories stay with the family.</p>
+              <div className="mt-3 flex gap-2">
+                <button type="button" onClick={() => setConfirmLeave(false)} className="press h-10 flex-1 rounded-full bg-white text-[14px] font-semibold">
+                  Stay
+                </button>
+                <button type="button" onClick={() => void leave()} disabled={busy === "leave"} className="press h-10 flex-1 rounded-full bg-[#b42318] text-[14px] font-semibold text-white">
+                  {busy === "leave" ? "Leaving…" : "Leave family"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setConfirmLeave(true)} className="press flex w-full items-center justify-between px-4 py-4 text-left text-[16px] font-medium text-[#b42318]">
+              Leave the family
+              <Icon name="chevron" size={18} className="text-ink-faint" />
+            </button>
+          )}
+        </div>
+        <Link href="/trace" className="mt-3 inline-flex h-11 items-center text-[14px] font-medium text-ink-soft no-underline">
+          What Aangan&rsquo;s agents did, step by step
+        </Link>
+      </Group>
+
+      <Button variant="secondary" className="mt-9 w-full" onClick={() => void signOut()}>
+        Sign out
+      </Button>
+
+      <div aria-live="polite" className="pointer-events-none fixed inset-x-0 z-50 flex justify-center" style={{ bottom: "calc(24px + env(safe-area-inset-bottom))" }}>
+        {saved && <p className="frost glass-pill m-0 px-5 py-3 text-[15px] font-medium">{saved}</p>}
+      </div>
+    </div>
+  );
+}

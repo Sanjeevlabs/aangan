@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ASK_STARTERS, strings } from "@/lib/i18n";
+import { AnimatePresence, m } from "framer-motion";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ASK_STARTERS } from "@/lib/i18n";
 import { blobToWav16k, extractVideoFrames, processImage, processVideo, processVoiceBlob, type ProcessedUpload } from "@/lib/media-client";
 import { getSessionMedia } from "@/lib/media-session";
+import { callName, formatDuration, memberPhoto } from "@/lib/people";
 import type { TranscriptSegment } from "@/lib/schemas";
 import { cn } from "@/lib/utils";
 import { useShell } from "./shell";
-import { GlassSheet } from "./ui/glass";
-import { PrimaryButton } from "./ui/buttons";
+import { Avatar, Button, Icon, LiveDot, PlayButton } from "./ui/kit";
 import { useViewer } from "./viewer";
 
 export type AddTab = "photos" | "voice" | "video" | "ask";
@@ -18,10 +19,11 @@ export interface ReplyContribution {
   kind: "wish" | "blessing";
 }
 
-// Card upload carries the real bytes: `media` for the photo/video plus
-// `frames` key stills for video grounding. The server vision-grounds empty
-// captions from these bytes — never from a text prompt alone.
-async function postCard(upload: ProcessedUpload, file: File | Blob, caption: string, lang: string, frames: Blob[] = []): Promise<boolean> {
+/* ------------------------------------------------------------------ data */
+
+// Card upload carries the real bytes: `media` for the photo/video plus key
+// frames for video grounding. The server captions from these bytes only.
+async function postMoment(upload: ProcessedUpload, file: File | Blob, caption: string, lang: string, frames: Blob[] = []): Promise<boolean> {
   const form = new FormData();
   form.append("type", upload.kind === "video" ? "video" : "photo");
   form.append("caption", caption);
@@ -37,12 +39,13 @@ async function postCard(upload: ProcessedUpload, file: File | Blob, caption: str
   return res.ok;
 }
 
-async function postVoiceCard(input: {
+async function postVoice(input: {
   upload: ProcessedUpload;
   caption: string;
   transcript: string;
   transcriptLang: string;
   segments: TranscriptSegment[];
+  addressedTo: string | null;
 }): Promise<{ ok: boolean; id: string | null }> {
   const res = await fetch("/api/cards", {
     method: "POST",
@@ -59,6 +62,7 @@ async function postVoiceCard(input: {
       transcript: input.transcript.slice(0, 2000),
       transcriptLang: input.transcriptLang,
       segments: input.segments.slice(0, 64),
+      addressedTo: input.addressedTo,
     }),
   });
   if (!res.ok) return { ok: false, id: null };
@@ -66,51 +70,101 @@ async function postVoiceCard(input: {
   return { ok: true, id: data.card?.id ?? null };
 }
 
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+const CONSENT_KEY = "aangan:voice-consent";
+
+/* --------------------------------------------------------- live mic level */
+function useMicLevels(stream: MediaStream | null, bars = 40): number[] {
+  const [levels, setLevels] = useState<number[]>(() => new Array(bars).fill(0.08));
+  useEffect(() => {
+    if (!stream) return;
+    const Ctx = window.AudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    ctx.createMediaStreamSource(stream).connect(analyser);
+    const data = new Uint8Array(analyser.fftSize);
+    let raf = 0;
+    let last = 0;
+    const tick = (t: number) => {
+      raf = requestAnimationFrame(tick);
+      if (t - last < 70) return;
+      last = t;
+      analyser.getByteTimeDomainData(data);
+      let peak = 0;
+      for (let k = 0; k < data.length; k++) peak = Math.max(peak, Math.abs(data[k] - 128) / 128);
+      setLevels((prev) => [...prev.slice(1), Math.min(1, 0.08 + peak * 1.6)]);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      void ctx.close().catch(() => undefined);
+    };
+  }, [stream]);
+  return levels;
+}
+
+/* ------------------------------------------------------------- recipients */
+function Recipients({ value, onChange }: { value: string | null; onChange: (id: string | null) => void }) {
+  const { viewer, members } = useViewer();
+  const others = members.filter((mm) => mm.id !== viewer.id);
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className="tap flex items-center gap-2 text-sm"
-    >
-      <span
-        aria-hidden="true"
-        className={cn(
-          "flex h-7 w-12 items-center rounded-card border-2 px-1 transition-colors",
-          checked ? "justify-end border-espresso bg-espresso" : "justify-start border-ink/40 bg-ink/10",
-        )}
+    <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5" role="radiogroup" aria-label="Who is this for">
+      {others.map((mm) => {
+        const on = value === mm.id;
+        return (
+          <button
+            key={mm.id}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            onClick={() => onChange(mm.id)}
+            className={cn("press flex h-11 shrink-0 items-center gap-2 rounded-full pl-1 pr-4 text-[15px] font-medium", on ? "bg-black text-white" : "bg-surface text-ink")}
+          >
+            <Avatar src={memberPhoto(mm)} name={callName(mm)} size={34} />
+            {callName(mm)}
+          </button>
+        );
+      })}
+      <button
+        type="button"
+        role="radio"
+        aria-checked={value === null}
+        onClick={() => onChange(null)}
+        className={cn("press h-11 shrink-0 rounded-full px-4 text-[15px] font-medium", value === null ? "bg-black text-white" : "bg-surface text-ink")}
       >
-        <span className={cn("h-5 w-5 rounded-full", checked ? "bg-espresso-ink" : "bg-ink-soft")} />
-      </span>
-      {label}
-    </button>
+        Everyone
+      </button>
+    </div>
   );
 }
 
-const CONSENT_KEY = "aangan:voice-consent";
-
+/* ------------------------------------------------------------------ voice */
 interface VoiceReady {
   upload: ProcessedUpload;
   url: string;
   transcript: string;
   transcriptLang: string;
   segments: TranscriptSegment[];
+  unavailable: boolean;
 }
 
-function VoiceTab({ onPosted, contribution }: { onPosted: () => void; contribution: ReplyContribution | null }) {
-  const { viewer, lang } = useViewer();
-  const t = strings(lang);
-  const [phase, setPhase] = useState<"idle" | "recording" | "ready">("idle");
-  const [consent, setConsent] = useState(false);
-  const [caption, setCaption] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+function VoiceComposer({ addressee, contribution, onDone }: { addressee: string | null; contribution: ReplyContribution | null; onDone: () => void }) {
+  const { viewer, members, displayLang } = useViewer();
+  const [to, setTo] = useState<string | null>(addressee);
+  const [consent, setConsent] = useState<boolean | null>(null);
+  const [phase, setPhase] = useState<"idle" | "recording" | "working" | "ready">("idle");
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [seconds, setSeconds] = useState(0);
   const [ready, setReady] = useState<VoiceReady | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [ideas, setIdeas] = useState(false);
+  const [previewPlaying, setPreviewPlaying] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const streamRef = useRef<MediaStream | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const levels = useMicLevels(stream);
+  const person = members.find((mm) => mm.id === to);
 
   useEffect(() => {
     try {
@@ -120,434 +174,398 @@ function VoiceTab({ onPosted, contribution }: { onPosted: () => void; contributi
     }
   }, []);
 
+  useEffect(() => {
+    if (phase !== "recording") return;
+    const t = window.setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => window.clearInterval(t);
+  }, [phase]);
+
   useEffect(
     () => () => {
-      recorderRef.current?.stream?.getTracks().forEach((tr) => tr.stop());
-      streamRef.current?.getTracks().forEach((tr) => tr.stop());
-      if (ready) URL.revokeObjectURL(ready.url);
+      stream?.getTracks().forEach((tr) => tr.stop());
     },
-    [ready],
+    [stream],
   );
 
-  const giveConsent = (v: boolean) => {
-    setConsent(v);
-    try {
-      if (v) localStorage.setItem(CONSENT_KEY, "1");
-      else localStorage.removeItem(CONSENT_KEY);
-    } catch {
-      // Private mode: consent lasts for this session only.
-    }
-  };
+  const finish = useCallback(
+    async (blob: Blob) => {
+      setPhase("working");
+      try {
+        const upload = await processVoiceBlob(blob, { fromToday: true, fromGlassesToggle: false });
+        const wav = await blobToWav16k(blob);
+        const form = new FormData();
+        form.append("audio", new Blob([wav.bytes as unknown as BlobPart], { type: "audio/wav" }), "voice.wav");
+        form.append("langHint", viewer.displayLang ?? displayLang);
+        const res = await fetch("/api/transcribe", { method: "POST", body: form });
+        if (!res.ok) throw new Error("transcribe-failed");
+        const data = (await res.json()) as {
+          transcript: { transcript: string; language: string; summary: string; segments: TranscriptSegment[] };
+          unavailable?: boolean;
+        };
+        setReady({
+          upload,
+          url: upload.previewUrl ?? "",
+          transcript: data.transcript.transcript,
+          transcriptLang: data.transcript.language,
+          segments: data.transcript.segments ?? [],
+          unavailable: data.unavailable === true,
+        });
+        setPhase("ready");
+      } catch {
+        setError("Couldn't process that recording. Try again.");
+        setPhase("idle");
+      }
+    },
+    [viewer.displayLang, displayLang],
+  );
 
   const start = async () => {
     setError(null);
-    setUnavailable(false);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      const mime = ["audio/webm", "audio/mp4"].find((m) =>
-        typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(m),
-      );
-      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = ["audio/webm", "audio/mp4"].find((mt) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(mt));
+      const rec = new MediaRecorder(s, mime ? { mimeType: mime } : undefined);
       chunksRef.current = [];
-      rec.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-      rec.onstop = () => {
-        void finish(new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" }));
-      };
+      rec.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
+      rec.onstop = () => void finish(new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" }));
       recorderRef.current = rec;
+      setStream(s);
+      setSeconds(0);
       rec.start();
       setPhase("recording");
     } catch {
-      setError(t.common.retry);
+      setError("Aangan needs your microphone. Allow it in your browser settings, then try again.");
     }
   };
 
   const stop = () => {
     const rec = recorderRef.current;
-    if (rec && rec.state !== "inactive") {
-      setBusy(true);
-      rec.stop();
-    }
-    streamRef.current?.getTracks().forEach((tr) => tr.stop());
-    streamRef.current = null;
+    if (rec && rec.state !== "inactive") rec.stop();
+    stream?.getTracks().forEach((tr) => tr.stop());
+    setStream(null);
   };
 
-  const [unavailable, setUnavailable] = useState(false);
+  const discard = () => {
+    audioRef.current?.pause();
+    if (ready?.url) URL.revokeObjectURL(ready.url);
+    setReady(null);
+    setPreviewPlaying(false);
+    setPhase("idle");
+  };
 
-  const finish = async (blob: Blob) => {
-    try {
-      const upload = await processVoiceBlob(blob, { fromToday: true, fromGlassesToggle: false });
-      const url = upload.previewUrl ?? "";
-      // The recorded bytes go to the model: transcode to WAV and upload.
-      const wav = await blobToWav16k(blob);
-      const form = new FormData();
-      form.append("audio", new Blob([wav.bytes as unknown as BlobPart], { type: "audio/wav" }), "voice.wav");
-      form.append("langHint", viewer.displayLang ?? lang);
-      const res = await fetch("/api/transcribe", { method: "POST", body: form });
-      if (!res.ok) throw new Error("transcribe-failed");
-      const data = (await res.json()) as {
-        transcript: { transcript: string; language: string; summary: string; segments: TranscriptSegment[] };
-        unavailable?: boolean;
-      };
-      setUnavailable(data.unavailable === true);
-      setReady({
-        upload,
-        url,
-        transcript: data.transcript.transcript,
-        transcriptLang: data.transcript.language,
-        segments: data.transcript.segments ?? [],
-      });
-      setCaption(data.transcript.summary);
+  const send = async () => {
+    if (!ready) return;
+    setPhase("working");
+    const posted = await postVoice({ ...ready, caption: ready.transcript, addressedTo: to });
+    if (!posted.ok) {
+      setError("Couldn't send. Check your connection and try again.");
       setPhase("ready");
-    } catch {
-      setError(t.common.retry);
-      setPhase("idle");
-    } finally {
-      setBusy(false);
+      return;
     }
+    if (contribution && posted.id) {
+      await fetch("/api/wishes", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ritualRunId: contribution.runId, cardId: posted.id, memberId: viewer.id, kind: contribution.kind }),
+      }).catch(() => undefined);
+    }
+    onDone();
   };
 
-  const share = async () => {
-    if (!ready || busy) return;
-    setBusy(true);
-    setError(null);
-    const text = caption.trim() || ready.transcript;
-    const posted = await postVoiceCard({
-      upload: ready.upload,
-      caption: text,
-      transcript: ready.transcript,
-      transcriptLang: ready.transcriptLang,
-      segments: ready.segments,
-    });
-    setBusy(false);
-    if (posted.ok) {
-      // Reel replies link the new voice card to the ritual run as a wish.
-      if (contribution && posted.id) {
-        await fetch("/api/wishes", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            ritualRunId: contribution.runId,
-            cardId: posted.id,
-            memberId: viewer.id,
-            kind: contribution.kind,
-          }),
-        }).catch(() => undefined);
-      }
-      if (ready.url) URL.revokeObjectURL(ready.url);
-      setReady(null);
-      setCaption("");
-      setPhase("idle");
-      onPosted();
-    } else {
-      setError(t.common.retry);
-    }
-  };
-
-  if (typeof navigator !== "undefined" && !navigator.mediaDevices) {
-    return <p className="text-[15px] text-ink-soft">{t.common.retry}</p>;
+  if (consent === false) {
+    return (
+      <div className="pt-2">
+        <h2 className="m-0 text-[24px]">Before your first recording</h2>
+        <ul className="m-0 mt-4 list-none space-y-3 p-0 text-[15px] text-ink-soft">
+          <li className="flex gap-3"><Icon name="check" size={20} className="mt-0.5 shrink-0 text-ink" />Only your family can hear it.</li>
+          <li className="flex gap-3"><Icon name="check" size={20} className="mt-0.5 shrink-0 text-ink" />Aangan writes down your words so everyone can read them in their own language.</li>
+          <li className="flex gap-3"><Icon name="check" size={20} className="mt-0.5 shrink-0 text-ink" />Your voice is never used to create a copy of it.</li>
+        </ul>
+        <p className="m-0 mt-4 text-[13px] text-ink-faint">In this demo, Meta&rsquo;s AI models process recordings to transcribe and translate them.</p>
+        <Button
+          className="mt-6 w-full"
+          onClick={() => {
+            try {
+              localStorage.setItem(CONSENT_KEY, "1");
+            } catch {
+              /* private mode: consent lasts this session */
+            }
+            setConsent(true);
+          }}
+        >
+          I understand
+        </Button>
+      </div>
+    );
   }
 
   return (
-    <div>
-      <label className="tap mb-3 flex items-start gap-2 text-[13px] text-ink-soft">
-        <input
-          type="checkbox"
-          checked={consent}
-          onChange={(e) => giveConsent(e.target.checked)}
-          className="mt-1 h-5 w-5 shrink-0"
-        />
-        <span>{t.voice.consent}</span>
-      </label>
-      {phase === "idle" && (
-        <PrimaryButton className="w-full" disabled={busy || !consent} onClick={() => void start()}>
-          {busy ? t.add.processing : t.voice.record}
-        </PrimaryButton>
-      )}
-      {phase === "recording" && (
-        <div>
-          <p className="serif mb-3 text-lg" role="status">
-            ● {t.voice.stop}…
+    <div className="flex min-h-[460px] flex-col">
+      <p className="m-0 mb-3 text-[13px] font-medium text-ink-soft">To</p>
+      <Recipients value={to} onChange={setTo} />
+
+      <div className="flex flex-1 flex-col items-center justify-center py-6 text-center">
+        {phase === "ready" && ready ? (
+          <div className="w-full">
+            <div className="flex items-center gap-3 rounded-[22px] bg-surface p-3">
+              <PlayButton
+                tone="dark"
+                size={44}
+                playing={previewPlaying}
+                label={previewPlaying ? "Pause preview" : "Play preview"}
+                onClick={() => {
+                  const a = audioRef.current;
+                  if (!a) return;
+                  if (a.paused) void a.play().then(() => setPreviewPlaying(true));
+                  else {
+                    a.pause();
+                    setPreviewPlaying(false);
+                  }
+                }}
+              />
+              <div className="flex h-8 flex-1 items-center gap-[2.5px]" aria-hidden="true">
+                {(ready.upload.peaks.length ? ready.upload.peaks : levels).slice(0, 40).map((v, i) => (
+                  <span key={i} className="block flex-1 rounded-full bg-black/70" style={{ maxWidth: 3.5, height: `${Math.max(14, v * 100)}%` }} />
+                ))}
+              </div>
+              <span className="tnum pr-1 text-[13px] text-ink-soft">{formatDuration(seconds)}</span>
+              {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+              <audio ref={audioRef} src={ready.url} preload="auto" onEnded={() => setPreviewPlaying(false)} />
+            </div>
+            <p className="voice m-0 mt-5 px-2 text-left text-[19px] leading-snug text-ink">
+              {ready.unavailable ? "We couldn't write this one down, but your voice will still be heard." : `“${ready.transcript}”`}
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="flex h-16 w-full items-center justify-center gap-[3px]" aria-hidden="true">
+              {levels.map((v, i) => (
+                <span
+                  key={i}
+                  className={cn("block w-[3px] rounded-full", phase === "recording" ? "bg-marigold" : "bg-black/10")}
+                  style={{ height: `${Math.max(8, v * 100)}%`, transition: "height 90ms linear" }}
+                />
+              ))}
+            </div>
+            <p className="tnum m-0 mt-4 text-[15px] text-ink-soft" role="status">
+              {phase === "recording" ? (
+                <span className="inline-flex items-center gap-2">
+                  <LiveDot />
+                  {formatDuration(seconds)}
+                </span>
+              ) : phase === "working" ? (
+                "Listening back…"
+              ) : (
+                `Tap to talk${person ? ` to ${callName(person)}` : " to everyone"}`
+              )}
+            </p>
+            <button
+              type="button"
+              onClick={phase === "recording" ? stop : () => void start()}
+              disabled={phase === "working"}
+              aria-label={phase === "recording" ? "Stop recording" : "Start recording"}
+              className="press mt-5 grid h-[88px] w-[88px] place-items-center rounded-full bg-black text-white disabled:opacity-40"
+              style={{ boxShadow: phase === "recording" ? "0 0 0 8px var(--marigold-glow)" : "0 14px 30px rgba(0,0,0,.25)" }}
+            >
+              <Icon name={phase === "recording" ? "stop" : "mic"} size={34} />
+            </button>
+          </>
+        )}
+        {error && (
+          <p className="m-0 mt-4 text-[14px] text-[#b42318]" role="alert">
+            {error}
           </p>
-          <PrimaryButton className="w-full" disabled={busy} onClick={stop}>
-            {t.voice.stop}
-          </PrimaryButton>
+        )}
+      </div>
+
+      {phase === "ready" ? (
+        <div className="flex gap-2">
+          <Button variant="secondary" className="flex-1" onClick={discard}>
+            Record again
+          </Button>
+          <Button className="flex-[1.4]" onClick={() => void send()}>
+            <Icon name="send" size={18} />
+            Send{person ? ` to ${callName(person)}` : ""}
+          </Button>
         </div>
-      )}
-      {phase === "ready" && ready && (
-        <div>
-          <p className="mb-2 text-sm font-medium">{t.voice.preview}</p>
-          {ready.url ? (
-            // eslint-disable-next-line jsx-a11y/media-has-caption
-            <audio src={ready.url} controls className="tap w-full" preload="auto" />
-          ) : (
-            <div className="skeleton h-12" aria-busy="true" aria-label={t.add.processing} />
-          )}
-          <p className="serif mt-3 line-clamp-3 text-[15px] leading-snug">{ready.transcript}</p>
-          <label className="mt-3 block text-sm font-medium">
-            <span className="sr-only">{t.add.captionPlaceholder}</span>
-            <input
-              type="text"
-              value={caption}
-              maxLength={280}
-              onChange={(e) => setCaption(e.target.value)}
-              placeholder={t.add.captionPlaceholder}
-              className="tap mt-1 w-full rounded-card border border-line bg-surface/80 px-4 text-[15px]"
-            />
-          </label>
-          {error && (
-            <p className="mt-2 text-sm text-accent" role="alert">
-              {error}
-            </p>
-          )}
-          <PrimaryButton className="mt-4 w-full" disabled={busy || unavailable} onClick={() => void share()}>
-            {busy ? t.add.processing : t.voice.useRecording}
-          </PrimaryButton>
-          {unavailable && (
-            <p className="mt-2 text-sm text-ink-soft" role="alert">
-              {ready.transcript} — record again to retry.
-            </p>
-          )}
-          <button
-            type="button"
-            onClick={() => {
-              if (ready.url) URL.revokeObjectURL(ready.url);
-              setReady(null);
-              setCaption("");
-              setPhase("idle");
-            }}
-            className="tap mt-2 w-full text-sm font-semibold text-accent"
-          >
-            {t.voice.recordAgain}
-          </button>
-        </div>
-      )}
-      {phase === "idle" && error && (
-        <p className="mt-2 text-sm text-accent" role="alert">
-          {error}
-        </p>
+      ) : (
+        phase === "idle" && (
+          <div>
+            <button type="button" onClick={() => setIdeas((v) => !v)} aria-expanded={ideas} className="press mx-auto flex h-11 items-center gap-1.5 text-[15px] font-medium text-ink-soft">
+              Need something to say?
+              <Icon name="down" size={16} className={cn("transition-transform", ideas && "rotate-180")} />
+            </button>
+            {ideas && (
+              <ul className="m-0 mt-2 list-none space-y-2 p-0">
+                {ASK_STARTERS.en.map((q) => (
+                  <li key={q} className="voice rounded-[18px] bg-surface px-4 py-3 text-[16px] text-ink">
+                    {q}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )
       )}
     </div>
   );
 }
 
-function AskTab() {
-  const { viewer, lang } = useViewer();
-  const t = strings(lang);
-  const [suggested, setSuggested] = useState<string[] | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let live = true;
-    setSuggested(null);
-    setFailed(false);
-    fetch(
-      `/api/suggest?memberId=${encodeURIComponent(viewer.id)}&displayLang=${encodeURIComponent(viewer.displayLang ?? lang)}`,
-      { cache: "no-store" },
-    )
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { questions?: string[] } | null) => {
-        if (!live) return;
-        if (data?.questions) setSuggested(data.questions);
-        else setFailed(true);
-      })
-      .catch(() => {
-        if (live) setFailed(true);
-      });
-    return () => {
-      live = false;
-    };
-  }, [viewer.id, viewer.displayLang, lang]);
-
-  return (
-    <div>
-      <p className="mt-0 text-[15px] text-ink-soft">{t.voice.suggested}</p>
-      {suggested === null && !failed && (
-        <div aria-busy="true" aria-label={t.add.processing}>
-          <div className="skeleton mb-2 h-14" />
-          <div className="skeleton mb-2 h-14" />
-          <div className="skeleton h-14" />
-        </div>
-      )}
-      {suggested !== null && (
-        <ul className="m-0 list-none p-0">
-          {suggested.map((q) => (
-            <li key={q} className="serif mb-2 rounded-card border border-line bg-surface/60 px-4 py-3 text-[15px]">
-              {q}
-            </li>
-          ))}
-        </ul>
-      )}
-      {(failed || suggested !== null) && (
-        <>
-          <p className="mt-4 text-[15px] text-ink-soft">{t.add.askSoon}</p>
-          <ul className="m-0 list-none p-0">
-            {ASK_STARTERS[lang].map((q) => (
-              <li key={q} className="serif mb-2 rounded-card border border-line bg-surface/60 px-4 py-3 text-[15px]">
-                {q}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-    </div>
-  );
-}
-
-export function AddSheet() {
-  const { addOpen, addTab, replyTo, closeAdd, bumpRefresh } = useShell();
-  const { viewer, lang } = useViewer();
-  const t = strings(lang);
-  const [tab, setTab] = useState<AddTab>("photos");
+/* ----------------------------------------------------------------- moment */
+function MomentComposer({ onDone }: { onDone: () => void }) {
+  const { viewer } = useViewer();
   const [files, setFiles] = useState<File[]>([]);
-  const [fromToday, setFromToday] = useState(true);
+  const [note, setNote] = useState("");
   const [glasses, setGlasses] = useState(false);
-  const [caption, setCaption] = useState("");
   const [busy, setBusy] = useState(false);
-  const [errors, setErrors] = useState<string[]>([]);
-  const photoRef = useRef<HTMLInputElement>(null);
-  const videoRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const previews = useMemo(() => files.map((f) => ({ url: URL.createObjectURL(f), video: f.type.startsWith("video/") })), [files]);
+  useEffect(() => () => previews.forEach((p) => URL.revokeObjectURL(p.url)), [previews]);
 
-  useEffect(() => {
-    if (addOpen) {
-      setTab(addTab);
-      setFiles([]);
-      setCaption("");
-      setErrors([]);
-      setBusy(false);
-    }
-  }, [addOpen, addTab]);
-
-  const share = async (kind: "photos" | "video") => {
-    if (files.length === 0 || busy) return;
+  const share = async () => {
     setBusy(true);
-    setErrors([]);
-    const failures: string[] = [];
-    let posted = 0;
-    const list = kind === "video" ? files.slice(0, 1) : files;
-    for (const file of list) {
+    setError(null);
+    let failed = 0;
+    for (const file of files) {
       try {
-        const upload =
-          kind === "video"
-            ? await processVideo(file, { fromToday, fromGlassesToggle: glasses })
-            : await processImage(file, { fromToday, fromGlassesToggle: glasses });
-        // The bytes travel with the card: compressed image, or the raw video
-        // plus key frames for vision grounding.
+        const video = file.type.startsWith("video/");
+        const upload = video
+          ? await processVideo(file, { fromToday: true, fromGlassesToggle: glasses })
+          : await processImage(file, { fromToday: true, fromGlassesToggle: glasses });
         const stored = getSessionMedia(upload.mediaRef)?.blob ?? file;
-        const frames = kind === "video" ? await extractVideoFrames(file).catch(() => []) : [];
-        const ok = await postCard(upload, stored, caption.trim(), viewer.lang, frames);
-        if (ok) posted += 1;
-        else failures.push(file.name);
+        const frames = video ? await extractVideoFrames(file).catch(() => []) : [];
+        if (!(await postMoment(upload, stored, note.trim(), viewer.lang, frames))) failed += 1;
       } catch {
-        failures.push(file.name);
+        failed += 1;
       }
     }
     setBusy(false);
-    setErrors(failures);
-    if (posted > 0) {
-      bumpRefresh();
-      if (failures.length === 0) closeAdd();
-    }
+    if (failed === 0) onDone();
+    else setError(`${failed} of ${files.length} didn't upload. Videos must be 30 seconds or shorter.`);
   };
 
-  const tabs: { key: AddTab; label: string }[] = [
-    { key: "photos", label: t.add.photos },
-    { key: "voice", label: t.add.voice },
-    { key: "video", label: t.add.video },
-    { key: "ask", label: t.add.ask },
-  ];
-
   return (
-    <GlassSheet open={addOpen} onClose={closeAdd} label={t.add.title}>
-      <h2 className="mb-3 mt-0 pr-10 text-2xl font-normal">{t.add.title}</h2>
-      <div className="mb-4 flex gap-2" role="tablist" aria-label={t.add.title}>
-        {tabs.map((tb) => (
-          <button
-            key={tb.key}
-            type="button"
-            role="tab"
-            aria-selected={tab === tb.key}
-            onClick={() => {
-              setTab(tb.key);
-              setFiles([]);
-              setErrors([]);
-            }}
-            className={cn(
-              "tap flex-1 rounded-card text-sm font-semibold",
-              tab === tb.key ? "bg-espresso text-espresso-ink" : "border border-ink/20",
-            )}
-          >
-            {tb.label}
+    <div className="flex min-h-[460px] flex-col">
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*,video/*"
+        multiple
+        className="hidden"
+        aria-label="Choose photos or a video"
+        onChange={(e) => setFiles(Array.from(e.target.files ?? []).slice(0, 10))}
+      />
+      {files.length === 0 ? (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="press flex flex-1 flex-col items-center justify-center gap-3 rounded-[26px] bg-surface py-14 text-ink"
+        >
+          <span className="grid h-16 w-16 place-items-center rounded-full bg-white shadow-frost">
+            <Icon name="image" size={28} />
+          </span>
+          <span className="text-[17px] font-semibold">Choose photos or a video</span>
+          <span className="text-[14px] text-ink-soft">From today, or any day you want to keep</span>
+        </button>
+      ) : (
+        <div className="grid flex-1 grid-cols-3 content-start gap-1.5">
+          {previews.map((p, i) => (
+            <div key={i} className="relative aspect-square overflow-hidden rounded-[14px] bg-surface">
+              {p.video ? (
+                // eslint-disable-next-line jsx-a11y/media-has-caption
+                <video src={p.url} className="h-full w-full object-cover" muted />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={p.url} alt="" className="h-full w-full object-cover" />
+              )}
+            </div>
+          ))}
+          <button type="button" onClick={() => inputRef.current?.click()} aria-label="Choose different files" className="press grid aspect-square place-items-center rounded-[14px] bg-surface text-ink-soft">
+            <Icon name="plus" />
           </button>
-        ))}
-      </div>
-
-      {(tab === "photos" || tab === "video") && (
-        <div>
-          <div className="mb-3 flex flex-wrap gap-x-5 gap-y-2">
-            <Toggle checked={fromToday} onChange={setFromToday} label={t.add.fromToday} />
-            <Toggle checked={glasses} onChange={setGlasses} label={t.add.fromGlasses} />
-          </div>
-          <button
-            type="button"
-            onClick={() => (tab === "photos" ? photoRef.current?.click() : videoRef.current?.click())}
-            className="tap w-full rounded-card border-2 border-dashed border-ink/20 py-4 text-[15px] text-ink-soft"
-          >
-            {files.length === 0 ? t.tabs.add : `${files.length} ✓`}
-          </button>
-          <input
-            ref={photoRef}
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            aria-label={t.add.photos}
-            onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-          />
-          <input
-            ref={videoRef}
-            type="file"
-            accept="video/*"
-            className="hidden"
-            aria-label={t.add.video}
-            onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-          />
-          {tab === "video" && <p className="mt-2 text-[13px] text-ink-soft">≤30s · ≤25 MB</p>}
-          <label className="mt-3 block text-sm font-medium">
-            <span className="sr-only">{t.add.captionPlaceholder}</span>
-            <input
-              type="text"
-              value={caption}
-              maxLength={280}
-              onChange={(e) => setCaption(e.target.value)}
-              placeholder={t.add.captionPlaceholder}
-              className="tap mt-1 w-full rounded-card border border-line bg-surface/80 px-4 text-[15px]"
-            />
-          </label>
-          {errors.length > 0 && (
-            <p className="mt-2 text-sm text-accent" role="alert">
-              {errors.join(", ")}
-            </p>
-          )}
-          <PrimaryButton className="mt-4 w-full" disabled={busy || files.length === 0} onClick={() => void share(tab)}>
-            {busy ? t.add.processing : t.add.share}
-          </PrimaryButton>
         </div>
       )}
 
-      {tab === "voice" && (
-        <VoiceTab
-          contribution={replyTo}
-          onPosted={() => {
-            bumpRefresh();
-            closeAdd();
-          }}
+      <label className="mt-4 block">
+        <span className="sr-only">Add a note</span>
+        <input
+          type="text"
+          value={note}
+          maxLength={280}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Add a note (optional)"
+          className="h-[52px] w-full rounded-full bg-surface px-5 text-[16px] outline-none placeholder:text-ink-faint focus:ring-2 focus:ring-marigold"
         />
+      </label>
+      <label className="mt-3 flex h-11 cursor-pointer items-center justify-between px-1 text-[15px]">
+        Taken with Meta glasses
+        <input type="checkbox" checked={glasses} onChange={(e) => setGlasses(e.target.checked)} className="peer sr-only" />
+        <span aria-hidden="true" className="flex h-7 w-12 items-center rounded-full bg-black/15 p-0.5 transition-colors peer-checked:bg-black peer-focus-visible:ring-2 peer-focus-visible:ring-marigold [&>span]:peer-checked:translate-x-5">
+          <span className="h-6 w-6 rounded-full bg-white shadow transition-transform" />
+        </span>
+      </label>
+      {error && (
+        <p className="m-0 mt-2 text-[14px] text-[#b42318]" role="alert">
+          {error}
+        </p>
       )}
+      <Button className="mt-4 w-full" disabled={files.length === 0 || busy} onClick={() => void share()}>
+        {busy ? "Sharing…" : files.length > 1 ? `Share ${files.length} with the family` : "Share with the family"}
+      </Button>
+    </div>
+  );
+}
 
-      {tab === "ask" && <AskTab />}
-    </GlassSheet>
+/* ------------------------------------------------------------------ sheet */
+export function AddSheet() {
+  const { addOpen, addTab, replyTo, addressee, closeAdd, bumpRefresh } = useShell();
+  const voice = addTab === "voice" || addTab === "ask";
+
+  useEffect(() => {
+    if (!addOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && closeAdd();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [addOpen, closeAdd]);
+
+  const done = () => {
+    bumpRefresh();
+    closeAdd();
+  };
+
+  return (
+    <AnimatePresence>
+      {addOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label={voice ? "Record a voice note" : "Share a photo or video"}>
+          <m.button
+            type="button"
+            aria-label="Close"
+            className="absolute inset-0 bg-black/25"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={closeAdd}
+          />
+          <m.div
+            className="relative max-h-[92vh] w-full max-w-[480px] overflow-y-auto rounded-t-[32px] bg-white px-5 pt-3 shadow-frost"
+            style={{ paddingBottom: "calc(20px + env(safe-area-inset-bottom))" }}
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", stiffness: 340, damping: 36 }}
+          >
+            <span className="mx-auto mb-2 block h-1.5 w-10 rounded-full bg-black/15" aria-hidden="true" />
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="m-0 text-[22px]">{voice ? "New voice note" : "Share a moment"}</h2>
+              <button type="button" onClick={closeAdd} aria-label="Close" className="press -mr-2 grid h-11 w-11 place-items-center rounded-full text-ink-soft">
+                <Icon name="close" />
+              </button>
+            </div>
+            {voice ? <VoiceComposer addressee={addressee} contribution={replyTo} onDone={done} /> : <MomentComposer onDone={done} />}
+          </m.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 }

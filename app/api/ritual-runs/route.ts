@@ -4,5 +4,5 @@ import { requireSession } from "@/lib/auth";
 export async function GET(req: Request): Promise<Response> {
   const auth = requireSession(req);
   if (auth instanceof Response) return auth;
-  return Response.json({ runs: await dbListRitualRuns() });
+  return Response.json({ runs: await dbListRitualRuns(auth.familyId) });
 }

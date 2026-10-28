@@ -1,25 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { strings } from "@/lib/i18n";
 import type { Member, Relationship } from "@/lib/schemas";
-import { PrimaryButton } from "@/components/ui/buttons";
+import Link from "next/link";
+import { Avatar, Button, EmptyLine, RoomHeader } from "@/components/ui/kit";
+import { callName, memberPhoto } from "@/lib/people";
+import { cn } from "@/lib/utils";
 import { useViewer } from "@/components/viewer";
 
-const RELATION_WORDS = [
-  "mother",
-  "father",
-  "sister",
-  "brother",
-  "daughter",
-  "son",
-  "wife",
-  "husband",
-  "parent",
-  "child",
-  "sibling",
-  "spouse",
-];
+const RELATION_WORDS = ["mother", "father", "wife", "husband", "daughter", "son", "sister", "brother"];
 
 interface TreeNode {
   member: Member;
@@ -90,7 +79,7 @@ function layoutTree(members: Member[], relationships: Relationship[]): { nodes: 
     list.push(m);
     byGen.set(g, list);
   }
-  const W = 440;
+  const W = 350;
   const nodes: TreeNode[] = [];
   const pos = new Map<string, { x: number; y: number }>();
   const gens = Array.from(byGen.keys()).sort((a, b) => a - b);
@@ -98,7 +87,7 @@ function layoutTree(members: Member[], relationships: Relationship[]): { nodes: 
     const list = byGen.get(g) as Member[];
     list.forEach((m, i) => {
       const x = W * ((i + 1) / (list.length + 1));
-      const y = 60 + g * 120;
+      const y = 48 + g * 150;
       pos.set(m.id, { x, y });
       nodes.push({ member: m, generation: g, x, y });
     });
@@ -114,14 +103,14 @@ function layoutTree(members: Member[], relationships: Relationship[]): { nodes: 
 }
 
 function GuidedAdd({ onAdded }: { onAdded: () => void }) {
-  const { viewer, members, lang } = useViewer();
-  const t = strings(lang);
+  const { viewer, members } = useViewer();
   const [anchorId, setAnchorId] = useState(viewer.id);
   const [name, setName] = useState("");
   const [relation, setRelation] = useState("mother");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [welcomed, setWelcomed] = useState<string | null>(null);
+  const anchor = members.find((m) => m.id === anchorId);
 
   const submit = async () => {
     const clean = name.trim();
@@ -136,13 +125,13 @@ function GuidedAdd({ onAdded }: { onAdded: () => void }) {
       });
       if (!res.ok) throw new Error(res.status === 409 ? "duplicate" : "add-failed");
       const data = (await res.json()) as { member: Member };
-      // "Welcome to the family" bloom + Bond card (source agent feeds Lane).
+      // "Welcome to the family" moment: a Bond card lands in Memory Lane.
       await fetch("/api/cards", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           type: "photo",
-          caption: `Welcome to the family, ${clean}!`,
+          caption: `Welcome to the family, ${clean}`,
           lang: "en",
           takenAt: new Date().toISOString(),
           source: "agent",
@@ -154,136 +143,127 @@ function GuidedAdd({ onAdded }: { onAdded: () => void }) {
       setWelcomed(data.member.displayName);
       setName("");
       onAdded();
-    } catch {
-      setError(t.common.retry);
+    } catch (e) {
+      setError(e instanceof Error && e.message === "duplicate" ? `${clean} is already in the family.` : "Couldn't add them. Try again.");
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <section aria-label="Add family" className="mb-6">
-      <h2 className="mb-2 mt-0 text-xl">Add to the Bond</h2>
+    <section aria-label="Add someone" className="mt-10">
+      <h2 className="m-0 mb-1 text-[20px]">Add someone</h2>
+      <p className="m-0 mb-4 text-[15px] text-ink-soft">Tell Aangan how they&rsquo;re related to someone already here.</p>
       {welcomed && (
-        <div className="bond-bloom mb-3 rounded-card bg-surface px-4 py-3" role="status">
-          <p className="serif m-0 text-lg">Welcome to the family, {welcomed}</p>
+        <div className="bond-bloom mb-4 rounded-[22px] bg-[#fff6e6] px-4 py-3" role="status">
+          <p className="m-0 text-[17px] font-semibold">Welcome to the family, {welcomed}</p>
+          <p className="m-0 text-[14px] text-ink-soft">A welcome card is waiting in Memory Lane.</p>
         </div>
       )}
-      <div className="rounded-card border border-line bg-surface p-4">
-        <label className="block text-sm font-medium">
-          <span className="text-ink-soft">Known member</span>
-          <select
-            value={anchorId}
-            onChange={(e) => setAnchorId(e.target.value)}
-            className="tap mt-1 w-full rounded-card border border-line bg-paper px-3 text-[15px]"
+      <label className="block">
+        <span className="mb-1.5 block text-[13px] font-medium text-ink-soft">Their name</span>
+        <input
+          type="text"
+          value={name}
+          maxLength={40}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Meera"
+          className="h-[52px] w-full rounded-full bg-surface px-5 text-[16px] outline-none placeholder:text-ink-faint focus:ring-2 focus:ring-marigold"
+        />
+      </label>
+      <p className="m-0 mb-1.5 mt-4 text-[13px] font-medium text-ink-soft">They are the</p>
+      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Relation">
+        {RELATION_WORDS.map((w) => (
+          <button
+            key={w}
+            type="button"
+            role="radio"
+            aria-checked={relation === w}
+            onClick={() => setRelation(w)}
+            className={cn("press h-10 rounded-full px-4 text-[15px] font-medium", relation === w ? "bg-black text-white" : "bg-surface")}
           >
-            {members.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.displayName}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="mt-3 block text-sm font-medium">
-          <span className="text-ink-soft">New member name</span>
-          <input
-            type="text"
-            value={name}
-            maxLength={40}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Dadi"
-            className="tap mt-1 w-full rounded-card border border-line bg-paper px-3 text-[15px]"
-          />
-        </label>
-        <div className="mt-1 text-sm text-ink-soft">
-          {(() => {
-            const anchor = members.find((m) => m.id === anchorId);
-            return anchor && name.trim() ? `Add ${name.trim()} as ${anchor.displayName}'s ${relation}` : " ";
-          })()}
-        </div>
-        <label className="mt-3 block text-sm font-medium">
-          <span className="text-ink-soft">Relation word</span>
-          <select
-            value={relation}
-            onChange={(e) => setRelation(e.target.value)}
-            className="tap mt-1 w-full rounded-card border border-line bg-paper px-3 text-[15px]"
-          >
-            {RELATION_WORDS.map((w) => (
-              <option key={w} value={w}>
-                {w}
-              </option>
-            ))}
-          </select>
-        </label>
-        {error && (
-          <p className="mt-2 text-sm text-accent" role="alert">
-            {error}
-          </p>
-        )}
-        <PrimaryButton className="mt-4 w-full" disabled={busy || !name.trim()} onClick={() => void submit()}>
-          {busy ? "…" : "Add"}
-        </PrimaryButton>
+            {w}
+          </button>
+        ))}
       </div>
-      <style>{`.bond-bloom{animation:bond-grow .3s ease-out}@keyframes bond-grow{from{transform:scale(.96);opacity:.4}to{transform:scale(1);opacity:1}}`}</style>
+      <p className="m-0 mb-1.5 mt-4 text-[13px] font-medium text-ink-soft">of</p>
+      <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5" role="radiogroup" aria-label="Related to">
+        {members.map((mm) => (
+          <button
+            key={mm.id}
+            type="button"
+            role="radio"
+            aria-checked={anchorId === mm.id}
+            onClick={() => setAnchorId(mm.id)}
+            className={cn("press flex h-11 shrink-0 items-center gap-2 rounded-full pl-1 pr-4 text-[15px] font-medium", anchorId === mm.id ? "bg-black text-white" : "bg-surface")}
+          >
+            <Avatar src={memberPhoto(mm)} name={callName(mm)} size={34} />
+            {mm.id === viewer.id ? "You" : callName(mm)}
+          </button>
+        ))}
+      </div>
+      {error && (
+        <p className="m-0 mt-3 text-[14px] text-[#b42318]" role="alert">
+          {error}
+        </p>
+      )}
+      <Button className="mt-5 w-full" disabled={busy || !name.trim()} onClick={() => void submit()}>
+        {busy ? "Adding…" : name.trim() && anchor ? `Add ${name.trim()} as ${anchor.id === viewer.id ? "your" : `${callName(anchor)}'s`} ${relation}` : "Add to the family"}
+      </Button>
+      <style>{`.bond-bloom{animation:bond-grow .32s cubic-bezier(.32,.72,0,1)}@keyframes bond-grow{from{transform:scale(.96);opacity:0}to{transform:scale(1);opacity:1}}`}</style>
     </section>
   );
 }
 
-function KinshipLookup({ members }: { members: Member[] }) {
-  const { viewer, displayLang } = useViewer();
-  const [targetId, setTargetId] = useState("dadi");
-  const [terms, setTerms] = useState<string | null>(null);
+// Plain English for the common paths; anything else falls through to the
+// model-resolved term. Gender-neutral where the path doesn't say.
+const PLAIN_KIN: Record<string, string> = {
+  mother: "your mother",
+  father: "your father",
+  "father's mother": "your grandmother",
+  "mother's mother": "your grandmother",
+  "father's father": "your grandfather",
+  "mother's father": "your grandfather",
+  "father's child": "your sibling",
+  "mother's child": "your sibling",
+  "parent's child": "your sibling",
+  child: "your child",
+  wife: "your wife",
+  husband: "your husband",
+};
+function plainKin(term: string): string {
+  const t = term.trim().toLowerCase();
+  if (!t) return "";
+  return PLAIN_KIN[t] ?? (t.startsWith("your ") ? t : `your ${t}`);
+}
 
+/** "Your grandmother": kinship from the viewer, resolved deterministically server-side. */
+function useKinship(targetIds: string[]): Record<string, string> {
+  const { viewer, displayLang } = useViewer();
+  const [terms, setTerms] = useState<Record<string, string>>({});
+  const key = targetIds.join(",");
   useEffect(() => {
     let live = true;
-    setTerms(null);
-    fetch(`/api/kinship?from=${encodeURIComponent(viewer.id)}&to=${encodeURIComponent(targetId)}&lang=${encodeURIComponent(displayLang)}`, {
-      cache: "no-store",
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { terms?: string } | null) => {
-        if (live) setTerms(data?.terms ?? "family");
-      })
-      .catch(() => {
-        if (live) setTerms("family");
-      });
+    Promise.all(
+      targetIds
+        .filter((id) => id !== viewer.id)
+        .map((id) =>
+          fetch(`/api/kinship?from=${encodeURIComponent(viewer.id)}&to=${encodeURIComponent(id)}&lang=${encodeURIComponent(displayLang)}`, { cache: "no-store" })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d: { terms?: string } | null) => [id, d?.terms ?? ""] as const)
+            .catch(() => [id, ""] as const),
+        ),
+    ).then((pairs) => live && setTerms(Object.fromEntries(pairs)));
     return () => {
       live = false;
     };
-  }, [viewer.id, targetId, displayLang]);
-
-  return (
-    <section aria-label="Kinship" className="mb-6">
-      <h2 className="mb-2 mt-0 text-xl">Who is who</h2>
-      <div className="rounded-card border border-line bg-surface p-4">
-        <label className="block text-sm font-medium">
-          <span className="text-ink-soft">To {viewer.displayName}, this person is…</span>
-          <select
-            value={targetId}
-            onChange={(e) => setTargetId(e.target.value)}
-            className="tap mt-1 w-full rounded-card border border-line bg-paper px-3 text-[15px]"
-          >
-            {members
-              .filter((m) => m.id !== viewer.id)
-              .map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.displayName}
-                </option>
-              ))}
-          </select>
-        </label>
-        <p className="serif mb-0 mt-3 text-lg" aria-live="polite">
-          {terms ?? "…"}
-        </p>
-      </div>
-    </section>
-  );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, viewer.id, displayLang]);
+  return terms;
 }
 
 export default function BondPage() {
-  const { lang } = useViewer();
-  const t = strings(lang);
-  void t;
+  const { viewer } = useViewer();
   const [members, setMembers] = useState<Member[] | null>(null);
   const [relationships, setRelationships] = useState<Relationship[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -291,10 +271,7 @@ export default function BondPage() {
   const load = useCallback(async () => {
     setFailed(false);
     try {
-      const [mRes, rRes] = await Promise.all([
-        fetch("/api/members", { cache: "no-store" }),
-        fetch("/api/relationships", { cache: "no-store" }),
-      ]);
+      const [mRes, rRes] = await Promise.all([fetch("/api/members", { cache: "no-store" }), fetch("/api/relationships", { cache: "no-store" })]);
       if (!mRes.ok || !rRes.ok) throw new Error("bond-fetch-failed");
       setMembers(((await mRes.json()) as { members: Member[] }).members);
       setRelationships(((await rRes.json()) as { relationships: Relationship[] }).relationships);
@@ -307,79 +284,52 @@ export default function BondPage() {
     void load();
   }, [load]);
 
-  const tree = useMemo(
-    () => (members ? layoutTree(members, relationships ?? []) : null),
-    [members, relationships],
-  );
+  const tree = useMemo(() => (members ? layoutTree(members, relationships ?? []) : null), [members, relationships]);
+  const kin = useKinship((members ?? []).map((m) => m.id));
+  const height = tree ? Math.max(...tree.nodes.map((n) => n.y)) + 110 : 0;
 
   return (
-    <div className="pt-2">
-      <h1 className="serif mb-3 mt-0 text-3xl">Family Bond</h1>
-      {failed && (
-        <div className="rounded-card border border-line bg-surface p-5" role="alert">
-          <p className="m-0 text-[15px]">{t.common.retry}</p>
-          <button type="button" onClick={() => void load()} className="tap mt-2 font-semibold text-accent">
-            {t.common.retry}
-          </button>
-        </div>
-      )}
-      {tree === null && !failed && (
-        <div aria-busy="true" aria-label="Loading">
-          <div className="skeleton mb-2 h-40" />
-          <div className="skeleton h-40" />
-        </div>
-      )}
+    <div>
+      <RoomHeader title="Family tree" subtitle={members ? `${members.length} people · tap anyone to open their page` : undefined} />
+      {failed && <EmptyLine>Couldn&rsquo;t load the family. Try again in a moment.</EmptyLine>}
+      {tree === null && !failed && <div className="skeleton h-[360px]" aria-busy="true" aria-label="Loading family" />}
       {tree && members && (
         <>
-          <section aria-label="Family tree" className="mb-6">
-            <div className="overflow-x-auto rounded-card border border-line bg-surface p-2">
-              <svg viewBox="0 0 440 300" className="bond-tree min-w-[440px]" role="img" aria-label="Family tree">
-                {tree.edges.map((e, i) => (
-                  <line
-                    key={i}
-                    x1={e.x1}
-                    y1={e.y1 - 14}
-                    x2={e.x2}
-                    y2={e.y2 - 14}
-                    stroke="var(--line)"
-                    strokeWidth={e.dashed ? 1.5 : 2}
-                    strokeDasharray={e.dashed ? "5 4" : undefined}
-                  />
-                ))}
-                {tree.nodes.map((n) => (
-                  <g key={n.member.id} className="bond-node">
-                    <circle cx={n.x} cy={n.y - 14} r={16} fill="var(--accent)" opacity={0.9} />
-                    <text x={n.x} y={n.y - 9} textAnchor="middle" fontSize={13} fill="var(--accent-ink)">
-                      {n.member.displayName.slice(0, 1)}
-                    </text>
-                    <text x={n.x} y={n.y + 16} textAnchor="middle" fontSize={11} fill="var(--ink)">
-                      {n.member.displayName}
-                    </text>
-                  </g>
-                ))}
+          <section aria-label="Family tree" className="relative -mx-5 overflow-x-auto px-5">
+            <div className="relative mx-auto" style={{ width: 350, height }}>
+              <svg width={350} height={height} className="absolute inset-0" aria-hidden="true">
+                {tree.edges.map((e, i) => {
+                  const midY = (e.y1 + e.y2) / 2 + 20;
+                  return e.dashed ? (
+                    <line key={i} x1={e.x1} y1={e.y1 + 32} x2={e.x2} y2={e.y2 + 32} stroke="rgba(0,0,0,.18)" strokeWidth={2} strokeDasharray="4 5" />
+                  ) : (
+                    <path
+                      key={i}
+                      d={`M${e.x2} ${e.y2 + 104} C ${e.x2} ${midY + 30}, ${e.x1} ${midY + 10}, ${e.x1} ${e.y1 - 12}`}
+                      fill="none"
+                      stroke="rgba(0,0,0,.16)"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                    />
+                  );
+                })}
               </svg>
-            </div>
-            <style>{`.bond-tree .bond-node{transform-box:fill-box;transform-origin:top center;animation:bond-branch .3s ease-out}@keyframes bond-branch{from{transform:scaleY(.4);opacity:.3}to{transform:scaleY(1);opacity:1}}`}</style>
-          </section>
-          <GuidedAdd onAdded={() => void load()} />
-          <KinshipLookup members={members} />
-          <section aria-label="Demo family photos" className="mb-6">
-            <h2 className="mb-2 mt-0 text-xl">Demo photos · AI-generated</h2>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { src: "/demo/family-dadi.webp", label: "Dadi" },
-                { src: "/demo/family-leo.webp", label: "Leo" },
-                { src: "/demo/family-aria.webp", label: "Aria" },
-                { src: "/demo/family-group.webp", label: "Together" },
-              ].map((p) => (
-                <figure key={p.src} className="m-0">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={p.src} alt="" className="art-square w-full bg-skeleton object-cover" loading="lazy" />
-                  <figcaption className="mt-1 text-[12px] text-ink-soft">{p.label} · synthetic demo photo</figcaption>
-                </figure>
+              {tree.nodes.map((n) => (
+                <Link
+                  key={n.member.id}
+                  href={n.member.id === viewer.id ? "/settings" : `/people/${n.member.id}`}
+                  className="bond-node press absolute flex w-[120px] -translate-x-1/2 flex-col items-center text-center text-ink no-underline"
+                  style={{ left: n.x, top: n.y - 6 }}
+                >
+                  <Avatar src={memberPhoto(n.member)} name={callName(n.member)} size={68} ring />
+                  <span className="mt-1.5 text-[15px] font-semibold leading-tight">{n.member.id === viewer.id ? "You" : callName(n.member)}</span>
+                  <span className="whitespace-nowrap text-[12px] leading-tight text-ink-soft">{n.member.id === viewer.id ? viewer.firstName : plainKin(kin[n.member.id] ?? "") || " "}</span>
+                </Link>
               ))}
             </div>
+            <style>{`.bond-node{animation:bond-branch .36s cubic-bezier(.32,.72,0,1) both}@keyframes bond-branch{from{transform:translate(-50%,8px);opacity:0}to{transform:translate(-50%,0);opacity:1}}`}</style>
           </section>
+          <GuidedAdd onAdded={() => void load()} />
         </>
       )}
     </div>
