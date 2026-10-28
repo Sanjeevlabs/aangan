@@ -22,6 +22,10 @@
 - Tests: `tests/fix3-auth.test.ts` (5 tests: HMAC sign/verify/tamper/expiry, exchange + HttpOnly flag + bad-code 403, 401s, 30→429 per-session with a second member unaffected, cron 401/200 + session POST). All pre-existing route tests updated to send session cookies (incl. new 403 cross-member cases). New env names in `.env.example`: `SESSION_SECRET`, `CRON_SECRET`.
 - Verified: `npm run lint` ok, `npm run typecheck` ok, `npm run test:mock` 89 passed + 3 skipped (incl. 5 new auth tests), `npm run build` ok (39 routes). Live-model cost this fix: USD 0.
 
+## 28 Oct 2026 — CRITICAL FIX 4: vercel.json region bom1 (no recipe — deploy config)
+
+- Region moved `iad1` → `bom1` (family + judges in India). Verified: lint + typecheck + 90 passed + build ok (39 routes). No code change, no live cost.
+
 ## 28 Oct 2026 — Design reset + Supabase wiring (autonomous P0 run)
 
 - Design reset per the flat-courtyard spec (replaces the glass-heavy look): Ground #F6F2EC, ink #1C1917, secondary #57534E, hairlines #E2D9CE, one accent #9A3412. Now Playing ground #2A211C, played waveform #FDBA74. Instrument Serif (titles/captions/lyrics) + Inter (UI) via next/font. Radii 6–8px; no pills except the 44px round play button; glass only on sheets/mini-player. Removed the adaptive wash (wash.tsx deleted).
