@@ -1,7 +1,9 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { planRitualScan } from "@/lib/ritual-agent";
-import { dbAddAgentRun, dbAddSuggestion, dbAssignDailyRole, dbEnsureRitualRun, dbListDailyRoles, dbListMembers, dbListRitualRuns, dbListWishes, dbSetRitualRunStatus } from "@/lib/db";
+import { dbAddAgentRun, dbAddSuggestion, dbAssignDailyRole, dbEnsureRitualRun, dbGetMovableDate, dbListDailyRoles, dbListMembers, dbListRitualRuns, dbListWishes, dbSetMovableDate, dbSetRitualRunStatus } from "@/lib/db";
+import { resolveMovableDates } from "@/lib/movable-dates";
+import { serverLedger, serverStore } from "@/lib/llm-server";
 import { loadRitualConfig } from "@/lib/rituals";
 import { cronAuthorized, requireSession } from "@/lib/auth";
 
@@ -36,12 +38,23 @@ async function runScan(): Promise<Response> {
   } catch {
     // Configs optional; birthdays still scan.
   }
-  let movable: Record<string, string> = {};
+  let fixture: Record<string, string> = {};
   try {
-    movable = (JSON.parse(readFileSync(join(process.cwd(), "data", "movable-dates.json"), "utf8")) as { dates: Record<string, string> }).dates ?? {};
+    fixture = (JSON.parse(readFileSync(join(process.cwd(), "data", "movable-dates.json"), "utf8")) as { dates: Record<string, string> }).dates ?? {};
   } catch {
-    movable = {};
+    fixture = {};
   }
+  const { dates: movable } = await resolveMovableDates(
+    configs.filter((c) => c.slug !== "birthday"),
+    now,
+    {
+      store: serverStore,
+      ledger: serverLedger,
+      getPersistent: (slug, year) => dbGetMovableDate(slug, year),
+      setPersistent: (slug, year, date, sources) => dbSetMovableDate(slug, year, date, sources),
+      fixture: (slug) => fixture[slug] ?? null,
+    },
+  );
 
   const plan = planRitualScan(nowISO, members, configs, movable, { runs, wishes, roles });
 

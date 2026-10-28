@@ -5,6 +5,8 @@
 // with MOCK=true.
 import { isMockMode } from "./config";
 import {
+  getMovableCache as memGetMovable,
+  setMovableCache as memSetMovable,
   addAgentRun as memAddAgentRun,
   addCard as memAddCard,
   addGatherSession as memAddGather,
@@ -601,6 +603,33 @@ export async function dbAddGatherSession(input: { title: string; startsAt: strin
   });
   if (error) return memAddGather(g);
   return g;
+}
+
+// ---- Movable-date persistent cache (ritual_configs.config.movable). ----
+
+export async function dbGetMovableDate(slug: string, year: number): Promise<{ date: string; sources: string[] } | undefined> {
+  if (!live()) return memGetMovable(slug, year);
+  const sb = supabaseServer();
+  if (!sb) return memGetMovable(slug, year);
+  const { data } = await sb.from("ritual_configs").select("config").eq("slug", slug).maybeSingle();
+  const movable = (data as { config?: { movable?: Record<string, { date: string; sources: string[] }> } } | null)?.config?.movable;
+  const entry = movable?.[String(year)];
+  if (entry?.date) {
+    memSetMovable(slug, year, entry.date, entry.sources ?? []);
+    return { date: entry.date, sources: entry.sources ?? [] };
+  }
+  return memGetMovable(slug, year);
+}
+
+export async function dbSetMovableDate(slug: string, year: number, date: string, sources: string[]): Promise<void> {
+  memSetMovable(slug, year, date, sources);
+  if (!live()) return;
+  const sb = supabaseServer();
+  if (!sb) return;
+  const { data } = await sb.from("ritual_configs").select("config").eq("slug", slug).maybeSingle();
+  const config = ((data as { config?: Record<string, unknown> } | null)?.config ?? {}) as Record<string, unknown>;
+  const movable = { ...((config.movable as Record<string, unknown>) ?? {}), [String(year)]: { date, sources } };
+  await sb.from("ritual_configs").upsert({ slug, config: { ...config, movable } });
 }
 
 // ---- Privacy set + invites. ----

@@ -168,6 +168,7 @@ export function resetDemo(): void {
   dailyRoles = [];
   gatherSessions = [];
   clearInvites();
+  clearMovableCache();
   seedDemo();
 }
 
@@ -302,6 +303,22 @@ export function createInvite(code: string, expiresAt: string, familyId = "demo-f
 
 export function clearInvites(): void {
   invites = [];
+}
+
+// Movable-date persistent cache: (slug, year) -> grounded ISO date + sources.
+// Backed by the ritual_configs row live; memory here for mock/tests.
+const movableCache = new Map<string, { date: string; sources: string[] }>();
+
+export function getMovableCache(slug: string, year: number): { date: string; sources: string[] } | undefined {
+  return movableCache.get(`${slug}:${year}`);
+}
+
+export function setMovableCache(slug: string, year: number, date: string, sources: string[]): void {
+  movableCache.set(`${slug}:${year}`, { date, sources });
+}
+
+export function clearMovableCache(): void {
+  movableCache.clear();
 }
 
 export function addGatherSession(input: z.input<typeof GatherSessionSchema>): GatherSession {
