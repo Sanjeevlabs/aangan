@@ -5,11 +5,13 @@ import {
   MemberSchema,
   PlaySchema,
   ReactionSchema,
+  RelationshipSchema,
   type Card,
   type Member,
   type Play,
   type Reaction,
   type ReactionKind,
+  type Relationship,
 } from "./schemas";
 
 // Demo backing store. Supabase replaces this when the project is confirmed;
@@ -19,6 +21,8 @@ let cards: Card[] = [];
 let members: Member[] = [];
 let plays: Play[] = [];
 let reactions: Reaction[] = [];
+let relationships: Relationship[] = [];
+const kinshipCache = new Map<string, string>();
 
 export function listCards(): Card[] {
   return [...cards].sort((a, b) => b.takenAt.localeCompare(a.takenAt));
@@ -77,6 +81,14 @@ export function listMembers(): Member[] {
   return [...members];
 }
 
+// Mock-only append for guided Bond adds (live path writes to Supabase).
+export function mockAddMember(input: z.input<typeof MemberSchema>): Member {
+  const member = MemberSchema.parse(input);
+  members = members.filter((m) => m.id !== member.id);
+  members.push(member);
+  return member;
+}
+
 export function getMember(id: string): Member | undefined {
   return members.find((m) => m.id === id);
 }
@@ -129,8 +141,46 @@ export function resetDemo(): void {
   members = DEMO_MEMBERS.map((m) => MemberSchema.parse(m));
   clearPlays();
   clearReactions();
+  clearRelationships();
+  kinshipCache.clear();
   seedDemo();
 }
+
+// Guided Family Bond edges + the viewer-relative kinship cache
+// (path + display_lang -> terms). The model runs only on a cache miss.
+export function listRelationships(): Relationship[] {
+  return [...relationships];
+}
+
+export function addRelationship(input: z.input<typeof RelationshipSchema>): Relationship {
+  const rel = RelationshipSchema.parse(input);
+  relationships = relationships.filter((r) => r.id !== rel.id);
+  relationships.push(rel);
+  return rel;
+}
+
+export function clearRelationships(): void {
+  relationships = [];
+  // Seed the demo graph: Arjun's mother is Dadi.
+  addRelationship({
+    id: "rel-arjun-dadi",
+    familyId: "demo-family",
+    memberId: "arjun",
+    relationMemberId: "dadi",
+    relation: "mother",
+    canonicalKind: "parent",
+  });
+}
+
+export function getKinshipTerms(path: string, displayLang: string): string | undefined {
+  return kinshipCache.get(`${path}::${displayLang}`);
+}
+
+export function setKinshipTerms(path: string, displayLang: string, terms: string): void {
+  kinshipCache.set(`${path}::${displayLang}`, terms);
+}
+
+if (relationships.length === 0) clearRelationships();
 
 if (cards.length === 0) seedDemo();
 if (members.length === 0) members = DEMO_MEMBERS.map((m) => MemberSchema.parse(m));

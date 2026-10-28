@@ -12,6 +12,16 @@
 - Verified: `npm run lint` ok, `npm run typecheck` ok, `npm run test:mock` 54 passed + 2 skipped (live golden eval, live M2 check), `npm run build` ok (16 routes, next/font fetched fine). Live-model cost this milestone: USD 0 (no live calls).
 - Visual self-QA: blocked — this sandbox denies all listen sockets, so `next dev` cannot bind and no Playwright run is possible here. Verified via production build + code inspection instead; needs your eyes in the browser.
 
+## 28 Oct 2026 — M3: Memory Lane, Family Bond tree, kinship resolver
+
+- Kinship resolver (`lib/kinship.ts`): deterministic BFS over guided Bond edges → labelled path key (e.g. `leo>father>arjun>mother>dadi`) → cache keyed by (path, display_lang). The model (translate pipeline) runs ONLY on a cache miss; English needs no model call. Recipe-intent followed: structured output for the term (via the existing translate JSON contract). Relation words are family data (mother/father/sister…), canonical kinds (parent/child/spouse/sibling) drive BFS only.
+- Store + Supabase: `relationships` table read/write + `kinship_cache` read/write in `lib/db.ts` (mock-memory fallback preserved); new schemas `RelationshipSchema`/`CreateRelationshipRequestSchema`. New routes: `/api/relationships` GET/POST (guided add creates member + edge; 409 on duplicate name, 404 on unknown anchor), `/api/kinship` GET (from/to/lang → path + terms + cached flag).
+- Memory Lane (`/lane`): chips All/Voices/Rituals/Bonds (Bonds = `source:"agent"` Bond welcome cards; decided as the simplest tag satisfying the PRD — no festival logic), season+year chapters ("Winter 2024"; meteorological seasons, northern-hemisphere simplification logged), vertical hairline spine, keepsakes at varied widths (every third spans the row), flat caption panels on photos. Server cards + demo shelves merged, newest first. Loading skeletons + error + empty states.
+- Family Bond (`/bond`, linked from the profile menu): guided add ("Add <name> as <anchor>'s <relation>"), auto layered SVG tree by BFS generation (spouses share a generation) with 300ms branch-grow animation (respects reduced-motion via the global rule), "Welcome to the family" bloom + a Bond welcome card (source agent), and a viewer-relative kinship lookup ("To Leo, this person is… father’s mother").
+- New maintained test `tests/m3-kinship.test.ts` (5 tests: BFS self/direct/two-hop/reverse, unconnected → family with zero model calls, miss-once-then-cache incl. no-model English, relationships API create/duplicate/unknown).
+- Decisions: Bond cards carry `source:"agent"` so the Lane Bonds chip has a deterministic filter; relation word list is a fixed UI vocabulary (data, not culture logic).
+- Verified: `npm run lint` ok, `npm run typecheck` ok, `npm run test:mock` 59 passed + 2 skipped, `npm run build` ok (19 routes incl. /lane, /bond, /api/kinship, /api/relationships). Live-model cost this milestone: USD 0. Visual self-QA: same sandbox block as above — build + code inspection only; needs your eyes at 390px/1440px.
+
 
 ## 27 Oct 2026 — Day 1: foundation
 

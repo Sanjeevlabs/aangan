@@ -7,17 +7,22 @@ import { isMockMode } from "./config";
 import {
   addCard as memAddCard,
   addPlay as memAddPlay,
+  addRelationship as memAddRelationship,
+  getKinshipTerms as memGetKinship,
   getMember as memGetMember,
   listCards as memListCards,
   listMembers as memListMembers,
   listPlays as memListPlays,
   listReactions as memListReactions,
+  listRelationships as memListRelationships,
+  setKinshipTerms as memSetKinship,
   setMemberDisplayLang as memSetDisplayLang,
   setMemberHome as memSetHome,
   setReaction as memSetReaction,
+  mockAddMember as memAddMember,
 } from "./store";
 import { isDbLive, supabaseServer } from "./supabase";
-import { CardSchema, MemberSchema, PlaySchema, ReactionSchema, type Card, type Member, type Play, type Reaction } from "./schemas";
+import { CardSchema, MemberSchema, PlaySchema, ReactionSchema, RelationshipSchema, type Card, type Member, type Play, type Reaction, type Relationship } from "./schemas";
 
 function live(): boolean {
   return !isMockMode() && isDbLive();
@@ -189,6 +194,122 @@ export async function dbListReactions(cardId?: string): Promise<Reaction[]> {
       createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : (r.created_at as string),
     }),
   );
+}
+
+export async function dbListRelationships(familyId = "demo-family"): Promise<Relationship[]> {
+  if (!live()) return memListRelationships();
+  const sb = supabaseServer();
+  if (!sb) return memListRelationships();
+  const { data, error } = await sb.from("relationships").select("*").eq("family_id", familyId);
+  if (error || !data || data.length === 0) return memListRelationships();
+  return data.map((r) =>
+    RelationshipSchema.parse({
+      id: r.id,
+      familyId: r.family_id,
+      memberId: r.member_id,
+      relationMemberId: r.relation_member_id,
+      relation: r.relation,
+      canonicalKind: canonicalKindFor(r.relation),
+    }),
+  );
+}
+
+// Canonical edge kind from the family's own word. Data in, data out.
+export function canonicalKindFor(relation: string): Relationship["canonicalKind"] {
+  const w = relation.toLowerCase().trim();
+  if (["mother", "father", "mom", "dad", "maa", "pita", "parent", "saas", "sasur"].includes(w)) return "parent";
+  if (["daughter", "son", "child", "beti", "beta", "bahu", "damad"].includes(w)) return "child";
+  if (["wife", "husband", "spouse", "partner", "patni", "pati"].includes(w)) return "spouse";
+  return "sibling";
+}
+
+export async function dbAddRelationship(input: {
+  memberId: string;
+  newMemberName: string;
+  newMemberRole?: Member["role"];
+  relation: string;
+  familyId?: string;
+}): Promise<{ member: Member; relationship: Relationship }> {
+  const familyId = input.familyId ?? "demo-family";
+  const memberId = `member-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
+  const member = MemberSchema.parse({
+    id: memberId,
+    familyId,
+    firstName: input.newMemberName,
+    displayName: input.newMemberName,
+    role: input.newMemberRole ?? "adult",
+    lang: "en",
+    displayLang: "en",
+    tz: "UTC",
+    birthday: "01-01",
+    homeImageRef: null,
+    homePalette: [],
+  });
+  const relationship = RelationshipSchema.parse({
+    id: crypto.randomUUID(),
+    familyId,
+    memberId: input.memberId,
+    relationMemberId: memberId,
+    relation: input.relation,
+    canonicalKind: canonicalKindFor(input.relation),
+  });
+  if (!live()) {
+    // Mock path mutates the in-memory family (tests reset it first).
+    memAddRelationship(relationship);
+    memAddMember(member);
+    return { member, relationship };
+  }
+  const sb = supabaseServer();
+  if (!sb) {
+    memAddRelationship(relationship);
+    memAddMember(member);
+    return { member, relationship };
+  }
+  const [{ error: mErr }, { error: rErr }] = await Promise.all([
+    sb.from("members").insert({
+      id: member.id,
+      family_id: familyId,
+      first_name: member.firstName,
+      display_name: member.displayName,
+      role: member.role,
+      lang: member.lang,
+      display_lang: member.displayLang,
+      tz: member.tz,
+      birthday: member.birthday,
+    }),
+    sb.from("relationships").insert({
+      id: relationship.id,
+      family_id: familyId,
+      member_id: input.memberId,
+      relation_member_id: memberId,
+      relation: input.relation,
+    }),
+  ]);
+  if (mErr || rErr) {
+    memAddRelationship(relationship);
+    memAddMember(member);
+  }
+  return { member, relationship };
+}
+
+export async function dbGetKinshipTerms(path: string, displayLang: string): Promise<string | undefined> {
+  if (!live()) return memGetKinship(path, displayLang);
+  const sb = supabaseServer();
+  if (!sb) return memGetKinship(path, displayLang);
+  const { data } = await sb.from("kinship_cache").select("terms").eq("path", path).eq("display_lang", displayLang).maybeSingle();
+  const terms = (data as { terms?: unknown } | null)?.terms;
+  if (terms && typeof terms === "object" && typeof (terms as { text?: unknown }).text === "string") {
+    return (terms as { text: string }).text;
+  }
+  return memGetKinship(path, displayLang);
+}
+
+export async function dbSetKinshipTerms(path: string, displayLang: string, terms: string): Promise<void> {
+  memSetKinship(path, displayLang, terms);
+  if (!live()) return;
+  const sb = supabaseServer();
+  if (!sb) return;
+  await sb.from("kinship_cache").upsert({ path, display_lang: displayLang, terms: { text: terms } });
 }
 
 export async function dbSetReaction(input: { cardId: string; memberId: string; kind: Reaction["kind"]; familyId?: string }): Promise<Reaction> {

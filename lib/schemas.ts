@@ -146,6 +146,26 @@ export const HomeImageRequestSchema = z.object({
   palette: z.array(z.string()).max(5).default([]),
 });
 
+// Guided Bond adds: relation is the word the family picked (mother, father,
+// sister…); canonicalKind drives the BFS resolver. Never a festival/culture.
+export const RelationKindSchema = z.enum(["parent", "child", "spouse", "sibling"]);
+
+export const RelationshipSchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+  memberId: z.string(),
+  relationMemberId: z.string(),
+  relation: z.string().min(1).max(40),
+  canonicalKind: RelationKindSchema,
+});
+
+export const CreateRelationshipRequestSchema = z.object({
+  memberId: z.string().min(1),
+  newMemberName: z.string().min(1).max(40),
+  newMemberRole: MemberRoleSchema.default("adult"),
+  relation: z.string().min(1).max(40),
+});
+
 export type Caption = z.infer<typeof CaptionSchema>;
 export type Transcript = z.infer<typeof TranscriptSchema>;
 export type VoiceTranscript = z.infer<typeof VoiceTranscriptSchema>;
@@ -154,6 +174,8 @@ export type Translation = z.infer<typeof TranslationSchema>;
 export type Play = z.infer<typeof PlaySchema>;
 export type Reaction = z.infer<typeof ReactionSchema>;
 export type ReactionKind = z.infer<typeof ReactionKindSchema>;
+export type Relationship = z.infer<typeof RelationshipSchema>;
+export type RelationKind = z.infer<typeof RelationKindSchema>;
 export type DisplayLang = z.infer<typeof DisplayLangSchema>;
 export type RitualConfig = z.infer<typeof RitualConfigSchema>;
 export type Card = z.infer<typeof CardSchema>;
