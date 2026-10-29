@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { usePlayer } from "@/components/player";
 import { useShell } from "@/components/shell";
-import { Avatar, Button, EmptyLine, Icon, Monogram, MuseMark, Photo, PlayButton, RoomHeader, SectionTitle } from "@/components/ui/kit";
+import { ActionMenu, Avatar, Button, EmptyLine, Icon, Monogram, MuseMark, Photo, PlayButton, RoomHeader, SectionTitle } from "@/components/ui/kit";
+import { canChange } from "@/lib/permissions";
 import { useViewer } from "@/components/viewer";
 import type { Attempt, Recipe } from "@/lib/kinds";
 import { language } from "@/lib/languages";
@@ -29,6 +30,8 @@ export default function RecipePage() {
   const { play, current, isPlaying, toggle } = usePlayer();
   const { data, failed, reload } = useJson<Payload>(`/api/kitchen/${encodeURIComponent(id)}?lang=${encodeURIComponent(displayLang)}`);
   const [showOriginal, setShowOriginal] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const router = useRouter();
 
   if (failed) {
     return (
@@ -53,9 +56,28 @@ export default function RecipePage() {
   const active = voice && current?.id === voice.id;
   const cookPhoto = memberPhoto(cook);
 
+  const menu = [
+    ...(canChange(viewer, data.original.cookId, "edit") ? [{ label: "Edit recipe", onSelect: () => setEditing(true) }] : []),
+    ...(canChange(viewer, data.original.cookId, "delete")
+      ? [
+          {
+            label: "Delete recipe",
+            danger: true,
+            confirm: "Delete this recipe and everyone's attempts? The voice note stays in Memory Lane.",
+            onSelect: async () => {
+              await postJson("/api/kitchen", { action: "delete-recipe", recipeId: data.original.id });
+              router.replace("/kitchen");
+            },
+          },
+        ]
+      : []),
+  ];
+
+  if (editing) return <RecipeEditor recipe={data.original} onDone={async () => { setEditing(false); await reload(); }} />;
+
   return (
     <div>
-      <RoomHeader title={r.title} subtitle={r.serves ? `Serves ${r.serves}` : `${callName(cook)}'s recipe`} />
+      <RoomHeader title={r.title} subtitle={r.serves ? `Serves ${r.serves}` : `${callName(cook)}'s recipe`} action={<ActionMenu actions={menu} label="Recipe options" />} />
 
       <div className="relative h-[300px] overflow-hidden rounded-hero bg-[#3a2a1c]" style={{ boxShadow: "0 24px 50px -22px rgba(120,70,20,.6)" }}>
         {cookPhoto ? <Photo src={cookPhoto} alt={callName(cook)} sizes="440px" priority position="center 25%" /> : <div className="absolute inset-0"><Monogram name={callName(cook)} size={300} /></div>}
@@ -158,6 +180,8 @@ function Cooked({ recipe, attempts, cookName, onChange, viewerId }: { recipe: Re
           const src = a.photoRef ? (resolveMediaUrl(a.photoRef) ?? a.photoRef) : null;
           const blessed = a.blessedBy.map((id) => members.find((m) => m.id === id)).filter(Boolean);
           const canBless = a.memberId !== viewerId && !a.blessedBy.includes(viewerId);
+          const blessedByMe = a.blessedBy.includes(viewerId);
+          const me = members.find((m) => m.id === viewerId);
           return (
             <li key={a.id} className="overflow-hidden rounded-card bg-surface">
               {src && (
@@ -170,10 +194,23 @@ function Cooked({ recipe, attempts, cookName, onChange, viewerId }: { recipe: Re
                   <Avatar src={memberPhoto(who)} name={callName(who)} size={32} />
                   <span className="text-[15px] font-semibold">{a.memberId === viewerId ? "You" : callName(who)}</span>
                   <span className="text-[13px] text-ink-faint">{ago(a.createdAt)}</span>
+                  <span className="flex-1" />
+                  {canChange(me, a.memberId) && (
+                    <ActionMenu
+                      label="Attempt options"
+                      actions={[{ label: "Delete", danger: true, confirm: "Delete this attempt?", onSelect: async () => { await postJson("/api/kitchen", { action: "delete-attempt", attemptId: a.id }); onChange(); } }]}
+                    />
+                  )}
                 </div>
                 {a.note && <p className="voice m-0 mt-2 text-[17px] leading-snug">“{a.note}”</p>}
                 <div className="mt-3 flex items-center justify-between gap-2">
                   <span className="text-[13px] text-ink-soft">{blessed.length ? `${blessed.map((m) => callName(m)).join(", ")} blessed this` : ""}</span>
+                  {blessedByMe && (
+                    <button type="button" onClick={async () => { await postJson("/api/kitchen", { action: "unbless", attemptId: a.id }); onChange(); }} className="press flex h-10 items-center gap-1.5 rounded-full bg-[#fff6e6] px-4 text-[14px] font-semibold text-[#8a4b00]">
+                      <Icon name="bless" size={16} />
+                      Blessed
+                    </button>
+                  )}
                   {canBless && (
                     <button
                       type="button"
@@ -241,5 +278,84 @@ function Cooked({ recipe, attempts, cookName, onChange, viewerId }: { recipe: Re
         </div>
       )}
     </section>
+  );
+}
+
+/** The cook's own corrections: Muse wrote it down, the family owns it. */
+function RecipeEditor({ recipe, onDone }: { recipe: Recipe; onDone: () => void }) {
+  const [title, setTitle] = useState(recipe.title);
+  const [memory, setMemory] = useState(recipe.memory);
+  const [serves, setServes] = useState(recipe.serves);
+  const [ingredients, setIngredients] = useState(recipe.ingredients.map((i) => ({ ...i })));
+  const [steps, setSteps] = useState(recipe.steps.map((x) => ({ ...x })));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const field = "h-[48px] w-full rounded-[14px] bg-white px-4 text-[16px] outline-none focus:ring-2 focus:ring-marigold";
+  return (
+    <div>
+      <RoomHeader title="Edit recipe" subtitle="Fix anything Muse wrote down. Your words win." />
+      <div className="space-y-3 rounded-card bg-surface p-4">
+        <input className={field} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={80} aria-label="Title" />
+        <input className={field} value={serves} onChange={(e) => setServes(e.target.value)} maxLength={40} placeholder="Serves (optional)" aria-label="Serves" />
+        <textarea className="w-full resize-none rounded-[14px] bg-white p-4 text-[16px] outline-none focus:ring-2 focus:ring-marigold" rows={2} value={memory} onChange={(e) => setMemory(e.target.value)} maxLength={240} placeholder="Why this dish matters (optional)" aria-label="Memory" />
+      </div>
+      <SectionTitle>What goes in</SectionTitle>
+      <ul className="m-0 list-none space-y-2 p-0">
+        {ingredients.map((ing, i) => (
+          <li key={i} className="grid grid-cols-[1fr_1fr_1fr_40px] gap-1.5">
+            <input className={field} value={ing.item} onChange={(e) => setIngredients((v) => v.map((x, k) => (k === i ? { ...x, item: e.target.value } : x)))} placeholder="toor dal" aria-label="Ingredient" />
+            <input className={field} value={ing.said} onChange={(e) => setIngredients((v) => v.map((x, k) => (k === i ? { ...x, said: e.target.value } : x)))} placeholder="one katori" aria-label="As said" />
+            <input className={field} value={ing.approx} onChange={(e) => setIngredients((v) => v.map((x, k) => (k === i ? { ...x, approx: e.target.value } : x)))} placeholder="≈ 1 cup" aria-label="Rough guide" />
+            <button type="button" aria-label="Remove ingredient" onClick={() => setIngredients((v) => v.filter((_, k) => k !== i))} className="press grid h-[48px] place-items-center rounded-[14px] text-ink-faint">
+              <Icon name="close" size={16} />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <button type="button" onClick={() => setIngredients((v) => [...v, { item: "", said: "", approx: "" }])} className="press mt-2 flex h-10 items-center gap-1.5 text-[14px] font-semibold">
+        <Icon name="plus" size={16} />
+        Add ingredient
+      </button>
+      <SectionTitle>Steps</SectionTitle>
+      <ol className="m-0 list-none space-y-2 p-0">
+        {steps.map((st, i) => (
+          <li key={i} className="rounded-[16px] bg-surface p-2.5">
+            <div className="flex gap-1.5">
+              <textarea className="w-full resize-none rounded-[12px] bg-white p-3 text-[16px] outline-none focus:ring-2 focus:ring-marigold" rows={2} value={st.text} onChange={(e) => setSteps((v) => v.map((x, k) => (k === i ? { ...x, text: e.target.value } : x)))} aria-label={`Step ${i + 1}`} />
+              <button type="button" aria-label="Remove step" onClick={() => setSteps((v) => v.filter((_, k) => k !== i))} className="press grid w-10 place-items-center text-ink-faint">
+                <Icon name="close" size={16} />
+              </button>
+            </div>
+            <input className={`${field} mt-1.5 h-[42px] text-[15px]`} value={st.tip} onChange={(e) => setSteps((v) => v.map((x, k) => (k === i ? { ...x, tip: e.target.value } : x)))} placeholder="A tip in your words (optional)" aria-label="Tip" />
+          </li>
+        ))}
+      </ol>
+      <button type="button" onClick={() => setSteps((v) => [...v, { text: "", tip: "" }])} className="press mt-2 flex h-10 items-center gap-1.5 text-[14px] font-semibold">
+        <Icon name="plus" size={16} />
+        Add step
+      </button>
+      {error && <p className="m-0 mt-3 text-[14px] text-[#b42318]">{error}</p>}
+      <div className="mt-6 flex gap-2">
+        <Button
+          className="flex-[1.4]"
+          disabled={busy || !title.trim()}
+          onClick={async () => {
+            const cleanIngredients = ingredients.filter((x) => x.item.trim());
+            const cleanSteps = steps.filter((x) => x.text.trim());
+            if (!cleanIngredients.length || !cleanSteps.length) return setError("Keep at least one ingredient and one step.");
+            setBusy(true);
+            const out = await postJson("/api/kitchen", { action: "edit", recipeId: recipe.id, title: title.trim(), memory: memory.trim(), serves: serves.trim(), ingredients: cleanIngredients, steps: cleanSteps });
+            setBusy(false);
+            if (!out) return setError("Couldn't save. Try again.");
+            onDone();
+          }}
+        >
+          {busy ? "Saving…" : "Save recipe"}
+        </Button>
+        <Button variant="secondary" className="flex-1" onClick={onDone}>
+          Cancel
+        </Button>
+      </div>
+    </div>
   );
 }

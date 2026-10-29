@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { requireSession } from "@/lib/auth";
 import { dbListMembers } from "@/lib/db";
-import { getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
+import { deleteDoc, getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
 import { PresenceMomentSchema } from "@/lib/kinds";
 
 // Presence: the moments a person shares about their day, and the parent-owned
@@ -52,4 +52,17 @@ export async function PUT(req: Request): Promise<Response> {
   }
   const settings = await putDoc(auth.familyId, "care_settings", { id: auth.memberId, memberId: auth.memberId, ...parsed.data, updatedAt: new Date().toISOString() });
   return Response.json({ settings });
+}
+
+// Undo a moment you shared (only your own).
+export async function DELETE(req: Request): Promise<Response> {
+  const auth = requireSession(req);
+  if (auth instanceof Response) return auth;
+  const parsed = z.object({ presenceId: z.string().min(1) }).safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return Response.json({ error: "invalid-presence" }, { status: 400 });
+  const p = await getDoc(auth.familyId, "presence", parsed.data.presenceId);
+  if (!p) return Response.json({ error: "unknown-presence" }, { status: 404 });
+  if (p.memberId !== auth.memberId) return Response.json({ error: "not-yours" }, { status: 403 });
+  await deleteDoc(auth.familyId, "presence", p.id);
+  return Response.json({ removed: p.id });
 }

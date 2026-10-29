@@ -44,6 +44,11 @@ import {
   setRitualRunStatus as memSetRunStatus,
   setSuggestionStatus as memSetSuggestionStatus,
   mockAddMember as memAddMember,
+  revokeInvite as memRevokeInvite,
+  updateCard as memUpdateCard,
+  deleteCard as memDeleteCard,
+  removeReaction as memRemoveReaction,
+  deleteRelationship as memDeleteRelationship,
   type Invite as MemInvite,
 } from "./store";
 import { isDbLive, supabaseServer } from "./supabase";
@@ -102,6 +107,7 @@ function memberFromRow(r: Record<string, unknown>): Member {
     homePalette: Array.isArray(r.home_palette) ? (r.home_palette as string[]) : [],
     photoRef: (r.photo_ref as string | null) ?? null,
     email: (r.email as string | null) ?? null,
+    access: r.access === "admin" || r.access === "child" ? r.access : "member",
   });
 }
 
@@ -233,6 +239,7 @@ export async function dbAddMember(input: Omit<import("zod").input<typeof MemberS
     first_name: member.firstName,
     display_name: member.displayName,
     role: member.role,
+    access: member.access,
     lang: member.lang,
     display_lang: member.displayLang,
     tz: member.tz,
@@ -262,6 +269,7 @@ export async function dbUpdateMemberProfile(memberId: string, patch: MemberPatch
   if (patch.firstName !== undefined) row.first_name = patch.firstName;
   if (patch.displayName !== undefined) row.display_name = patch.displayName;
   if (patch.role !== undefined) row.role = patch.role;
+  if (patch.access !== undefined) row.access = patch.access;
   if (patch.birthday !== undefined) row.birthday = patch.birthday;
   if (patch.tz !== undefined) row.tz = patch.tz;
   if (patch.photoRef !== undefined) row.photo_ref = patch.photoRef;
@@ -397,6 +405,7 @@ export async function dbAddRelationship(input: {
     firstName: input.newMemberName,
     displayName: input.newMemberName,
     role: input.newMemberRole ?? inferRole(input.relation, input.anchorRole),
+    access: (input.newMemberRole ?? inferRole(input.relation, input.anchorRole)) === "child" ? "child" : "member",
     lang: "en",
     displayLang: "en",
     tz: input.tz ?? "UTC",
@@ -431,6 +440,7 @@ export async function dbAddRelationship(input: {
       first_name: member.firstName,
       display_name: member.displayName,
       role: member.role,
+      access: member.access,
       lang: member.lang,
       display_lang: member.displayLang,
       tz: member.tz,
@@ -873,4 +883,68 @@ export async function dbSetReaction(input: { cardId: string; memberId: string; k
   );
   if (error) return memSetReaction(reaction);
   return reaction;
+}
+
+// ---- Edit / delete operations (stage 5 CRUD). Callers check family + permission. ----
+
+export async function dbRevokeInvite(code: string, familyId: string): Promise<boolean> {
+  const mem = memRevokeInvite(code, familyId);
+  if (!live()) return mem;
+  const sb = supabaseServer();
+  if (!sb) return mem;
+  const { error, count } = await sb.from("invites").delete({ count: "exact" }).eq("family_id", familyId).ilike("code", code);
+  return !error && ((count ?? 0) > 0 || mem);
+}
+
+export async function dbUpdateCard(id: string, familyId: string, patch: { caption?: string; transcript?: string; segments?: Card["segments"] }): Promise<Card | undefined> {
+  if (!live()) return memUpdateCard(id, patch);
+  const sb = supabaseServer();
+  if (!sb) return memUpdateCard(id, patch);
+  const row: Record<string, unknown> = {};
+  if (patch.caption !== undefined) row.caption = patch.caption;
+  if (patch.transcript !== undefined) row.transcript = patch.transcript;
+  if (patch.segments !== undefined) row.segments = patch.segments;
+  const { error } = await sb.from("cards").update(row).eq("id", id).eq("family_id", familyId);
+  if (error) return undefined;
+  return (await dbListCards(familyId)).find((c) => c.id === id);
+}
+
+/** Deletes a card and everything attached to it (plays, reactions, wishes). */
+export async function dbDeleteCard(id: string, familyId: string): Promise<boolean> {
+  const mem = memDeleteCard(id);
+  if (!live()) return mem;
+  const sb = supabaseServer();
+  if (!sb) return mem;
+  for (const t of ["plays", "reactions", "wishes"]) await sb.from(t).delete().eq("card_id", id);
+  const { error } = await sb.from("cards").delete().eq("id", id).eq("family_id", familyId);
+  return !error;
+}
+
+export async function dbRemoveReaction(cardId: string, memberId: string): Promise<boolean> {
+  const mem = memRemoveReaction(cardId, memberId);
+  if (!live()) return mem;
+  const sb = supabaseServer();
+  if (!sb) return mem;
+  const { error } = await sb.from("reactions").delete().eq("card_id", cardId).eq("member_id", memberId);
+  return !error;
+}
+
+/** Link two people already in the family ("Maa is Papa's wife"). */
+export async function dbLinkMembers(input: { familyId: string; memberId: string; relationMemberId: string; relation: string }): Promise<Relationship> {
+  const relationship = RelationshipSchema.parse({ id: crypto.randomUUID(), familyId: input.familyId, memberId: input.memberId, relationMemberId: input.relationMemberId, relation: input.relation, canonicalKind: canonicalKindFor(input.relation) });
+  memAddRelationship(relationship);
+  if (!live()) return relationship;
+  const sb = supabaseServer();
+  if (!sb) return relationship;
+  await sb.from("relationships").insert({ id: relationship.id, family_id: input.familyId, member_id: input.memberId, relation_member_id: input.relationMemberId, relation: input.relation });
+  return relationship;
+}
+
+export async function dbDeleteRelationship(id: string, familyId: string): Promise<boolean> {
+  const mem = memDeleteRelationship(id);
+  if (!live()) return mem;
+  const sb = supabaseServer();
+  if (!sb) return mem;
+  const { error } = await sb.from("relationships").delete().eq("id", id).eq("family_id", familyId);
+  return !error || mem;
 }

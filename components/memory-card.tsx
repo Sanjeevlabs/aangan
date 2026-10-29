@@ -5,8 +5,65 @@ import type { Card } from "@/lib/schemas";
 import { useDisplayText } from "@/lib/use-display-text";
 import { cn } from "@/lib/utils";
 import { usePlayer } from "./player";
-import { Icon, LiveDot, Photo, PlayButton } from "./ui/kit";
+import { canChange } from "@/lib/permissions";
+import { resetFamilyCards } from "@/lib/use-family";
+import { useState } from "react";
+import { useShell } from "./shell";
+import { ActionMenu, Button, Icon, LiveDot, Photo, PlayButton } from "./ui/kit";
 import { useViewer } from "./viewer";
+
+/**
+ * Edit the caption or delete a voice note / photo. The author can do both;
+ * an admin can delete (moderation). Everyone else sees no menu at all.
+ */
+export function CardActions({ card, tone = "soft", onEditing }: { card: Card; tone?: "soft" | "light"; onEditing?: (editing: boolean) => void }) {
+  const { viewer } = useViewer();
+  const { bumpRefresh } = useShell();
+  const actions = [];
+  if (canChange(viewer, card.authorId, "edit")) actions.push({ label: card.type === "audio" ? "Edit the words" : "Edit caption", onSelect: () => onEditing?.(true) });
+  if (canChange(viewer, card.authorId, "delete"))
+    actions.push({
+      label: card.type === "audio" ? "Delete voice note" : "Delete",
+      danger: true,
+      confirm: card.authorId === viewer.id ? "Delete it for everyone? Reactions and replies to it go too." : "Remove this for everyone? (admin)",
+      onSelect: async () => {
+        await fetch(`/api/cards/${encodeURIComponent(card.id)}`, { method: "DELETE" });
+        resetFamilyCards();
+        bumpRefresh();
+      },
+    });
+  return <ActionMenu actions={actions} tone={tone} label="Voice note options" />;
+}
+
+function CaptionEditor({ card, onDone }: { card: Card; onDone: () => void }) {
+  const { bumpRefresh } = useShell();
+  const [value, setValue] = useState(card.transcript || card.caption);
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="mt-2 rounded-[18px] bg-surface p-3">
+      <textarea value={value} onChange={(e) => setValue(e.target.value)} maxLength={280} rows={3} className="w-full resize-none rounded-[14px] bg-white p-3 text-[16px] outline-none focus:ring-2 focus:ring-marigold" aria-label="Words" />
+      <div className="mt-2 flex gap-2">
+        <Button
+          className="h-11 flex-1 text-[15px]"
+          disabled={busy || !value.trim()}
+          onClick={async () => {
+            setBusy(true);
+            await fetch(`/api/cards/${encodeURIComponent(card.id)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ caption: value.trim() }) });
+            resetFamilyCards();
+            bumpRefresh();
+            setBusy(false);
+            onDone();
+          }}
+        >
+          Save
+        </Button>
+        <Button variant="secondary" className="h-11 flex-1 !bg-white text-[15px]" onClick={onDone}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 /** A voice note as a track: album art, who, their words, play. */
 export function VoiceRow({ card, showAuthor = true }: { card: Card; showAuthor?: boolean }) {
@@ -15,8 +72,10 @@ export function VoiceRow({ card, showAuthor = true }: { card: Card; showAuthor?:
   const { text } = useDisplayText(card.transcript || card.caption, card.transcript ? card.transcriptLang : card.lang, displayLang);
   const author = members.find((m) => m.id === card.authorId);
   const active = current?.id === card.id;
+  const [editing, setEditing] = useState(false);
   return (
-    <div className="flex items-center gap-3.5 py-2.5">
+    <div className="py-2.5">
+    <div className="flex items-center gap-3.5">
       <button
         type="button"
         onClick={() => (active ? toggle() : play(card))}
@@ -38,6 +97,9 @@ export function VoiceRow({ card, showAuthor = true }: { card: Card; showAuthor?:
         <p className="voice m-0 line-clamp-2 text-[17px] leading-snug text-ink">{text ?? "…"}</p>
       </div>
       <span className="tnum shrink-0 text-[13px] text-ink-faint">{formatDuration(cardDuration(card))}</span>
+      <CardActions card={card} onEditing={setEditing} />
+    </div>
+    {editing && <CaptionEditor card={card} onDone={() => setEditing(false)} />}
     </div>
   );
 }
@@ -47,7 +109,9 @@ export function PhotoCard({ card, tall = false }: { card: Card; tall?: boolean }
   const { members, displayLang } = useViewer();
   const { text, translated } = useDisplayText(card.caption, card.lang, displayLang);
   const author = members.find((m) => m.id === card.authorId);
+  const [editing, setEditing] = useState(false);
   return (
+    <div>
     <figure className={cn("relative m-0 overflow-hidden rounded-card bg-surface", tall ? "h-[420px]" : "h-[300px]")} style={{ boxShadow: tintShadow(card, 0.45) }}>
       <Photo src={cardCover(card, members)} alt={text ?? "Family photo"} sizes="(max-width: 480px) 100vw, 440px" />
       {card.type === "video" && (
@@ -55,7 +119,10 @@ export function PhotoCard({ card, tall = false }: { card: Card; tall?: boolean }
           <Icon name="play" size={16} />
         </span>
       )}
-      {card.source === "glasses" && <span className="glass absolute right-3 top-3 rounded-full px-3 py-1.5 text-[12px] font-medium">Captured hands-free</span>}
+      {card.source === "glasses" && <span className="glass absolute right-14 top-3 rounded-full px-3 py-1.5 text-[12px] font-medium">Captured hands-free</span>}
+      <div className="glass absolute right-2.5 top-2.5 rounded-full">
+        <CardActions card={card} tone="light" onEditing={setEditing} />
+      </div>
       <figcaption className="glass absolute inset-x-2.5 bottom-2.5 rounded-[18px] px-4 py-3">
         <p className="m-0 text-[13px] text-white/80">
           {callName(author)} · {relativeDay(card.takenAt)}
@@ -64,6 +131,8 @@ export function PhotoCard({ card, tall = false }: { card: Card; tall?: boolean }
         <p className="m-0 text-[17px] font-semibold leading-snug">{text || "Untitled moment"}</p>
       </figcaption>
     </figure>
+    {editing && <CaptionEditor card={card} onDone={() => setEditing(false)} />}
+    </div>
   );
 }
 

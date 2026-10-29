@@ -111,6 +111,13 @@ export const CardSchema = z.object({
 
 export const MemberRoleSchema = z.enum(["elder", "adult", "child"]);
 
+/**
+ * What a person may do in the family (separate from their generation):
+ * admin manages people, roles and invites; member adds family, creates and
+ * cares; child talks, shares and cooks but can't change the tree or care.
+ */
+export const AccessSchema = z.enum(["admin", "member", "child"]);
+
 export const DisplayLangSchema = z.enum(LANG_CODES);
 
 export const MemberSchema = z.object({
@@ -129,6 +136,7 @@ export const MemberSchema = z.object({
   /** Portrait used for the person's album. */
   photoRef: z.string().nullable().default(null),
   email: z.string().nullable().default(null),
+  access: AccessSchema.default("member"),
 });
 
 export const DisplayLangRequestSchema = z.object({
@@ -198,6 +206,8 @@ export const UpdateMemberRequestSchema = z.object({
   role: MemberRoleSchema.optional(),
   tz: TimeZoneSchema.optional(),
   birthday: z.string().regex(/^(\d{2}-\d{2})?$/).optional(),
+  /** Admin only. */
+  access: AccessSchema.optional(),
 });
 
 export type Caption = z.infer<typeof CaptionSchema>;
@@ -291,6 +301,7 @@ export type RitualRun = z.infer<typeof RitualRunSchema>;
 export type DailyRole = z.infer<typeof DailyRoleSchema>;
 export type GatherSession = z.infer<typeof GatherSessionSchema>;
 export type DisplayLang = z.infer<typeof DisplayLangSchema>;
+export type Access = z.infer<typeof AccessSchema>;
 export type RitualConfig = z.infer<typeof RitualConfigSchema>;
 export type Card = z.infer<typeof CardSchema>;
 export type CardSource = z.infer<typeof CardSourceSchema>;

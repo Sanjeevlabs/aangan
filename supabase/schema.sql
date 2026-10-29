@@ -43,6 +43,8 @@ alter table members add column if not exists lang text default 'en';
 alter table members add column if not exists display_lang text default 'en';
 -- Major-language support: codes come from lib/languages.ts (app-validated).
 alter table members drop constraint if exists members_display_lang_check;
+-- Access roles (admin | member | child), separate from generation (role).
+alter table members add column if not exists access text not null default 'member' check (access in ('admin', 'member', 'child'));
 alter table members add constraint members_display_lang_check check (char_length(display_lang) between 2 and 12);
 alter table members add column if not exists tz text default 'UTC';
 alter table members add column if not exists birthday text;
@@ -333,11 +335,14 @@ drop policy if exists "anon upload to family bucket" on storage.objects;
 create table if not exists family_docs (
   id text primary key,
   family_id text not null,
-  kind text not null check (kind in ('recipe','attempt','presence','care_settings','need','helper','rota','sitting','knock','question','muse_call')),
+  kind text not null,
   data jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- Kinds are validated by lib/kinds.ts; the check keeps junk out of the table.
+alter table family_docs drop constraint if exists family_docs_kind_check;
+alter table family_docs add constraint family_docs_kind_check check (kind in ('recipe','attempt','presence','care_settings','need','helper','rota','duty','sitting','knock','question','muse_call'));
 create index if not exists family_docs_family_kind_idx on family_docs (family_id, kind, created_at desc);
 alter table family_docs enable row level security;
 
@@ -355,6 +360,8 @@ values
 on conflict (id) do nothing;
 
 -- Demo portraits and the demo family graph (idempotent).
+update members set access = 'admin' where id = 'arjun' and family_id = 'demo-family';
+update members set access = 'child' where id = 'aria' and family_id = 'demo-family';
 update members set photo_ref = '/demo/portrait-dadi.webp' where id = 'dadi' and photo_ref is null;
 update members set photo_ref = '/demo/portrait-dad.webp' where id = 'arjun' and photo_ref is null;
 update members set photo_ref = '/demo/portrait-leo.webp' where id = 'leo' and photo_ref is null;

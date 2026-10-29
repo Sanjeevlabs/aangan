@@ -69,6 +69,8 @@ export async function POST(req: Request): Promise<Response> {
       tz: validTz(parsed.data.tz),
       birthday: parsed.data.birthday ?? "",
       email,
+      // Whoever starts the family looks after it; people who join are members.
+      access: intent.type === "create" ? "admin" : "member",
     });
     memberId = member.id;
   }

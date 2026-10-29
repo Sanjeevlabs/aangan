@@ -146,3 +146,18 @@ export function cronAuthorized(req: Request): boolean {
   if (!expected) return false;
   return req.headers.get("authorization") === `Bearer ${expected}`;
 }
+
+// ---- Permissions (lib/permissions.ts), enforced per request. ----
+import type { Member } from "./schemas";
+
+/** 403 unless the session member may do `action`. Returns the member when allowed. */
+export async function requireCan(
+  session: { familyId: string; memberId: string },
+  action: import("./permissions").Action,
+): Promise<Member | Response> {
+  const [{ dbGetMember }, { can }] = await Promise.all([import("./db"), import("./permissions")]);
+  const me = await dbGetMember(session.memberId);
+  if (!me || me.familyId !== session.familyId) return Response.json({ error: "unknown-member" }, { status: 404 });
+  if (!can(me, action)) return Response.json({ error: "not-allowed", action }, { status: 403 });
+  return me;
+}

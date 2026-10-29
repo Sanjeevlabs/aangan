@@ -347,6 +347,8 @@ function Plan({ members, viewer, recipes, questions, onPlanned }: { members: Mem
 
 /* --------------------------------------------------------- upcoming */
 function Upcoming({ sittings, members, viewer, onChange }: { sittings: Sitting[] | null; members: Member[]; viewer: Member; onChange: () => void }) {
+  const [moving, setMoving] = useState<string | null>(null);
+  const [newTime, setNewTime] = useState("");
   if (sittings === null) return <div className="skeleton mt-8 h-24 rounded-card" aria-busy="true" />;
   return (
     <section aria-label="Coming up">
@@ -376,10 +378,33 @@ function Upcoming({ sittings, members, viewer, onChange }: { sittings: Sitting[]
                       <Avatar src={memberPhoto(m)} name={callName(m)} size={26} />
                       {m.id === viewer.id ? "You" : callName(m)}
                     </span>
-                    <span className="tnum text-[13px] text-ink-soft">{fmt(m.tz, start, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+                    <span className="tnum text-right text-[13px] text-ink-soft">
+                      {fmt(m.tz, start, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                      {m.id !== s.hostId && (s.going.includes(m.id) ? <span className="ml-1.5 font-semibold text-[#1e6b3a]">· coming</span> : s.cantMake.includes(m.id) ? <span className="ml-1.5 font-semibold text-[#b42318]">· can&rsquo;t</span> : null)}
+                    </span>
                   </li>
                 ))}
               </ul>
+              {s.hostId !== viewer.id && s.invites.includes(viewer.id) && (
+                <div className="mt-3 flex gap-2" role="group" aria-label="Will you be there?">
+                  {(["going", "cant"] as const).map((a) => {
+                    const on = a === "going" ? s.going.includes(viewer.id) : s.cantMake.includes(viewer.id);
+                    return (
+                      <button key={a} type="button" aria-pressed={on} onClick={async () => { await postJson("/api/sit", { action: "rsvp", sittingId: s.id, answer: on ? "clear" : a }); onChange(); }} className={cn("press h-10 flex-1 rounded-full text-[14px] font-semibold", on ? "bg-black text-white" : "bg-white")}>
+                        {a === "going" ? "I'll be there" : "Can't make it"}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {s.hostId === viewer.id && moving === s.id && (
+                <div className="mt-3 flex gap-2">
+                  <input type="datetime-local" value={newTime} onChange={(e) => setNewTime(e.target.value)} aria-label="New time" className="h-10 flex-1 rounded-full bg-white px-4 text-[15px] outline-none focus:ring-2 focus:ring-marigold" />
+                  <button type="button" disabled={!newTime} className="press h-10 rounded-full bg-black px-4 text-[14px] font-semibold text-white disabled:opacity-40" onClick={async () => { await postJson("/api/sit", { action: "reschedule", sittingId: s.id, startsAt: new Date(newTime).toISOString() }); setMoving(null); setNewTime(""); onChange(); }}>
+                    Move
+                  </button>
+                </div>
+              )}
               <div className="mt-3 flex flex-wrap gap-2">
                 <a href={roomUrl(s.id)} target="_blank" rel="noreferrer" className={cn("press flex h-10 items-center rounded-full px-4 text-[14px] font-semibold no-underline", live ? "bg-black text-white" : "bg-white text-ink")}>
                   {live ? "Join now" : "Room link"}
@@ -404,9 +429,14 @@ function Upcoming({ sittings, members, viewer, onChange }: { sittings: Sitting[]
                   </Link>
                 )}
                 {s.hostId === viewer.id && (
-                  <button type="button" className="h-10 px-2 text-[14px] font-medium text-ink-faint" onClick={async () => { await postJson("/api/sit", { action: "cancel", sittingId: s.id }); onChange(); }}>
-                    Cancel
-                  </button>
+                  <>
+                    <button type="button" className="h-10 px-2 text-[14px] font-medium text-ink-soft" onClick={() => setMoving(moving === s.id ? null : s.id)}>
+                      Change time
+                    </button>
+                    <button type="button" className="h-10 px-2 text-[14px] font-medium text-ink-faint" onClick={async () => { await postJson("/api/sit", { action: "cancel", sittingId: s.id }); onChange(); }}>
+                      Cancel
+                    </button>
+                  </>
                 )}
               </div>
             </li>
