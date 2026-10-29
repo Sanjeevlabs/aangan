@@ -100,6 +100,12 @@ export const CardSchema = z.object({
   transcript: z.string().default(""),
   transcriptLang: z.string().default("en"),
   segments: z.array(TranscriptSegmentSchema).default([]),
+  /** Member who shared it. Null for legacy rows. */
+  authorId: z.string().nullable().default(null),
+  /** Optional album art for a voice note (a photo ref). */
+  coverRef: z.string().nullable().default(null),
+  /** Who a voice note was spoken to (member id). Null = the whole family. */
+  addressedTo: z.string().nullable().default(null),
 });
 
 export const MemberRoleSchema = z.enum(["elder", "adult", "child"]);
@@ -118,6 +124,9 @@ export const MemberSchema = z.object({
   birthday: z.string().regex(/^\d{2}-\d{2}$/),
   homeImageRef: z.string().nullable().default(null),
   homePalette: z.array(z.string()).default([]),
+  /** Portrait used for the person's album. */
+  photoRef: z.string().nullable().default(null),
+  email: z.string().nullable().default(null),
 });
 
 export const DisplayLangRequestSchema = z.object({
@@ -137,6 +146,7 @@ export const CreateCardRequestSchema = z.object({
   transcript: z.string().max(2000).default(""),
   transcriptLang: z.string().min(2).max(8).default("en"),
   segments: z.array(TranscriptSegmentSchema).max(64).default([]),
+  addressedTo: z.string().max(64).nullable().default(null),
 });
 
 export const HomeImageRequestSchema = z.object({

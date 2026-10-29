@@ -9,7 +9,7 @@ import { checkRateLimit, requireSession } from "@/lib/auth";
 export async function GET(req: Request): Promise<Response> {
   const auth = requireSession(req);
   if (auth instanceof Response) return auth;
-  return Response.json({ cards: await dbListCards(auth.familyId) });
+  return Response.json({ familyId: auth.familyId, cards: await dbListCards(auth.familyId) });
 }
 
 const MultipartFieldsSchema = z.object({
@@ -53,7 +53,7 @@ function parseNames(raw: string): string[] {
 // carry video key frames. Photos/video with an empty caption are grounded by
 // Muse Spark vision (sees the bytes) and dated EXIF/file first; uploader-
 // supplied names are the ONLY names a caption may contain (grounding subset).
-async function postMultipart(req: Request, familyId: string): Promise<Response> {
+async function postMultipart(req: Request, familyId: string, authorId: string): Promise<Response> {
   let form: FormData;
   try {
     form = await req.formData();
@@ -115,6 +115,7 @@ async function postMultipart(req: Request, familyId: string): Promise<Response> 
   const palette = parseJsonArray(f.palette).filter((n): n is string => typeof n === "string");
   const segments = parseJsonArray(f.segments);
   const card = await dbAddCard({
+    authorId,
     familyId,
     type: f.type,
     caption,
@@ -138,7 +139,7 @@ export async function POST(req: Request): Promise<Response> {
   if (auth instanceof Response) return auth;
   if (!checkRateLimit(auth, "/api/cards")) return Response.json({ error: "rate-limited" }, { status: 429 });
   const contentType = req.headers.get("content-type") ?? "";
-  if (contentType.includes("multipart/form-data")) return postMultipart(req, auth.familyId);
+  if (contentType.includes("multipart/form-data")) return postMultipart(req, auth.familyId, auth.memberId);
   let body: unknown;
   try {
     body = await req.json();
@@ -154,6 +155,7 @@ export async function POST(req: Request): Promise<Response> {
   // need grounding must use the multipart upload with real bytes.
   const data = { ...parsed.data };
   const card = await dbAddCard({
+    authorId: auth.memberId,
     id: crypto.randomUUID(),
     familyId: auth.familyId,
     summary: "",

@@ -29,3 +29,9 @@ export function draftCards(config: RitualConfig, inputs: RitualStepInput[]): Rit
   }
   return drafts;
 }
+
+
+/** Family-scoped ritual run id. The demo family keeps the original short form. */
+export function ritualRunId(familyId: string, slug: string, occasionDate: string): string {
+  return familyId === "demo-family" ? `${slug}:${occasionDate}` : `${familyId}:${slug}:${occasionDate}`;
+}

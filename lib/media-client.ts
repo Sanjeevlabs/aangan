@@ -3,7 +3,6 @@
 // Pipeline: validate -> read EXIF date + Make/Model -> re-encode (strips ALL
 // EXIF incl. GPS) -> dominant color -> waveform peaks -> session store.
 
-import exifr from "exifr";
 import { dateSourceUsed, resolveTakenAt } from "./dating";
 import {
   dominantColors,
@@ -36,6 +35,7 @@ interface ExifTags {
 
 async function readExifTags(file: Blob): Promise<ExifTags> {
   try {
+    const { default: exifr } = await import("exifr"); // lazy: only when a photo is added
     const tags = (await exifr.parse(file, {
       pick: ["DateTimeOriginal", "CreateDate", "Make", "Model"],
     })) as Record<string, unknown> | undefined;

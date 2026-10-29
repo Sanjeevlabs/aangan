@@ -37,7 +37,7 @@ const WISHES: Wish[] = [
 ];
 
 const CARDS = [
-  { id: "c1", familyId: "demo-family", type: "audio", caption: "Happy birthday Leo!", transcript: "", summary: "", lang: "en", takenAt: "2026-11-04T10:00:00.000Z", ritualSlug: null, source: "upload", mediaRef: null, peaks: [], palette: [], transcriptLang: "en", segments: [] },
+  { id: "c1", familyId: "demo-family", type: "audio", caption: "Happy birthday Leo!", transcript: "", summary: "", lang: "en", takenAt: "2026-11-04T10:00:00.000Z", ritualSlug: null, source: "upload", mediaRef: null, peaks: [], palette: [], transcriptLang: "en", segments: [], authorId: "arjun", coverRef: null, addressedTo: null },
 ] as Card[];
 
 describe("reel sequencing (pure)", () => {

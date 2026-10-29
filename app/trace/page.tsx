@@ -1,5 +1,7 @@
 "use client";
 
+import { EmptyLine, RoomHeader } from "@/components/ui/kit";
+
 import { useEffect, useState } from "react";
 import { Suggestions } from "@/components/suggestions";
 import { useViewer } from "@/components/viewer";
@@ -49,53 +51,54 @@ export default function TracePage() {
     };
   }, []);
 
+  // A transparency view: every step Aangan's agents took, what tools they
+  // used, and what it cost. Nothing an agent proposes runs without approval.
   return (
-    <div className="pt-2">
-      <h1 className="serif mb-3 mt-0 text-3xl">Agent trace</h1>
+    <div>
+      <RoomHeader title="Agent activity" subtitle="What Aangan prepared for your family, and what it cost" />
       <Suggestions />
-      <section aria-label="Spend" className="mb-6">
-        <div className="rounded-card border border-line bg-surface px-4 py-3">
-          <p className="m-0 text-[15px]">
-            Model spend this session: <strong>${spend === null ? "…" : spend.toFixed(2)}</strong> (cap $120)
-          </p>
-        </div>
-      </section>
-      <section aria-label="Runs" className="mb-6">
-        <h2 className="mb-2 mt-0 text-xl">Recent runs</h2>
-        {failed && (
-          <p className="text-[15px] text-ink-soft" role="alert">
-            Trace unavailable offline.
-          </p>
-        )}
-        {runs === null && !failed && (
-          <div aria-busy="true" aria-label="Loading">
-            <div className="skeleton mb-2 h-14" />
-            <div className="skeleton h-14" />
-          </div>
-        )}
-        {runs !== null && runs.length === 0 && <p className="text-[15px] text-ink-soft">No agent runs yet.</p>}
-        <ul className="m-0 list-none p-0">
-          {(runs ?? []).map((r) => (
-            <li key={r.id} className="hairline-row">
-              <span className="text-[14px]">
-                {r.goal} <span className="text-ink-soft">· {r.tools.join(", ") || "no tools"} · {r.status}</span>
-              </span>
-              <span className="shrink-0 text-[12px] text-ink-soft">{r.createdAt.slice(11, 16)}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
-      <section aria-label="Suggestions log" className="mb-6">
-        <h2 className="mb-2 mt-0 text-xl">Suggestions log</h2>
-        <ul className="m-0 list-none p-0">
-          {suggestions.map((s) => (
-            <li key={s.id} className="hairline-row">
-              <span className="text-[14px]">{s.goal}</span>
-              <span className="shrink-0 text-[12px] text-ink-soft">{s.status}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <div className="mb-8 flex items-baseline justify-between rounded-[22px] bg-surface px-5 py-4">
+        <span className="text-[15px] text-ink-soft">Model spend</span>
+        <span className="tnum text-[22px] font-bold">
+          ${spend === null ? "…" : spend.toFixed(2)}
+          <span className="text-[14px] font-medium text-ink-faint"> / $120 cap</span>
+        </span>
+      </div>
+      <h2 className="m-0 mb-2 text-[20px]">Runs</h2>
+      {failed && <EmptyLine>Activity is unavailable offline.</EmptyLine>}
+      {runs === null && !failed && <div className="skeleton h-14" aria-busy="true" aria-label="Loading" />}
+      {runs !== null && runs.length === 0 && <EmptyLine>No agent runs yet. The daily scan runs each morning.</EmptyLine>}
+      <ol className="m-0 list-none p-0">
+        {(runs ?? []).map((r) => (
+          <li key={r.id} className="border-b border-[var(--line)] py-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[16px] font-semibold">{r.goal}</span>
+              <span className="tnum shrink-0 text-[13px] text-ink-faint">{new Date(r.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+            </div>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {r.tools.map((tool) => (
+                <span key={tool} className="rounded-full bg-surface px-2.5 py-1 font-mono text-[12px] text-ink-soft">
+                  {tool}
+                </span>
+              ))}
+              <span className="rounded-full bg-[#e9f7ef] px-2.5 py-1 text-[12px] font-medium text-[#13653a]">{r.status}</span>
+            </div>
+          </li>
+        ))}
+      </ol>
+      {suggestions.length > 0 && (
+        <>
+          <h2 className="m-0 mb-2 mt-9 text-[20px]">Proposals</h2>
+          <ul className="m-0 list-none p-0">
+            {suggestions.map((sg) => (
+              <li key={sg.id} className="flex items-baseline justify-between gap-3 border-b border-[var(--line)] py-3">
+                <span className="text-[15px]">{sg.goal}</span>
+                <span className="shrink-0 text-[13px] text-ink-soft">{sg.status}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }

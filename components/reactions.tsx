@@ -1,17 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { grandmaName, strings } from "@/lib/i18n";
+import { strings } from "@/lib/i18n";
+import { Icon } from "./ui/kit";
 import type { Member, Play, Reaction } from "@/lib/schemas";
 import { cn } from "@/lib/utils";
 import { useShell } from "./shell";
 import { useViewer } from "./viewer";
 import { heardLine, reactionLine } from "@/lib/voice";
 
-function kinshipName(member: Member | undefined, displayLang: string): string {
+// What the family calls this person (Dadi, Dad, Maa). Same word in every UI language.
+function kinshipName(member: Member | undefined, _displayLang: string): string {
   if (!member) return "Family";
-  if (member.id === "dadi" || member.role === "elder") return grandmaName(displayLang);
-  return member.displayName;
+  return member.displayName || member.firstName;
 }
 
 async function fetchMembers(): Promise<Member[]> {
@@ -63,7 +64,7 @@ const KINDS = ["love", "laugh", "bless"] as const;
 // Exactly three reactions as text buttons, never counts. One per member per
 // card — tapping replaces the member's prior kind. Long-press on Bless
 // replies by voice.
-export function ReactionBar({ cardId, compact }: { cardId: string; compact?: boolean }) {
+export function ReactionBar({ cardId, tone = "light", onReply }: { cardId: string; compact?: boolean; tone?: "light" | "glass"; onReply?: () => void }) {
   const { viewer, displayLang } = useViewer();
   const { openAdd } = useShell();
   const t = strings(displayLang);
@@ -118,38 +119,58 @@ export function ReactionBar({ cardId, compact }: { cardId: string; compact?: boo
   const labelFor = (kind: (typeof KINDS)[number]): string =>
     kind === "love" ? t.reactions.love : kind === "laugh" ? t.reactions.laugh : t.reactions.bless;
 
+  const mine = reactions?.find((r) => r.memberId === viewer.id)?.kind;
+  const others = (reactions ?? []).filter((r) => r.memberId !== viewer.id);
+  const glass = tone === "glass";
+  const icon = { love: "heart", laugh: "laugh", bless: "bless" } as const;
+
   return (
     <div>
-      {reactions !== null && reactions.length > 0 && (
-        <ul className="m-0 mb-2 list-none p-0">
-          {reactions.map((r) => {
-            const member = members.find((m) => m.id === r.memberId);
-            const name = r.memberId === viewer.id ? viewer.displayName : kinshipName(member, displayLang);
-            return (
-              <li key={`${r.cardId}-${r.memberId}`} className="text-[13px] text-ink-soft">
-                {reactionLine(name, r.kind, displayLang)}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      <div className="flex flex-wrap gap-x-4 gap-y-1" role="group" aria-label={t.reactions.replyVoice}>
-        {KINDS.map((kind) => (
+      <div
+        className={cn("flex items-stretch gap-1 rounded-full p-1", glass ? "glass" : "bg-surface")}
+        role="group"
+        aria-label="React"
+      >
+        {KINDS.map((kind) => {
+          const on = mine === kind;
+          return (
+            <button
+              key={kind}
+              type="button"
+              aria-pressed={on}
+              onClick={() => void react(kind)}
+              onPointerDown={kind === "bless" ? beginPress : undefined}
+              onPointerUp={kind === "bless" ? endPress : undefined}
+              onPointerLeave={kind === "bless" ? endPress : undefined}
+              title={kind === "bless" ? `${labelFor(kind)} · hold to bless by voice` : labelFor(kind)}
+              className={cn(
+                "press flex h-12 flex-1 items-center justify-center gap-1.5 rounded-full text-[15px] font-medium",
+                on ? (glass ? "bg-white text-black" : "bg-black text-white") : glass ? "text-white" : "text-ink",
+              )}
+            >
+              <Icon name={icon[kind]} size={18} />
+              {labelFor(kind)}
+            </button>
+          );
+        })}
+        {onReply && (
           <button
-            key={kind}
             type="button"
-            onClick={() => void react(kind)}
-            onPointerDown={kind === "bless" ? beginPress : undefined}
-            onPointerUp={kind === "bless" ? endPress : undefined}
-            onPointerLeave={kind === "bless" ? endPress : undefined}
-            title={kind === "bless" ? `${t.reactions.bless} · ${t.reactions.replyVoice}` : labelFor(kind)}
-            aria-label={kind === "bless" ? `${t.reactions.bless} · ${t.reactions.replyVoice}` : labelFor(kind)}
-            className={cn("tap px-0 text-[15px] font-semibold text-accent", compact && "text-sm")}
+            onClick={onReply}
+            className={cn("press flex h-12 flex-1 items-center justify-center gap-1.5 rounded-full text-[15px] font-medium", glass ? "text-white" : "text-ink")}
           >
-            {labelFor(kind)}
+            <Icon name="reply" size={18} />
+            Reply
           </button>
-        ))}
+        )}
       </div>
+      {others.length > 0 && (
+        <p className={cn("m-0 mt-3 text-center text-[13px]", glass ? "text-white/70" : "text-ink-soft")}>
+          {others
+            .map((r) => reactionLine(kinshipName(members.find((m) => m.id === r.memberId), displayLang), r.kind, displayLang))
+            .join(" · ")}
+        </p>
+      )}
     </div>
   );
 }

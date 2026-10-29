@@ -4,6 +4,7 @@
 // reel for 8am recipient delivery. Also assigns elder daily roles.
 // Movable festival dates resolve from the data fixture (clearly labelled;
 // live search-grounding wiring moves to M6).
+import { ritualRunId } from "./rituals";
 import type { DailyRole, Member, RitualRun, Wish } from "./schemas";
 
 export interface RitualConfigRef {
@@ -89,6 +90,7 @@ export function planRitualScan(
   configs: RitualConfigRef[],
   movableDates: Record<string, string>,
   state: ScanState,
+  familyId: string = members[0]?.familyId ?? "demo-family",
 ): ScanPlan {
   const now = new Date(nowISO);
   const today = toISODate(now);
@@ -128,7 +130,7 @@ export function planRitualScan(
     const days = Math.round((Date.UTC(occ.date.getUTCFullYear(), occ.date.getUTCMonth(), occ.date.getUTCDate()) - Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())) / 86400000);
     if (days < 0 || days > 7) continue;
     const occasionDate = toISODate(occ.date);
-    const runId = `${occ.slug}:${occasionDate}`;
+    const runId = ritualRunId(familyId, occ.slug, occasionDate);
     const existing = state.runs.find((r) => r.id === runId);
     if (!existing) {
       plan.ensureRuns.push({ slug: occ.slug, occasionDate });

@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import { z } from "zod";
+import { containsDevanagari } from "./script";
 import { activeProvider, isMockMode, PROVIDERS, SPEND_CAP_USD } from "./config";
 import {
   CaptionSchema,
@@ -229,9 +230,6 @@ const KNOWN_HI_TO_LATN: Array<[RegExp, string]> = [
   [/परिवार की एक प्यारी याद/, "Parivaar ki ek pyaari yaad."],
 ];
 
-export function containsDevanagari(s: string): boolean {
-  return /[\u0900-\u097F]/.test(s);
-}
 
 // Model language codes vary ("Hindi", "HI", "hindi (devanagari)"): normalize
 // to the short codes the display layer routes on. Unknown codes fall back
@@ -657,3 +655,5 @@ export async function translateText(
   }
   return { translation: { ...FALLBACK_TRANSLATION, language: target }, cached: false, cost: 0 };
 }
+
+export { containsDevanagari };

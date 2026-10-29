@@ -1,13 +1,13 @@
 "use client";
 
 import { ReelPlayer } from "@/components/reel";
+import { RoomHeader } from "@/components/ui/kit";
 
 export default function ReelDetailPage({ params }: { params: { runId: string } }) {
-  const runId = decodeURIComponent(params.runId);
   return (
-    <div className="pt-2">
-      <h1 className="serif mb-3 mt-0 text-3xl">Birthday Reel</h1>
-      <ReelPlayer runId={runId} />
+    <div>
+      <RoomHeader title="Birthday reel" subtitle="Every wish, played in order" />
+      <ReelPlayer runId={decodeURIComponent(params.runId)} />
     </div>
   );
 }

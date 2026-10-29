@@ -14,7 +14,7 @@ export async function GET(req: Request): Promise<Response> {
   const list =
     status === "pending" || status === "approved" || status === "rejected" || status === "done"
       ? await dbListSuggestions(status)
-      : await dbListSuggestions();
+      : await dbListSuggestions(undefined, auth.familyId);
   return Response.json({ suggestions: list });
 }
 

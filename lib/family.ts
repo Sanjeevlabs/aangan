@@ -18,6 +18,8 @@ export const DEMO_FAMILY: DemoFamily = {
 export const DEMO_MEMBERS: Member[] = [
   {
     id: "dadi",
+    photoRef: "/demo/portrait-dadi.webp",
+    email: null,
     familyId: "demo-family",
     firstName: "Dadi",
     displayName: "Dadi",
@@ -31,6 +33,8 @@ export const DEMO_MEMBERS: Member[] = [
   },
   {
     id: "arjun",
+    photoRef: "/demo/portrait-dad.webp",
+    email: null,
     familyId: "demo-family",
     firstName: "Arjun",
     displayName: "Dad",
@@ -44,6 +48,8 @@ export const DEMO_MEMBERS: Member[] = [
   },
   {
     id: "leo",
+    photoRef: "/demo/portrait-leo.webp",
+    email: null,
     familyId: "demo-family",
     firstName: "Leo",
     displayName: "Leo",
@@ -57,6 +63,8 @@ export const DEMO_MEMBERS: Member[] = [
   },
   {
     id: "aria",
+    photoRef: "/demo/portrait-aria.webp",
+    email: null,
     familyId: "demo-family",
     firstName: "Aria",
     displayName: "Aria",
@@ -117,7 +125,8 @@ export function signalLineFor(viewerId: string, displayLang: string): string {
   return (
     SIGNAL_LINES_BY_LANG[displayLang]?.[viewerId] ??
     MOCK_SIGNAL_LINES[viewerId] ??
-    MOCK_SIGNAL_LINES.leo
+    // Real families get no invented signal; the demo family's lines are seeded.
+    ""
   );
 }
 

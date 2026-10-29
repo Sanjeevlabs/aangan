@@ -7,6 +7,8 @@ import { useViewer } from "@/components/viewer";
 import { strings } from "@/lib/i18n";
 import type { Card, Member, RitualRun, Wish } from "@/lib/schemas";
 import { buildReelSegments, reelTitle, type ReelSegment } from "@/lib/reel";
+import { memberPhoto } from "@/lib/people";
+import { Icon, Photo, PlayButton } from "@/components/ui/kit";
 
 // Petals: small falling dots over the reel. Pure CSS, still under
 // prefers-reduced-motion (global rule kills the animation).
@@ -20,13 +22,13 @@ function Petals() {
           className="reel-petal absolute top-0 inline-block h-2 w-2 rounded-full"
           style={{
             left: `${(i * 83) % 100}%`,
-            background: i % 2 === 0 ? "#FDBA74" : "#E2D9CE",
+            background: i % 2 === 0 ? "#F5A524" : "#ffffff",
             animationDelay: `${(i * 0.7) % 4}s`,
             animationDuration: `${4 + ((i * 37) % 30) / 10}s`,
           }}
         />
       ))}
-      <style>{`.reel-petal{animation:reel-fall 5s linear infinite}@keyframes reel-fall{from{transform:translateY(-12px) rotate(0)}to{transform:translateY(420px) rotate(220deg)}}`}</style>
+      <style>{`.reel-petal{animation:reel-fall 5s linear 2 both}@keyframes reel-fall{from{transform:translateY(-12px) rotate(0)}to{transform:translateY(640px) rotate(220deg)}}`}</style>
     </div>
   );
 }
@@ -89,88 +91,69 @@ export function ReelPlayer({ runId }: { runId: string }) {
     };
   }, [runId, viewer.id, displayLang]);
 
-  if (failed) {
-    return (
-      <div className="rounded-card border border-line bg-surface p-5" role="alert">
-        <p className="m-0 text-[15px]">{t.common.retry}</p>
-      </div>
-    );
-  }
-  if (segments === null || !run) {
-    return (
-      <div aria-busy="true" aria-label="Loading">
-        <div className="skeleton mb-2 h-8 w-2/3" />
-        <div className="skeleton h-64" />
-      </div>
-    );
-  }
-  if (segments.length === 0) {
-    return <p className="text-[15px] text-ink-soft">Wishes are still arriving — check back soon.</p>;
-  }
+  if (failed) return <p className="m-0 py-10 text-center text-[15px] text-ink-soft">Couldn&rsquo;t load the reel. Try again in a moment.</p>;
+  if (segments === null || !run) return <div className="skeleton h-[560px] rounded-hero" aria-busy="true" aria-label="Loading reel" />;
 
+  const celebrant = celebrantOf(run, members);
+  const celebrantName = celebrant?.displayName ?? "the birthday star";
+  const art = memberPhoto(celebrant) ?? "/demo/family-group.webp";
+
+  if (segments.length === 0) {
+    return (
+      <div className="rounded-hero bg-surface px-6 py-14 text-center">
+        <p className="m-0 text-[20px] font-semibold">Wishes are still arriving</p>
+        <p className="m-0 mt-2 text-[15px] text-ink-soft">Record yours and it joins the reel.</p>
+      </div>
+    );
+  }
   const current = segments[Math.min(index, segments.length - 1)];
-  const celebrantName = celebrantOf(run, members)?.displayName ?? "birthday star";
+  const quote = current.card ? current.card.transcript || current.card.caption : "";
 
   return (
-    <div className="relative overflow-hidden rounded-card bg-[var(--player-ground)] p-5 text-[var(--player-ink)]">
+    <div className="relative h-[620px] overflow-hidden rounded-hero bg-[#1d1714] text-white" style={{ boxShadow: "0 30px 60px -24px rgba(60,30,10,.7)" }}>
+      <div className="absolute inset-[-40px]" aria-hidden="true" style={{ filter: "blur(40px) brightness(.55) saturate(1.3)" }}>
+        <Photo src={art} alt="" sizes="200px" />
+      </div>
       <Petals />
-      <h2 className="serif relative m-0 text-2xl leading-tight">{reelTitle(celebrantName, kinship)}</h2>
-      {/* Segmented progress */}
-      <div className="relative mt-3 flex gap-1" aria-hidden="true">
-        {segments.map((s, i) => (
-          <span
-            key={s.wish.id}
-            className="h-1 flex-1 rounded-full"
-            style={{ background: i <= index ? "#FDBA74" : "rgba(253,186,116,0.35)" }}
-          />
-        ))}
-      </div>
-      <div className="relative mt-4">
-        <p className="m-0 text-[13px] font-semibold text-[var(--player-muted)]">
-          {current.wish.kind === "blessing" ? t.reactions.bless : t.reactions.love} · {current.member?.displayName ?? "Family"}
+      <div className="relative flex h-full flex-col p-5">
+        <div className="flex gap-1" aria-label={`Wish ${index + 1} of ${segments.length}`}>
+          {segments.map((sg, i) => (
+            <span key={sg.wish.id} className="h-[3px] flex-1 rounded-full" style={{ background: i <= index ? "#fff" : "rgba(255,255,255,.3)" }} />
+          ))}
+        </div>
+        <p className="m-0 mt-5 text-[13px] text-white/70">{reelTitle(celebrantName, kinship)}</p>
+        <div className="relative mx-auto mt-4 h-[220px] w-[220px] overflow-hidden rounded-full" style={{ boxShadow: "0 0 0 6px rgba(255,255,255,.12)" }}>
+          <Photo src={memberPhoto(current.member) ?? art} alt={current.member?.displayName ?? "Family"} sizes="440px" priority position="center 30%" />
+        </div>
+        <p className="m-0 mt-4 text-center text-[17px] font-semibold">
+          {current.member?.displayName ?? "Family"} · {current.wish.kind === "blessing" ? "a blessing" : "a wish"}
         </p>
-        {current.card ? (
-          <div className="mt-2">
-            <p className="serif m-0 text-lg leading-snug">{current.card.caption || current.card.transcript}</p>
-            <button
-              type="button"
-              onClick={() => play({ ...current.card as Card, peaks: current.card?.peaks ?? [] })}
-              className="tap mt-3 flex h-11 w-11 items-center justify-center rounded-full bg-white text-lg text-ink"
-              aria-label={t.player.play}
-            >
-              ▶
-            </button>
-          </div>
-        ) : (
-          <p className="serif mt-2 text-lg text-[var(--player-muted)]">A {current.wish.kind} from {current.member?.displayName ?? "family"} is on its way.</p>
-        )}
+        <p className="voice m-0 mt-3 line-clamp-4 flex-1 text-center text-[22px] leading-snug">
+          {quote ? `“${quote}”` : `A ${current.wish.kind} from ${current.member?.displayName ?? "family"} is on its way.`}
+        </p>
+        <div className="flex items-center justify-between gap-2">
+          <button type="button" onClick={() => setIndex((i) => Math.max(0, i - 1))} disabled={index === 0} aria-label="Previous wish" className="press glass grid h-12 w-12 place-items-center rounded-full disabled:opacity-30">
+            <Icon name="back" />
+          </button>
+          {current.card ? (
+            <PlayButton size={64} playing={false} label="Play this wish" onClick={() => play(current.card as Card)} />
+          ) : (
+            <span className="h-16 w-16" />
+          )}
+          <button type="button" onClick={() => setIndex((i) => Math.min(segments.length - 1, i + 1))} disabled={index >= segments.length - 1} aria-label="Next wish" className="press glass grid h-12 w-12 place-items-center rounded-full disabled:opacity-30">
+            <Icon name="chevron" />
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={() => openAdd("voice", { runId, kind: viewer.role === "elder" ? "blessing" : "wish" }, celebrant?.id ?? null)}
+          className="press glass mt-4 flex h-12 items-center justify-center gap-2 rounded-full text-[15px] font-semibold"
+        >
+          <Icon name="mic" size={18} />
+          {viewer.role === "elder" ? "Add your blessing" : "Add your wish"}
+        </button>
+        <span className="sr-only">{cards.length} memories available</span>
       </div>
-      <div className="relative mt-4 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => setIndex((i) => Math.max(0, i - 1))}
-          disabled={index === 0}
-          className="tap text-[15px] font-semibold text-[var(--player-wave)] disabled:opacity-40"
-        >
-          ← Prev
-        </button>
-        <button
-          type="button"
-          onClick={() => openAdd("voice", { runId, kind: viewer.role === "elder" ? "blessing" : "wish" })}
-          className="tap text-[15px] font-semibold text-[var(--player-wave)]"
-        >
-          Reply with voice
-        </button>
-        <button
-          type="button"
-          onClick={() => setIndex((i) => Math.min(segments.length - 1, i + 1))}
-          disabled={index >= segments.length - 1}
-          className="tap text-[15px] font-semibold text-[var(--player-wave)] disabled:opacity-40"
-        >
-          Next →
-        </button>
-      </div>
-      <span className="sr-only">{cards.length} memories available</span>
     </div>
   );
 }

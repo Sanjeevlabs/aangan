@@ -1,16 +1,28 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
-import { AddSheet, type AddTab, type ReplyContribution } from "./add-sheet";
-import { PlayerProvider } from "./player";
-import { TabBar } from "./tab-bar";
-import { ViewerProvider } from "./viewer";
+import { AnimatePresence, LazyMotion, domAnimation, m } from "framer-motion";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { callName, peopleByRecency } from "@/lib/people";
+import { useFamilyCards } from "@/lib/use-family";
+import dynamic from "next/dynamic";
+import type { AddTab, ReplyContribution } from "./add-sheet";
+
+import { PlayerProvider, usePlayer } from "./player";
+import { Icon } from "./ui/kit";
+import { ViewerProvider, useViewer } from "./viewer";
+
+// The composer (mic, EXIF, media processing) loads only when first opened.
+const AddSheet = dynamic(() => import("./add-sheet").then((m) => m.AddSheet), { ssr: false });
 
 interface ShellState {
   addOpen: boolean;
   addTab: AddTab;
   replyTo: ReplyContribution | null;
-  openAdd: (tab?: AddTab, replyTo?: ReplyContribution | null) => void;
+  /** Member a voice note is addressed to; null = whole family. */
+  addressee: string | null;
+  openAdd: (tab?: AddTab, replyTo?: ReplyContribution | null, addressee?: string | null) => void;
   closeAdd: () => void;
   refreshKey: number;
   bumpRefresh: () => void;
@@ -26,16 +38,162 @@ export function useShell(): ShellState {
   return ctx;
 }
 
+const ROOMS = [
+  { href: "/lane", icon: "lane", title: "Memory Lane", note: "Walk back through the years" },
+  { href: "/rituals", icon: "calendar", title: "Occasions", note: "Birthdays and festivals ahead" },
+  { href: "/gather", icon: "gather", title: "Gather", note: "Plan an evening together" },
+  { href: "/bond", icon: "tree", title: "Family tree", note: "Everyone, and how you're related" },
+  { href: "/settings", icon: "settings", title: "Settings", note: "Language, time zone, privacy" },
+] as const;
+
+function RoomsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+  return (
+    <AnimatePresence>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Rooms">
+          <m.button
+            type="button"
+            aria-label="Close rooms"
+            className="absolute inset-0 bg-black/20"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+          />
+          <m.nav
+            className="frost glass-sheet relative mx-3 mb-3 w-full max-w-[460px] p-2"
+            style={{ marginBottom: "calc(12px + env(safe-area-inset-bottom))" }}
+            initial={{ y: 40, opacity: 0, scale: 0.98 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 40, opacity: 0, scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 420, damping: 36 }}
+          >
+            <ul className="m-0 list-none p-0">
+              {ROOMS.map((r) => (
+                <li key={r.href}>
+                  <Link
+                    href={r.href}
+                    onClick={onClose}
+                    className="press flex items-center gap-4 rounded-[22px] px-4 py-3.5 text-ink no-underline hover:bg-black/[.04]"
+                  >
+                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-black/[.05]">
+                      <Icon name={r.icon} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[17px] font-semibold">{r.title}</span>
+                      <span className="block text-[14px] text-ink-soft">{r.note}</span>
+                    </span>
+                    <Icon name="chevron" size={18} className="text-ink-faint" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </m.nav>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// The dock replaces a tab bar: one dominant action (answer someone by voice),
+// one for moments, one door to the rooms. Shown only in the courtyard.
+function Dock() {
+  const { openAdd, refreshKey, chromeHidden } = useShell();
+  const { viewer, members } = useViewer();
+  const { cards } = useFamilyCards(refreshKey);
+  const { current, open: playerOpen } = usePlayer();
+  const [rooms, setRooms] = useState(false);
+  const pathname = usePathname();
+
+  // On a person's page the dock talks to that person; elsewhere, to whoever spoke last.
+  const pagePerson = pathname.startsWith("/people/") ? members.find((mm) => mm.id === pathname.split("/")[2]) : undefined;
+  const person = useMemo(
+    () => (pagePerson && pagePerson.id !== viewer.id ? pagePerson : peopleByRecency(viewer.id, members, cards ?? [])[0]),
+    [pagePerson, viewer.id, members, cards],
+  );
+  const show = (pathname === "/" || pathname.startsWith("/people/")) && !chromeHidden && !playerOpen;
+
+  return (
+    <>
+      <AnimatePresence>
+        {show && (
+          <m.div
+            className="fixed inset-x-0 z-40 flex justify-center px-4"
+            style={{ bottom: `calc(${current ? 84 : 20}px + env(safe-area-inset-bottom))` }}
+            initial={{ y: 24, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 24, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 380, damping: 32 }}
+          >
+            <div className="frost glass-pill flex items-center gap-1 p-1.5">
+              {person ? (
+                <button
+                  type="button"
+                  onClick={() => openAdd("voice", null, person.id)}
+                  className="press flex h-14 items-center gap-2.5 whitespace-nowrap rounded-full bg-black pl-2 pr-6 text-[16px] font-semibold text-white"
+                >
+                  <span className="grid h-10 w-10 place-items-center rounded-full bg-marigold text-black">
+                    <Icon name="mic" size={20} strokeWidth={2.2} />
+                  </span>
+                  Talk to {callName(person)}
+                </button>
+              ) : (
+                <Link
+                  href="/settings#invite"
+                  className="press flex h-14 items-center gap-2.5 whitespace-nowrap rounded-full bg-black pl-5 pr-6 text-[16px] font-semibold text-white no-underline"
+                >
+                  <Icon name="plus" size={20} />
+                  Invite family
+                </Link>
+              )}
+              <button
+                type="button"
+                onClick={() => openAdd("photos")}
+                aria-label="Share a photo or video"
+                className="press grid h-14 w-14 place-items-center rounded-full"
+              >
+                <Icon name="camera" size={24} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setRooms(true)}
+                aria-label="Open rooms"
+                className="press grid h-14 w-14 place-items-center rounded-full"
+              >
+                <Icon name="more" size={24} />
+              </button>
+            </div>
+          </m.div>
+        )}
+      </AnimatePresence>
+      <RoomsSheet open={rooms} onClose={() => setRooms(false)} />
+    </>
+  );
+}
+
 function ShellInner({ children }: { children: React.ReactNode }) {
   const [addOpen, setAddOpen] = useState(false);
+  // Mount the composer on first open, then keep it mounted so its exit animation runs.
+  const [sheetLoaded, setSheetLoaded] = useState(false);
+  useEffect(() => {
+    if (addOpen) setSheetLoaded(true);
+  }, [addOpen]);
   const [addTab, setAddTab] = useState<AddTab>("photos");
   const [replyTo, setReplyTo] = useState<ReplyContribution | null>(null);
+  const [addressee, setAddressee] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [chromeHidden, setChromeHidden] = useState(false);
 
-  const openAdd = useCallback((tab: AddTab = "photos", contribution: ReplyContribution | null = null) => {
+  const openAdd = useCallback((tab: AddTab = "photos", contribution: ReplyContribution | null = null, to: string | null = null) => {
     setAddTab(tab);
     setReplyTo(contribution);
+    setAddressee(to);
     setAddOpen(true);
   }, []);
   const closeAdd = useCallback(() => {
@@ -45,21 +203,21 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   const bumpRefresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   const value = useMemo<ShellState>(
-    () => ({ addOpen, addTab, replyTo, openAdd, closeAdd, refreshKey, bumpRefresh, chromeHidden, setChromeHidden }),
-    [addOpen, addTab, replyTo, openAdd, closeAdd, refreshKey, bumpRefresh, chromeHidden],
+    () => ({ addOpen, addTab, replyTo, addressee, openAdd, closeAdd, refreshKey, bumpRefresh, chromeHidden, setChromeHidden }),
+    [addOpen, addTab, replyTo, addressee, openAdd, closeAdd, refreshKey, bumpRefresh, chromeHidden],
   );
 
   return (
     <ShellContext.Provider value={value}>
       <PlayerProvider>
-        <div
-          className="relative z-10 mx-auto min-h-full w-full max-w-[480px] bg-paper px-4 pt-6"
-          style={{ paddingBottom: "calc(6rem + env(safe-area-inset-bottom))" }}
+        <main
+          className="relative mx-auto min-h-full w-full max-w-[480px] px-5"
+          style={{ paddingTop: "calc(16px + env(safe-area-inset-top))", paddingBottom: "calc(140px + env(safe-area-inset-bottom))" }}
         >
           {children}
-        </div>
-        <TabBar />
-        <AddSheet />
+        </main>
+        <Dock />
+        {sheetLoaded && <AddSheet />}
       </PlayerProvider>
     </ShellContext.Provider>
   );
@@ -67,8 +225,10 @@ function ShellInner({ children }: { children: React.ReactNode }) {
 
 export function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <ViewerProvider>
-      <ShellInner>{children}</ShellInner>
-    </ViewerProvider>
+    <LazyMotion features={domAnimation} strict={false}>
+      <ViewerProvider>
+        <ShellInner>{children}</ShellInner>
+      </ViewerProvider>
+    </LazyMotion>
   );
 }

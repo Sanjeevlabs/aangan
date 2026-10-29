@@ -1,16 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Instrument_Serif, Inter } from "next/font/google";
+import { Literata, Onest } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { Shell } from "@/components/shell";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-body", display: "swap" });
-const instrumentSerif = Instrument_Serif({
-  subsets: ["latin"],
-  weight: "400",
-  variable: "--font-display",
-  display: "swap",
-});
+const onest = Onest({ subsets: ["latin"], variable: "--font-body", display: "swap" });
+const literata = Literata({ subsets: ["latin"], style: ["italic"], weight: ["400", "500"], variable: "--font-voice", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Aangan — the family courtyard",
@@ -19,13 +14,13 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#F6F2EC",
+  themeColor: "#FFFFFF",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} ${instrumentSerif.variable}`}>
+      <body className={`${onest.variable} ${literata.variable}`}>
         <Providers>
           <Shell>{children}</Shell>
         </Providers>
