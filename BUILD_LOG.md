@@ -201,3 +201,14 @@
 - **Demo:** Aria (Chicago) shares with Dad and Dadi; last check-in "Home safe 2 h ago".
 - **Not yet:** push/SMS notifications (in-app only), escalation chains, scheduled "check on me at 11 pm" timers. Push is the real gap for production; needs web-push + a cron that evaluates overdue states server-side.
 - Tests: `tests/safety.test.ts` (state machine, 24 h TTL, emergency numbers, visibility, pause, location-only-on-help). 164 passed.
+
+## Stage 8: Constellation, Care polish, Kitchen library, sharing
+
+- **Family constellation** (`lib/constellation.ts`, `components/constellation.tsx`) replaces the living tree. You at the centre; parents up, siblings sideways, partner beside, children down; one ring per kinship step. Each group anchored to its direction; damped, capped wedges. One line per person + adjacent couple lines → no crossings (tested for every centre). Tap to re-centre; labels follow the centre (Mother-in-law, Cousin, Niece…). Full screen, zoom, "Add to {person}". Proud header (family name, people, generations, homes, time zones). Client-side 4:5 poster PNG (`lib/poster.ts`).
+- **Demo family grown** to 9: Mom (Priya), Bua (Kavya, Bangalore), Fufa (Rahul), cousin Anaya. Demo family named "Sharma". Gendered demo links so labels read naturally.
+- **Care**: neutral heading ("Care · Parents' home"); parents get the shared board and can add/assign tasks; anyone (parents too) can take one; quick "Add a task" row. "Village" → **Local helpers**: grouped contact book, call/WhatsApp, hours, helped-count, Android contact picker; plumber/electrician roles. Client-only render on Care (server/client time strings).
+- **Kitchen library**: shelves per cook (elders → you → others), search, course filter, illustrated covers by course when there's no photo (`components/recipe-art.tsx`), tile menus to edit/delete. New recipe fields: course, prep/cook minutes, prep work, outcome, video. `create` action (typed recipe; write one down for someone → they're the cook, `addedBy` can still edit). One editor for new/edit (`components/recipe-editor.tsx`), recipe page redesigned (stats row, voice/video, before you start, tickable ingredients, method, how you know it's right). Six more demo recipes.
+- **Sharing & export**: `public_shares` (SQL) + `lib/shares.ts`; `/api/share` (create/list/revoke), public `/r/[token]` (frozen copy, noindex, view count, quiet CTA). Share sheet: WhatsApp, link, image card, text. Settings: download family data (`/api/export`, JSON; no emails/Muse logs/locations) and "Shared outside the family" with Stop.
+- Docs: SPEC §5.4/5.6/5.8/10/15 updated; §16 sharing model; §17 review + plan for location/weather/news/illustrations/legacy/store.
+- Re-run `supabase/schema.sql` (new demo members/links, `public_shares`, `bump_share_views`).
+- Tests: 175 passed. Prod smoke: 7 rooms × 3 members, no page errors.

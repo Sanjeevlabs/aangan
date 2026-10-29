@@ -1,5 +1,5 @@
 // Where family lives, as people say it ("India", "New York"), not as IANA
-// says it. Shared by Settings, the tree, Sit together and the Village.
+// says it. Shared by Settings, the tree, Sit together and local helpers.
 
 export const ZONES: { tz: string; place: string }[] = [
   { tz: "Asia/Kolkata", place: "India" },

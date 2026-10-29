@@ -9,7 +9,7 @@ import { can } from "@/lib/permissions";
 import type { Member } from "@/lib/schemas";
 
 // Care board: tickets for each home (open → assigned → in progress → done,
-// or cancelled), the home's Village (trusted local people), whose week it
+// or cancelled), the home's local helpers (trusted people nearby), whose week it
 // is, and who handles what. Every change is written to the ticket's
 // timeline. Tasks only: no medical, legal or financial advice anywhere.
 
@@ -48,7 +48,7 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("claim"), needId: z.string().min(1) }),
   // Assign to any family member (siblings split the work).
   z.object({ action: z.literal("assign-to"), needId: z.string().min(1), memberId: z.string().min(1) }),
-  // The Village person who will actually go.
+  // The local helper who will actually go.
   z.object({ action: z.literal("assign"), needId: z.string().min(1), helperId: z.string().min(1) }),
   z.object({ action: z.literal("status"), needId: z.string().min(1), status: z.enum(NEED_STATUSES) }),
   z.object({ action: z.literal("done"), needId: z.string().min(1) }),
@@ -64,8 +64,8 @@ const Body = z.discriminatedUnion("action", [
     recurring: z.enum(RECURRENCE).optional(),
   }),
   z.object({ action: z.literal("need-delete"), needId: z.string().min(1) }),
-  z.object({ action: z.literal("helper"), forMemberId: z.string().min(1), name: z.string().trim().min(1).max(60), role: z.enum(HELPER_ROLES).default("other"), phone: Phone, note: z.string().trim().max(160).default("") }),
-  z.object({ action: z.literal("helper-edit"), helperId: z.string().min(1), name: z.string().trim().min(1).max(60), role: z.enum(HELPER_ROLES), phone: Phone, note: z.string().trim().max(160).default("") }),
+  z.object({ action: z.literal("helper"), forMemberId: z.string().min(1), name: z.string().trim().min(1).max(60), role: z.enum(HELPER_ROLES).default("other"), phone: Phone, hours: z.string().trim().max(60).default(""), note: z.string().trim().max(160).default("") }),
+  z.object({ action: z.literal("helper-edit"), helperId: z.string().min(1), name: z.string().trim().min(1).max(60), role: z.enum(HELPER_ROLES), phone: Phone, hours: z.string().trim().max(60).default(""), note: z.string().trim().max(160).default("") }),
   z.object({ action: z.literal("helper-remove"), helperId: z.string().min(1) }),
   z.object({ action: z.literal("duty-set"), forMemberId: z.string().min(1), kind: z.enum(NEED_KINDS), memberId: z.string().min(1) }),
   z.object({ action: z.literal("duty-clear"), forMemberId: z.string().min(1), kind: z.enum(NEED_KINDS) }),
@@ -74,7 +74,7 @@ const Body = z.discriminatedUnion("action", [
 ]);
 
 // Anyone may ask for themselves and edit or withdraw their own tickets;
-// running care (assigning, the Village, the rota, duties) needs care.manage.
+// running care (assigning, local helpers, the rota, duties) needs care.manage.
 const SELF_SERVICE = new Set(["need", "need-from-voice", "need-edit", "need-delete"]);
 
 export async function GET(req: Request): Promise<Response> {

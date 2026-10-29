@@ -6,7 +6,7 @@ import { Avatar, Button, EmptyLine, RoomHeader } from "@/components/ui/kit";
 import { callName, memberPhoto } from "@/lib/people";
 import { cn } from "@/lib/utils";
 import { useViewer } from "@/components/viewer";
-import { LivingTree, TreeLegend } from "@/components/family-tree";
+import { FamilyConstellation } from "@/components/constellation";
 import { PetsSection } from "@/components/pets";
 import { can } from "@/lib/permissions";
 import { ZONES, placeFromTz } from "@/lib/zones";
@@ -14,9 +14,12 @@ import { ZONES, placeFromTz } from "@/lib/zones";
 const RELATION_WORDS = ["mother", "father", "wife", "husband", "daughter", "son", "sister", "brother"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-function GuidedAdd({ onAdded }: { onAdded: () => void }) {
+function GuidedAdd({ onAdded, anchor: preset }: { onAdded: () => void; anchor?: string | null }) {
   const { viewer, members } = useViewer();
-  const [anchorId, setAnchorId] = useState(viewer.id);
+  const [anchorId, setAnchorId] = useState(preset ?? viewer.id);
+  useEffect(() => {
+    if (preset) setAnchorId(preset);
+  }, [preset]);
   const [name, setName] = useState("");
   const [relation, setRelation] = useState("mother");
   const [tz, setTz] = useState<string>("");
@@ -75,7 +78,7 @@ function GuidedAdd({ onAdded }: { onAdded: () => void }) {
   };
 
   return (
-    <section aria-label="Add someone" className="mt-10">
+    <section id="add" aria-label="Add someone" className="mt-10 scroll-mt-6">
       <h2 className="m-0 mb-1 text-[20px]">Add someone</h2>
       <p className="m-0 mb-4 text-[15px] text-ink-soft">Tell Aangan how they&rsquo;re related to someone already here.</p>
       <p className="m-0 mb-4 rounded-[16px] bg-surface px-4 py-3 text-[14px] text-ink-soft">
@@ -176,84 +179,22 @@ function GuidedAdd({ onAdded }: { onAdded: () => void }) {
   );
 }
 
-// Plain English for the common paths; anything else falls through to the
-// model-resolved term. Gender-neutral where the path doesn't say.
-const PLAIN_KIN: Record<string, string> = {
-  mother: "your mother",
-  father: "your father",
-  "father's mother": "your grandmother",
-  "mother's mother": "your grandmother",
-  "father's father": "your grandfather",
-  "mother's father": "your grandfather",
-  "father's child": "your sibling",
-  "mother's child": "your sibling",
-  "parent's child": "your sibling",
-  child: "your child",
-  wife: "your wife",
-  husband: "your husband",
-  // Extended family: a parent's siblings and their families.
-  "father's brother": "your uncle",
-  "mother's brother": "your uncle",
-  "father's sister": "your aunt",
-  "mother's sister": "your aunt",
-  "father's brother's wife": "your aunt",
-  "mother's brother's wife": "your aunt",
-  "father's sister's husband": "your uncle",
-  "mother's sister's husband": "your uncle",
-  "father's brother's child": "your cousin",
-  "father's sister's child": "your cousin",
-  "mother's brother's child": "your cousin",
-  "mother's sister's child": "your cousin",
-  "brother's child": "your nephew or niece",
-  "sister's child": "your nephew or niece",
-  "wife's mother": "your mother-in-law",
-  "wife's father": "your father-in-law",
-  "husband's mother": "your mother-in-law",
-  "husband's father": "your father-in-law",
-};
-function plainKin(term: string): string {
-  const t = term.trim().toLowerCase();
-  if (!t) return "";
-  return PLAIN_KIN[t] ?? (t.startsWith("your ") ? t : `your ${t}`);
-}
-
-/** "Your grandmother": kinship from the viewer, resolved deterministically server-side. */
-function useKinship(targetIds: string[]): Record<string, string> {
-  const { viewer, displayLang } = useViewer();
-  const [terms, setTerms] = useState<Record<string, string>>({});
-  const key = targetIds.join(",");
-  useEffect(() => {
-    let live = true;
-    Promise.all(
-      targetIds
-        .filter((id) => id !== viewer.id)
-        .map((id) =>
-          fetch(`/api/kinship?from=${encodeURIComponent(viewer.id)}&to=${encodeURIComponent(id)}&lang=${encodeURIComponent(displayLang)}`, { cache: "no-store" })
-            .then((r) => (r.ok ? r.json() : null))
-            .then((d: { terms?: string } | null) => [id, d?.terms ?? ""] as const)
-            .catch(() => [id, ""] as const),
-        ),
-    ).then((pairs) => live && setTerms(Object.fromEntries(pairs)));
-    return () => {
-      live = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, viewer.id, displayLang]);
-  return terms;
-}
-
 export default function BondPage() {
   const { viewer, refreshMembers } = useViewer();
   const [members, setMembers] = useState<Member[] | null>(null);
   const [relationships, setRelationships] = useState<Relationship[] | null>(null);
   const [failed, setFailed] = useState(false);
+  const [familyName, setFamilyName] = useState<string | undefined>(undefined);
+  const [anchor, setAnchor] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setFailed(false);
     try {
       const [mRes, rRes] = await Promise.all([fetch("/api/members", { cache: "no-store" }), fetch("/api/relationships", { cache: "no-store" })]);
       if (!mRes.ok || !rRes.ok) throw new Error("bond-fetch-failed");
-      setMembers(((await mRes.json()) as { members: Member[] }).members);
+      const m = (await mRes.json()) as { members: Member[]; family?: { name?: string } };
+      setMembers(m.members);
+      setFamilyName(m.family?.name || undefined);
       setRelationships(((await rRes.json()) as { relationships: Relationship[] }).relationships);
     } catch {
       setFailed(true);
@@ -264,22 +205,34 @@ export default function BondPage() {
     void load();
   }, [load]);
 
-  const kin = useKinship((members ?? []).map((m) => m.id));
 
   return (
     <div>
-      <RoomHeader title="Family tree" subtitle={members ? `${members.length} people · tap anyone to see or edit them` : undefined} />
+      <RoomHeader title="Family" subtitle="Everyone, and how you're all connected" />
       {failed && <EmptyLine>Couldn&rsquo;t load the family. Try again in a moment.</EmptyLine>}
       {members === null && !failed && <div className="skeleton h-[420px] rounded-card" aria-busy="true" aria-label="Loading family" />}
       {members && (
         <>
-          <section aria-label="Family tree">
-            <LivingTree members={members} relationships={relationships ?? []} viewerId={viewer.id} kin={Object.fromEntries(members.map((m) => [m.id, plainKin(kin[m.id] ?? "")]))} />
-            <TreeLegend />
+          <section aria-label="Family constellation">
+            <FamilyConstellation
+              members={members}
+              relationships={relationships ?? []}
+              viewerId={viewer.id}
+              familyName={familyName}
+              onAdd={
+                can(viewer, "tree.add")
+                  ? (id) => {
+                      setAnchor(id);
+                      requestAnimationFrame(() => document.getElementById("add")?.scrollIntoView({ behavior: "smooth" }));
+                    }
+                  : undefined
+              }
+            />
           </section>
           <PetsSection />
           {can(viewer, "tree.add") ? (
           <GuidedAdd
+            anchor={anchor}
             onAdded={() => {
               void load();
               void refreshMembers();

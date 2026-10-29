@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useJson } from "@/lib/use-json";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Avatar, Button, Icon, Photo, RoomHeader } from "@/components/ui/kit";
@@ -393,6 +394,19 @@ export default function SettingsPage() {
           <li>Voices are never cloned. No face recognition, and no tagging of children.</li>
           <li>Demo mode: Meta&rsquo;s AI models process content to caption, transcribe and translate.</li>
         </ul>
+        {viewer.access !== "child" && (
+          <div className="mt-4 overflow-hidden rounded-[22px] bg-surface">
+            <a href="/api/export" download className="press flex w-full items-center justify-between px-4 py-4 text-left text-[16px] font-medium text-ink no-underline">
+              <span>
+                <span className="block">Download our family&rsquo;s data</span>
+                <span className="block text-[13px] font-normal text-ink-soft">Everyone, the tree, recipes, care and memories, as one file you own</span>
+              </span>
+              <Icon name="down" size={18} className="text-ink-faint" />
+            </a>
+            <div className="mx-4 h-px bg-[var(--line)]" />
+            <SharedLinks onMessage={flash} />
+          </div>
+        )}
         <div className="mt-4 overflow-hidden rounded-[22px] bg-surface">
           <button type="button" onClick={() => void removeMemories()} disabled={busy === "remove"} className="press flex w-full items-center justify-between px-4 py-4 text-left text-[16px] font-medium">
             Delete my reactions, wishes and listens
@@ -430,6 +444,41 @@ export default function SettingsPage() {
       <div aria-live="polite" className="pointer-events-none fixed inset-x-0 z-50 flex justify-center" style={{ bottom: "calc(24px + env(safe-area-inset-bottom))" }}>
         {saved && <p className="frost glass-pill m-0 px-5 py-3 text-[15px] font-medium">{saved}</p>}
       </div>
+    </div>
+  );
+}
+
+/** What this family has shared outside itself, and a way to take it back. */
+function SharedLinks({ onMessage }: { onMessage: (m: string) => void }) {
+  const { data, reload } = useJson<{ shares: { token: string; title: string; views: number }[] }>("/api/share");
+  const list = data?.shares ?? [];
+  return (
+    <div className="px-4 py-4">
+      <p className="m-0 text-[16px] font-medium">Shared outside the family</p>
+      {list.length === 0 ? (
+        <p className="m-0 mt-1 text-[13px] text-ink-soft">Nothing yet. Recipes you share appear here.</p>
+      ) : (
+        <ul className="m-0 mt-2 list-none space-y-1.5 p-0">
+          {list.map((s) => (
+            <li key={s.token} className="flex items-center justify-between gap-3 text-[14px]">
+              <span className="min-w-0 truncate">
+                {s.title} <span className="text-ink-faint">· opened {s.views}×</span>
+              </span>
+              <button
+                type="button"
+                onClick={async () => {
+                  await fetch("/api/share", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: s.token }) });
+                  await reload();
+                  onMessage("Stopped sharing. The link no longer works.");
+                }}
+                className="h-9 shrink-0 text-[14px] font-semibold text-[#a32418]"
+              >
+                Stop
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

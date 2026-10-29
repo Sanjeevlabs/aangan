@@ -1,4 +1,4 @@
-// Validated document store behind Kitchen, presence, care, Village, sittings,
+// Validated document store behind Kitchen, presence, care, local helpers, sittings,
 // weekly questions and the Muse call log. Postgres (family_docs, jsonb) when
 // live; an in-memory map in mock mode and as a fallback, matching lib/db.ts.
 // Every row is parsed with its kind's schema on the way in and out; a bad

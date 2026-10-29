@@ -11,7 +11,7 @@ export type Action =
   | "roles.assign" // change someone's access
   | "invite.create"
   | "invite.revoke"
-  | "care.manage" // needs, Village, rota, duties
+  | "care.manage" // needs, local helpers, rota, duties
   | "content.moderate"; // delete someone else's voice note, photo, recipe…
 
 const TABLE: Record<Member["access"], Action[]> = {

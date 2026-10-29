@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, m } from "framer-motion";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useShell } from "@/components/shell";
 import { Translated } from "@/components/translated";
 import { ActionMenu, Avatar, Button, EmptyLine, Icon, MuseMark, RoomHeader, SectionTitle } from "@/components/ui/kit";
@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { placeFromTz, timeIn } from "@/lib/zones";
 
 // Care board: caring for a home far away, run like a good ticket tracker but
-// family-warm. Board = what needs doing and who's on it. Setup = the Village,
+// family-warm. Board = what needs doing and who's on it. Setup = local helpers,
 // who handles what, whose week. Tasks only; no medical, legal or money advice.
 
 interface CareData {
@@ -56,6 +56,9 @@ type Filter = "all" | "mine" | "unassigned" | "urgent";
 
 export default function CarePage() {
   const { viewer, members, relationships } = useViewer();
+  // Times and "2 h ago" differ between server and client render: client only.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const care = useJson<CareData>("/api/care");
   const pres = useJson<PresenceData>("/api/presence");
   const petsQ = useJson<{ pets: Pet[] }>("/api/pets");
@@ -65,6 +68,7 @@ export default function CarePage() {
   const home = homes.find((h) => h.id === chosen) ?? (viewer.role === "elder" ? householdOf(viewer.id, homes) : undefined) ?? homes.find((h) => !h.members.some((x) => x.id === viewer.id)) ?? homes[0];
   const reload = () => Promise.all([care.reload(), pres.reload()]);
 
+  if (!mounted) return <div className="skeleton mt-16 h-[420px] rounded-card" aria-busy="true" aria-label="Loading care" />;
   if (!home) {
     return (
       <div>
@@ -88,7 +92,7 @@ export default function CarePage() {
 
   return (
     <div>
-      <RoomHeader title={isParent ? "Your care" : `Care for ${homeName}`} subtitle={`${timeIn(home.tz)} in ${placeFromTz(home.tz)}`} />
+      <RoomHeader title="Care" subtitle={`${isParent ? "Your home" : "Parents' home"} · ${timeIn(home.tz)} in ${placeFromTz(home.tz)}`} />
 
       {!isParent && homes.length > 1 && (
         <div className="no-scrollbar -mx-5 mb-4 flex gap-2 overflow-x-auto px-5">
@@ -108,7 +112,12 @@ export default function CarePage() {
       {!data || !pres.data ? (
         <div className="skeleton h-[320px] rounded-card" aria-busy="true" aria-label="Loading care" />
       ) : isParent ? (
-        <ParentView parent={parent} needs={needs} onChange={reload} settings={pres.data.settings} />
+        <>
+          <ParentView parent={parent} onChange={reload} />
+          <Board home={home} homeName={homeName} needs={needs} helpers={helpers} pets={pets} onChange={reload} />
+          <Helpers homeName={homeName} parent={parent} helpers={helpers} needs={needs} canManage={can(viewer, "care.manage")} onChange={reload} />
+          <MySharing settings={pres.data.settings.find((s) => s.memberId === viewer.id)} members={members} viewerId={viewer.id} onChange={reload} />
+        </>
       ) : (
         <>
           <HomePulse home={home} presence={pres.data.presence} settings={pres.data.settings} viewerId={viewer.id} />
@@ -167,7 +176,8 @@ function Board({ home, homeName, needs, helpers, pets, onChange }: { home: House
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [showDone, setShowDone] = useState(false);
-  const family = members.filter((x) => !home.members.some((h) => h.id === x.id) && x.access !== "child");
+  // Everyone who can take a task, the parents included ("I'll call the plumber myself").
+  const family = members.filter((x) => x.access !== "child").sort((a, b) => Number(b.id === viewer.id) - Number(a.id === viewer.id));
 
   const live = needs.filter((n) => n.status !== "done" && n.status !== "cancelled");
   const weekAgo = Date.now() - 7 * 86_400_000;
@@ -220,7 +230,15 @@ function Board({ home, homeName, needs, helpers, pets, onChange }: { home: House
         </select>
       </div>
 
-      <Lane title="To do" items={todo} onOpen={setOpenId} empty={live.length === 0 ? `Nothing pending for ${homeName}.` : "Nothing here with these filters."} />
+      {manage && (
+        <button type="button" onClick={() => setCreating(true)} className="press mt-4 flex h-[52px] w-full items-center gap-3 rounded-card bg-surface px-4 text-left text-[15px] text-ink-soft">
+          <span className="grid h-8 w-8 place-items-center rounded-full bg-black text-white">
+            <Icon name="plus" size={16} />
+          </span>
+          Add a task: call the plumber, weekly groceries…
+        </button>
+      )}
+      <Lane title="Open" items={todo} onOpen={setOpenId} empty={live.length === 0 ? "Nothing open. Anyone in the family can add a task." : "Nothing here with these filters."} />
       {doing.length > 0 && <Lane title="In progress" items={doing} onOpen={setOpenId} />}
       {done.length > 0 && (
         <div className="mt-5">
@@ -230,13 +248,6 @@ function Board({ home, homeName, needs, helpers, pets, onChange }: { home: House
           </button>
           {showDone && <Lane items={done} onOpen={setOpenId} muted />}
         </div>
-      )}
-
-      {manage && (
-        <Button className="mt-6 w-full" onClick={() => setCreating(true)}>
-          <Icon name="plus" size={18} />
-          New task for {homeName}
-        </Button>
       )}
 
       <AnimatePresence>
@@ -298,7 +309,9 @@ function TicketRow({ need, onOpen, muted }: { need: Need; onOpen: () => void; mu
         <span className="min-w-0 flex-1">
           <span className={cn("flex items-center gap-1.5 text-[15px] font-semibold", muted && "text-ink-soft line-through decoration-black/20")}>
             {need.priority !== "normal" && <span className={cn("h-2 w-2 shrink-0 rounded-full", need.priority === "urgent" ? "bg-[#d92d20]" : "bg-marigold")} aria-label={PRIORITY_LABEL[need.priority]} />}
-            <span className="truncate">{need.title}</span>
+            <span className="truncate">
+              <Translated text={need.title} />
+            </span>
           </span>
           <span className="block truncate text-[12.5px] text-ink-soft">{[cat.label, due, forWhom ? `for ${callName(forWhom)}` : "", need.recurring !== "none" ? REPEAT_LABEL[need.recurring].toLowerCase() : ""].filter(Boolean).join(" · ")}</span>
         </span>
@@ -320,7 +333,7 @@ function TicketSheet({ need, home, helpers, pets, onClose, onChange }: { need?: 
   const { viewer, members } = useViewer();
   const manage = can(viewer, "care.manage");
   const elders = home.members.filter((x) => x.role === "elder");
-  const family = members.filter((x) => !home.members.some((h) => h.id === x.id) && x.access !== "child");
+  const family = members.filter((x) => x.access !== "child");
   const [title, setTitle] = useState(need?.title ?? "");
   const [kind, setKind] = useState<Kind>(need?.kind ?? "groceries");
   const [priority, setPriority] = useState<Need["priority"]>(need?.priority ?? "normal");
@@ -465,13 +478,13 @@ function TicketSheet({ need, home, helpers, pets, onClose, onChange }: { need?: 
         </div>
         {helpers.length > 0 && need && (
           <select
-            aria-label="Who will go (Village)"
+            aria-label="Local helper who will go"
             disabled={!manage || busy}
             value={need.helperId ?? ""}
             onChange={(e) => e.target.value && void act({ action: "assign", needId: need.id, helperId: e.target.value })}
             className="mt-3 h-11 w-full rounded-full bg-surface px-4 text-[14px] font-semibold"
           >
-            <option value="">Who will go? (from the Village)</option>
+            <option value="">Send a local helper?</option>
             {helpers.map((h) => (
               <option key={h.id} value={h.id}>
                 {h.name} · {h.role}
@@ -575,7 +588,7 @@ function Setup({ home, homeName, parent, data, helpers, onChange }: { home: Hous
     <div className="mt-2">
       <WhoseWeek parent={parent} homeName={homeName} rota={data.rotas.find((r) => ids.includes(r.forMemberId))} members={members} viewerId={viewer.id} onChange={onChange} />
       <Duties parent={parent} homeIds={ids} homeName={homeName} duties={data.duties ?? []} members={members} canManage={manage} onChange={onChange} />
-      <Village homeName={homeName} parent={parent} helpers={helpers} canManage={manage} onChange={onChange} />
+      <Helpers homeName={homeName} parent={parent} helpers={helpers} needs={data.needs} canManage={manage} onChange={onChange} />
     </div>
   );
 }
@@ -591,7 +604,7 @@ function WhoseWeek({ parent, homeName, rota, members, viewerId, onChange }: { pa
       <section aria-label="Whose week">
         <SectionTitle>Whose week</SectionTitle>
         <div className="flex items-center justify-between gap-3 rounded-card bg-surface p-4">
-          <p className="m-0 text-[15px]">Nobody checks in on {homeName} by turn yet.</p>
+          <p className="m-0 text-[15px]">Nobody checks in by turn yet.</p>
           <Button className="h-11 shrink-0 px-4 text-[14px]" onClick={() => void take()}>
             Take this week
           </Button>
@@ -635,7 +648,7 @@ function Duties({ parent, homeIds, homeName, duties, members, canManage, onChang
   return (
     <section aria-label="Who handles what">
       <SectionTitle>Who handles what</SectionTitle>
-      <p className="m-0 -mt-1 mb-3 text-[14px] text-ink-soft">Split the work for {homeName}. New tasks go straight to whoever handles them.</p>
+      <p className="m-0 -mt-1 mb-3 text-[14px] text-ink-soft">Split the work. New tasks go straight to whoever handles them.</p>
       <ul className="m-0 list-none divide-y divide-[var(--line)] rounded-card bg-surface p-0 px-4">
         {NEED_KINDS.filter((k) => k !== "other").map((k) => {
           const d = dutyFor(k);
@@ -675,49 +688,93 @@ function Duties({ parent, homeIds, homeName, duties, members, canManage, onChang
   );
 }
 
-function Village({ homeName, parent, helpers, canManage, onChange }: { homeName: string; parent: Member; helpers: Helper[]; canManage: boolean; onChange: () => void }) {
+const ROLE_GROUP: Record<string, string> = {
+  groceries: "Daily needs",
+  "house help": "Home",
+  cook: "Home",
+  driver: "Getting around",
+  neighbour: "Neighbours",
+  "doctor's clinic": "Health",
+  pharmacy: "Health",
+  "gas booking": "Home services",
+  repairs: "Home services",
+  caregiver: "Health",
+  electrician: "Home services",
+  plumber: "Home services",
+  "pet care": "Pets",
+  other: "Others",
+};
+const groupOf = (role: string) => ROLE_GROUP[role] ?? "Others";
+const waLink = (phone: string) => `https://wa.me/${phone.replace(/[^\d]/g, "")}`;
+
+/**
+ * Local helpers: the home's trusted contacts nearby (grocer, driver, house
+ * help, plumber, a neighbour). A contact book the whole family shares, so
+ * whoever is handling a task can call or message the right person.
+ */
+function Helpers({ parent, helpers, needs, canManage, onChange }: { homeName?: string; parent: Member; helpers: Helper[]; needs: Need[]; canManage: boolean; onChange: () => void }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
-  const sorted = useMemo(() => [...helpers].sort((a, b) => a.role.localeCompare(b.role)), [helpers]);
+  const [group, setGroup] = useState<string>("all");
+  const groups = useMemo(() => Array.from(new Set(helpers.map((h) => groupOf(h.role)))).sort(), [helpers]);
+  const shown = useMemo(() => [...helpers].filter((h) => group === "all" || groupOf(h.role) === group).sort((a, b) => groupOf(a.role).localeCompare(groupOf(b.role)) || a.name.localeCompare(b.name)), [helpers, group]);
+  const jobs = (id: string) => needs.filter((n) => n.helperId === id);
   return (
-    <section aria-label={`${homeName}'s Village`}>
-      <SectionTitle>{homeName}&rsquo;s Village</SectionTitle>
-      <p className="m-0 -mt-1 mb-3 text-[14px] text-ink-soft">Trusted people nearby who can actually go: the grocer, a driver, house help, a neighbour.</p>
-      {sorted.length === 0 && <EmptyLine>No one yet. Start with whoever delivers groceries.</EmptyLine>}
-      {sorted.length > 0 && (
-        <ul className="m-0 list-none divide-y divide-[var(--line)] rounded-card bg-surface p-0 px-4">
-          {sorted.map((h) => (
-            <Fragment key={h.id}>
-              <li className="flex items-center gap-3 py-2.5">
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[15px] font-semibold">{h.name}</span>
-                  <span className="block truncate text-[13px] text-ink-soft">
-                    {h.role}
-                    {h.note ? ` · ${h.note}` : ""}
-                  </span>
-                </span>
-                {h.phone && (
-                  <a href={`tel:${h.phone.replace(/\s/g, "")}`} aria-label={`Call ${h.name}`} className="press grid h-10 w-10 place-items-center rounded-full bg-white text-ink">
-                    <Icon name="phone" size={17} />
-                  </a>
-                )}
-                {canManage && (
-                  <ActionMenu
-                    label={`${h.name} options`}
-                    actions={[
-                      { label: "Edit", onSelect: () => setEditing(h.id) },
-                      { label: "Remove from the Village", danger: true, confirm: `Remove ${h.name}?`, onSelect: async () => { await postJson("/api/care", { action: "helper-remove", helperId: h.id }); onChange(); } },
-                    ]}
-                  />
-                )}
-              </li>
-              {editing === h.id && (
-                <li className="py-3">
-                  <HelperForm helper={h} forMemberId={h.forMemberId} onDone={() => { setEditing(null); onChange(); }} />
-                </li>
-              )}
-            </Fragment>
+    <section aria-label="Local helpers">
+      <SectionTitle>Local helpers</SectionTitle>
+      <p className="m-0 -mt-1 mb-3 text-[14px] text-ink-soft">Trusted people near home who can actually go. The whole family shares this list.</p>
+      {groups.length > 1 && (
+        <div className="no-scrollbar -mx-5 mb-2 flex gap-1.5 overflow-x-auto px-5" role="radiogroup" aria-label="Kind of help">
+          {["all", ...groups].map((g) => (
+            <button key={g} type="button" role="radio" aria-checked={group === g} onClick={() => setGroup(g)} className={cn("press h-9 shrink-0 rounded-full px-3.5 text-[14px] font-medium", group === g ? "bg-black text-white" : "bg-surface")}>
+              {g === "all" ? `All · ${helpers.length}` : g}
+            </button>
           ))}
+        </div>
+      )}
+      {helpers.length === 0 && <EmptyLine>No one yet. Start with whoever delivers groceries.</EmptyLine>}
+      {shown.length > 0 && (
+        <ul className="m-0 list-none divide-y divide-[var(--line)] rounded-card bg-surface p-0 px-3.5">
+          {shown.map((h) => {
+            const done = jobs(h.id).filter((n) => n.status === "done").length;
+            const meta = [h.role, h.hours, done ? `helped ${done}×` : ""].filter(Boolean).join(" · ");
+            return (
+              <Fragment key={h.id}>
+                <li className="flex items-center gap-3 py-2.5">
+                  <Avatar src={null} name={h.name} size={40} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[15px] font-semibold">{h.name}</span>
+                    <span className="block truncate text-[12.5px] text-ink-soft first-letter:uppercase">{meta}</span>
+                    {h.note && <span className="block truncate text-[12.5px] text-ink-faint">{h.note}</span>}
+                  </span>
+                  {h.phone && (
+                    <>
+                      <a href={waLink(h.phone)} target="_blank" rel="noreferrer" aria-label={`WhatsApp ${h.name}`} className="press grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-[#1e8e4e]">
+                        <Icon name="send" size={16} />
+                      </a>
+                      <a href={`tel:${h.phone.replace(/\s/g, "")}`} aria-label={`Call ${h.name}`} className="press grid h-10 w-10 shrink-0 place-items-center rounded-full bg-black text-white">
+                        <Icon name="phone" size={16} />
+                      </a>
+                    </>
+                  )}
+                  {canManage && (
+                    <ActionMenu
+                      label={`${h.name} options`}
+                      actions={[
+                        { label: "Edit", onSelect: () => setEditing(h.id) },
+                        { label: "Remove", danger: true, confirm: `Remove ${h.name}?`, onSelect: async () => { await postJson("/api/care", { action: "helper-remove", helperId: h.id }); onChange(); } },
+                      ]}
+                    />
+                  )}
+                </li>
+                {editing === h.id && (
+                  <li className="py-3">
+                    <HelperForm helper={h} forMemberId={h.forMemberId} onDone={() => { setEditing(null); onChange(); }} />
+                  </li>
+                )}
+              </Fragment>
+            );
+          })}
         </ul>
       )}
       {canManage &&
@@ -728,20 +785,48 @@ function Village({ homeName, parent, helpers, canManage, onChange }: { homeName:
         ) : (
           <button type="button" onClick={() => setAdding(true)} className="press mt-2 flex h-11 items-center gap-1.5 text-[15px] font-semibold">
             <Icon name="plus" size={18} />
-            Add someone to the Village
+            Add a local helper
           </button>
         ))}
     </section>
   );
 }
 
+interface PickedContact {
+  name?: string[];
+  tel?: string[];
+}
+/** Android Chrome can pick from the phone's contacts; elsewhere it's typed. */
+function canPickContacts(): boolean {
+  return typeof navigator !== "undefined" && "contacts" in navigator && typeof (navigator as Navigator & { contacts?: { select?: unknown } }).contacts?.select === "function";
+}
+
 function HelperForm({ helper, forMemberId, onDone }: { helper?: Helper; forMemberId: string; onDone: () => void }) {
   const [name, setName] = useState(helper?.name ?? "");
   const [role, setRole] = useState<Helper["role"]>(helper?.role ?? "groceries");
   const [phone, setPhone] = useState(helper?.phone ?? "");
+  const [hours, setHours] = useState(helper?.hours ?? "");
   const [note, setNote] = useState(helper?.note ?? "");
+  const [picker, setPicker] = useState(false);
+  useEffect(() => setPicker(canPickContacts()), []);
+  const pick = async () => {
+    try {
+      const contacts = (navigator as Navigator & { contacts: { select: (p: string[], o: { multiple: boolean }) => Promise<PickedContact[]> } }).contacts;
+      const [c] = await contacts.select(["name", "tel"], { multiple: false });
+      if (c?.name?.[0]) setName(c.name[0].slice(0, 60));
+      if (c?.tel?.[0]) setPhone(c.tel[0].replace(/[^+\d\s()-]/g, "").slice(0, 30));
+    } catch {
+      /* the person closed the picker */
+    }
+  };
   return (
     <div className="space-y-2 rounded-[18px] bg-surface p-3">
+      {picker && !helper && (
+        <button type="button" onClick={() => void pick()} className="press flex h-11 w-full items-center justify-center gap-1.5 rounded-full bg-white text-[15px] font-semibold">
+          <Icon name="phone" size={16} />
+          Pick from my contacts
+        </button>
+      )}
       <input className={field} value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="Name (Ramesh, Sunita didi…)" aria-label="Name" />
       <select className={field} value={role} onChange={(e) => setRole(e.target.value as Helper["role"])} aria-label="What they help with">
         {HELPER_ROLES.map((r) => (
@@ -750,14 +835,16 @@ function HelperForm({ helper, forMemberId, onDone }: { helper?: Helper; forMembe
           </option>
         ))}
       </select>
-      <input className={field} value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^+\d\s()-]/g, ""))} inputMode="tel" maxLength={30} placeholder="Phone (optional)" aria-label="Phone" />
-      <input className={field} value={note} onChange={(e) => setNote(e.target.value)} maxLength={160} placeholder="A note (Delivers before 11)" aria-label="Note" />
+      <input className={field} value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^+\d\s()-]/g, ""))} inputMode="tel" maxLength={30} placeholder="Phone, with country code (+91…)" aria-label="Phone" />
+      <input className={field} value={hours} onChange={(e) => setHours(e.target.value)} maxLength={60} placeholder="When they're available (Mon–Sat, 8–11 am)" aria-label="Available" />
+      <input className={field} value={note} onChange={(e) => setNote(e.target.value)} maxLength={160} placeholder="A note (Knows the way to the clinic)" aria-label="Note" />
       <div className="flex gap-2">
         <Button
           className="h-11 flex-1 text-[15px]"
           disabled={!name.trim()}
           onClick={async () => {
-            await postJson("/api/care", helper ? { action: "helper-edit", helperId: helper.id, name: name.trim(), role, phone: phone.trim(), note: note.trim() } : { action: "helper", forMemberId, name: name.trim(), role, phone: phone.trim(), note: note.trim() });
+            const fields = { name: name.trim(), role, phone: phone.trim(), hours: hours.trim(), note: note.trim() };
+            await postJson("/api/care", helper ? { action: "helper-edit", helperId: helper.id, ...fields } : { action: "helper", forMemberId, ...fields });
             onDone();
           }}
         >
@@ -772,12 +859,11 @@ function HelperForm({ helper, forMemberId, onDone }: { helper?: Helper; forMembe
 }
 
 /* --------------------------------------------------- the parent's own view */
-function ParentView({ parent, needs, settings, onChange }: { parent: Member; needs: Need[]; settings: CareSettings[]; onChange: () => void }) {
+/** A parent asks in their own words; it lands on the shared board below. */
+function ParentView({ parent, onChange }: { parent: Member; onChange: () => void }) {
   const { openAdd } = useShell();
-  const { viewer, members } = useViewer();
   const [typing, setTyping] = useState(false);
   const [title, setTitle] = useState("");
-  const mine = needs.filter((n) => n.forMemberId === viewer.id && n.status !== "cancelled" && (n.status !== "done" || Date.parse(n.doneAt ?? n.createdAt) > Date.now() - 3 * 86_400_000));
   return (
     <>
       <section aria-label="Ask for help" className="rounded-card bg-surface p-5">
@@ -810,28 +896,6 @@ function ParentView({ parent, needs, settings, onChange }: { parent: Member; nee
         )}
       </section>
 
-      <SectionTitle>What you asked for</SectionTitle>
-      {mine.length === 0 && <p className="m-0 text-[15px] text-ink-soft">Nothing pending.</p>}
-      <ul className="m-0 list-none space-y-2 p-0">
-        {mine.map((n) => {
-          const who = members.find((x) => x.id === n.claimedBy);
-          return (
-            <li key={n.id} className="rounded-card bg-surface p-4">
-              <div className="flex items-start justify-between gap-3">
-                <p className="m-0 text-[17px] font-semibold leading-snug">
-                  <Translated text={n.title} />
-                </p>
-                <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-[12px] font-semibold", n.status === "done" ? "bg-[#e6f4ea] text-[#1e6b3a]" : who ? "bg-[#e6f0fa] text-[#345f88]" : "bg-[#fff0d6] text-[#8a4b00]")}>{n.status === "done" ? "Done" : who ? callName(who) : "Waiting"}</span>
-              </div>
-              {n.noteForParent && <p className="voice m-0 mt-2 text-[17px] leading-snug">{n.noteForParent}</p>}
-              <div className="mt-1 flex justify-end">
-                <ActionMenu label="Request options" actions={[{ label: "I don't need this anymore", danger: true, confirm: "Remove this request?", onSelect: async () => { await postJson("/api/care", { action: "need-delete", needId: n.id }); onChange(); } }]} />
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-      <MySharing settings={settings.find((s) => s.memberId === viewer.id)} members={members} viewerId={viewer.id} onChange={onChange} />
     </>
   );
 }

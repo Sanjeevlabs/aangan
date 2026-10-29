@@ -38,6 +38,7 @@ import {
   setMemberDisplayLang as memSetDisplayLang,
   updateMemberProfile as memUpdateProfile,
   createFamily as memCreateFamily,
+  familyName as memFamilyName,
   findMemberByEmail as memFindByEmail,
   setMemberHome as memSetHome,
   setReaction as memSetReaction,
@@ -215,6 +216,16 @@ export async function dbSetMemberHome(memberId: string, homeImageRef: string, ho
   const { error } = await sb.from("members").update({ home_image_ref: homeImageRef, home_palette: homePalette }).eq("id", memberId);
   if (error) return undefined;
   return dbGetMember(memberId);
+}
+
+/** The family's display name ("Sharma"), for headers and the poster. */
+export async function dbGetFamilyName(familyId: string): Promise<string> {
+  const local = memFamilyName(familyId) ?? "";
+  if (!live()) return local;
+  const sb = supabaseServer();
+  if (!sb) return local;
+  const { data } = await sb.from("families").select("name").eq("id", familyId).maybeSingle();
+  return String((data as { name?: unknown } | null)?.name ?? local);
 }
 
 export async function dbCreateFamily(name: string): Promise<string> {

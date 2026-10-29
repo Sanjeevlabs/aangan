@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useRef, useState } from "react";
 import { usePlayer } from "@/components/player";
+import { RecipeCover, COURSE_LOOK, minutes, totalTime } from "@/components/recipe-art";
+import { RecipeEditor } from "@/components/recipe-editor";
+import { ShareRecipe } from "@/components/share-recipe";
 import { useShell } from "@/components/shell";
-import { ActionMenu, Avatar, Button, EmptyLine, Icon, Monogram, MuseMark, Photo, PlayButton, RoomHeader, SectionTitle } from "@/components/ui/kit";
+import { ActionMenu, Avatar, Button, EmptyLine, Icon, MuseMark, Photo, PlayButton, RoomHeader, SectionTitle } from "@/components/ui/kit";
+import { cn } from "@/lib/utils";
 import { canChange } from "@/lib/permissions";
 import { useViewer } from "@/components/viewer";
 import type { Attempt, Recipe } from "@/lib/kinds";
@@ -30,7 +34,9 @@ export default function RecipePage() {
   const { play, current, isPlaying, toggle } = usePlayer();
   const { data, failed, reload } = useJson<Payload>(`/api/kitchen/${encodeURIComponent(id)}?lang=${encodeURIComponent(displayLang)}`);
   const [showOriginal, setShowOriginal] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const search = useSearchParams();
+  const [editing, setEditing] = useState(search.get("edit") === "1");
+  const [have, setHave] = useState<Set<number>>(new Set());
   const router = useRouter();
 
   if (failed) {
@@ -52,13 +58,19 @@ export default function RecipePage() {
 
   const r = showOriginal ? data.original : data.recipe;
   const cook = members.find((m) => m.id === r.cookId);
+  const writer = members.find((m) => m.id === data.original.addedBy);
   const voice = (cards ?? []).find((c) => c.id === r.voiceCardId);
+  const video = (cards ?? []).find((c) => c.id === r.videoCardId);
+  const videoUrl = video?.mediaRef ? (resolveMediaUrl(video.mediaRef) ?? video.mediaRef) : null;
   const active = voice && current?.id === voice.id;
-  const cookPhoto = memberPhoto(cook);
+  const lastPhoto = data.attempts.find((a) => a.photoRef)?.photoRef;
+  const cover = data.original.coverRef ?? lastPhoto ?? null;
+  const owner = (mode: "edit" | "delete") => canChange(viewer, data.original.cookId, mode) || Boolean(data.original.addedBy && canChange(viewer, data.original.addedBy, mode));
+  const look = COURSE_LOOK[r.course] ?? COURSE_LOOK.other;
 
   const menu = [
-    ...(canChange(viewer, data.original.cookId, "edit") ? [{ label: "Edit recipe", onSelect: () => setEditing(true) }] : []),
-    ...(canChange(viewer, data.original.cookId, "delete")
+    ...(owner("edit") ? [{ label: "Edit recipe", onSelect: () => setEditing(true) }] : []),
+    ...(owner("delete")
       ? [
           {
             label: "Delete recipe",
@@ -75,24 +87,64 @@ export default function RecipePage() {
 
   if (editing) return <RecipeEditor recipe={data.original} onDone={async () => { setEditing(false); await reload(); }} />;
 
+  const stats = [
+    ["Prep", minutes(r.prepMins)],
+    ["Cook", minutes(r.cookMins)],
+    ["Serves", r.serves],
+  ].filter(([, v]) => v);
+
   return (
     <div>
-      <RoomHeader title={r.title} subtitle={r.serves ? `Serves ${r.serves}` : `${callName(cook)}'s recipe`} action={<ActionMenu actions={menu} label="Recipe options" />} />
+      <RoomHeader title="" action={menu.length ? <ActionMenu actions={menu} label="Recipe options" /> : undefined} />
 
-      <div className="relative h-[300px] overflow-hidden rounded-hero bg-[#3a2a1c]" style={{ boxShadow: "0 24px 50px -22px rgba(120,70,20,.6)" }}>
-        {cookPhoto ? <Photo src={cookPhoto} alt={callName(cook)} sizes="440px" priority position="center 25%" /> : <div className="absolute inset-0"><Monogram name={callName(cook)} size={300} /></div>}
-        <div className="glass absolute inset-x-2.5 bottom-2.5 rounded-[22px] p-4">
-          {r.memory && <p className="voice m-0 mb-3 text-[19px] leading-snug text-white">“{r.memory}”</p>}
-          {voice ? (
-            <div className="flex items-center gap-3">
-              <PlayButton playing={Boolean(active && isPlaying)} onClick={() => (active ? toggle() : play(voice))} label={`Hear ${callName(cook)} teach it`} />
-              <span className="text-[15px] font-semibold text-white">Hear {callName(cook)} teach it</span>
-            </div>
-          ) : (
-            <p className="m-0 text-[15px] font-semibold text-white">From {callName(cook)}&rsquo;s hands</p>
-          )}
+      <RecipeCover recipe={r} photo={cover ? (resolveMediaUrl(cover) ?? cover) : null} className="h-[230px] rounded-hero" />
+
+      <p className="m-0 mt-5 text-[13px] font-semibold uppercase tracking-[0.08em]" style={{ color: look.ink }}>
+        {look.label}
+        {totalTime(r) ? ` · ${totalTime(r)}` : ""}
+      </p>
+      <h1 className="m-0 mt-1 text-[30px] leading-[1.08]">{r.title}</h1>
+      <Link href={cook ? `/people/${cook.id}` : "#"} className="mt-3 flex items-center gap-2.5 text-ink no-underline">
+        <Avatar src={memberPhoto(cook)} name={callName(cook)} size={36} />
+        <span className="text-[15px]">
+          <span className="font-semibold">{cook?.id === viewer.id ? "Your" : `${callName(cook)}'s`}</span> recipe
+          {writer && writer.id !== cook?.id ? <span className="text-ink-soft"> · written down by {writer.id === viewer.id ? "you" : callName(writer)}</span> : null}
+        </span>
+      </Link>
+      {r.memory && <p className="voice m-0 mt-4 text-[19px] leading-snug">&ldquo;{r.memory}&rdquo;</p>}
+      {viewer.access !== "child" && (
+        <div className="mt-4 flex gap-2">
+          <ShareRecipe recipe={data.original} cookName={callName(cook)} />
         </div>
-      </div>
+      )}
+
+      {stats.length > 0 && (
+        <dl className="m-0 mt-5 grid divide-x divide-[var(--line)] rounded-card bg-surface py-3" style={{ gridTemplateColumns: `repeat(${stats.length}, 1fr)` }}>
+          {stats.map(([k, v]) => (
+            <div key={k} className="px-2 text-center">
+              <dt className="text-[12px] font-medium text-ink-soft">{k}</dt>
+              <dd className="m-0 mt-0.5 text-[16px] font-semibold">{v}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
+      {(voice || videoUrl) && (
+        <section aria-label="Taught by" className="mt-4 space-y-2">
+          {voice && (
+            <div className="flex items-center gap-3 rounded-card bg-[#fff6e6] p-3.5">
+              <PlayButton playing={Boolean(active && isPlaying)} onClick={() => (active ? toggle() : play(voice))} label={`Hear ${callName(cook)} teach it`} />
+              <span className="min-w-0">
+                <span className="block text-[15px] font-semibold">Hear {callName(cook)} teach it</span>
+                <span className="block text-[13px] text-[#8a4b00]">In their own words, step by step</span>
+              </span>
+            </div>
+          )}
+          {videoUrl && (
+            <video src={videoUrl} controls playsInline preload="metadata" className="aspect-video w-full rounded-card bg-black" aria-label={`Video of ${r.title}`} />
+          )}
+        </section>
+      )}
 
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 px-1">
         {data.original.madeBy === "muse" && <MuseMark>written from {callName(cook)}&rsquo;s voice note</MuseMark>}
@@ -103,33 +155,57 @@ export default function RecipePage() {
         )}
       </div>
 
+      {r.prepWork.length > 0 && (
+        <section aria-label="Before you start">
+          <SectionTitle>Before you start</SectionTitle>
+          <ul className="m-0 list-none space-y-2 p-0">
+            {r.prepWork.map((p, n) => (
+              <li key={n} className="flex items-start gap-3 rounded-[16px] bg-surface px-4 py-3 text-[16px]">
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: look.accent }} aria-hidden="true" />
+                {p}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <section aria-label="Ingredients">
-        <SectionTitle>What goes in</SectionTitle>
-        <ul className="m-0 list-none divide-y divide-[var(--line)] rounded-card bg-surface p-0 px-4">
-          {r.ingredients.map((i, n) => (
-            <li key={n} className="flex items-baseline justify-between gap-3 py-3">
-              <span className="text-[16px] font-semibold">{i.item}</span>
-              <span className="text-right">
-                {i.said && <span className="voice block text-[16px]">{i.said}</span>}
-                {i.approx && <span className="tnum block text-[13px] text-ink-faint">≈ {i.approx.replace(/^about\s+/i, "")}</span>}
-              </span>
-            </li>
-          ))}
+        <SectionTitle>
+          Ingredients <span className="text-[15px] font-medium text-ink-faint">· {r.ingredients.length}</span>
+        </SectionTitle>
+        <ul className="m-0 list-none divide-y divide-[var(--line)] rounded-card bg-surface p-0 px-2">
+          {r.ingredients.map((i, n) => {
+            const got = have.has(n);
+            return (
+              <li key={n}>
+                <button type="button" aria-pressed={got} onClick={() => setHave((s) => { const x = new Set(s); if (x.has(n)) x.delete(n); else x.add(n); return x; })} className="flex w-full items-center gap-3 px-2 py-3 text-left">
+                  <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border-2", got ? "border-black bg-black text-white" : "border-black/20")} aria-hidden="true">
+                    {got && <Icon name="check" size={14} strokeWidth={3} />}
+                  </span>
+                  <span className={cn("min-w-0 flex-1 text-[16px] font-semibold", got && "text-ink-faint line-through decoration-black/20")}>{i.item}</span>
+                  <span className="shrink-0 text-right">
+                    {i.said && <span className="voice block text-[16px]">{i.said}</span>}
+                    {i.approx && <span className="tnum block text-[13px] text-ink-faint">{i.said ? "≈ " : ""}{i.approx.replace(/^(about|≈)\s*/i, "")}</span>}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
         </ul>
-        <p className="m-0 mt-2 px-1 text-[12px] text-ink-faint">Amounts are as {callName(cook)} said them. The ≈ is a rough guide for kitchens abroad.</p>
+        <p className="m-0 mt-2 px-1 text-[12px] text-ink-faint">Tap to tick what you have. Amounts are as {callName(cook)} says them; ≈ is a rough guide.</p>
       </section>
 
-      <section aria-label="Steps">
-        <SectionTitle>How {callName(cook)} makes it</SectionTitle>
-        <ol className="m-0 list-none space-y-4 p-0">
-          {r.steps.map((s, n) => (
-            <li key={n} className="flex gap-3">
-              <span className="tnum grid h-8 w-8 shrink-0 place-items-center rounded-full bg-black text-[14px] font-bold text-white">{n + 1}</span>
+      <section aria-label="Method">
+        <SectionTitle>Method</SectionTitle>
+        <ol className="m-0 list-none space-y-5 p-0">
+          {r.steps.map((st, n) => (
+            <li key={n} className="flex gap-3.5">
+              <span className="tnum grid h-8 w-8 shrink-0 place-items-center rounded-full text-[14px] font-bold text-white" style={{ background: look.ink }}>{n + 1}</span>
               <div className="pt-1">
-                <p className="m-0 text-[17px] leading-snug">{s.text}</p>
-                {s.tip && (
+                <p className="m-0 text-[17px] leading-snug">{st.text}</p>
+                {st.tip && (
                   <p className="voice m-0 mt-1.5 text-[17px] text-[#8a4b00]">
-                    “{s.tip}” <span className="not-italic text-[13px] text-ink-faint">— {callName(cook)}</span>
+                    &ldquo;{st.tip}&rdquo; <span className="not-italic text-[13px] text-ink-faint">— {callName(cook)}</span>
                   </p>
                 )}
               </div>
@@ -137,6 +213,15 @@ export default function RecipePage() {
           ))}
         </ol>
       </section>
+
+      {r.outcome && (
+        <section aria-label="How you know it's right" className="mt-8 rounded-card p-4" style={{ background: look.bg }}>
+          <p className="m-0 text-[13px] font-semibold uppercase tracking-[0.06em]" style={{ color: look.ink }}>
+            How you know it&rsquo;s right
+          </p>
+          <p className="m-0 mt-1 text-[17px] leading-snug">{r.outcome}</p>
+        </section>
+      )}
 
       <Link href={`/gather?reason=cook&recipe=${encodeURIComponent(data.original.id)}`} className="press mt-8 flex h-[52px] items-center justify-center gap-2 rounded-full bg-surface text-[16px] font-semibold text-ink no-underline">
         <Icon name="door" size={18} />
@@ -281,81 +366,3 @@ function Cooked({ recipe, attempts, cookName, onChange, viewerId }: { recipe: Re
   );
 }
 
-/** The cook's own corrections: Muse wrote it down, the family owns it. */
-function RecipeEditor({ recipe, onDone }: { recipe: Recipe; onDone: () => void }) {
-  const [title, setTitle] = useState(recipe.title);
-  const [memory, setMemory] = useState(recipe.memory);
-  const [serves, setServes] = useState(recipe.serves);
-  const [ingredients, setIngredients] = useState(recipe.ingredients.map((i) => ({ ...i })));
-  const [steps, setSteps] = useState(recipe.steps.map((x) => ({ ...x })));
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const field = "h-[48px] w-full rounded-[14px] bg-white px-4 text-[16px] outline-none focus:ring-2 focus:ring-marigold";
-  return (
-    <div>
-      <RoomHeader title="Edit recipe" subtitle="Fix anything Muse wrote down. Your words win." />
-      <div className="space-y-3 rounded-card bg-surface p-4">
-        <input className={field} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={80} aria-label="Title" />
-        <input className={field} value={serves} onChange={(e) => setServes(e.target.value)} maxLength={40} placeholder="Serves (optional)" aria-label="Serves" />
-        <textarea className="w-full resize-none rounded-[14px] bg-white p-4 text-[16px] outline-none focus:ring-2 focus:ring-marigold" rows={2} value={memory} onChange={(e) => setMemory(e.target.value)} maxLength={240} placeholder="Why this dish matters (optional)" aria-label="Memory" />
-      </div>
-      <SectionTitle>What goes in</SectionTitle>
-      <ul className="m-0 list-none space-y-2 p-0">
-        {ingredients.map((ing, i) => (
-          <li key={i} className="grid grid-cols-[1fr_1fr_1fr_40px] gap-1.5">
-            <input className={field} value={ing.item} onChange={(e) => setIngredients((v) => v.map((x, k) => (k === i ? { ...x, item: e.target.value } : x)))} placeholder="toor dal" aria-label="Ingredient" />
-            <input className={field} value={ing.said} onChange={(e) => setIngredients((v) => v.map((x, k) => (k === i ? { ...x, said: e.target.value } : x)))} placeholder="one katori" aria-label="As said" />
-            <input className={field} value={ing.approx} onChange={(e) => setIngredients((v) => v.map((x, k) => (k === i ? { ...x, approx: e.target.value } : x)))} placeholder="≈ 1 cup" aria-label="Rough guide" />
-            <button type="button" aria-label="Remove ingredient" onClick={() => setIngredients((v) => v.filter((_, k) => k !== i))} className="press grid h-[48px] place-items-center rounded-[14px] text-ink-faint">
-              <Icon name="close" size={16} />
-            </button>
-          </li>
-        ))}
-      </ul>
-      <button type="button" onClick={() => setIngredients((v) => [...v, { item: "", said: "", approx: "" }])} className="press mt-2 flex h-10 items-center gap-1.5 text-[14px] font-semibold">
-        <Icon name="plus" size={16} />
-        Add ingredient
-      </button>
-      <SectionTitle>Steps</SectionTitle>
-      <ol className="m-0 list-none space-y-2 p-0">
-        {steps.map((st, i) => (
-          <li key={i} className="rounded-[16px] bg-surface p-2.5">
-            <div className="flex gap-1.5">
-              <textarea className="w-full resize-none rounded-[12px] bg-white p-3 text-[16px] outline-none focus:ring-2 focus:ring-marigold" rows={2} value={st.text} onChange={(e) => setSteps((v) => v.map((x, k) => (k === i ? { ...x, text: e.target.value } : x)))} aria-label={`Step ${i + 1}`} />
-              <button type="button" aria-label="Remove step" onClick={() => setSteps((v) => v.filter((_, k) => k !== i))} className="press grid w-10 place-items-center text-ink-faint">
-                <Icon name="close" size={16} />
-              </button>
-            </div>
-            <input className={`${field} mt-1.5 h-[42px] text-[15px]`} value={st.tip} onChange={(e) => setSteps((v) => v.map((x, k) => (k === i ? { ...x, tip: e.target.value } : x)))} placeholder="A tip in your words (optional)" aria-label="Tip" />
-          </li>
-        ))}
-      </ol>
-      <button type="button" onClick={() => setSteps((v) => [...v, { text: "", tip: "" }])} className="press mt-2 flex h-10 items-center gap-1.5 text-[14px] font-semibold">
-        <Icon name="plus" size={16} />
-        Add step
-      </button>
-      {error && <p className="m-0 mt-3 text-[14px] text-[#b42318]">{error}</p>}
-      <div className="mt-6 flex gap-2">
-        <Button
-          className="flex-[1.4]"
-          disabled={busy || !title.trim()}
-          onClick={async () => {
-            const cleanIngredients = ingredients.filter((x) => x.item.trim());
-            const cleanSteps = steps.filter((x) => x.text.trim());
-            if (!cleanIngredients.length || !cleanSteps.length) return setError("Keep at least one ingredient and one step.");
-            setBusy(true);
-            const out = await postJson("/api/kitchen", { action: "edit", recipeId: recipe.id, title: title.trim(), memory: memory.trim(), serves: serves.trim(), ingredients: cleanIngredients, steps: cleanSteps });
-            setBusy(false);
-            if (!out) return setError("Couldn't save. Try again.");
-            onDone();
-          }}
-        >
-          {busy ? "Saving…" : "Save recipe"}
-        </Button>
-        <Button variant="secondary" className="flex-1" onClick={onDone}>
-          Cancel
-        </Button>
-      </div>
-    </div>
-  );
-}

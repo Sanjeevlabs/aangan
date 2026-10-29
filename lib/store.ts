@@ -133,7 +133,7 @@ export function setMemberDisplayLang(memberId: string, displayLang: Member["disp
   return { ...member };
 }
 
-const familyNames = new Map<string, string>([["demo-family", "Demo Family"]]);
+const familyNames = new Map<string, string>([["demo-family", "Sharma"]]);
 
 export function createFamily(id: string, name: string): void {
   familyNames.set(id, name);
@@ -401,6 +401,14 @@ export function clearRelationships(): void {
   // Dadi and Dada share one home in India; Dada is Arjun's father.
   addRelationship({ id: "rel-dadi-dada", familyId: "demo-family", memberId: "dadi", relationMemberId: "dada", relation: "husband", canonicalKind: "spouse" });
   addRelationship({ id: "rel-arjun-dada", familyId: "demo-family", memberId: "arjun", relationMemberId: "dada", relation: "father", canonicalKind: "parent" });
+  // Priya is Arjun's wife; Kavya (Bangalore) is his sister, married to Rahul,
+  // with a daughter, Anaya. Enough family for the constellation to mean something.
+  addRelationship({ id: "rel-arjun-priya", familyId: "demo-family", memberId: "arjun", relationMemberId: "priya", relation: "wife", canonicalKind: "spouse" });
+  addRelationship({ id: "rel-arjun-kavya", familyId: "demo-family", memberId: "arjun", relationMemberId: "kavya", relation: "sister", canonicalKind: "sibling" });
+  addRelationship({ id: "rel-kavya-rahul", familyId: "demo-family", memberId: "kavya", relationMemberId: "rahul", relation: "husband", canonicalKind: "spouse" });
+  addRelationship({ id: "rel-kavya-anaya", familyId: "demo-family", memberId: "kavya", relationMemberId: "anaya", relation: "daughter", canonicalKind: "child" });
+  addRelationship({ id: "rel-priya-leo", familyId: "demo-family", memberId: "priya", relationMemberId: "leo", relation: "son", canonicalKind: "child" });
+  addRelationship({ id: "rel-priya-aria", familyId: "demo-family", memberId: "priya", relationMemberId: "aria", relation: "daughter", canonicalKind: "child" });
   // Leo and Aria are Arjun's children.
   for (const kid of ["leo", "aria"]) {
     addRelationship({

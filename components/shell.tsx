@@ -42,13 +42,13 @@ export function useShell(): ShellState {
 }
 
 const ROOMS = [
-  { href: "/care", icon: "care", title: "Care circle", note: "Their day, their needs, their Village" },
+  { href: "/care", icon: "care", title: "Care circle", note: "Shared tasks, local helpers, whose week" },
   { href: "/safe", icon: "shield", title: "Safe & sound", note: "Home safe, heading home, I need help" },
   { href: "/kitchen", icon: "pot", title: "Kitchen", note: "Recipes in the voices that taught them" },
   { href: "/gather", icon: "door", title: "Sit together", note: "A reason to be in the same room" },
   { href: "/lane", icon: "lane", title: "Memory Lane", note: "Walk back through the years" },
   { href: "/rituals", icon: "calendar", title: "Occasions", note: "Birthdays and festivals ahead" },
-  { href: "/bond", icon: "tree", title: "Family tree", note: "Everyone, and how you're related" },
+  { href: "/bond", icon: "tree", title: "Family", note: "Everyone, and how you're all connected" },
   { href: "/settings", icon: "settings", title: "Settings", note: "Language, time zone, privacy" },
 ] as const;
 

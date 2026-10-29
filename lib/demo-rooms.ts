@@ -32,10 +32,45 @@ function nextLocal(weekday: number, hour: number, tz: string, now: number): stri
 }
 
 export function seedDemoRooms(now = Date.now()): void {
+  // ---------- Kitchen library: every cook's shelf ----------
+  const R = (id: string, cookId: string, title: string, course: string, prepMins: number | null, cookMins: number | null, serves: string, memory: string, prepWork: string[], outcome: string, ingredients: [string, string, string][], steps: [string, string][], daysAgo: number) =>
+    seedDoc(FAM, "recipe", {
+      id,
+      title,
+      cookId,
+      addedBy: null,
+      course,
+      prepMins,
+      cookMins,
+      prepWork,
+      outcome,
+      voiceCardId: null,
+      videoCardId: null,
+      coverRef: null,
+      memory,
+      serves,
+      ingredients: ingredients.map(([item, said, approx]) => ({ item, said, approx })),
+      steps: steps.map(([text, tip]) => ({ text, tip })),
+      lang: "en",
+      madeBy: "family",
+      createdAt: ago(60 * 24 * daysAgo, now),
+    });
+  R("recipe-dadi-gobi", "dadi", "Gobi ke pakode", "snack", 15, 20, "4 at tea time", "Only on rainy evenings. The first batch never reached the plates.", ["Cut the cauliflower into small florets", "Soak them in warm salted water 10 min"], "Crisp shell, soft inside; they should sound hollow when tapped.", [["cauliflower", "one small", "≈ 300 g"], ["besan", "two katoris", "≈ 1½ cups"], ["ajwain", "a pinch, crushed", "≈ ½ tsp"], ["red chilli", "a little", "≈ ½ tsp"], ["water", "slowly, till thick", "≈ ¾ cup"], ["oil", "for frying", ""]], [["Make a thick batter with besan, ajwain, chilli and salt.", "It should coat your finger, not drip."], ["Dip each floret and fry on medium heat till golden.", "Don't crowd the kadhai."], ["Drain on paper and serve with green chutney.", ""]], 30);
+  R("recipe-dadi-paratha", "dadi", "Aloo paratha", "breakfast", 25, 20, "4 parathas", "Sunday breakfast, with white butter and too much pickle.", ["Boil and peel the potatoes", "Knead the atta and rest it 20 min"], "Golden spots on both sides; the filling reaches the edges.", [["potatoes", "three medium", "≈ 450 g"], ["atta", "two katoris", "≈ 2 cups"], ["green chilli", "one, chopped", ""], ["coriander", "a handful", ""], ["amchur", "a pinch", "≈ ½ tsp"], ["ghee", "for the tawa", ""]], [["Mash the potatoes with chilli, coriander, amchur and salt.", "No lumps, or it tears."], ["Stuff a ball of dough, seal it and roll gently.", ""], ["Cook on a hot tawa with ghee till spotted on both sides.", "Press the edges with the cloth."]], 24);
+  R("recipe-arjun-palak", "arjun", "Palak paneer", "main", 15, 25, "3", "The first dish I learned to cook in New York, on a phone call with Maa.", ["Blanch the spinach 2 min, then into ice water", "Cube the paneer and soak in warm water"], "Bright green, never army green; paneer soft enough to cut with a spoon.", [["spinach", "", "2 bunches ≈ 400 g"], ["paneer", "", "200 g"], ["onion", "", "1 medium"], ["tomato", "", "1"], ["ginger, garlic", "", "1 tbsp paste"], ["cream", "", "2 tbsp"], ["garam masala", "", "½ tsp"]], [["Blend the blanched spinach smooth.", ""], ["Cook onion, ginger-garlic and tomato till the oil separates.", "Maa: wait for the oil, always."], ["Add the spinach, salt and garam masala; simmer 5 min.", "Not longer, it loses the colour."], ["Add paneer and cream, warm through.", ""]], 12);
+  R("recipe-arjun-chai", "arjun", "Office-day masala chai", "drink", 2, 6, "2 cups", "What I make when it's 6 am here and evening in Kanpur, while we talk.", ["Crush 2 cardamom and a little ginger"], "The colour of a terracotta pot.", [["water", "", "1 cup"], ["milk", "", "1 cup"], ["tea leaves", "", "2 tsp"], ["ginger", "", "1 cm"], ["cardamom", "", "2 pods"], ["sugar", "", "to taste"]], [["Boil water with ginger and cardamom.", ""], ["Add tea, then milk; let it rise twice.", ""], ["Strain and sweeten.", ""]], 8);
+  R("recipe-priya-bread", "priya", "Banana walnut bread", "sweet", 15, 55, "1 loaf", "Leo's birthday breakfast every year.", ["Mash 3 very ripe bananas", "Toast the walnuts"], "A skewer comes out clean; the top cracks down the middle.", [["ripe bananas", "", "3"], ["flour", "", "1½ cups"], ["butter, melted", "", "⅓ cup"], ["brown sugar", "", "½ cup"], ["egg", "", "1"], ["baking soda", "", "1 tsp"], ["walnuts", "", "½ cup"]], [["Mix banana, butter, sugar and egg.", ""], ["Fold in flour, soda, a pinch of salt and walnuts.", "Don't over-mix."], ["Bake at 175 °C for about 55 minutes.", ""]], 40);
+  R("recipe-kavya-upma", "kavya", "Rava upma", "breakfast", 5, 15, "2", "Bangalore mornings before the office cab.", ["Dry-roast the rava till it smells nutty"], "Soft and fluffy, every grain separate.", [["rava", "", "1 cup"], ["water", "", "2½ cups"], ["mustard seeds, urad dal", "", "1 tsp each"], ["curry leaves", "", "a sprig"], ["green chilli", "", "1"], ["ghee", "", "1 tbsp"]], [["Temper mustard, dal, curry leaves and chilli in ghee.", ""], ["Add water and salt; bring to a boil.", ""], ["Rain in the rava, stirring, cover for 2 minutes.", "Stir fast or it lumps."]], 18);
+
   // ---------- Kitchen ----------
   seedDoc(FAM, "recipe", {
     id: "recipe-dadi-dal",
-    title: "Dadi's dal tadka",
+    title: "Dal tadka",
+    course: "main",
+    prepMins: 10,
+    cookMins: 30,
+    prepWork: ["Wash the dal three times", "Chop onion, tomato, ginger and garlic"],
+    outcome: "Thick enough to coat a spoon; it smells of ghee from the next room.",
     cookId: "dadi",
     voiceCardId: "demo-recipe-dal",
     coverRef: null,

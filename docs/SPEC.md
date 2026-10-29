@@ -132,24 +132,29 @@ Notation: **C** create · **R** read/list/query · **U** update · **D** delete.
 ### 5.3 Person page ✅🔧
 R: portrait, local time, birthday, voice notes, moments, connections ✅. U: edit name/generation/place/birthday ✅ (no-account people; self via Settings). C/D: link to someone already here / remove a link ✅. D: remove from family ✅ (account holders: admin only). 🆕: their safety status (if they chose you), their pets.
 
-### 5.4 Family (map + tree) 🔧 — see §10 for the visual design
+### 5.4 Family (constellation) ✅ — see §10 for the visual design
 | Op | Who |
 |---|---|
 | C add person by relation (incl. uncle/aunty/cousin/pet 🆕) | member+ |
 | C link existing people ✅ | member+ |
 | U person details ✅ · D remove link ✅ · D remove person ✅ | member+ / admin for accounts |
 | R search a person 🆕 (families of 40+ need it) | everyone |
+| R re-centre on anyone (tap) ✅ · full screen ✅ · zoom ✅ | everyone |
+| C "Add to {person}" from the canvas ✅ | member+ |
+| C share/download the family poster (PNG, 4:5) ✅ | everyone |
 
 ### 5.5 Memory Lane ✅🔧
 R by person/season ✅ · C voice/photo/video ✅ · U fix caption/words ✅ (author) · D delete ✅ (author/admin) · R search by words 🆕 · C tag people/pets 🆕 · *Export my memories* 🆕 (privacy law).
 
-### 5.6 Kitchen ✅
-C teach by voice ✅ · C ask an elder ✅ · R recipe in my language ✅ · U edit recipe ✅ (cook) · D delete recipe ✅ (cook/admin) · C "I made this" ✅ · D my attempt ✅ · C/D bless ✅ · C cook together → Sit together ✅ · 🆕 order missing ingredients (§9).
+### 5.6 Kitchen — a family recipe library ✅
+Shelves, one per cook (elders first, then you, then everyone else), each a horizontal row of recipe tiles; search by name or ingredient; filter by course. A recipe has: course, prep/cook minutes, serves, *before you start* (prep work), ingredients (as the cook says them + ≈ guide), method with the cook's tips, *how you know it's right*, the voice note and/or video it was taught in.
+C write one (yours, or written down for someone: they become the cook, you can still edit) ✅ · C teach by voice ✅ · C ask an elder ✅ · R recipe in my language ✅ · U edit recipe ✅ (cook) · D delete recipe ✅ (cook/admin) · C "I made this" ✅ · D my attempt ✅ · C/D bless ✅ · C cook together → Sit together ✅ · 🆕 order missing ingredients (§9).
 
 ### 5.7 Sit together ✅
 C sitting with a reason ✅ · R everyone-awake windows ✅ · U reschedule (host, resets RSVPs) ✅ · C/U RSVP ✅ · D cancel (host) ✅ · C/D open/close my door ✅ · C .ics ✅ · 🆕 keep a moment afterwards (photo → Lane), recurring sittings ("every Sunday chai").
 
-### 5.8 Care — rebuilt as a ticket tracker (§6) 🆕
+### 5.8 Care — rebuilt as a ticket tracker (§6) ✅
+Neutral naming: the room is **Care**, the subheading says *Parents' home* (or *Your home* for a parent), never "Care for Dadi & Dada". **Both sides add tasks**: parents see the same shared board as their children (plus "Ask by voice"), and anyone can take a task, parents included. **Local helpers** (renamed from "Village"): a shared contact book per home — grouped (Daily needs, Home, Getting around, Health, Home services, Neighbours, Pets), one tap to call or WhatsApp, availability hours, "helped N×", pick from phone contacts on Android.
 
 ### 5.9 Family news 🆕
 Short text/voice posts ("Chachu got the job!"). C post · R chronological, no ranking · reactions (3) · D own. Weekly *"This week in the family"* digest written by Muse from posts and voices, delivered Sunday in each reader's language. No comments thread (reply = voice note to the person).
@@ -273,7 +278,11 @@ Affiliate/partner commission on concierge orders + the Plus plan. Never sell fam
 
 ---
 
-## 10. Family visual — beyond a tree 🆕
+## 10. Family visual — beyond a tree ✅ (constellation shipped 29 Oct)
+
+**Shipped: the family constellation** (replaces the living tree after feedback: "dots and connections, not a literal tree"). You at the centre; parents above, siblings to the sides, partner beside you, children below; each further ring is one more step of kinship. Every group keeps its own direction (empty directions stay empty); big branches get more angle (damped) so nobody is pushed out of place. **One line per person** (to whoever connects them) plus short gold lines for couples, so lines never cross — enforced by a test for every possible centre. Tap anyone to put them at the centre and see the family from where they stand (labels re-resolve: "Mother-in-law", "Cousin", "Niece"). Header: family name and the numbers families are proud of (people, generations, homes, time zones). Downloadable 4:5 poster. The Aangan map below remains a candidate *Homes* view.
+
+Earlier analysis, kept for the record:
 
 A family isn't only lineage; for families far apart it's **homes, distance and time**. Options considered:
 
@@ -352,12 +361,77 @@ Judges score: impact, Meta tooling, technical quality, design. Five build days l
 
 ## 15. Decisions (agreed 29 Oct 2026)
 
-1. **Primary family view:** the Aangan map, with the living tree one tap away as *Lineage*.
+1. **Primary family view:** ~~the Aangan map, with the living tree as Lineage~~ → **the constellation** (29 Oct feedback). The Aangan map may return as a *Homes* view.
 2. **Safe & sound:** status check-ins and overdue alerts; location is sent **once, only on "I need help"**. No continuous location.
 3. **Pricing:** ₹399 Family / ₹999 Family Plus (global equivalents), as in §8.
 4. **Concierge in the demo:** a clearly-labelled prototype — fixed curated catalog, the order becomes a care ticket, no real payment or partner order.
 5. **Medicines:** parked until a licensed partner is signed.
 6. **Logo:** open square + marigold dot.
+
+7. **Care naming:** neutral ("Care", "Parents' home"); "Village" → **Local helpers**.
+8. **Sharing:** only what a member explicitly shares leaves the family, as a revocable frozen copy (§16).
+
+---
+
+## 16. Sharing, export and growth ✅ (first pass)
+
+**Privacy model.** Nothing leaves a family by default. A member (never a child account) chooses one thing; it becomes an **unguessable link** (144-bit token) to a **frozen copy** of only that thing: for a recipe, the recipe and the cook's call-name ("from Dadi's kitchen"), never surnames, voices, photos of people or family data. One live link per thing, a view counter, **Stop sharing** from the recipe or Settings (the link then says "no longer shared"). Public pages are `noindex`. Table `public_shares`.
+
+**Export.** Settings → *Download our family's data*: one JSON file (members without emails, relationships, memories, recipes, care, pets, sittings…). Muse logs, knocks and safety check-ins (locations) are excluded. Children can't export.
+
+**Where sharing has the most pull** (ranked by reach × how natural it is):
+| Surface | Format | Status |
+|---|---|---|
+| Recipe | WhatsApp link · public page · image card · text | ✅ |
+| Family poster | 4:5 PNG (share sheet / download) | ✅ |
+| Invite an elder | WhatsApp message with join code, in their language | next |
+| Birthday / occasion | a card (photo + wishes) or the voices compiled | next |
+| A memory | image card with caption, author's consent | next |
+| *This week in the family* | digest card | with family news |
+| Printed things | frame, poster, recipe book (§17.5) | prototype |
+Every public surface ends with one quiet invitation ("Whose cooking do you miss? Start your family's kitchen") — that's the loop; no referral spam, no contact uploading.
+
+---
+
+## 17. Review of 29 Oct requests — recommendations before building
+
+### 17.1 Where each person lives (Settings)
+**Do:** a *Home* field per person: city + country picked from a list (or "use my location" **once**, reverse-geocoded to the city and then discarded). Stored at **city level only** (city centroid, not the address). It drives the time zone, emergency number, weather and local news. Anyone can set it for a person without an account; a person with an account owns theirs. **No tracking**, ever; Safe & sound stays separate.
+**Risk:** city lists for 29 languages — use English names + transliteration; fallback to free text + time zone.
+
+### 17.2 Weather and the sky behind their page
+**Do:** on a person's page and their home card: "25 °C · sunny in Kanpur · 7:40 PM", over an **ambient sky** drawn in SVG/CSS (sun, drifting clouds, rain, stars and moon at night), from the weather code + local sunrise/sunset. Honours reduced motion.
+**Source:** Open-Meteo for the hackathon (no key; commercial use needs their paid plan) or MET Norway (free incl. commercial, attribution + User-Agent). Server-side cache per city for 30 min (≈ 48 calls/city/day regardless of family size).
+
+### 17.3 Positive local news ("what's happening near Papa")
+**Do, carefully.** "Around Kanpur today": up to **10** items (not 30: elders skim; 30 becomes a feed), refreshed daily, each a headline + one-line Muse summary in the reader's language + **link to the source** (no copied articles).
+**Pipeline:** GDELT DOC API (free; has location and a *tone* score) → hard keyword blocklist (crime, death, accident, suicide, politics, communal, scams, disease scares) → **Muse classifier with an allowlist** (community events, festivals, civic services like water/power schedules, weather, health camps, schools, sports wins, openings, culture) → only "confident positive or useful" shown; anything uncertain is dropped.
+**Risks:** a single distressing headline in an elder's feed does real harm → show nothing rather than something doubtful; publisher licensing → headline + link only; cost → classify once per city per day, cached.
+
+### 17.4 No blank screens without photos
+**Do:** one illustration system, people-free (the way Google's product art shows connection without faces): flat geometric shapes, warm palette (marigold, terracotta, sky). Already started: recipe covers by course, monogram rings, the constellation. Next: a per-person **home tile** (a little house in their city's sky), empty states for Memory Lane / Occasions / Care, and an onboarding courtyard that fills in as people join ("the app grows as you use it"). Never generate fake photos of people.
+
+### 17.5 Legacy — the portrait hall
+Royal families keep a **gallery of forebears**: large framed portraits, names, years, one line about each, in order. **Do:** a *Legacy* room: ancestors (including those who have passed) as big framed portraits with dates, place, a story, their recipes and any recorded voice; *the line* from them to the youngest child; **In memory** treatment (no birthday nudges; an optional remembrance day the family chooses). Needs `born`, `died`, `inMemory` on a person.
+**Do not:** add gotra/caste/lineage-purity fields (caste is a data category we never store); no "family honour" ranking.
+
+### 17.6 Our own store — and the frame
+Recommendation: **don't run inventory.** Home decor, daily needs and generic gifts are low-margin, logistics-heavy, and the "marketplace" we promised to avoid. What only Aangan can sell is **things made from the family itself**, via print-on-demand partners (global APIs: Printful/Printify/Gelato; India: Printrove/Qikink):
+- **Framed family photo**, e.g. 10×10 in (needs ≥ 3000×3000 px for 300 dpi; we warn below that)
+- **The family poster**, framed
+- **The family cookbook**: every recipe on the shelves, printed (strongest gift + virality)
+- Birthday calendar, a mug/cushion with Dadi's handwriting or recipe
+Daily needs stay as concierge deep-links/partners (§9). Payments via Razorpay (India) / Stripe (global); GST invoices; returns are the partner's.
+**Hackathon:** a labelled **store prototype**: frame + poster + cookbook previews rendered from real family content, "coming soon" checkout.
+
+### 17.7 Proposed order (6 days to deadline)
+| Stage | Build | Why first |
+|---|---|---|
+| 9 | Home city in Settings · weather + ambient sky on person pages/home cards · illustration system for empty states | visible on every screen; demo wow |
+| 10 | Store prototype (frame 10×10, poster, cookbook) + Plans screen | monetisation story for judges |
+| 11 | Legacy hall | emotional core, unique |
+| 12 | Positive local news (GDELT + Muse filter) | Meta/Muse showcase; needs care |
+| 13 | Share-everything: invite via WhatsApp, occasion card, memory card | growth loop |
 
 ---
 
