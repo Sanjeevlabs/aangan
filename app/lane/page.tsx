@@ -1,9 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { AlbumCover, EVENT_LABEL } from "@/components/albums";
 import { PhotoCard, VoiceRow } from "@/components/memory-card";
 import { useShell } from "@/components/shell";
-import { Avatar, EmptyLine, RoomHeader } from "@/components/ui/kit";
+import { Avatar, EmptyLine, MuseMark, RoomHeader } from "@/components/ui/kit";
+import type { Album } from "@/lib/kinds";
+import { postJson, useJson } from "@/lib/use-json";
 import { useViewer } from "@/components/viewer";
 import { callName, memberPhoto } from "@/lib/people";
 import type { Card } from "@/lib/schemas";
@@ -30,6 +33,12 @@ export default function LanePage() {
   const { refreshKey } = useShell();
   const { cards } = useFamilyCards(refreshKey);
   const [who, setWho] = useState<string | null>(null);
+  const albumsQ = useJson<{ albums: Album[] }>(`/api/albums?k=${refreshKey}`);
+  const [kind, setKind] = useState<Album["event"] | "all">("all");
+  const [sorting, setSorting] = useState<string | null>(null);
+  const albums = (albumsQ.data?.albums ?? []).filter((a) => a.cardIds.length >= 2);
+  const kinds = Array.from(new Set(albums.map((a) => a.event)));
+  const shownAlbums = albums.filter((a) => kind === "all" || a.event === kind);
 
   const chapters = useMemo(() => {
     if (!cards) return null;
@@ -45,6 +54,43 @@ export default function LanePage() {
   return (
     <div>
       <RoomHeader title="Memory Lane" subtitle="Every voice and moment, by season" />
+
+      {/* Albums Muse made from what's in the photos: weddings, pujas, festivals… */}
+      {albums.length > 0 && cards && (
+        <section aria-label="Albums" className="mb-6">
+          <div className="mb-3 flex items-baseline justify-between">
+            <h2 className="m-0 text-[20px]">Albums</h2>
+            <MuseMark>sorted by Muse</MuseMark>
+          </div>
+          {kinds.length > 1 && (
+            <div className="no-scrollbar -mx-5 mb-3 flex gap-1.5 overflow-x-auto px-5" role="radiogroup" aria-label="Kind of album">
+              {(["all", ...kinds] as const).map((k) => (
+                <button key={k} type="button" role="radio" aria-checked={kind === k} onClick={() => setKind(k)} className={cn("press h-9 shrink-0 rounded-full px-3.5 text-[14px] font-medium", kind === k ? "bg-black text-white" : "bg-surface")}>
+                  {k === "all" ? "All" : EVENT_LABEL[k]}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="no-scrollbar -mx-5 flex snap-x scroll-px-5 gap-3 overflow-x-auto px-5 pb-1">
+            {shownAlbums.map((a) => (
+              <AlbumCover key={a.id} album={a} cards={cards} />
+            ))}
+          </div>
+        </section>
+      )}
+      <button
+        type="button"
+        disabled={sorting === "busy"}
+        onClick={async () => {
+          setSorting("busy");
+          const out = await postJson<{ filed: number }>("/api/albums", { action: "resort" });
+          await albumsQ.reload();
+          setSorting(out ? (out.filed ? `Muse sorted ${out.filed} older photo${out.filed > 1 ? "s" : ""}.` : "Everything is already sorted.") : "Couldn't sort right now.");
+        }}
+        className="mb-4 text-[13px] font-medium text-ink-soft underline underline-offset-2"
+      >
+        {sorting === "busy" ? "Sorting…" : sorting ?? "Sort my older photos into albums"}
+      </button>
       <div className="no-scrollbar -mx-5 mb-2 flex gap-2 overflow-x-auto px-5" role="radiogroup" aria-label="Show memories from">
         <button
           type="button"

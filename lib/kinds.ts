@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { COURSES, HELPER_ROLES, PROJECT_KINDS, STORY_AGES, STORY_THEMES, NEED_KINDS, NEED_STATUSES, PET_SPECIES, PRESENCE_MOMENTS, PRIORITIES, RECURRENCE, SAFETY_KINDS, SITTING_REASONS } from "./kind-values";
+import { COURSES, EVENT_KINDS, HELPER_ROLES, PLACE_KINDS, PROJECT_KINDS, STORY_AGES, STORY_THEMES, NEED_KINDS, NEED_STATUSES, PET_SPECIES, PRESENCE_MOMENTS, PRIORITIES, RECURRENCE, SAFETY_KINDS, SITTING_REASONS } from "./kind-values";
 
-export { COURSES, HELPER_ROLES, PROJECT_KINDS, STORY_AGES, STORY_THEMES, NEED_KINDS, NEED_STATUSES, PET_SPECIES, PRESENCE_MOMENTS, PRIORITIES, RECURRENCE, SAFETY_KINDS, SITTING_REASONS };
+export { COURSES, EVENT_KINDS, HELPER_ROLES, PLACE_KINDS, PROJECT_KINDS, STORY_AGES, STORY_THEMES, NEED_KINDS, NEED_STATUSES, PET_SPECIES, PRESENCE_MOMENTS, PRIORITIES, RECURRENCE, SAFETY_KINDS, SITTING_REASONS };
 
 // Schemas for the family's "living" records: Kitchen, presence, care,
 // local helpers, sittings and the weekly question. They share one table
@@ -195,6 +195,40 @@ export const ProjectSchema = z.object({
   createdAt: iso,
 });
 
+// ---------- Albums (Muse sorts photos into events) ----------
+export const AlbumSchema = z.object({
+  id,
+  title: z.string().min(1).max(80),
+  event: z.enum(EVENT_KINDS),
+  cardIds: z.array(id).max(2000).default([]),
+  startAt: iso,
+  endAt: iso,
+  coverId: z.string().nullable().default(null),
+  madeBy: z.enum(["muse", "family"]).default("muse"),
+  /** Set when a person renames or rearranges it; Muse then leaves it alone. */
+  fixedBy: z.string().nullable().default(null),
+  createdAt: iso,
+});
+
+// ---------- Around home (places that matter near a parent's home) ----------
+export const PlaceSchema = z.object({
+  id,
+  name: z.string().min(1).max(60),
+  kind: z.enum(PLACE_KINDS).default("other"),
+  /** Whose home it's around (a member of that household). */
+  nearMemberId: id,
+  /** Coordinates of a public place (or the home, if the family chooses). */
+  lat: z.number().min(-90).max(90).nullable().default(null),
+  lng: z.number().min(-180).max(180).nullable().default(null),
+  /** Google place ID, which the Maps terms allow us to keep. */
+  googlePlaceId: z.string().max(300).nullable().default(null),
+  note: z.string().max(240).default(""),
+  /** The family's own photos and voice notes from this place. */
+  cardIds: z.array(id).max(200).default([]),
+  addedBy: id,
+  createdAt: iso,
+});
+
 // ---------- Pets (part of a home) ----------
 export const PetSchema = z.object({
   id,
@@ -311,6 +345,8 @@ export const DOC_SCHEMAS = {
   duty: DutySchema,
   pet: PetSchema,
   story: StorySchema,
+  album: AlbumSchema,
+  place: PlaceSchema,
   project: ProjectSchema,
   safety_settings: SafetySettingsSchema,
   safety_checkin: SafetyCheckinSchema,
@@ -334,6 +370,8 @@ export type Rota = DocOf<"rota">;
 export type Duty = DocOf<"duty">;
 export type Pet = DocOf<"pet">;
 export type Story = DocOf<"story">;
+export type Album = DocOf<"album">;
+export type Place = DocOf<"place">;
 export type Project = DocOf<"project">;
 export type ProjectTask = z.infer<typeof ProjectTaskSchema>;
 export type QuizItem = z.infer<typeof QuizItemSchema>;

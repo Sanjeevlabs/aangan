@@ -3,7 +3,9 @@ import { CreateCardRequestSchema } from "@/lib/schemas";
 import { resolveTakenAt } from "@/lib/dating";
 import { captionCard, sha256Hex } from "@/lib/llm";
 import { serverLedger, serverStore } from "@/lib/llm-server";
-import { dbAddCard, dbListCards } from "@/lib/db";
+import { dbAddCard, dbListCards, dbListMembers } from "@/lib/db";
+import { eventFromText, fileCard, titleAlbum, type EventKind } from "@/lib/albums";
+import { putDoc } from "@/lib/family-docs";
 import { checkRateLimit, requireSession } from "@/lib/auth";
 
 export async function GET(req: Request): Promise<Response> {
@@ -92,6 +94,8 @@ async function postMultipart(req: Request, familyId: string, authorId: string): 
   let caption = f.caption;
   let lang = f.lang;
   let takenAt = f.takenAt;
+  // What kind of moment it is: Muse's vision label when it looked, else the words.
+  let event: EventKind = eventFromText(`${f.caption} ${f.transcript}`);
   // Vision grounding needs the bytes; without media there is no model call.
   if ((f.type === "photo" || f.type === "video") && !caption.trim() && mediaBytes) {
     const images =
@@ -110,6 +114,7 @@ async function postMultipart(req: Request, familyId: string, authorId: string): 
     caption = grounded.caption;
     lang = grounded.language;
     takenAt = resolveTakenAt({ modelDate: grounded.takenAt });
+    if (grounded.event !== "everyday") event = grounded.event;
   }
   const peaks = parseJsonArray(f.peaks).filter((n): n is number => typeof n === "number");
   const palette = parseJsonArray(f.palette).filter((n): n is string => typeof n === "string");
@@ -131,7 +136,8 @@ async function postMultipart(req: Request, familyId: string, authorId: string): 
     transcriptLang: f.transcriptLang,
     segments: segments.slice(0, 64) as { start: number; end: number; text: string }[],
   });
-  return Response.json({ card }, { status: 201 });
+  const album = await fileIntoAlbum(familyId, card, event);
+  return Response.json({ card, album }, { status: 201 });
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -162,5 +168,23 @@ export async function POST(req: Request): Promise<Response> {
     ritualSlug: null,
     ...data,
   });
-  return Response.json({ card }, { status: 201 });
+  // No model here: sorted from the words the person wrote.
+  const album = card.type === "audio" ? null : await fileIntoAlbum(auth.familyId, card, eventFromText(card.caption));
+  return Response.json({ card, album }, { status: 201 });
+}
+
+/** Muse files the photo into an event album and (re)titles it once it has a few photos. */
+async function fileIntoAlbum(familyId: string, card: Awaited<ReturnType<typeof dbAddCard>>, event: EventKind) {
+  try {
+    const album = await fileCard(familyId, card, event);
+    if (!album || album.fixedBy || album.cardIds.length < 2) return album;
+    const [cards, members] = await Promise.all([dbListCards(familyId), dbListMembers(familyId)]);
+    const captions = cards.filter((c) => album.cardIds.includes(c.id)).map((c) => c.caption).filter(Boolean);
+    const title = await titleAlbum(familyId, album, captions, members.map((m) => m.displayName).concat(members.map((m) => m.firstName)));
+    return title === album.title ? album : await putDoc(familyId, "album", { ...album, title });
+  } catch (e) {
+    // Sorting must never fail an upload.
+    console.error("[albums] filing failed", (e as Error).message);
+    return null;
+  }
 }

@@ -403,10 +403,10 @@ Every public surface ends with one quiet invitation ("Whose cooking do you miss?
 **Do:** on a person's page and their home card: "25 °C · sunny in Kanpur · 7:40 PM", over an **ambient sky** drawn in SVG/CSS (sun, drifting clouds, rain, stars and moon at night), from the weather code + local sunrise/sunset. Honours reduced motion.
 **Source:** Open-Meteo for the hackathon (no key; commercial use needs their paid plan) or MET Norway (free incl. commercial, attribution + User-Agent). Server-side cache per city for 30 min (≈ 48 calls/city/day regardless of family size).
 
-### 17.3 Positive local news ("what's happening near Papa")
-**Do, carefully.** "Around Kanpur today": up to **10** items (not 30: elders skim; 30 becomes a feed), refreshed daily, each a headline + one-line Muse summary in the reader's language + **link to the source** (no copied articles).
+### 17.3 Positive local news ("what's happening near Papa") — ❌ dropped 29 Oct (replaced by §22 Around home)
+~~**Do, carefully.** "Around Kanpur today": up to **10** items (not 30: elders skim; 30 becomes a feed), refreshed daily, each a headline + one-line Muse summary in the reader's language + **link to the source** (no copied articles).
 **Pipeline:** GDELT DOC API (free; has location and a *tone* score) → hard keyword blocklist (crime, death, accident, suicide, politics, communal, scams, disease scares) → **Muse classifier with an allowlist** (community events, festivals, civic services like water/power schedules, weather, health camps, schools, sports wins, openings, culture) → only "confident positive or useful" shown; anything uncertain is dropped.
-**Risks:** a single distressing headline in an elder's feed does real harm → show nothing rather than something doubtful; publisher licensing → headline + link only; cost → classify once per city per day, cached.
+**Risks:** a single distressing headline in an elder's feed does real harm → show nothing rather than something doubtful; publisher licensing → headline + link only; cost → classify once per city per day, cached.~~
 
 ### 17.4 No blank screens without photos
 **Do:** one illustration system, people-free (the way Google's product art shows connection without faces): flat geometric shapes, warm palette (marigold, terracotta, sky). Already started: recipe covers by course, monogram rings, the constellation. Next: a per-person **home tile** (a little house in their city's sky), empty states for Memory Lane / Occasions / Care, and an onboarding courtyard that fills in as people join ("the app grows as you use it"). Never generate fake photos of people.
@@ -511,6 +511,43 @@ Source: the 26 Oct evidence brief (ikigai/Okinawa, Holt-Lunstad, WHO 2025, Balda
 **Data:** `project` doc: `{id, templateId, title, kind, createdBy, dueAt, sittingId?, tasks:[{id,text,assignee,done}], status, createdAt}`. Quiz questions cached per family and template.
 
 **Not:** points, leaderboards, streaks or guilt ("You missed 3 days"). Celebrate together, never rank people.
+
+---
+
+## 21. Albums — Muse sorts the photos 🆕
+
+**Ask:** parents (or anyone) share photos of a wedding, a puja, a function nearby — without having to file them. Just add photos; Muse sorts them.
+
+**How the best do it** (and what we borrow):
+| Product | What works | Aangan |
+|---|---|---|
+| Apple Photos *Memories* | Events found from time + place, a cover, a title, a date range; one tap plays them | ✅ albums by event, cover + title + dates, play as a slideshow |
+| Google Photos | Search by what's in the photo ("wedding", "cake"), auto albums, easy fix-ups (remove, move) | ✅ filter by kind of event, remove from album, move, merge, rename |
+| Instagram | Highlights: a small set of named collections on top of a profile | ✅ a row of albums at the top of Memory Lane (never stories, counts or likes) |
+**Not borrowed:** face recognition and people albums (we promised no face recognition and no tagging of children), public sharing, auto-posting.
+
+**Pipeline**
+1. Upload (one or many photos). The **same Muse vision call** that writes the caption also returns an `event` label from what's visible: wedding · ritual · festival · birthday · gathering · trip · food · nature · school · everyday. No extra cost.
+2. Muse files the photo: same label and within ~36 h of an existing album → joins it; otherwise a new album. Muse titles it from the captions and names already on the cards ("Kavya's wedding", "Puja at home"), never inventing names.
+3. A person can rename, remove a photo, move it, merge two albums, or delete an album (photos stay in Memory Lane). Manual changes always win; Muse doesn't re-sort what a person fixed.
+4. "Sort my older photos" re-files existing photos from their captions (text-only Muse call, cheap).
+
+**Data:** `album` doc `{id, title, event, cardIds[], startAt, endAt, coverId, madeBy, fixedBy?, createdAt}`. Caption JSON gains `event`.
+
+---
+
+## 22. Around home — the neighbourhood, remembered 🆕
+
+**Ask:** Muse pulls Street View / Maps images and builds a 3D memory of the neighbourhood.
+**Constraint (checked 29 Oct, Google Map Tiles API policies):** apps "must not pre-fetch, index, store, or cache any Content"; offline use and geodata extraction are prohibited; our own 3D objects on Photorealistic 3D Tiles must not be "extracted, traced, or otherwise derived" from the tiles; Street View imagery can't go in print or promo videos. So **Muse cannot pull Google imagery and build its own 3D model**, and we can't put Street View in the printed products or the demo video.
+
+**What we build instead (compliant, and better):** *Around home* — the places that matter around a parent's home: the temple, the market, the school, the tea stall, the park, the old house.
+- Each place: a name, a kind, a pin, a note, and **the family's own photos and voice notes** ("This is where Dada buys his vegetables").
+- **Look around**: Google's live Street View or Photorealistic 3D view of that place, shown inside Aangan with Google attribution (Maps JavaScript API, browser key restricted to our domain). Nothing is stored; we keep only the place ID and coordinates (allowed).
+- **Muse suggests places** from what the family already said ("Dadi mentions *the mandir* in 4 voice notes: add it?") and can narrate *a walk around home* from the family's own memories, place by place. It never invents a place or a memory.
+- Without a Maps key (demo / offline): an illustrated neighbourhood with the places as pins and the family's photos.
+**Privacy:** places are family-only; the home pin is optional; public places are preferred to the house itself; nothing here is ever shared publicly.
+**Cost:** Photorealistic 3D Tiles is an Enterprise SKU (a root request covers a 3-hour session); Street View is Essentials. Load the live view only when someone taps *Look around*.
 
 ---
 
