@@ -3,7 +3,7 @@ import { dbAddRelationship, dbGetMember, dbListMembers, dbListRelationships } fr
 import { requireCan, requireSession } from "@/lib/auth";
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   return Response.json({ relationships: await dbListRelationships(auth.familyId) });
 }
@@ -13,7 +13,7 @@ export async function GET(req: Request): Promise<Response> {
 // already in *their* family (the anchor is checked against the session's
 // family, never another family's).
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   let body: unknown;
   try {

@@ -3,7 +3,7 @@ import { dbSetMemberHome } from "@/lib/db";
 import { requireMember, requireSession } from "@/lib/auth";
 
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   let body: unknown;
   try {

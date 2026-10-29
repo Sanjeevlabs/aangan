@@ -4,7 +4,7 @@ import { dbLinkMembers, dbListMembers, dbListRelationships } from "@/lib/db";
 
 // Link two people who are already in the family ("Papa is Maa's husband").
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const allowed = await requireCan(auth, "tree.add");
   if (allowed instanceof Response) return allowed;

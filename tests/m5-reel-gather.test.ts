@@ -4,6 +4,7 @@ import { curatePlaylist } from "@/lib/llm";
 import { DEMO_MEMBERS } from "@/lib/family";
 import { MemberSchema, type Card, type RitualRun, type Wish } from "@/lib/schemas";
 import { resetDemo } from "@/lib/store";
+import { dbAddCard, dbEnsureRitualRun } from "@/lib/db";
 import { POST as gatherPOST } from "@/app/api/gather/route";
 import { GET as invitesGET, POST as invitesPOST } from "@/app/api/invites/route";
 import { DELETE as removeMemories } from "@/app/api/privacy/cards/route";
@@ -101,7 +102,7 @@ describe("privacy set + invites (mock store)", () => {
 
     // Unknown members 404.
     const missing = await removeMemories(jsonRequest("http://test/privacy", { memberId: "nobody" }, "DELETE", "nobody"));
-    expect(missing.status).toBe(404);
+    expect(missing.status).toBe(401); // not a member: no session
   });
 
   it("leave-family removes the member, and invites expire in 7 days", async () => {
@@ -109,12 +110,12 @@ describe("privacy set + invites (mock store)", () => {
     expect(left.status).toBe(200);
 
     const again = await leaveFamily(jsonRequest("http://test/privacy", { memberId: "aria" }, "DELETE", "aria"));
-    expect(again.status).toBe(404);
+    expect(again.status).toBe(401); // after leaving, the old cookie no longer works
 
     const invite = (await (await invitesPOST(authedJson("http://test/api/invites", {}))).json()) as {
       invite: { code: string; expiresAt: string };
     };
-    expect(invite.invite.code).toMatch(/^[A-Z2-9]{6}$/);
+    expect(invite.invite.code).toMatch(/^[A-Z2-9]{8}$/);
     const ms = new Date(invite.invite.expiresAt).getTime() - Date.now();
     expect(ms).toBeGreaterThan(6 * 86400000);
     expect(ms).toBeLessThanOrEqual(7 * 86400000 + 60000);
@@ -123,10 +124,13 @@ describe("privacy set + invites (mock store)", () => {
     expect(listed.invites.some((i) => i.code === invite.invite.code)).toBe(true);
   });
 
-  it("wishes link voice cards to a run (reel replies)", async () => {
-    const res = await wishesPOST(
-      jsonRequest("http://test/api/wishes", { ritualRunId: RUN.id, cardId: "c1", memberId: "leo", kind: "wish" }, "POST", "leo"),
-    );
+  it("wishes link voice cards to a run (reel replies), only the family's own", async () => {
+    const run = await dbEnsureRitualRun(RUN.ritualSlug, RUN.occasionDate, "demo-family");
+    const card = await dbAddCard({ familyId: "demo-family", type: "audio", caption: "Happy birthday!", lang: "en", takenAt: new Date().toISOString(), authorId: "leo" });
+    const res = await wishesPOST(jsonRequest("http://test/api/wishes", { ritualRunId: run.id, cardId: card.id, memberId: "leo", kind: "wish" }, "POST", "leo"));
     expect(res.status).toBe(201);
+    // A card or occasion from another family is refused.
+    expect((await wishesPOST(jsonRequest("http://test/api/wishes", { ritualRunId: run.id, cardId: "c1", memberId: "leo", kind: "wish" }, "POST", "leo"))).status).toBe(404);
+    expect((await wishesPOST(jsonRequest("http://test/api/wishes", { ritualRunId: "fam-x:diwali:2026-11-08", cardId: null, memberId: "leo", kind: "wish" }, "POST", "leo"))).status).toBe(404);
   });
 });

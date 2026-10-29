@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { requireSession } from "@/lib/auth";
+import { checkRateLimit, requireSession } from "@/lib/auth";
 import { dbGetMember, dbListMembers } from "@/lib/db";
 import { deleteDoc, getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
 import type { Project } from "@/lib/kinds";
@@ -27,14 +27,15 @@ const Body = z.discriminatedUnion("action", [
 ]);
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   return Response.json({ templates: TEMPLATES, projects: await listDocs(auth.familyId, "project") });
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
+  if (!checkRateLimit(auth, "/api/together")) return Response.json({ error: "rate-limited" }, { status: 429 });
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "invalid-together" }, { status: 400 });
   const body = parsed.data;

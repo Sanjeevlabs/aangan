@@ -4,9 +4,10 @@
 // family/member ownership; model routes are rate-limited per session;
 // the cron route requires Bearer CRON_SECRET instead.
 import { createHmac, timingSafeEqual } from "crypto";
+import { dbGetMember } from "./db";
 
 export const SESSION_COOKIE = "aangan_session";
-const SESSION_TTL_MS = 30 * 24 * 3600 * 1000;
+const SESSION_TTL_MS = 14 * 24 * 3600 * 1000;
 
 export interface Session {
   familyId: string;
@@ -94,10 +95,14 @@ export function clearSessionCookieHeader(): string {
 
 /** Route guard: 401 response when the session is missing/invalid/family-mismatched. */
 /** Any signed-in member. Pass a family id only when a route must pin one. */
-export function requireSession(req: Request, familyId?: string): Session | Response {
+export async function requireSession(req: Request, familyId?: string): Promise<Session | Response> {
   const session = sessionFromRequest(req);
   if (!session) return Response.json({ error: "unauthorized" }, { status: 401 });
   if (familyId && session.familyId !== familyId) return Response.json({ error: "forbidden-family" }, { status: 403 });
+  // A signed cookie isn't enough: the person must still be in that family.
+  // Removing someone, or their leaving, ends their session on the next request.
+  const member = await dbGetMember(session.memberId);
+  if (!member || member.familyId !== session.familyId) return Response.json({ error: "unauthorized" }, { status: 401 });
   return session;
 }
 
@@ -118,6 +123,14 @@ const MODEL_ROUTES = new Set([
   "/api/cards",
   "/api/gather",
   "/api/suggestions",
+  "/api/kitchen",
+  "/api/stories",
+  "/api/together",
+  "/api/keeper",
+  "/api/places",
+  "/api/kinship",
+  "/api/albums",
+  "/api/care",
 ]);
 
 const buckets = new Map<string, number[]>();

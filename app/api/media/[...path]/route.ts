@@ -5,7 +5,7 @@ import { requireSession } from "@/lib/auth";
 // redirected (307) to a short-lived signed URL. Clients keep using
 // resolveMediaUrl synchronously; freshness is minted per request.
 export async function GET(_req: Request, { params }: { params: { path: string[] } }): Promise<Response> {
-  const auth = requireSession(_req);
+  const auth = await requireSession(_req);
   if (auth instanceof Response) return auth;
   const path = params.path.join("/");
   if (!path || path.includes("..") || !path.startsWith(`${auth.familyId}/`)) {

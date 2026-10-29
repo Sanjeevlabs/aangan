@@ -12,7 +12,7 @@ import { UpdateMemberRequestSchema, type Member } from "@/lib/schemas";
 // - Access roles change only by an admin, and the family always keeps one.
 
 async function target(req: Request, id: string): Promise<{ auth: { familyId: string; memberId: string }; member: Member; me: Member } | Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const [member, me] = await Promise.all([dbGetMember(id), dbGetMember(auth.memberId)]);
   if (!member || member.familyId !== auth.familyId || !me) return Response.json({ error: "unknown-member" }, { status: 404 });

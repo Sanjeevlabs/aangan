@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { requireSession } from "@/lib/auth";
+import { checkRateLimit, requireSession } from "@/lib/auth";
 import { dbDeleteCard, dbGetMember, dbListCards, dbListMembers } from "@/lib/db";
 import { deleteDoc, getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
 import { STORY_AGES, STORY_THEMES } from "@/lib/kinds";
@@ -21,15 +21,16 @@ const Body = z.discriminatedUnion("action", [
 ]);
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const [stories, questions] = await Promise.all([listDocs(auth.familyId, "story"), listDocs(auth.familyId, "question")]);
   return Response.json({ stories, requests: questions.filter((q) => q.topic === "story" && q.askedBy && !q.answeredCardId) });
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
+  if (!checkRateLimit(auth, "/api/stories")) return Response.json({ error: "rate-limited" }, { status: 429 });
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "invalid-story" }, { status: 400 });
   const body = parsed.data;

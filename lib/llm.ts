@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 import { z } from "zod";
 import { containsDevanagari } from "./script";
 import { describeLang } from "./languages";
-import { activeProvider, isMockMode, PROVIDERS, SPEND_CAP_USD } from "./config";
+import { activeProvider, failoverProvider, isMockMode, providerKey, PROVIDERS, SPEND_CAP_USD } from "./config";
 import {
   CaptionSchema,
   TranslationSchema,
@@ -110,7 +110,7 @@ async function liveCaption(
   images: VisionImage[],
 ): Promise<{ json: unknown; cost: number }> {
   const cfg = PROVIDERS[provider];
-  const key = process.env.META_API_KEY;
+  const key = providerKey(provider);
   if (!key) throw new Error("missing-key");
   const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
     method: "POST",
@@ -177,10 +177,9 @@ export async function captionCard(
       const out = isMockMode()
         ? await mockCaption(prompt)
         : await liveCaption(provider, CAPTION_SYSTEM, prompt, images).catch(async (err) => {
-            // Provider fallback: Baseten only when credits confirmed, else rethrow.
-            if (provider === "meta" && process.env.BASETEN_CREDITS_CONFIRMED === "1") {
-              return liveCaption("baseten", CAPTION_SYSTEM, prompt, images);
-            }
+            // The other Muse host takes over when it has a key; otherwise rethrow.
+            const next = failoverProvider(provider);
+            if (next) return liveCaption(next, CAPTION_SYSTEM, prompt, images);
             throw err;
           });
       const parsed = CaptionSchema.safeParse(out.json);
@@ -348,8 +347,25 @@ export async function liveJson(
   model: string,
   maxTokens = 500,
 ): Promise<{ json: unknown; cost: number }> {
+  try {
+    return await liveJsonOnce(provider, system, user, model, maxTokens);
+  } catch (err) {
+    // The same Muse call on the other host (Meta API ↔ Baseten), with its own model id.
+    const next = failoverProvider(provider);
+    if (!next) throw err;
+    return liveJsonOnce(next, system, user, PROVIDERS[next].captionModel, maxTokens);
+  }
+}
+
+async function liveJsonOnce(
+  provider: keyof typeof PROVIDERS,
+  system: string,
+  user: string,
+  model: string,
+  maxTokens: number,
+): Promise<{ json: unknown; cost: number }> {
   const cfg = PROVIDERS[provider];
-  const key = process.env.META_API_KEY;
+  const key = providerKey(provider);
   if (!key) throw new Error("missing-key");
   const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
     method: "POST",

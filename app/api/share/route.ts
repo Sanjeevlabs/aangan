@@ -12,14 +12,14 @@ const Post = z.object({ kind: z.literal("recipe"), id: z.string().min(1) });
 const Del = z.object({ token: z.string().min(20).max(64) });
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const shares = (await listShares(auth.familyId)).filter((s) => !s.revokedAt);
   return Response.json({ shares: shares.map((s) => ({ token: s.token, kind: s.kind, refId: s.refId, title: s.snapshot.title, views: s.views, createdBy: s.createdBy, createdAt: s.createdAt })) });
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const body = Post.safeParse(await req.json().catch(() => null));
   if (!body.success) return Response.json({ error: "invalid-share" }, { status: 400 });
@@ -51,7 +51,7 @@ export async function POST(req: Request): Promise<Response> {
 }
 
 export async function DELETE(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const body = Del.safeParse(await req.json().catch(() => null));
   if (!body.success) return Response.json({ error: "invalid-share" }, { status: 400 });

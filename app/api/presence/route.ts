@@ -16,7 +16,7 @@ const Settings = z.object({
 });
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const since = Date.now() - 8 * 86_400_000; // a week of rhythm, for "usual"
   const [presence, settings] = await Promise.all([listDocs(auth.familyId, "presence"), listDocs(auth.familyId, "care_settings")]);
@@ -24,7 +24,7 @@ export async function GET(req: Request): Promise<Response> {
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const parsed = Share.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "invalid-presence" }, { status: 400 });
@@ -41,7 +41,7 @@ export async function POST(req: Request): Promise<Response> {
 }
 
 export async function PUT(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const parsed = Settings.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "invalid-settings" }, { status: 400 });
@@ -56,7 +56,7 @@ export async function PUT(req: Request): Promise<Response> {
 
 // Undo a moment you shared (only your own).
 export async function DELETE(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const parsed = z.object({ presenceId: z.string().min(1) }).safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "invalid-presence" }, { status: 400 });

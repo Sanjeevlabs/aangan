@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeProvider } from "@/lib/config";
+import { activeProvider, failoverProvider, providerKey } from "@/lib/config";
 import { captionCard, memoryStore, normalizeLangCode, SpendLedger } from "@/lib/llm";
 
 describe("normalizeLangCode", () => {
@@ -61,11 +61,27 @@ describe("LLM client (mock mode)", () => {
     }
   });
 
-  it("routes to meta by default, baseten only with confirmed credits", () => {
-    delete process.env.BASETEN_CREDITS_CONFIRMED;
-    expect(activeProvider()).toBe("meta");
-    process.env.BASETEN_CREDITS_CONFIRMED = "1";
-    expect(activeProvider()).toBe("baseten");
-    delete process.env.BASETEN_CREDITS_CONFIRMED;
+  it("routes to Meta by default; Baseten is primary only when asked and keyed, and fails over with its own key", () => {
+    const prev = { p: process.env.MUSE_PROVIDER, k: process.env.BASETEN_API_KEY, m: process.env.META_API_KEY };
+    try {
+      delete process.env.MUSE_PROVIDER;
+      delete process.env.BASETEN_API_KEY;
+      expect(activeProvider()).toBe("meta");
+      process.env.MUSE_PROVIDER = "baseten";
+      expect(activeProvider()).toBe("meta"); // no Baseten key → stays on Meta
+      process.env.BASETEN_API_KEY = "test-baseten";
+      expect(activeProvider()).toBe("baseten");
+      process.env.META_API_KEY = "x"; // not a key: a placeholder for the routing check
+      expect(providerKey("baseten")).toBe("test-baseten");
+      expect(providerKey("meta")).toBe("x");
+      expect(failoverProvider("meta")).toBe("baseten");
+      delete process.env.BASETEN_API_KEY;
+      expect(failoverProvider("meta")).toBeNull();
+    } finally {
+      for (const [k, v] of [["MUSE_PROVIDER", prev.p], ["BASETEN_API_KEY", prev.k], ["META_API_KEY", prev.m]] as const) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
   });
 });

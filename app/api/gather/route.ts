@@ -5,7 +5,7 @@ import { dbAddGatherSession, dbListCards, dbListGatherSessions, dbListMembers } 
 import { checkRateLimit, requireSession } from "@/lib/auth";
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const [sessions, members] = await Promise.all([dbListGatherSessions(auth.familyId), dbListMembers(auth.familyId)]);
   return Response.json({ sessions, members });
@@ -20,7 +20,7 @@ const CreateGatherSchema = z.object({
 // Plan a Gather: date + per-member local times (client renders via Intl),
 // invites, playlist curated by the model from the Lane.
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   if (!checkRateLimit(auth, "/api/gather")) return Response.json({ error: "rate-limited" }, { status: 429 });
   let body: unknown;
@@ -40,6 +40,7 @@ export async function POST(req: Request): Promise<Response> {
     { store: serverStore, ledger: serverLedger },
   );
   const session = await dbAddGatherSession({
+    familyId: auth.familyId,
     title: parsed.data.title,
     startsAt: parsed.data.startsAt,
     invites: parsed.data.invites,

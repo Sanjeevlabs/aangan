@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { requireSession } from "@/lib/auth";
+import { checkRateLimit, requireSession } from "@/lib/auth";
 import { needFromVoice, noteForParent } from "@/lib/care";
 import { dbAddAgentRun, dbListCards, dbListMembers, dbListRelationships } from "@/lib/db";
 import { deleteDoc, getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
@@ -78,7 +78,7 @@ const Body = z.discriminatedUnion("action", [
 const SELF_SERVICE = new Set(["need", "need-from-voice", "need-edit", "need-delete"]);
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const [needs, helpers, rotas, duties] = await Promise.all([listDocs(auth.familyId, "need"), listDocs(auth.familyId, "helper"), listDocs(auth.familyId, "rota"), listDocs(auth.familyId, "duty")]);
   return Response.json({ needs, helpers, rotas, duties });
@@ -99,8 +99,9 @@ function nextDue(from: string | null, recurring: Need["recurring"]): string | nu
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
+  if (!checkRateLimit(auth, "/api/care")) return Response.json({ error: "rate-limited" }, { status: 429 });
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "invalid-care" }, { status: 400 });
   const body = parsed.data;

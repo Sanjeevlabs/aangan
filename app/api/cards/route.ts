@@ -9,7 +9,7 @@ import { putDoc } from "@/lib/family-docs";
 import { checkRateLimit, requireSession } from "@/lib/auth";
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   return Response.json({ familyId: auth.familyId, cards: await dbListCards(auth.familyId) });
 }
@@ -141,7 +141,7 @@ async function postMultipart(req: Request, familyId: string, authorId: string): 
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   if (!checkRateLimit(auth, "/api/cards")) return Response.json({ error: "rate-limited" }, { status: 429 });
   const contentType = req.headers.get("content-type") ?? "";

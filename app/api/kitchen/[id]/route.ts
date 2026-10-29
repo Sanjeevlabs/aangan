@@ -6,7 +6,7 @@ import { toLangCode } from "@/lib/languages";
 // One recipe, in the reader's language (Muse translates the whole card once
 // per language and caches it), with everyone's attempts.
 export async function GET(req: Request, { params }: { params: { id: string } }): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const recipe = await getDoc(auth.familyId, "recipe", params.id);
   if (!recipe) return Response.json({ error: "unknown-recipe" }, { status: 404 });

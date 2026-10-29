@@ -25,7 +25,7 @@ const Body = z.discriminatedUnion("action", [
 ]);
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const [settings, checkins] = await Promise.all([listDocs(auth.familyId, "safety_settings"), listDocs(auth.familyId, "safety_checkin")]);
   // Who shares with me: enabled, not paused, and I'm one of their chosen people.
@@ -39,7 +39,7 @@ export async function GET(req: Request): Promise<Response> {
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "invalid-safety" }, { status: 400 });

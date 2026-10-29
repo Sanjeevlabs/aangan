@@ -4,7 +4,7 @@
 import type { AgentTool } from "./agent";
 import { dbListCards, dbListMembers, dbListRelationships, dbListWishes } from "./db";
 
-export function agentTools(familyId = "demo-family"): AgentTool[] {
+export function agentTools(familyId: string): AgentTool[] {
   return [
     {
       name: "read_family_graph",
@@ -81,7 +81,7 @@ export function agentTools(familyId = "demo-family"): AgentTool[] {
         ritualRunId: args.ritualRunId ?? null,
         memberId: args.memberId ?? null,
         kind: args.kind ?? "wish",
-        existing: await dbListWishes(typeof args.ritualRunId === "string" ? args.ritualRunId : undefined).then((w) => w.length),
+        existing: await dbListWishes(typeof args.ritualRunId === "string" ? args.ritualRunId : undefined, familyId).then((w) => w.length),
       }),
     },
     {

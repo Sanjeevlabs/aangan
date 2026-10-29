@@ -39,7 +39,7 @@ describe("family tree: add, edit, remove", () => {
         body: JSON.stringify({ memberId: "arjun", newMemberName: "Intruder", relation: "son" }),
       }),
     );
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(401);
   });
 
   it("infers a generation from the relation", () => {

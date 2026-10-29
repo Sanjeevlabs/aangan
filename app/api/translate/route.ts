@@ -4,7 +4,7 @@ import { translateText } from "@/lib/llm";
 import { checkRateLimit, requireSession } from "@/lib/auth";
 
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   if (!checkRateLimit(auth, "/api/translate")) return Response.json({ error: "rate-limited" }, { status: 429 });
   let body: unknown;

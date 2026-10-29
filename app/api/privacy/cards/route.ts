@@ -8,7 +8,7 @@ const BodySchema = z.object({ memberId: z.string().min(1) });
 // reactions, plays, daily roles). Cards stay in the shared family pool —
 // the UI says exactly this.
 export async function DELETE(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   let body: unknown;
   try {

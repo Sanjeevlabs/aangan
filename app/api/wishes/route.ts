@@ -1,18 +1,18 @@
 import { CreateWishRequestSchema } from "@/lib/schemas";
-import { dbAddWish, dbGetMember, dbListWishes } from "@/lib/db";
+import { dbAddWish, dbGetMember, dbListCards, dbListRitualRuns, dbListWishes } from "@/lib/db";
 import { requireMember, requireSession } from "@/lib/auth";
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const { searchParams } = new URL(req.url);
-  return Response.json({ wishes: await dbListWishes(searchParams.get("runId") ?? undefined) });
+  return Response.json({ wishes: await dbListWishes(searchParams.get("runId") ?? undefined, auth.familyId) });
 }
 
 // Record a wish/blessing, optionally linked to a voice card. The wish must
 // be the session member's own (replies post as the viewer).
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   let body: unknown;
   try {
@@ -29,6 +29,9 @@ export async function POST(req: Request): Promise<Response> {
   if (!(await dbGetMember(parsed.data.memberId))) {
     return Response.json({ error: "unknown-member" }, { status: 404 });
   }
-  const wish = await dbAddWish(parsed.data);
+  // The card and the occasion must be this family's own.
+  if (parsed.data.cardId && !(await dbListCards(auth.familyId)).some((c) => c.id === parsed.data.cardId)) return Response.json({ error: "unknown-card" }, { status: 404 });
+  if (parsed.data.ritualRunId && !(await dbListRitualRuns(auth.familyId)).some((r) => r.id === parsed.data.ritualRunId)) return Response.json({ error: "unknown-run" }, { status: 404 });
+  const wish = await dbAddWish({ ...parsed.data, familyId: auth.familyId });
   return Response.json({ wish }, { status: 201 });
 }

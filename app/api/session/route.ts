@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { DEMO_INVITE_CODE, clearSessionCookieHeader, isDemoFamily, sessionCookieHeader, sessionFromRequest, signSession } from "@/lib/auth";
 import { dbGetMember, dbListInvites } from "@/lib/db";
+import { allowAuthAttempt } from "@/lib/otp";
 
 const ExchangeSchema = z.object({
   inviteCode: z.string().min(1).max(64),
@@ -18,6 +19,10 @@ export async function POST(req: Request): Promise<Response> {
   } catch {
     return Response.json({ error: "invalid-json" }, { status: 400 });
   }
+  // Slow down guessing: per caller address and per target member.
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "local";
+  const claimed = (body as { memberId?: unknown } | null)?.memberId;
+  if (!allowAuthAttempt(`session:${ip}`, 20) || (typeof claimed === "string" && !allowAuthAttempt(`session-member:${claimed}`, 10))) return Response.json({ error: "too-many-attempts" }, { status: 429 });
   const parsed = ExchangeSchema.safeParse(body);
   if (!parsed.success) return Response.json({ error: "invalid-session" }, { status: 400 });
   const code = parsed.data.inviteCode.trim();

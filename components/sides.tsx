@@ -102,7 +102,8 @@ export function BothSides() {
           </li>
         ))}
       </ul>
-      {grownUp && sides.length < 4 && (
+      {grownUp && viewer.familyId.startsWith("demo-") && <p className="m-0 mt-3 text-[13px] text-ink-faint">In your own family, you can add your side here.</p>}
+      {grownUp && !viewer.familyId.startsWith("demo-") && sides.length < 4 && (
         <button type="button" onClick={() => setAdding(true)} className="press mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-full border border-dashed border-black/15 text-[15px] font-semibold">
           <Icon name="plus" size={18} />
           {sides.length === 1 ? "Add your family's side" : "Add another side"}

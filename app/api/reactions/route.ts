@@ -4,14 +4,14 @@ import { dbGetMember, dbListCards, dbListReactions, dbRemoveReaction, dbSetReact
 import { requireMember, requireSession } from "@/lib/auth";
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const { searchParams } = new URL(req.url);
-  return Response.json({ reactions: await dbListReactions(searchParams.get("cardId") ?? undefined) });
+  return Response.json({ reactions: await dbListReactions(searchParams.get("cardId") ?? undefined, auth.familyId) });
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   let body: unknown;
   try {
@@ -33,13 +33,13 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: "unknown-member" }, { status: 404 });
   }
   // One per member per card: setReaction replaces the member's prior kind.
-  const reaction = await dbSetReaction(parsed.data);
+  const reaction = await dbSetReaction({ ...parsed.data, familyId: auth.familyId });
   return Response.json({ reaction }, { status: 201 });
 }
 
 // Take your reaction back (tap it again).
 export async function DELETE(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const parsed = z.object({ cardId: z.string().min(1) }).safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "invalid-reaction" }, { status: 400 });

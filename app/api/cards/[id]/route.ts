@@ -8,7 +8,7 @@ import { canChange } from "@/lib/permissions";
 // reactions and wishes too.
 
 async function load(req: Request, id: string) {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const [cards, me] = await Promise.all([dbListCards(auth.familyId), dbGetMember(auth.memberId)]);
   const card = cards.find((c) => c.id === id);

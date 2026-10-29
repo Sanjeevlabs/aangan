@@ -2,7 +2,6 @@
 // 6-digit code (the email template must include {{ .Token }}). Mock mode
 // accepts 000000 and sends nothing, so demos and tests never need email.
 import { createClient } from "@supabase/supabase-js";
-import { isMockMode } from "./config";
 
 export const MOCK_OTP = "000000";
 
@@ -13,11 +12,21 @@ function authClient() {
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
+/**
+ * "mock" only when MOCK=true is set on purpose (demos, tests). A missing model
+ * key never opens sign-in: without Supabase Auth in production, codes fail.
+ */
+function otpMode(): "live" | "mock" | "off" {
+  if (process.env.MOCK === "true") return "mock";
+  if (authClient()) return "live";
+  return process.env.NODE_ENV === "production" ? "off" : "mock";
+}
 function otpLive(): boolean {
-  return process.env.MOCK !== "true" && !isMockMode() && Boolean(authClient());
+  return otpMode() === "live";
 }
 
 export async function sendCode(email: string): Promise<{ ok: boolean; mock: boolean }> {
+  if (otpMode() === "off") return { ok: false, mock: false };
   if (!otpLive()) return { ok: true, mock: true };
   const sb = authClient();
   if (!sb) return { ok: false, mock: false };
@@ -26,6 +35,7 @@ export async function sendCode(email: string): Promise<{ ok: boolean; mock: bool
 }
 
 export async function verifyCode(email: string, code: string): Promise<boolean> {
+  if (otpMode() === "off") return false;
   if (!otpLive()) return code === MOCK_OTP;
   const sb = authClient();
   if (!sb) return false;

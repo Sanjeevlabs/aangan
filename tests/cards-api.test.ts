@@ -71,7 +71,7 @@ describe("members API (mock store)", () => {
     const missing = await postHomeImage(
       authedJson("http://test/api/members/home-image", { memberId: "nobody", mediaRef: "x" }, "nobody"),
     );
-    expect(missing.status).toBe(404);
+    expect(missing.status).toBe(401);
   });
 
   it("rejects requests without a session and cross-member writes", async () => {

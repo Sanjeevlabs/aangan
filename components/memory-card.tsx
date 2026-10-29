@@ -9,7 +9,7 @@ import { canChange } from "@/lib/permissions";
 import { resetFamilyCards } from "@/lib/use-family";
 import { useState } from "react";
 import { useShell } from "./shell";
-import { ActionMenu, Button, Icon, LiveDot, Photo, PlayButton } from "./ui/kit";
+import { ActionMenu, Button, Icon, LiveDot, Photo } from "./ui/kit";
 import { useViewer } from "./viewer";
 
 /**
@@ -136,9 +136,3 @@ export function PhotoCard({ card, tall = false }: { card: Card; tall?: boolean }
   );
 }
 
-/** Legacy export kept for any remaining callers. */
-export function MemoryCard({ card }: { card: Card; wide?: boolean }) {
-  return card.type === "audio" ? <VoiceRow card={card} /> : <PhotoCard card={card} />;
-}
-
-export { PlayButton };

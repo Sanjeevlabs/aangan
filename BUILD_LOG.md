@@ -229,3 +229,29 @@
 - Not verifiable from this sandbox (network allowlist): the live Google 3D/Street View path. It's behind the key and loads only on tap.
 - Demo: a "Sunday morning in the courtyard" album (4 photos), three places around Dadi & Dada's home.
 - SQL: kind check adds `album`, `place`. Tests: 188 passed.
+
+## Stage 11: Five spaces, plaque cards, calm Home, Settings in tabs
+
+- From the A-grade UX review (7.1 → target 8.5): **13 rooms → 5 spaces** (Home, Memories, Kitchen, Care, Family; `lib/spaces.ts`). Every route stays; a room's own page shows its space's rooms as one quiet row of tabs. Around home opens from a person's page; *What Muse did* moved into Settings.
+- **Home**: one "now" card, never a stack (open door > your move > story > visit > far home's day; safety always shows), then the latest voice.
+- **Plaque cards** (`components/plaque.tsx`), modelled on a song plaque: one inset photo, the words, a thin time line, one button, and the note's own waveform drawn as a code. Videos now **play inline** (they were stills before).
+- **Settings** in three tabs (You · Family · Privacy); deep links (#invite, #roles, #privacy) open the right tab.
+
+## Stage 12: Together cut to five + games
+
+- Together keeps five activities: plan a visit, family quiz, family cookbook, a word a day, birthday surprise.
+- **Ludo, tic-tac-toe, Match the family** (`lib/games.ts`, `/api/games`, `/together/play/[id]`): turn-based across homes, one move whenever you open the app. Server-authoritative (crypto dice and shuffles, turn + move-count checks, stale move → 409, hidden memory cards masked). Round Ludo board in the constellation's dots-and-lines language; memory cards are the family's own faces. "Your move" is a Home now-card.
+- SQL: kind check adds `game`. Tests: 197 passed.
+
+## Stage 13: Two courtyards, one door; the wider family
+
+- Each family keeps its own Aangan; a couple and their children belong to both, linked by a server-set `personId` (SPEC §25). Side switcher on Home; *Both sides* on Family; *Add my family* creates the other side with only your own home in it, plus an invite. Joining another family's invite with an existing account adds your place on that side.
+- **Your circles**: at home · close family · wider family (in-laws, cousins, aunts and uncles), labelled from the tree.
+- Demo: Iyer side (Nani, Nana, Mama, Mami, cousin Diya, two voice notes) and Chachu, Chachi, cousin Kabir on the Sharma side.
+- Security fixes: invite codes can't claim admins or account holders; the persona switcher is demo-only; other members' emails and `personId` never reach the browser; exact email match (`ilike` treated `_`/`%` as wildcards); invite revoke exact match; email unique per family.
+- SQL: `members.person_id` + index; email uniqueness per family. Tests: 206 passed.
+
+## Stage 14: Cleanup + security and rules review
+
+- Removed dead code (unused skeleton component, legacy `MemoryCard` export). README: five spaces, two sides, security model.
+- Security review and Meta-usage review: SPEC §26.

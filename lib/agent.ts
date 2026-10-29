@@ -5,7 +5,7 @@
 // Every invocation logs an agent_run (trace page) and respects the spend cap
 // through the shared ledger.
 import { isMockMode } from "./config";
-import { activeProvider, PROVIDERS } from "./config";
+import { activeProvider, providerKey, PROVIDERS } from "./config";
 import type { SpendLedger, LlmStore } from "./llm";
 
 export interface AgentTool {
@@ -71,7 +71,7 @@ async function liveLoop(
 ): Promise<AgentResult> {
   const provider = activeProvider();
   const cfg = PROVIDERS[provider];
-  const key = process.env.META_API_KEY;
+  const key = providerKey(provider);
   if (!key) throw new Error("missing-key");
   const specs = tools.map((t) => ({
     type: "function" as const,

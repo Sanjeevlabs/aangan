@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { requireSession, sessionCookieHeader, signSession } from "@/lib/auth";
+import { isDemoFamily, requireSession, sessionCookieHeader, signSession } from "@/lib/auth";
 import { dbAddMember, dbCreateFamily, dbCreateInvite, dbGetFamilyName, dbGetMember, dbLinkMembers, dbListMembers, dbListRelationships, dbListSides, dbUpdateMemberProfile } from "@/lib/db";
 import { allowAuthAttempt } from "@/lib/otp";
 import type { Member } from "@/lib/schemas";
@@ -31,7 +31,7 @@ function newPersonId(): string {
 }
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const me = await dbGetMember(auth.memberId);
   if (!me || me.familyId !== auth.familyId) return Response.json({ error: "unknown-member" }, { status: 404 });
@@ -39,7 +39,7 @@ export async function GET(req: Request): Promise<Response> {
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "invalid-sides" }, { status: 400 });
@@ -57,6 +57,9 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   // "Add my family": a new Aangan for my parents' side, with my home inside it.
+  // Never from a shared demo family: everyone who opens the demo is the same
+  // person there, so a side made from it would be open to every visitor.
+  if (isDemoFamily(auth.familyId)) return Response.json({ error: "not-in-demo" }, { status: 403 });
   if (me.access === "child" || me.role === "child") return Response.json({ error: "grown-ups-only" }, { status: 403 });
   if (!allowAuthAttempt(`side-create:${me.id}`, 3, 24 * 3_600_000)) return Response.json({ error: "too-many" }, { status: 429 });
   if ((await dbListSides(me)).length >= MAX_SIDES) return Response.json({ error: "too-many-sides" }, { status: 409 });

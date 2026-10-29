@@ -135,7 +135,7 @@ describe("relationships + kinship API (mock store)", () => {
         "nobody",
       ),
     );
-    expect(missing.status).toBe(404);
+    expect(missing.status).toBe(401);
     const crossAnchor = await relPOST(
       jsonRequest(
         "http://test/api/relationships",

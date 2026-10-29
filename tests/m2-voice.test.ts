@@ -75,7 +75,7 @@ describe("M2 Heard loop (plays)", () => {
     const badMember = await postPlay(
       jsonRequest("http://test/api/plays", { cardId: "demo-bday-1", memberId: "nope" }, "nope"),
     );
-    expect(badMember.status).toBe(404);
+    expect(badMember.status).toBe(401); // a session for someone not in the family is refused outright
     const crossMember = await postPlay(
       jsonRequest("http://test/api/plays", { cardId: "demo-bday-1", memberId: "leo" }, "dadi"),
     );
