@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { COURSES, HELPER_ROLES, NEED_KINDS, NEED_STATUSES, PET_SPECIES, PRESENCE_MOMENTS, PRIORITIES, RECURRENCE, SAFETY_KINDS, SITTING_REASONS } from "./kind-values";
+import { COURSES, HELPER_ROLES, PROJECT_KINDS, STORY_AGES, STORY_THEMES, NEED_KINDS, NEED_STATUSES, PET_SPECIES, PRESENCE_MOMENTS, PRIORITIES, RECURRENCE, SAFETY_KINDS, SITTING_REASONS } from "./kind-values";
 
-export { COURSES, HELPER_ROLES, NEED_KINDS, NEED_STATUSES, PET_SPECIES, PRESENCE_MOMENTS, PRIORITIES, RECURRENCE, SAFETY_KINDS, SITTING_REASONS };
+export { COURSES, HELPER_ROLES, PROJECT_KINDS, STORY_AGES, STORY_THEMES, NEED_KINDS, NEED_STATUSES, PET_SPECIES, PRESENCE_MOMENTS, PRIORITIES, RECURRENCE, SAFETY_KINDS, SITTING_REASONS };
 
 // Schemas for the family's "living" records: Kitchen, presence, care,
 // local helpers, sittings and the weekly question. They share one table
@@ -146,6 +146,55 @@ export const SafetyCheckinSchema = z.object({
   at: iso,
 });
 
+// ---------- Stories (the kids' corner) ----------
+export const StorySchema = z.object({
+  id,
+  /** Who told it: usually a grandparent. */
+  tellerId: id,
+  /** The voice (or video) card it was told in. */
+  cardId: id,
+  title: z.string().min(1).max(80),
+  theme: z.enum(STORY_THEMES).default("other"),
+  ages: z.enum(STORY_AGES).default("all"),
+  summary: z.string().max(200).default(""),
+  lang: z.string().default("en"),
+  /** The child's request it answers (a `question` with topic "story"). */
+  questionId: z.string().nullable().default(null),
+  madeBy: z.enum(["family", "muse"]).default("family"),
+  createdAt: iso,
+});
+
+// ---------- Together (family projects from templates) ----------
+export const ProjectTaskSchema = z.object({
+  id,
+  text: z.string().min(1).max(140),
+  assignee: z.string().nullable().default(null),
+  done: z.boolean().default(false),
+});
+export const QuizItemSchema = z.object({
+  q: z.string().min(4).max(160),
+  options: z.array(z.string().min(1).max(60)).min(2).max(4),
+  answer: z.number().int().min(0).max(3),
+  /** Where the answer comes from (grounding): "Dadi's recipe", "the family tree". */
+  from: z.string().max(60).default(""),
+});
+export const ProjectSchema = z.object({
+  id,
+  templateId: z.string().nullable().default(null),
+  title: z.string().min(1).max(80),
+  kind: z.enum(PROJECT_KINDS),
+  createdBy: id,
+  /** The day it happens (a visit, a quiz night) or is due. */
+  dueAt: iso.nullable().default(null),
+  /** For a visit: who is coming home, and to whom. */
+  visitorId: z.string().nullable().default(null),
+  hostIds: z.array(id).max(12).default([]),
+  tasks: z.array(ProjectTaskSchema).max(40).default([]),
+  quiz: z.array(QuizItemSchema).max(12).default([]),
+  status: z.enum(["active", "done"]).default("active"),
+  createdAt: iso,
+});
+
 // ---------- Pets (part of a home) ----------
 export const PetSchema = z.object({
   id,
@@ -261,6 +310,8 @@ export const DOC_SCHEMAS = {
   rota: RotaSchema,
   duty: DutySchema,
   pet: PetSchema,
+  story: StorySchema,
+  project: ProjectSchema,
   safety_settings: SafetySettingsSchema,
   safety_checkin: SafetyCheckinSchema,
   sitting: SittingSchema,
@@ -282,6 +333,10 @@ export type Helper = DocOf<"helper">;
 export type Rota = DocOf<"rota">;
 export type Duty = DocOf<"duty">;
 export type Pet = DocOf<"pet">;
+export type Story = DocOf<"story">;
+export type Project = DocOf<"project">;
+export type ProjectTask = z.infer<typeof ProjectTaskSchema>;
+export type QuizItem = z.infer<typeof QuizItemSchema>;
 export type SafetySettings = DocOf<"safety_settings">;
 export type SafetyCheckin = DocOf<"safety_checkin">;
 export type Sitting = DocOf<"sitting">;

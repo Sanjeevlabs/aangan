@@ -212,3 +212,11 @@
 - Docs: SPEC §5.4/5.6/5.8/10/15 updated; §16 sharing model; §17 review + plan for location/weather/news/illustrations/legacy/store.
 - Re-run `supabase/schema.sql` (new demo members/links, `public_shares`, `bump_share_views`).
 - Tests: 175 passed. Prod smoke: 7 rooms × 3 members, no page errors.
+
+## Stage 9: Stories (kids' corner) + Together templates; research audit
+
+- **Research audit** (SPEC §18): ikigai/Okinawa, Hilbrand, Baldassar, Gottman, Carstensen vs. what's built. Closed here: grandparent story time, doing things together (moai), physical copresence (plan a visit), word a day, homework hour. Still open: family news + digest, "one good thing", bids metric, life-story chapters, warm-repair nudges.
+- **Stories** (`/stories`, `lib/stories.ts`, `/api/stories`): elders tell by voice (new recorder purpose "Tell a story"); Muse only labels (title, theme, ages, one line), never writes the story; shelves per teller with night-sky covers by theme (`components/story-art.tsx`); **Bedtime mode** (one teller's stories in a row, sleep timer 10/20/30/off, then stops); kids ask for a story (reuses `question` topic "story" → shows on the elder's courtyard as "Tell it"); edit/remove by teller or admin. Children's courtyard gets a "story from Dadi" door. Four original demo stories (Hindi, with translations) by Dadi and Dada; Leo's pending request to Dada.
+- **Together** (`/together`, `/together/[id]`, `lib/together-templates.ts`, `lib/together.ts`, `/api/together`): 12 data-driven templates across Play/Make/Learn/Celebrate/Visit; start → project with an editable task list (add, edit, tick, assign anyone incl. parents, delete), finish, delete (creator/admin); Book it as a Sit together; **Family quiz** written by Muse from the family's own recipes, people and pets, grounding-checked (mock is deterministic from data); **visit countdown** on the traveller's and the hosts' courtyards. Demo: "Arjun comes home" (12 days) and "The family cookbook".
+- Unicode-aware word matching for Hindi (JS `\b` is ASCII-only).
+- SQL: `family_docs` kind check adds `story`, `project`. Tests: 182 passed.

@@ -32,6 +32,54 @@ function nextLocal(weekday: number, hour: number, tz: string, now: number): stri
 }
 
 export function seedDemoRooms(now = Date.now()): void {
+  // ---------- Stories: the kids' corner ----------
+  seedDoc(FAM, "story", { id: "story-elephant", tellerId: "dadi", cardId: "demo-story-elephant", title: "The elephant and the tailor", theme: "animals", ages: "5-8", summary: "An elephant, a tailor and a needle; be kind to those who are kind to you.", lang: "hi", questionId: null, madeBy: "muse", createdAt: "2026-10-20T14:10:00.000Z" });
+  seedDoc(FAM, "story", { id: "story-mela", tellerId: "dadi", cardId: "demo-story-mela", title: "When I got lost at the fair", theme: "our-village", ages: "all", summary: "Dadi, seven, lost at the Dussehra fair, found from a balloon seller's shoulders.", lang: "hi", questionId: null, madeBy: "muse", createdAt: "2026-10-12T15:30:00.000Z" });
+  seedDoc(FAM, "story", { id: "story-mango", tellerId: "dadi", cardId: "demo-story-mango", title: "Your papa and the mango tree", theme: "family", ages: "all", summary: "Papa at eight, stuck at the top of the mango tree behind the courtyard.", lang: "hi", questionId: null, madeBy: "muse", createdAt: "2026-10-05T13:00:00.000Z" });
+  seedDoc(FAM, "story", { id: "story-swim", tellerId: "dada", cardId: "demo-story-swim", title: "How Dada learned to swim", theme: "our-village", ages: "5-8", summary: "Dada learns to swim in the Ganga in seven days.", lang: "hi", questionId: null, madeBy: "muse", createdAt: "2026-10-16T12:20:00.000Z" });
+  // Leo asked Dada for one; it waits on Dada's courtyard.
+  seedDoc(FAM, "question", { id: "tellme-leo-dada", toMemberId: "dada", text: "Tell me a story about a tiger", lang: "en", askedBy: "leo", topic: "story", answeredCardId: null, madeBy: "family", createdAt: ago(60 * 20, now) });
+
+  // ---------- Together: things the family is doing ----------
+  seedDoc(FAM, "project", {
+    id: "together-visit",
+    templateId: "visit",
+    title: "Arjun comes home for Diwali week",
+    kind: "visit",
+    createdBy: "arjun",
+    dueAt: ahead(12 * 24 * 60, now),
+    visitorId: "arjun",
+    hostIds: ["dadi", "dada"],
+    tasks: [
+      { id: "t-v1", text: "Fix the dates", assignee: "arjun", done: true },
+      { id: "t-v2", text: "Book tickets", assignee: "arjun", done: true },
+      { id: "t-v3", text: "List gifts to bring", assignee: "priya", done: false },
+      { id: "t-v4", text: "Plan the first meal at home", assignee: "dadi", done: false },
+      { id: "t-v5", text: "Clean the room upstairs", assignee: "dada", done: false },
+    ],
+    quiz: [],
+    status: "active",
+    createdAt: ago(60 * 24 * 3, now),
+  });
+  seedDoc(FAM, "project", {
+    id: "together-cookbook",
+    templateId: "cookbook",
+    title: "The family cookbook",
+    kind: "make",
+    createdBy: "priya",
+    dueAt: ahead(4 * 24 * 60, now),
+    visitorId: null,
+    hostIds: [],
+    tasks: [
+      { id: "t-c1", text: "Each home adds one recipe", assignee: null, done: true },
+      { id: "t-c2", text: "Elders record one by voice", assignee: "dadi", done: true },
+      { id: "t-c3", text: "Pick a cover photo", assignee: "leo", done: false },
+    ],
+    quiz: [],
+    status: "active",
+    createdAt: ago(60 * 24 * 6, now),
+  });
+
   // ---------- Kitchen library: every cook's shelf ----------
   const R = (id: string, cookId: string, title: string, course: string, prepMins: number | null, cookMins: number | null, serves: string, memory: string, prepWork: string[], outcome: string, ingredients: [string, string, string][], steps: [string, string][], daysAgo: number) =>
     seedDoc(FAM, "recipe", {

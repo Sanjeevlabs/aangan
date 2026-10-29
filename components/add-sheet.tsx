@@ -25,9 +25,15 @@ export type ReplyContribution =
   | { kind: "wish" | "blessing"; runId: string }
   | { kind: "recipe"; title?: string; questionId?: string }
   | { kind: "answer"; questionId: string; prompt: string }
-  | { kind: "need"; forMemberId?: string };
+  | { kind: "need"; forMemberId?: string }
+  | { kind: "story"; questionId?: string; prompt?: string };
 
-const PURPOSE: Record<"recipe" | "answer" | "need", { title: string; hint: string; cta: string }> = {
+const PURPOSE: Record<"recipe" | "answer" | "need" | "story", { title: string; hint: string; cta: string }> = {
+  story: {
+    title: "Tell a story",
+    hint: "Tell it the way you would at bedtime. Take your time; the children will hear your voice, with the words along.",
+    cta: "Add to Stories",
+  },
   recipe: {
     title: "Teach a recipe",
     hint: "Talk while you cook, the way you'd teach at the stove. Say the amounts your way. Muse writes it into a recipe card for the family.",
@@ -325,6 +331,12 @@ function VoiceComposer({ addressee, contribution, onDone }: { addressee: string[
         onDone();
         if (recipe?.id) router.push(`/kitchen/${recipe.id}`);
         return;
+      } else if (contribution.kind === "story") {
+        const out = await json("/api/stories", { action: "tell", cardId: posted.id, questionId: contribution.questionId });
+        const story = out?.story as { id?: string } | undefined;
+        onDone();
+        if (story?.id) router.push(`/stories?new=${story.id}`);
+        return;
       } else if (contribution.kind === "answer") {
         await json("/api/keeper", { action: "answer", questionId: contribution.questionId, cardId: posted.id });
       } else if (contribution.kind === "need") {
@@ -368,7 +380,7 @@ function VoiceComposer({ addressee, contribution, onDone }: { addressee: string[
     <div className="flex min-h-[460px] flex-col">
       {purpose ? (
         <div className="rounded-[20px] bg-surface px-4 py-3">
-          {contribution?.kind === "answer" && <p className="voice m-0 mb-1 text-[19px] leading-snug text-ink">“{contribution.prompt}”</p>}
+          {(contribution?.kind === "answer" || (contribution?.kind === "story" && contribution.prompt)) && <p className="voice m-0 mb-1 text-[19px] leading-snug text-ink">“{contribution.prompt}”</p>}
           {contribution?.kind === "recipe" && contribution.title && <p className="m-0 mb-1 text-[17px] font-semibold">{contribution.title}</p>}
           <p className="m-0 text-[14px] text-ink-soft">{purpose.hint}</p>
         </div>

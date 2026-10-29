@@ -39,7 +39,8 @@ type IconName =
   | "door"
   | "sun"
   | "phone"
-  | "shield";
+  | "shield"
+  | "moon";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   play: <path d="M8 5.2v13.6a1 1 0 0 0 1.5.86l11-6.8a1 1 0 0 0 0-1.72l-11-6.8A1 1 0 0 0 8 5.2z" fill="currentColor" stroke="none" />,
@@ -165,6 +166,7 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" />
     </>
   ),
+  moon: <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.8 6.8 0 0 0 10.5 10.5z" />,
   shield: (
     <>
       <path d="M12 3.5l7 2.8v5.2c0 4.4-3 7.7-7 9-4-1.3-7-4.6-7-9V6.3l7-2.8z" />
