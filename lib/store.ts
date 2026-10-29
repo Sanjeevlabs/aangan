@@ -1,7 +1,7 @@
 import { seedDemoRooms } from "./demo-rooms";
 import { resetDocs } from "./family-docs";
 import type { z } from "zod";
-import { DEMO_MEMBERS } from "./family";
+import { DEMO_IYER_MEMBERS, DEMO_MEMBERS } from "./family";
 import {
   AgentRunSchema,
   CardSchema,
@@ -133,7 +133,10 @@ export function setMemberDisplayLang(memberId: string, displayLang: Member["disp
   return { ...member };
 }
 
-const familyNames = new Map<string, string>([["demo-family", "Sharma"]]);
+const familyNames = new Map<string, string>([
+  ["demo-family", "Sharma"],
+  ["demo-iyer", "Iyer"],
+]);
 
 export function createFamily(id: string, name: string): void {
   familyNames.set(id, name);
@@ -143,6 +146,11 @@ export function familyName(id: string): string | undefined {
   return familyNames.get(id);
 }
 
+
+/** Every Aangan this person belongs to (one row per family), by personId. */
+export function findMembersByPerson(personId: string): Member[] {
+  return members.filter((m) => m.personId === personId).map((m) => ({ ...m }));
+}
 
 export function findMemberByEmail(email: string): Member | undefined {
   const e = email.trim().toLowerCase();
@@ -159,6 +167,7 @@ export interface MemberPatch {
   birthday?: string;
   photoRef?: string | null;
   email?: string | null;
+  personId?: string | null;
 }
 
 export function updateMemberProfile(memberId: string, patch: MemberPatch): Member | undefined {
@@ -172,6 +181,7 @@ export function updateMemberProfile(memberId: string, patch: MemberPatch): Membe
   if (patch.firstName !== undefined) member.firstName = patch.firstName;
   if (patch.tz !== undefined) member.tz = patch.tz;
   if (patch.photoRef !== undefined) member.photoRef = patch.photoRef;
+  if (patch.personId !== undefined) member.personId = patch.personId;
   return { ...member };
 }
 
@@ -201,7 +211,7 @@ export function seedDemo(): void {
 }
 
 export function resetDemo(): void {
-  members = DEMO_MEMBERS.map((m) => MemberSchema.parse(m));
+  members = [...DEMO_MEMBERS, ...DEMO_IYER_MEMBERS].map((m) => MemberSchema.parse(m));
   clearPlays();
   clearReactions();
   clearRelationships();
@@ -409,6 +419,28 @@ export function clearRelationships(): void {
   addRelationship({ id: "rel-kavya-anaya", familyId: "demo-family", memberId: "kavya", relationMemberId: "anaya", relation: "daughter", canonicalKind: "child" });
   addRelationship({ id: "rel-priya-leo", familyId: "demo-family", memberId: "priya", relationMemberId: "leo", relation: "son", canonicalKind: "child" });
   addRelationship({ id: "rel-priya-aria", familyId: "demo-family", memberId: "priya", relationMemberId: "aria", relation: "daughter", canonicalKind: "child" });
+  // Rohan, Arjun's younger brother in London, with Sneha and their son Kabir:
+  // cousins and in-laws, not just the household.
+  addRelationship({ id: "rel-arjun-rohan", familyId: "demo-family", memberId: "arjun", relationMemberId: "rohan", relation: "brother", canonicalKind: "sibling" });
+  addRelationship({ id: "rel-rohan-sneha", familyId: "demo-family", memberId: "rohan", relationMemberId: "sneha", relation: "wife", canonicalKind: "spouse" });
+  addRelationship({ id: "rel-rohan-kabir", familyId: "demo-family", memberId: "rohan", relationMemberId: "kabir", relation: "son", canonicalKind: "child" });
+  addRelationship({ id: "rel-sneha-kabir", familyId: "demo-family", memberId: "sneha", relationMemberId: "kabir", relation: "son", canonicalKind: "child" });
+
+  // Priya's side, the Iyer Aangan.
+  const I = "demo-iyer";
+  const rel = (id: string, a: string, b: string, relation: string, canonicalKind: Relationship["canonicalKind"]) => addRelationship({ id, familyId: I, memberId: a, relationMemberId: b, relation, canonicalKind });
+  rel("rel-i-nani-nana", "iyer-nani", "iyer-nana", "husband", "spouse");
+  rel("rel-i-priya-nani", "iyer-priya", "iyer-nani", "mother", "parent");
+  rel("rel-i-priya-nana", "iyer-priya", "iyer-nana", "father", "parent");
+  rel("rel-i-priya-arjun", "iyer-priya", "iyer-arjun", "husband", "spouse");
+  rel("rel-i-priya-leo", "iyer-priya", "iyer-leo", "son", "child");
+  rel("rel-i-priya-aria", "iyer-priya", "iyer-aria", "daughter", "child");
+  rel("rel-i-arjun-leo", "iyer-arjun", "iyer-leo", "son", "child");
+  rel("rel-i-arjun-aria", "iyer-arjun", "iyer-aria", "daughter", "child");
+  rel("rel-i-priya-karthik", "iyer-priya", "iyer-karthik", "brother", "sibling");
+  rel("rel-i-karthik-meera", "iyer-karthik", "iyer-meera", "wife", "spouse");
+  rel("rel-i-karthik-diya", "iyer-karthik", "iyer-diya", "daughter", "child");
+  rel("rel-i-meera-diya", "iyer-meera", "iyer-diya", "daughter", "child");
   // Leo and Aria are Arjun's children.
   for (const kid of ["leo", "aria"]) {
     addRelationship({
@@ -433,7 +465,7 @@ export function setKinshipTerms(path: string, displayLang: string, terms: string
 if (relationships.length === 0) clearRelationships();
 
 if (cards.length === 0) seedDemo();
-if (members.length === 0) members = DEMO_MEMBERS.map((m) => MemberSchema.parse(m));
+if (members.length === 0) members = [...DEMO_MEMBERS, ...DEMO_IYER_MEMBERS].map((m) => MemberSchema.parse(m));
 
 // ---- Edit / delete operations (stage 5 CRUD) ----
 export function revokeInvite(code: string, familyId: string): boolean {

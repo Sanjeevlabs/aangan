@@ -22,7 +22,7 @@ export async function GET(req: Request): Promise<Response> {
     exportedAt: new Date().toISOString(),
     exportedBy: me.displayName,
     family: { id: auth.familyId, name },
-    members: members.map(({ email: _e, ...m }) => (void _e, m)),
+    members: members.map(({ email: _e, personId: _p, ...m }) => (void _e, void _p, m)),
     relationships,
     memories: cards,
     ...Object.fromEntries(kinds.map((k, i) => [k, docs[i]])),

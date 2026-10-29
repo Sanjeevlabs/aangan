@@ -10,6 +10,7 @@ import { useDisplayText } from "@/lib/use-display-text";
 import { useFamilyCards } from "@/lib/use-family";
 import { CourtyardNow } from "./home-presence";
 import { VoicePlaque } from "./plaque";
+import { SideSwitch } from "./sides";
 import { HeardChip } from "./reactions";
 import { usePlayer } from "./player";
 import { useShell } from "./shell";
@@ -113,6 +114,7 @@ export function Home() {
             Good {part}
             {heroAuthor ? ` · ${callName(heroAuthor)} sent you something` : ""}
           </p>
+          <SideSwitch />
         </div>
         <Link href="/settings" aria-label="Your account and settings" className="press rounded-full">
           <Avatar src={memberPhoto(viewer)} name={viewer.firstName} size={42} ring />

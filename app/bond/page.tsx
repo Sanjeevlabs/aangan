@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useViewer } from "@/components/viewer";
 import { FamilyConstellation } from "@/components/constellation";
 import { PetsSection } from "@/components/pets";
+import { BothSides, FamilyCircles } from "@/components/sides";
 import { can } from "@/lib/permissions";
 import { ZONES, placeFromTz } from "@/lib/zones";
 
@@ -229,6 +230,8 @@ export default function BondPage() {
               }
             />
           </section>
+          <FamilyCircles members={members} relationships={relationships ?? []} />
+          <BothSides />
           <PetsSection />
           {can(viewer, "tree.add") ? (
           <GuidedAdd

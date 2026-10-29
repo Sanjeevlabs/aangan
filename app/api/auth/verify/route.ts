@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { sessionCookieHeader, signSession } from "@/lib/auth";
-import { dbAddMember, dbCreateFamily, dbFindMemberByEmail, dbListInvites } from "@/lib/db";
+import { dbAddMember, dbCreateFamily, dbFindMemberByEmail, dbListInvites, dbListSides, dbUpdateMemberProfile } from "@/lib/db";
 import { allowAuthAttempt, verifyCode } from "@/lib/otp";
 
 const Name = z.string().trim().min(1).max(40);
@@ -49,6 +49,37 @@ export async function POST(req: Request): Promise<Response> {
     if (!existing) return Response.json({ error: "no-family" }, { status: 404 });
     familyId = existing.familyId;
     memberId = existing.id;
+  } else if (intent.type === "join" && existing) {
+    // Already in one Aangan, joining another (my wife's family, say): the same
+    // person gets a place on both sides, linked by personId.
+    const now = Date.now();
+    const invite = (await dbListInvites()).find((i) => i.code.toUpperCase() === intent.inviteCode.toUpperCase() && new Date(i.expiresAt).getTime() > now);
+    if (!invite) return Response.json({ error: "invalid-invite" }, { status: 403 });
+    const sides = await dbListSides(existing);
+    const there = sides.find((m) => m.familyId === invite.familyId) ?? (existing.familyId === invite.familyId ? existing : undefined);
+    if (there) {
+      familyId = there.familyId;
+      memberId = there.id;
+    } else {
+      if (sides.length >= 4) return Response.json({ error: "too-many-sides" }, { status: 409 });
+      const personId = existing.personId ?? `p-${crypto.randomUUID().slice(0, 16)}`;
+      if (!existing.personId) await dbUpdateMemberProfile(existing.id, { personId });
+      const member = await dbAddMember({
+        familyId: invite.familyId,
+        firstName: intent.firstName,
+        displayName: intent.callName || intent.firstName,
+        role: existing.role === "child" ? "child" : "adult",
+        lang: existing.lang,
+        displayLang: existing.displayLang,
+        tz: existing.tz,
+        birthday: existing.birthday,
+        email,
+        access: "member",
+        personId,
+      });
+      familyId = invite.familyId;
+      memberId = member.id;
+    }
   } else {
     if (existing) return Response.json({ error: "already-member" }, { status: 409 });
     if (intent.type === "create") {

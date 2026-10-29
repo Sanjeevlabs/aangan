@@ -40,6 +40,7 @@ import {
   createFamily as memCreateFamily,
   familyName as memFamilyName,
   findMemberByEmail as memFindByEmail,
+  findMembersByPerson as memFindByPerson,
   setMemberHome as memSetHome,
   setReaction as memSetReaction,
   setRitualRunStatus as memSetRunStatus,
@@ -109,6 +110,7 @@ function memberFromRow(r: Record<string, unknown>): Member {
     photoRef: (r.photo_ref as string | null) ?? null,
     email: (r.email as string | null) ?? null,
     access: r.access === "admin" || r.access === "child" ? r.access : "member",
+    personId: (r.person_id as string | null) ?? null,
   });
 }
 
@@ -128,6 +130,7 @@ export async function dbListFamilyIds(): Promise<string[]> {
 // a live error) are filtered the same way, so a new family never sees another
 // family's rows.
 const DEMO_FAMILY = "demo-family";
+const DEMO_FAMILIES = new Set(["demo-family", "demo-iyer"]);
 
 /** Live rows win; seeded demo rows fill in anything the database doesn't have. */
 function withDemoSeed<T extends { id: string }>(live: T[], seed: T[], merge?: (live: T, seed: T) => T): T[] {
@@ -195,9 +198,9 @@ export async function dbListMembers(familyId: string = DEMO_FAMILY): Promise<Mem
   const sb = supabaseServer();
   if (!sb) return scoped(memListMembers(), familyId);
   const { data, error } = await sb.from("members").select("*").eq("family_id", familyId);
-  if (error || !data || (data.length === 0 && familyId === DEMO_FAMILY)) return scoped(memListMembers(), familyId);
+  if (error || !data || (data.length === 0 && DEMO_FAMILIES.has(familyId))) return scoped(memListMembers(), familyId);
   const rows = data.map(memberFromRow);
-  return familyId === DEMO_FAMILY ? withDemoSeed(rows, scoped(memListMembers(), familyId), (live, seed) => ({ ...live, photoRef: live.photoRef ?? seed.photoRef })) : rows;
+  return DEMO_FAMILIES.has(familyId) ? withDemoSeed(rows, scoped(memListMembers(), familyId), (live, seed) => ({ ...live, photoRef: live.photoRef ?? seed.photoRef })) : rows;
 }
 
 export async function dbGetMember(id: string): Promise<Member | undefined> {
@@ -257,6 +260,7 @@ export async function dbAddMember(input: Omit<import("zod").input<typeof MemberS
     birthday: member.birthday,
     email: member.email ? member.email.toLowerCase() : null,
     photo_ref: member.photoRef,
+    person_id: member.personId,
   });
   if (error) throw new Error("member-create-failed");
   return member;
@@ -267,9 +271,25 @@ export async function dbFindMemberByEmail(email: string): Promise<Member | undef
   if (!live()) return memFindByEmail(e);
   const sb = supabaseServer();
   if (!sb) return memFindByEmail(e);
-  const { data, error } = await sb.from("members").select("*").ilike("email", e).limit(1);
+  const { data, error } = await sb.from("members").select("*").eq("email", e).limit(1); // exact: ilike would treat "_" and "%" as wildcards
   if (error || !data || data.length === 0) return undefined;
   return memberFromRow(data[0] as Record<string, unknown>);
+}
+
+/**
+ * Every Aangan this member's person belongs to: one row per family, the same
+ * human. A member without a personId belongs to one Aangan only.
+ */
+export async function dbListSides(member: Member): Promise<Member[]> {
+  if (!member.personId) return [member];
+  const local = memFindByPerson(member.personId);
+  if (!live()) return local;
+  const sb = supabaseServer();
+  if (!sb) return local;
+  const { data, error } = await sb.from("members").select("*").eq("person_id", member.personId).limit(8);
+  if (error || !data) return local;
+  const rows = data.map((r) => memberFromRow(r as Record<string, unknown>));
+  return withDemoSeed(rows, local.filter((m) => DEMO_FAMILIES.has(m.familyId)));
 }
 
 export async function dbUpdateMemberProfile(memberId: string, patch: MemberPatch): Promise<Member | undefined> {
@@ -285,6 +305,7 @@ export async function dbUpdateMemberProfile(memberId: string, patch: MemberPatch
   if (patch.tz !== undefined) row.tz = patch.tz;
   if (patch.photoRef !== undefined) row.photo_ref = patch.photoRef;
   if (patch.email !== undefined) row.email = patch.email ? patch.email.toLowerCase() : null;
+  if (patch.personId !== undefined) row.person_id = patch.personId;
   const { error } = await sb.from("members").update(row).eq("id", memberId);
   if (error) return undefined;
   return dbGetMember(memberId);
@@ -365,7 +386,7 @@ export async function dbListRelationships(familyId: string = DEMO_FAMILY): Promi
   const sb = supabaseServer();
   if (!sb) return scoped(memListRelationships(), familyId);
   const { data, error } = await sb.from("relationships").select("*").eq("family_id", familyId);
-  if (error || !data || (data.length === 0 && familyId === DEMO_FAMILY)) return scoped(memListRelationships(), familyId);
+  if (error || !data || (data.length === 0 && DEMO_FAMILIES.has(familyId))) return scoped(memListRelationships(), familyId);
   const rows = data.map((r) =>
     RelationshipSchema.parse({
       id: r.id,
@@ -378,7 +399,7 @@ export async function dbListRelationships(familyId: string = DEMO_FAMILY): Promi
   );
   // The demo family's seeded graph lives in memory: one new live edge must
   // never hide it (that flattened the demo tree once a person was added).
-  return familyId === DEMO_FAMILY ? withDemoSeed(rows, scoped(memListRelationships(), familyId)) : rows;
+  return DEMO_FAMILIES.has(familyId) ? withDemoSeed(rows, scoped(memListRelationships(), familyId)) : rows;
 }
 
 // Canonical edge kind from the family's own word. Data in, data out.
@@ -903,7 +924,7 @@ export async function dbRevokeInvite(code: string, familyId: string): Promise<bo
   if (!live()) return mem;
   const sb = supabaseServer();
   if (!sb) return mem;
-  const { error, count } = await sb.from("invites").delete({ count: "exact" }).eq("family_id", familyId).ilike("code", code);
+  const { error, count } = await sb.from("invites").delete({ count: "exact" }).eq("family_id", familyId).eq("code", code.trim().toUpperCase());
   return !error && ((count ?? 0) > 0 || mem);
 }
 
