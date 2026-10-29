@@ -36,7 +36,7 @@ const PURPOSE: Record<"recipe" | "answer" | "need", { title: string; hint: strin
   answer: { title: "Your answer", hint: "Take your time. Your voice is kept for the family, word for word.", cta: "Keep my answer" },
   need: {
     title: "Ask for help",
-    hint: "Say what you need: groceries, a ride, something to fix. Your family abroad and the people in your Village will see it.",
+    hint: "Say what you need: groceries, a ride, something to fix. Your family and your local helpers will see it.",
     cta: "Ask the family",
   },
 };

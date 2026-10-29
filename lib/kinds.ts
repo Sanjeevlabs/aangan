@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { HELPER_ROLES, NEED_KINDS, NEED_STATUSES, PET_SPECIES, PRESENCE_MOMENTS, PRIORITIES, RECURRENCE, SAFETY_KINDS, SITTING_REASONS } from "./kind-values";
+import { COURSES, HELPER_ROLES, NEED_KINDS, NEED_STATUSES, PET_SPECIES, PRESENCE_MOMENTS, PRIORITIES, RECURRENCE, SAFETY_KINDS, SITTING_REASONS } from "./kind-values";
 
-export { HELPER_ROLES, NEED_KINDS, NEED_STATUSES, PET_SPECIES, PRESENCE_MOMENTS, PRIORITIES, RECURRENCE, SAFETY_KINDS, SITTING_REASONS };
+export { COURSES, HELPER_ROLES, NEED_KINDS, NEED_STATUSES, PET_SPECIES, PRESENCE_MOMENTS, PRIORITIES, RECURRENCE, SAFETY_KINDS, SITTING_REASONS };
 
 // Schemas for the family's "living" records: Kitchen, presence, care,
-// Village, sittings and the weekly question. They share one table
+// local helpers, sittings and the weekly question. They share one table
 // (family_docs, jsonb) and are validated here on every read and write, so a
 // new room costs a schema, not a migration. Clients import types only.
 
@@ -31,8 +31,20 @@ export const RecipeSchema = z.object({
   title: z.string().min(1).max(80),
   /** The family member whose recipe this is. */
   cookId: id,
+  /** Who wrote it down, if not the cook ("I'm writing down Maa's recipe"). */
+  addedBy: z.string().nullable().default(null),
+  course: z.enum(COURSES).default("main"),
+  /** Minutes, when known. Never invented by Muse. */
+  prepMins: z.number().int().min(0).max(1440).nullable().default(null),
+  cookMins: z.number().int().min(0).max(1440).nullable().default(null),
+  /** Before you start: soak, chop, grind ("soak the dal 30 min"). */
+  prepWork: z.array(z.string().min(1).max(160)).max(12).default([]),
+  /** How you know it's right: "Thick enough to coat a spoon; smells of ghee." */
+  outcome: z.string().max(240).default(""),
   /** The voice note it was taught in (a card), if any. */
   voiceCardId: z.string().nullable().default(null),
+  /** A video of it being made (a card), if any. */
+  videoCardId: z.string().nullable().default(null),
   coverRef: z.string().nullable().default(null),
   /** One line of why it matters: "Every Sunday in Kanpur, after the market." */
   memory: z.string().max(240).default(""),
@@ -101,7 +113,7 @@ export const NeedSchema = z.object({
   history: z.array(z.object({ at: iso, by: z.string(), what: z.string().max(160) })).max(100).default([]),
   /** The family member taking responsibility (often abroad). */
   claimedBy: z.string().nullable().default(null),
-  /** The Village person who will actually go. */
+  /** The local helper who will actually go. */
   helperId: z.string().nullable().default(null),
   /** Note for the parent, already in their language. */
   noteForParent: z.string().max(240).default(""),
@@ -149,14 +161,16 @@ export const PetSchema = z.object({
   createdAt: iso,
 });
 
-// ---------- Village (trusted local people around a parent) ----------
+// ---------- Local helpers (trusted people near a parent's home) ----------
 export const HelperSchema = z.object({
   id,
   name: z.string().min(1).max(60),
   role: z.enum(HELPER_ROLES).default("other"),
-  /** Whose Village they belong to. */
+  /** The parent whose home they serve (shared by everyone in that home). */
   forMemberId: id,
   phone: z.string().max(30).default(""),
+  /** When they're usually available: "Mon–Sat, 8–11 am". */
+  hours: z.string().max(60).default(""),
   note: z.string().max(160).default(""),
   addedBy: id,
   createdAt: iso,

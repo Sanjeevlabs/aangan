@@ -346,8 +346,28 @@ alter table family_docs add constraint family_docs_kind_check check (kind in ('r
 create index if not exists family_docs_family_kind_idx on family_docs (family_id, kind, created_at desc);
 alter table family_docs enable row level security;
 
+-- ---------------------------------------------------------- public_shares
+-- The only data that ever leaves a family: a frozen copy of one thing a
+-- member chose to share (a recipe), behind an unguessable token. Revocable.
+create table if not exists public_shares (
+  token text primary key,
+  family_id text not null,
+  kind text not null check (kind in ('recipe')),
+  ref_id text not null,
+  snapshot jsonb not null,
+  created_by text not null,
+  created_at timestamptz not null default now(),
+  revoked_at timestamptz,
+  views integer not null default 0
+);
+create index if not exists public_shares_family_idx on public_shares (family_id, created_at desc);
+alter table public_shares enable row level security;
+create or replace function bump_share_views(t text) returns void language sql security definer as $$
+  update public_shares set views = views + 1 where token = t and revoked_at is null;
+$$;
+
 -- -------------------------------------------------------------------- seed
-insert into families (id, name) values ('demo-family', 'Demo Family')
+insert into families (id, name) values ('demo-family', 'Sharma')
 on conflict (id) do nothing;
 
 insert into members (id, family_id, first_name, display_name, role, lang, display_lang, tz, birthday)
@@ -356,12 +376,16 @@ values
   ('dada', 'demo-family', 'Mohan', 'Dada', 'elder', 'hi', 'hi-deva', 'Asia/Kolkata', '08-15'),
   ('arjun', 'demo-family', 'Arjun', 'Dad', 'adult', 'en', 'en', 'America/New_York', '07-30'),
   ('leo', 'demo-family', 'Leo', 'Leo', 'child', 'en', 'en', 'America/New_York', '11-09'),
-  ('aria', 'demo-family', 'Aria', 'Aria', 'child', 'en', 'hi-latn', 'America/Chicago', '03-14')
+  ('aria', 'demo-family', 'Aria', 'Aria', 'child', 'en', 'hi-latn', 'America/Chicago', '03-14'),
+  ('priya', 'demo-family', 'Priya', 'Mom', 'adult', 'en', 'en', 'America/New_York', '05-02'),
+  ('kavya', 'demo-family', 'Kavya', 'Bua', 'adult', 'hi', 'en', 'Asia/Kolkata', '09-19'),
+  ('rahul', 'demo-family', 'Rahul', 'Fufa', 'adult', 'en', 'en', 'Asia/Kolkata', '12-03'),
+  ('anaya', 'demo-family', 'Anaya', 'Anaya', 'child', 'en', 'en', 'Asia/Kolkata', '06-25')
 on conflict (id) do nothing;
 
 -- Demo portraits and the demo family graph (idempotent).
 update members set access = 'admin' where id = 'arjun' and family_id = 'demo-family';
-update members set access = 'child' where id = 'aria' and family_id = 'demo-family';
+update members set access = 'child' where id in ('aria', 'anaya') and family_id = 'demo-family';
 update members set photo_ref = '/demo/portrait-dadi.webp' where id = 'dadi' and photo_ref is null;
 update members set photo_ref = '/demo/portrait-dad.webp' where id = 'arjun' and photo_ref is null;
 update members set photo_ref = '/demo/portrait-leo.webp' where id = 'leo' and photo_ref is null;
@@ -372,5 +396,11 @@ values
   ('rel-dadi-dada', 'demo-family', 'dadi', 'dada', 'husband'),
   ('rel-arjun-dada', 'demo-family', 'arjun', 'dada', 'father'),
   ('rel-leo-arjun', 'demo-family', 'leo', 'arjun', 'father'),
-  ('rel-aria-arjun', 'demo-family', 'aria', 'arjun', 'father')
+  ('rel-aria-arjun', 'demo-family', 'aria', 'arjun', 'father'),
+  ('rel-arjun-priya', 'demo-family', 'arjun', 'priya', 'wife'),
+  ('rel-arjun-kavya', 'demo-family', 'arjun', 'kavya', 'sister'),
+  ('rel-kavya-rahul', 'demo-family', 'kavya', 'rahul', 'husband'),
+  ('rel-kavya-anaya', 'demo-family', 'kavya', 'anaya', 'daughter'),
+  ('rel-priya-leo', 'demo-family', 'priya', 'leo', 'son'),
+  ('rel-priya-aria', 'demo-family', 'priya', 'aria', 'daughter')
 on conflict (id) do nothing;

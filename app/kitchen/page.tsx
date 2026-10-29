@@ -2,34 +2,50 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { COURSE_LOOK, RecipeCover, totalTime } from "@/components/recipe-art";
 import { useShell } from "@/components/shell";
-import { ActionMenu, Avatar, Button, EmptyLine, Icon, Monogram, MuseMark, Photo, RoomHeader, SectionTitle } from "@/components/ui/kit";
+import { ActionMenu, Avatar, Button, EmptyLine, Icon, RoomHeader, SectionTitle } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
+import { COURSES } from "@/lib/kind-values";
 import type { Attempt, Question, Recipe } from "@/lib/kinds";
+import { resolveMediaUrl } from "@/lib/media-session";
+import { canChange } from "@/lib/permissions";
 import { callName, memberPhoto } from "@/lib/people";
 import { cn } from "@/lib/utils";
 import { postJson, useJson } from "@/lib/use-json";
 
-// The family Kitchen. Not a recipe site: every dish belongs to a person, was
-// taught in their voice, and carries everyone who has cooked it since.
+// The family Kitchen: a library of every recipe anyone in the family shares,
+// shelved by the person who cooks it. Each dish belongs to someone, may be
+// taught in their voice or on video, and carries everyone who has cooked it since.
 export default function KitchenPage() {
   const { viewer, members } = useViewer();
   const { openAdd } = useShell();
-  const { data, failed } = useJson<{ recipes: Recipe[]; attempts: Attempt[] }>("/api/kitchen");
+  const { data, failed, reload } = useJson<{ recipes: Recipe[]; attempts: Attempt[] }>("/api/kitchen");
   const asks = useJson<{ questions: Question[] }>("/api/keeper");
   const [asking, setAsking] = useState(false);
+  const [query, setQuery] = useState("");
+  const [course, setCourse] = useState<Recipe["course"] | "all">("all");
 
   const byId = (id: string) => members.find((m) => m.id === id);
   const recipes = data?.recipes ?? [];
   const attemptsFor = (id: string) => (data?.attempts ?? []).filter((a) => a.recipeId === id);
   const waiting = (asks.data?.questions ?? []).filter((q) => q.topic === "recipe" && !q.answeredCardId);
   const mine = waiting.filter((q) => q.toMemberId === viewer.id);
-  const hero = recipes[0];
-  const heroCook = hero ? byId(hero.cookId) : undefined;
+  const usedCourses = COURSES.filter((c) => recipes.some((r) => r.course === c));
+  const q = query.trim().toLowerCase();
+  const shown = recipes.filter((r) => (course === "all" || r.course === course) && (!q || r.title.toLowerCase().includes(q) || r.ingredients.some((i) => i.item.toLowerCase().includes(q))));
+  // One shelf per cook: the elders first, then you, then everyone else.
+  const rank = (id: string) => (byId(id)?.role === "elder" ? 0 : id === viewer.id ? 1 : 2);
+  const count = (id: string) => shown.filter((r) => r.cookId === id).length;
+  const shelves = Array.from(new Set(shown.map((r) => r.cookId)))
+    .sort((a, b) => rank(a) - rank(b) || count(b) - count(a))
+    .map((id) => ({ cook: byId(id), list: shown.filter((r) => r.cookId === id).sort((a, b) => b.createdAt.localeCompare(a.createdAt)) }))
+    .filter((x): x is { cook: NonNullable<typeof x.cook>; list: Recipe[] } => Boolean(x.cook));
+  const iHaveNone = data !== null && !recipes.some((r) => r.cookId === viewer.id);
 
   return (
     <div>
-      <RoomHeader title="Kitchen" subtitle="The family's recipes, in the voices that taught them" />
+      <RoomHeader title="Kitchen" subtitle="Every family recipe, shelved by who cooks it" />
 
       {mine.length > 0 && (
         <section aria-label="Asked of you" className="mb-6 space-y-2">
@@ -52,58 +68,72 @@ export default function KitchenPage() {
         </section>
       )}
 
-      {data === null && !failed && <div className="skeleton h-[320px] rounded-hero" aria-busy="true" aria-label="Loading recipes" />}
-      {failed && <EmptyLine>The Kitchen couldn&rsquo;t load. Try again in a moment.</EmptyLine>}
-
-      {hero && (
-        <Link href={`/kitchen/${hero.id}`} className="block text-white no-underline">
-          <article className="relative h-[340px] overflow-hidden rounded-hero bg-[#3a2a1c]" style={{ boxShadow: "0 24px 50px -22px rgba(120,70,20,.6)" }}>
-            {memberPhoto(heroCook) ? <Photo src={memberPhoto(heroCook) as string} alt={callName(heroCook)} sizes="440px" priority position="center 25%" /> : <div className="absolute inset-0"><Monogram name={callName(heroCook)} size={340} /></div>}
-            <div className="glass absolute inset-x-2.5 bottom-2.5 rounded-[22px] p-4">
-              <p className="m-0 text-[13px] font-medium text-white/85">From {callName(heroCook)}&rsquo;s hands</p>
-              <p className="m-0 mt-0.5 text-[24px] font-bold leading-tight">{hero.title}</p>
-              {hero.memory && <p className="voice m-0 mt-1.5 line-clamp-2 text-[17px] leading-snug text-white/90">{hero.memory}</p>}
-              <p className="m-0 mt-2.5 text-[13px] text-white/80">{cookedLine(attemptsFor(hero.id), members, viewer.id)}</p>
-            </div>
-          </article>
+      <div className="grid grid-cols-3 gap-2">
+        <Link href="/kitchen/new" className="press flex h-[64px] flex-col items-center justify-center gap-0.5 rounded-[20px] bg-black text-[14px] font-semibold text-white no-underline">
+          <Icon name="plus" size={18} />
+          Write one
         </Link>
-      )}
-
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <button type="button" onClick={() => openAdd("voice", { kind: "recipe" })} className="press flex h-[60px] items-center justify-center gap-2 rounded-[20px] bg-black text-[15px] font-semibold text-white">
+        <button type="button" onClick={() => openAdd("voice", { kind: "recipe" })} className="press flex h-[64px] flex-col items-center justify-center gap-0.5 rounded-[20px] bg-surface text-[14px] font-semibold">
           <Icon name="mic" size={18} />
-          Teach a recipe
+          Teach by voice
         </button>
-        <button type="button" onClick={() => setAsking((v) => !v)} aria-expanded={asking} className={cn("press flex h-[60px] items-center justify-center gap-2 rounded-[20px] text-[15px] font-semibold", asking ? "bg-black/80 text-white" : "bg-surface")}>
-          Ask for a recipe
+        <button type="button" onClick={() => setAsking((v) => !v)} aria-expanded={asking} className={cn("press flex h-[64px] flex-col items-center justify-center gap-0.5 rounded-[20px] text-[14px] font-semibold", asking ? "bg-black/80 text-white" : "bg-surface")}>
+          <Icon name="reply" size={18} />
+          Ask someone
         </button>
       </div>
       {asking && <AskForRecipe onDone={() => { setAsking(false); void asks.reload(); }} />}
 
-      {recipes.length > 0 && (
-        <section aria-label="All recipes">
-          <SectionTitle>Family recipes</SectionTitle>
-          <ul className="m-0 list-none divide-y divide-[var(--line)] p-0">
-            {recipes.map((r) => {
-              const cook = byId(r.cookId);
-              return (
-                <li key={r.id}>
-                  <Link href={`/kitchen/${r.id}`} className="press flex items-center gap-3 py-3 text-ink no-underline">
-                    <Avatar src={memberPhoto(cook)} name={callName(cook)} size={52} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[17px] font-semibold">{r.title}</span>
-                      <span className="block text-[13px] text-ink-soft">
-                        {callName(cook)} · {attemptsFor(r.id).length ? `cooked ${attemptsFor(r.id).length}×` : "not cooked yet"}
-                      </span>
-                      {r.madeBy === "muse" && <MuseMark>written from {callName(cook)}&rsquo;s voice</MuseMark>}
-                    </span>
-                    <Icon name="chevron" size={18} className="text-ink-faint" />
-                  </Link>
-                </li>
-              );
-            })}
+      {data === null && !failed && <div className="skeleton mt-6 h-[220px] rounded-card" aria-busy="true" aria-label="Loading recipes" />}
+      {failed && <EmptyLine>The Kitchen couldn&rsquo;t load. Try again in a moment.</EmptyLine>}
+
+      {recipes.length > 3 && (
+        <label className="mt-5 flex h-11 items-center gap-2 rounded-full bg-surface px-4">
+          <span className="sr-only">Search recipes</span>
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${recipes.length} recipes or an ingredient`} className="min-w-0 flex-1 bg-transparent text-[15px] outline-none" />
+        </label>
+      )}
+      {usedCourses.length > 1 && (
+        <div className="no-scrollbar -mx-5 mt-2 flex gap-1.5 overflow-x-auto px-5" role="radiogroup" aria-label="Course">
+          {(["all", ...usedCourses] as const).map((c) => (
+            <button key={c} type="button" role="radio" aria-checked={course === c} onClick={() => setCourse(c)} className={cn("press h-9 shrink-0 rounded-full px-3.5 text-[14px] font-medium", course === c ? "bg-black text-white" : "bg-surface")}>
+              {c === "all" ? "All" : COURSE_LOOK[c].label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {shelves.map(({ cook, list }) => (
+        <section key={cook.id} aria-label={`${callName(cook)}'s recipes`}>
+          <div className="mb-3 mt-7 flex items-center gap-2.5">
+            <Avatar src={memberPhoto(cook)} name={callName(cook)} size={38} />
+            <h2 className="m-0 min-w-0 flex-1 truncate text-[20px]">
+              {cook.id === viewer.id ? "Your recipes" : `${callName(cook)}'s recipes`}
+              <span className="ml-1.5 text-[14px] font-medium text-ink-faint">{list.length}</span>
+            </h2>
+            {cook.id === viewer.id && (
+              <Link href="/kitchen/new" className="text-[14px] font-semibold text-ink-soft no-underline">
+                + Add
+              </Link>
+            )}
+          </div>
+          <ul className="no-scrollbar -mx-5 my-0 flex list-none snap-x scroll-px-5 gap-3 overflow-x-auto py-0 pb-1 pl-5 pr-5">
+            {list.map((r) => (
+              <RecipeTile key={r.id} recipe={r} attempts={attemptsFor(r.id)} canManage={canChange(viewer, r.cookId) || Boolean(r.addedBy && canChange(viewer, r.addedBy))} onDeleted={() => void reload()} />
+            ))}
           </ul>
         </section>
+      ))}
+      {recipes.length > 0 && shelves.length === 0 && <EmptyLine>No recipes match.</EmptyLine>}
+      {iHaveNone && recipes.length > 0 && (
+        <Link href="/kitchen/new" className="press mt-7 flex items-center gap-3 rounded-card bg-surface p-4 text-ink no-underline">
+          <Avatar src={memberPhoto(viewer)} name={callName(viewer)} size={38} />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[16px] font-semibold">Your shelf is empty</span>
+            <span className="block text-[13px] text-ink-soft">Share the one dish people ask you to make.</span>
+          </span>
+          <Icon name="chevron" size={18} className="text-ink-faint" />
+        </Link>
       )}
 
       {waiting.filter((q) => q.toMemberId !== viewer.id).length > 0 && (
@@ -138,10 +168,37 @@ export default function KitchenPage() {
   );
 }
 
-function cookedLine(attempts: Attempt[], members: { id: string; displayName: string }[], viewerId: string): string {
-  if (attempts.length === 0) return "Nobody has cooked it yet. Be the first.";
-  const names = Array.from(new Set(attempts.map((a) => (a.memberId === viewerId ? "you" : members.find((m) => m.id === a.memberId)?.displayName ?? "family"))));
-  return `Cooked by ${names.slice(0, 3).join(", ")}`;
+/** One recipe on a shelf: cover, name, time, who has cooked it. */
+function RecipeTile({ recipe, attempts, canManage, onDeleted }: { recipe: Recipe; attempts: Attempt[]; canManage: boolean; onDeleted: () => void }) {
+  const photo = recipe.coverRef ?? attempts.find((a) => a.photoRef)?.photoRef ?? null;
+  const look = COURSE_LOOK[recipe.course] ?? COURSE_LOOK.other;
+  const time = totalTime(recipe);
+  return (
+    <li className="relative w-[164px] shrink-0 snap-start">
+      <Link href={`/kitchen/${recipe.id}`} className="press block text-ink no-underline">
+        <RecipeCover recipe={recipe} photo={photo ? (resolveMediaUrl(photo) ?? photo) : null} className="h-[136px] rounded-[22px]" />
+        <p className="m-0 mt-2 line-clamp-2 text-[15px] font-semibold leading-tight">{recipe.title}</p>
+        <p className="m-0 mt-0.5 flex items-center gap-1 text-[12.5px] text-ink-soft">
+          <span style={{ color: look.ink }}>{look.label}</span>
+          {time && <span>· {time}</span>}
+          {recipe.voiceCardId && <Icon name="mic" size={12} className="ml-0.5 text-[#8a4b00]" />}
+          {recipe.videoCardId && <Icon name="camera" size={12} className="text-[#8a4b00]" />}
+        </p>
+        {attempts.length > 0 && <p className="m-0 text-[12px] text-ink-faint">cooked {attempts.length}×</p>}
+      </Link>
+      {canManage && (
+        <div className="absolute right-1.5 top-1.5">
+          <ActionMenu
+            label={`${recipe.title} options`}
+            actions={[
+              { label: "Edit", onSelect: () => void (window.location.href = `/kitchen/${recipe.id}?edit=1`) },
+              { label: "Delete", danger: true, confirm: `Delete ${recipe.title}?`, onSelect: async () => { await postJson("/api/kitchen", { action: "delete-recipe", recipeId: recipe.id }); onDeleted(); } },
+            ]}
+          />
+        </div>
+      )}
+    </li>
+  );
 }
 
 function AskForRecipe({ onDone }: { onDone: () => void }) {

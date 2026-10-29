@@ -2,7 +2,7 @@ import { z } from "zod";
 import { requireSession } from "@/lib/auth";
 import { dbGetMember, dbListCards, dbListMembers } from "@/lib/db";
 import { deleteDoc, getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
-import { IngredientSchema, StepSchema } from "@/lib/kinds";
+import { COURSES, IngredientSchema, StepSchema } from "@/lib/kinds";
 import { canChange } from "@/lib/permissions";
 import { recipeFromVoice } from "@/lib/kitchen";
 
@@ -12,21 +12,31 @@ import { recipeFromVoice } from "@/lib/kitchen";
 //        bless (the cook, or anyone, blesses an attempt), ask (request a recipe
 //        from an elder: becomes their weekly-question style prompt).
 
+// Everything a typed recipe can carry (create and edit share it).
+const Fields = {
+  title: z.string().trim().min(1).max(80),
+  memory: z.string().trim().max(240).default(""),
+  serves: z.string().trim().max(40).default(""),
+  course: z.enum(COURSES).default("main"),
+  prepMins: z.number().int().min(0).max(1440).nullable().default(null),
+  cookMins: z.number().int().min(0).max(1440).nullable().default(null),
+  prepWork: z.array(z.string().trim().min(1).max(160)).max(12).default([]),
+  outcome: z.string().trim().max(240).default(""),
+  ingredients: z.array(IngredientSchema).min(1).max(40),
+  steps: z.array(StepSchema).min(1).max(30),
+  voiceCardId: z.string().nullable().optional(),
+  videoCardId: z.string().nullable().optional(),
+};
+
 const Body = z.discriminatedUnion("action", [
+  // Typed by hand: "my palak paneer", or writing down Maa's for her (cookId).
+  z.object({ action: z.literal("create"), cookId: z.string().min(1).optional(), ...Fields }),
   z.object({ action: z.literal("teach"), cardId: z.string().min(1), title: z.string().trim().max(80).optional(), questionId: z.string().optional() }),
   z.object({ action: z.literal("attempt"), recipeId: z.string().min(1), photoRef: z.string().max(512).nullable().optional(), note: z.string().trim().max(240).default("") }),
   z.object({ action: z.literal("bless"), attemptId: z.string().min(1) }),
   z.object({ action: z.literal("ask"), toMemberId: z.string().min(1), dish: z.string().trim().min(2).max(60) }),
   z.object({ action: z.literal("rename"), recipeId: z.string().min(1), title: z.string().trim().min(1).max(80), memory: z.string().trim().max(240).optional() }),
-  z.object({
-    action: z.literal("edit"),
-    recipeId: z.string().min(1),
-    title: z.string().trim().min(1).max(80),
-    memory: z.string().trim().max(240).default(""),
-    serves: z.string().trim().max(40).default(""),
-    ingredients: z.array(IngredientSchema).min(1).max(40),
-    steps: z.array(StepSchema).min(1).max(30),
-  }),
+  z.object({ action: z.literal("edit"), recipeId: z.string().min(1), ...Fields }),
   z.object({ action: z.literal("delete-recipe"), recipeId: z.string().min(1) }),
   z.object({ action: z.literal("delete-attempt"), attemptId: z.string().min(1) }),
   z.object({ action: z.literal("unbless"), attemptId: z.string().min(1) }),
@@ -78,6 +88,31 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ recipe }, { status: 201 });
   }
 
+  if (body.action === "create") {
+    const family = await dbListMembers(auth.familyId);
+    const cookId = body.cookId ?? auth.memberId;
+    if (!family.some((m) => m.id === cookId)) return Response.json({ error: "unknown-member" }, { status: 404 });
+    const cards = body.voiceCardId || body.videoCardId ? await dbListCards(auth.familyId) : [];
+    const own = (cardId: string | null | undefined, type: "audio" | "video") => !cardId || cards.some((c) => c.id === cardId && c.type === type);
+    if (!own(body.voiceCardId, "audio") || !own(body.videoCardId, "video")) return Response.json({ error: "unknown-card" }, { status: 404 });
+    const { action: _a, cookId: _c, ...fields } = body;
+    void _a;
+    void _c;
+    const recipe = await putDoc(auth.familyId, "recipe", {
+      id: newId("recipe"),
+      ...fields,
+      voiceCardId: body.voiceCardId ?? null,
+      videoCardId: body.videoCardId ?? null,
+      cookId,
+      addedBy: cookId === auth.memberId ? null : auth.memberId,
+      coverRef: null,
+      lang: family.find((m) => m.id === auth.memberId)?.lang ?? "en",
+      madeBy: "family",
+      createdAt: now,
+    });
+    return Response.json({ recipe }, { status: 201 });
+  }
+
   if (body.action === "attempt") {
     const recipe = await getDoc(auth.familyId, "recipe", body.recipeId);
     if (!recipe) return Response.json({ error: "unknown-recipe" }, { status: 404 });
@@ -97,8 +132,9 @@ export async function POST(req: Request): Promise<Response> {
   if (body.action === "edit" || body.action === "delete-recipe") {
     const recipe = await getDoc(auth.familyId, "recipe", body.recipeId);
     if (!recipe) return Response.json({ error: "unknown-recipe" }, { status: 404 });
-    // The cook owns their recipe; an admin may remove it.
-    if (!canChange(me, recipe.cookId, body.action === "edit" ? "edit" : "delete")) return Response.json({ error: "not-yours" }, { status: 403 });
+    // The cook owns their recipe (and whoever wrote it down for them); an admin may remove it.
+    const mode = body.action === "edit" ? "edit" : "delete";
+    if (!canChange(me, recipe.cookId, mode) && !(recipe.addedBy && canChange(me, recipe.addedBy, mode))) return Response.json({ error: "not-yours" }, { status: 403 });
     if (body.action === "delete-recipe") {
       await deleteDoc(auth.familyId, "recipe", recipe.id);
       for (const a of (await listDocs(auth.familyId, "attempt")).filter((x) => x.recipeId === recipe.id)) await deleteDoc(auth.familyId, "attempt", a.id);

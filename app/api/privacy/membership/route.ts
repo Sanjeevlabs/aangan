@@ -31,7 +31,7 @@ export async function DELETE(req: Request): Promise<Response> {
   }
   const ok = await dbRemoveMember(parsed.data.memberId);
   if (!ok) return Response.json({ error: "leave-failed" }, { status: 500 });
-  // Their moments, questions, recipes they cooked, needs, Village entries.
+  // Their moments, questions, recipes they cooked, needs, local helpers.
   await deleteDocsForMember(auth.familyId, parsed.data.memberId);
   return Response.json({ left: true });
 }
