@@ -8,6 +8,7 @@ import { callName, cardCover, cardDuration, formatDuration, memberPhoto, peopleB
 import type { Card, Member } from "@/lib/schemas";
 import { useDisplayText } from "@/lib/use-display-text";
 import { useFamilyCards } from "@/lib/use-family";
+import { CourtyardNow } from "./home-presence";
 import { HeardChip } from "./reactions";
 import { usePlayer } from "./player";
 import { useShell } from "./shell";
@@ -149,6 +150,8 @@ export function Home() {
           <Avatar src={memberPhoto(viewer)} name={viewer.firstName} size={42} ring />
         </Link>
       </header>
+
+      <CourtyardNow />
 
       {cards === null ? (
         <div className="skeleton mt-5 h-[440px] rounded-hero" aria-busy="true" aria-label="Loading" />

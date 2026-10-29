@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { dbGetMember, dbRemoveMember } from "@/lib/db";
 import { requireMember, requireSession } from "@/lib/auth";
+import { deleteDocsForMember } from "@/lib/family-docs";
 
 const BodySchema = z.object({ memberId: z.string().min(1) });
 
@@ -24,5 +25,7 @@ export async function DELETE(req: Request): Promise<Response> {
   }
   const ok = await dbRemoveMember(parsed.data.memberId);
   if (!ok) return Response.json({ error: "leave-failed" }, { status: 500 });
+  // Their moments, questions, recipes they cooked, needs, Village entries.
+  await deleteDocsForMember(auth.familyId, parsed.data.memberId);
   return Response.json({ left: true });
 }

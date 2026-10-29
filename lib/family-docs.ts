@@ -1,0 +1,113 @@
+// Validated document store behind Kitchen, presence, care, Village, sittings,
+// weekly questions and the Muse call log. Postgres (family_docs, jsonb) when
+// live; an in-memory map in mock mode and as a fallback, matching lib/db.ts.
+// Every row is parsed with its kind's schema on the way in and out; a bad
+// row is skipped and logged, never served.
+import { isMockMode } from "./config";
+import { DOC_SCHEMAS, type DocKind, type DocOf } from "./kinds";
+import { isDbLive, supabaseServer } from "./supabase";
+
+const DEMO_FAMILY = "demo-family";
+type Row = { familyId: string; kind: DocKind; data: { id: string } & Record<string, unknown>; createdAt: string };
+const mem = new Map<string, Row>();
+
+function live(): boolean {
+  return !isMockMode() && isDbLive();
+}
+
+function memKey(familyId: string, id: string): string {
+  return `${familyId}::${id}`;
+}
+
+function parse<K extends DocKind>(kind: K, data: unknown): DocOf<K> | null {
+  const out = DOC_SCHEMAS[kind].safeParse(data);
+  if (!out.success) {
+    console.error(`[family-docs] skipped malformed ${kind}`, (data as { id?: unknown } | null)?.id, out.error.issues[0]?.message);
+    return null;
+  }
+  return out.data as DocOf<K>;
+}
+
+function memList<K extends DocKind>(familyId: string, kind: K): DocOf<K>[] {
+  const rows: DocOf<K>[] = [];
+  mem.forEach((r) => {
+    if (r.familyId !== familyId || r.kind !== kind) return;
+    const d = parse(kind, r.data);
+    if (d) rows.push(d);
+  });
+  return rows;
+}
+
+function newest<T>(rows: T[]): T[] {
+  const at = (r: T) => String((r as Record<string, unknown>).createdAt ?? (r as Record<string, unknown>).at ?? (r as Record<string, unknown>).updatedAt ?? "");
+  return rows.sort((a, b) => at(b).localeCompare(at(a)));
+}
+
+export async function listDocs<K extends DocKind>(familyId: string, kind: K): Promise<DocOf<K>[]> {
+  const local = memList(familyId, kind);
+  if (!live()) return newest(local);
+  const sb = supabaseServer();
+  if (!sb) return newest(local);
+  const { data, error } = await sb.from("family_docs").select("data").eq("family_id", familyId).eq("kind", kind).order("created_at", { ascending: false }).limit(500);
+  if (error || !data) return newest(local);
+  const rows = data.map((r) => parse(kind, (r as { data: unknown }).data)).filter((d): d is DocOf<K> => d !== null);
+  // The demo family's seeded rooms live in memory; merge them under live rows.
+  if (familyId === DEMO_FAMILY) {
+    const ids = new Set(rows.map((r) => (r as { id: string }).id));
+    rows.push(...local.filter((r) => !ids.has((r as { id: string }).id)));
+  }
+  return newest(rows);
+}
+
+export async function getDoc<K extends DocKind>(familyId: string, kind: K, id: string): Promise<DocOf<K> | undefined> {
+  return (await listDocs(familyId, kind)).find((d) => (d as { id: string }).id === id);
+}
+
+/** Insert or replace by id. Throws on schema violation (callers validate input first). */
+export async function putDoc<K extends DocKind>(familyId: string, kind: K, input: unknown): Promise<DocOf<K>> {
+  const data = DOC_SCHEMAS[kind].parse(input) as DocOf<K>;
+  const row = data as unknown as { id: string } & Record<string, unknown>;
+  mem.set(memKey(familyId, row.id), { familyId, kind, data: row, createdAt: new Date().toISOString() });
+  if (!live()) return data;
+  const sb = supabaseServer();
+  if (!sb) return data;
+  const { error } = await sb
+    .from("family_docs")
+    .upsert({ id: `${familyId}:${row.id}`, family_id: familyId, kind, data: row, updated_at: new Date().toISOString() }, { onConflict: "id" });
+  if (error) console.error("[family-docs] write failed, kept in memory", kind, error.message);
+  return data;
+}
+
+export async function deleteDoc(familyId: string, kind: DocKind, id: string): Promise<void> {
+  mem.delete(memKey(familyId, id));
+  if (!live()) return;
+  const sb = supabaseServer();
+  if (!sb) return;
+  await sb.from("family_docs").delete().eq("id", `${familyId}:${id}`).eq("kind", kind);
+}
+
+/** Remove everything a member authored or that is about them (Leave family). */
+export async function deleteDocsForMember(familyId: string, memberId: string): Promise<void> {
+  const fields = ["memberId", "cookId", "forMemberId", "askedBy", "toMemberId", "hostId", "addedBy"];
+  mem.forEach((r, key) => {
+    if (r.familyId === familyId && fields.some((f) => r.data[f] === memberId)) mem.delete(key);
+  });
+  if (!live()) return;
+  const sb = supabaseServer();
+  if (!sb) return;
+  for (const f of fields) await sb.from("family_docs").delete().eq("family_id", familyId).eq(`data->>${f}`, memberId);
+}
+
+export function resetDocs(): void {
+  mem.clear();
+}
+
+/** Seed in-memory rows (demo family) without touching the database. */
+export function seedDoc<K extends DocKind>(familyId: string, kind: K, input: unknown): void {
+  const data = DOC_SCHEMAS[kind].parse(input) as unknown as { id: string } & Record<string, unknown>;
+  mem.set(memKey(familyId, data.id), { familyId, kind, data, createdAt: new Date().toISOString() });
+}
+
+export function newId(prefix: string): string {
+  return `${prefix}-${crypto.randomUUID().slice(0, 12)}`;
+}

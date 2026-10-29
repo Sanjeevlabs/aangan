@@ -30,7 +30,14 @@ type IconName =
   | "chevron"
   | "send"
   | "stop"
-  | "image";
+  | "image"
+  | "pot"
+  | "care"
+  | "village"
+  | "sparkle"
+  | "door"
+  | "sun"
+  | "phone";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   play: <path d="M8 5.2v13.6a1 1 0 0 0 1.5.86l11-6.8a1 1 0 0 0 0-1.72l-11-6.8A1 1 0 0 0 8 5.2z" fill="currentColor" stroke="none" />,
@@ -125,6 +132,38 @@ const PATHS: Record<IconName, React.ReactNode> = {
   plus: <path d="M12 5v14M5 12h14" />,
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
   send: <path d="M4 12l16-8-6 16-2.5-6.5z" />,
+  pot: (
+    <>
+      <path d="M4 10h16v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5v-5z" />
+      <path d="M2.5 10h19M9 6.5c0-1 .8-1.2.8-2.2M12.5 6.5c0-1 .8-1.2.8-2.2" />
+    </>
+  ),
+  care: (
+    <>
+      <path d="M12 20s-6.5-4-8.2-8.2C2.6 8.6 4.6 5.5 7.6 5.5c1.8 0 3.3 1 4.4 2.5 1.1-1.5 2.6-2.5 4.4-2.5 3 0 5 3.1 3.8 6.3C18.5 16 12 20 12 20z" />
+      <path d="M8.5 12.5h2l1-2 1.5 4 1-2h1.5" />
+    </>
+  ),
+  village: (
+    <>
+      <path d="M3 20V11l5-4 5 4v9M13 20v-6l4-3 4 3v6M2 20h20" />
+      <path d="M7 20v-4h2v4" />
+    </>
+  ),
+  sparkle: <path d="M12 3.5l1.7 5.1 5.3 1.9-5.3 1.9L12 17.5l-1.7-5.1L5 10.5l5.3-1.9L12 3.5zM18.5 15.5l.7 2 2 .8-2 .7-.7 2-.7-2-2-.7 2-.8.7-2z" />,
+  door: (
+    <>
+      <path d="M6 20V5.5A1.5 1.5 0 0 1 7.5 4h9A1.5 1.5 0 0 1 18 5.5V20M3.5 20h17" />
+      <path d="M14.5 12.5v.5" />
+    </>
+  ),
+  sun: (
+    <>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" />
+    </>
+  ),
+  phone: <path d="M6.5 3.5h3l1.5 4-2 1.3a11 11 0 0 0 6.2 6.2l1.3-2 4 1.5v3a2 2 0 0 1-2.2 2A16.5 16.5 0 0 1 4.5 5.7a2 2 0 0 1 2-2.2z" />,
 };
 
 export function Icon({ name, size = 22, className, strokeWidth = 2 }: { name: IconName; size?: number; className?: string; strokeWidth?: number }) {
@@ -342,6 +381,19 @@ export function Button({
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * Provenance mark for anything Muse prepared. Small, honest, never a mascot:
+ * the family's words stay theirs; Muse only wrote down, translated or asked.
+ */
+export function MuseMark({ children = "powered by Muse", tone = "soft", className }: { children?: React.ReactNode; tone?: "soft" | "light"; className?: string }) {
+  return (
+    <span className={cn("inline-flex items-center gap-1 text-[12px] font-medium", tone === "light" ? "text-white/80" : "text-ink-faint", className)}>
+      <Icon name="sparkle" size={13} strokeWidth={1.8} />
+      {children}
+    </span>
   );
 }
 
