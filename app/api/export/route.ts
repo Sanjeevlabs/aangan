@@ -9,7 +9,7 @@ import { DOC_SCHEMAS, type DocKind } from "@/lib/kinds";
 const SKIP = new Set<DocKind>(["muse_call", "safety_checkin", "knock"]);
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const members = await dbListMembers(auth.familyId);
   const me = members.find((m) => m.id === auth.memberId);

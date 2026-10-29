@@ -3,14 +3,14 @@ import { dbAddPlay, dbGetMember, dbListCards, dbListPlays } from "@/lib/db";
 import { requireMember, requireSession } from "@/lib/auth";
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const { searchParams } = new URL(req.url);
-  return Response.json({ plays: await dbListPlays(searchParams.get("cardId") ?? undefined) });
+  return Response.json({ plays: await dbListPlays(searchParams.get("cardId") ?? undefined, auth.familyId) });
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   let body: unknown;
   try {
@@ -31,6 +31,6 @@ export async function POST(req: Request): Promise<Response> {
   if (!(await dbGetMember(parsed.data.memberId))) {
     return Response.json({ error: "unknown-member" }, { status: 404 });
   }
-  const play = await dbAddPlay(parsed.data);
+  const play = await dbAddPlay({ ...parsed.data, familyId: auth.familyId });
   return Response.json({ play }, { status: 201 });
 }

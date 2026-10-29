@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { requireSession } from "@/lib/auth";
+import { checkRateLimit, requireSession } from "@/lib/auth";
 import { dbGetMember, dbListCards, dbListMembers, dbListRelationships } from "@/lib/db";
 import { deleteDoc, getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
 import { householdOf, households } from "@/lib/households";
@@ -29,8 +29,9 @@ const Body = z.discriminatedUnion("action", [
 ]);
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
+  if (!checkRateLimit(auth, "/api/places")) return Response.json({ error: "rate-limited" }, { status: 429 });
   const near = new URL(req.url).searchParams.get("near");
   const places = await listDocs(auth.familyId, "place");
   if (!near) return Response.json({ places, suggestions: [] });
@@ -48,7 +49,7 @@ export async function GET(req: Request): Promise<Response> {
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "invalid-place" }, { status: 400 });

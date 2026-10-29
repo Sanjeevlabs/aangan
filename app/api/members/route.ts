@@ -10,7 +10,7 @@ function forViewer(m: Member, viewerId: string): Member {
 }
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const [members, name] = await Promise.all([dbListMembers(auth.familyId), dbGetFamilyName(auth.familyId)]);
   const clean = name.replace(/^the\s+/i, "").replace(/\s+family$/i, "");

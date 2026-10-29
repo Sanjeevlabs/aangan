@@ -8,22 +8,25 @@ Aangan is deliberately not Instagram/WhatsApp/Facebook: no stories, status, coun
 
 The app itself is in English. What the family shares (voices, recipes, questions, care notes) reaches each person in their own language: 29 languages, including Hindi, Hinglish, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi, Urdu, Spanish, Arabic, Chinese and more (`lib/languages.ts`).
 
-### The rooms
+### Five spaces
 
-| Room | What it is for |
+| Space | What it is for |
 |---|---|
-| Courtyard (home) | Each parent's day as they choose to share it ("Dadi is having chai · 6:40 AM in India"), open doors, the latest voice |
-| Kitchen | An elder teaches a recipe **by voice**; Muse writes the card in their own measures ("one katori"); the family cooks it abroad and the cook blesses each attempt |
-| Sit together | Not a meeting: a *reason* (cook together, chai, story night), the hours when everyone is awake, a "come sit with me" open door, one-tap video room |
-| Care circle | Needs (open → claimed → done), whose week it is to check in, and the parent's **Village**: the trusted local people (grocer, driver, house help, neighbour) who can actually go |
-| Memory Lane · Occasions · Family tree | Voices and photos by season, birthdays/festivals with two-way wishes, a tree you can add to, edit and prune |
-| What Muse did | Every step the helper took, with model, time and cost |
+| **Home** | One "now" card (an open door, your move in a game, a bedtime story, a visit countdown, or the far home's day), then the latest voice as a plaque you could keep on a shelf |
+| **Memories** | Albums Muse sorts by event, the years, and **Stories**: bedtime stories in the voices that tell them |
+| **Kitchen** | A library of recipes, a shelf per cook; an elder teaches **by voice**, Muse writes the card in their own measures |
+| **Care** | Shared tasks for the parents' home, local helpers, and **Safe & sound** (status check-ins, no tracking) |
+| **Family** | The constellation, your circles (home · close · wider), **both sides**, Together (five activities + Ludo, tic-tac-toe, Match the family), Occasions, Sit together |
+
+### Two courtyards, one door
+
+Every family keeps its own Aangan. A married couple and their children belong to **both** sides: Priya opens on the Iyer side, Arjun on the Sharma side, and the children switch between Dadi's side and Nani's. Nothing crosses between Aangans unless someone shares it. *Add my family* creates the other side with only your own home inside it, plus an invite for your parents. In-laws, siblings and cousins get their own circle on the Family page, labelled from the family's own tree (sister-in-law, cousin, nephew).
 
 ## Built during the hackathon
 
 Solo Indie-track entry, Meta Global AI Developer Hackathon. Deadline 4 Nov 2026, 9:00 PM ET.
 
-Everything in this repo was built during the event window (27 Oct – 4 Nov 2026); see [BUILD_LOG.md](BUILD_LOG.md) for the day-by-day record. Stack: Next.js 14 PWA on Vercel, Supabase (Postgres + private Storage + RLS by `family_id`), one Next.js app, no queues or workers. One seeded demo family (`demo-family`); no full auth flow for V1.
+Everything in this repo was built during the event window (27 Oct – 4 Nov 2026); see [BUILD_LOG.md](BUILD_LOG.md) for the day-by-day record. Stack: Next.js 14 PWA on Vercel, Supabase (Postgres + private Storage + RLS by `family_id`), one Next.js app, no queues or workers. Sign-in is an email code; invite codes let someone take a place the family made for them. Two synthetic demo families (`demo-family` = Sharma, `demo-iyer` = Iyer) open with the public demo code.
 
 Run it:
 
@@ -62,7 +65,16 @@ How it is kept safe and cheap:
 - **Cached** by input, so the same recipe or translation is never paid for twice. USD 120 spend cap, refused past the cap.
 - **Every call is logged** to the family's *What Muse did* page: purpose, model, latency, cost, cached or not.
 - **Agents propose, people approve.** Nothing an agent suggests runs without a person tapping approve.
-- Optional Baseten failover (`meta-models/muse-spark-open-1026`) activates only with confirmed credits (`BASETEN_CREDITS_CONFIRMED=1`).
+- Baseten-hosted **Muse Spark Open** (`meta-models/muse-spark-open-1026`): with `BASETEN_API_KEY` set, any failed Muse text or vision call retries there automatically; `MUSE_PROVIDER=baseten` makes it primary. Each host gets only its own key.
+
+## Security model
+
+- **Tenancy:** every read and write is scoped to the session's `familyId`; Postgres RLS by `family_id`; server routes use the service-role key, which never reaches the browser.
+- **Sessions:** httpOnly, SameSite=Lax, HMAC-signed cookies. Email OTP is rate-limited. Invite codes expire in 7 days and can never open an admin or someone with their own account. The persona switcher only works in the synthetic demo families.
+- **Two sides:** switching is only to an Aangan where the *same person* (server-set `personId`) already has a place. Other members' emails and the `personId` never leave the server.
+- **Games** are server-authoritative: dice and shuffles use `crypto.randomInt`, every move is checked for turn and move count, and hidden memory cards are masked before they reach the browser.
+- **Sharing** is opt-in, a frozen copy behind a 144-bit token, `noindex`, revocable. Export strips emails, Muse logs and safety locations.
+- **AI:** every Muse output is schema-validated with a grounding check and a safe fallback; spend-capped; logged.
 
 Privacy: presence is only what a parent chooses to share. The "quiet day" note is opt-in and owned by the parent, goes to the one person they chose, and is judged against their own usual rhythm. Nothing is tracked.
 

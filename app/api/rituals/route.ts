@@ -21,7 +21,7 @@ function readFixture(): Record<string, string> {
 // logic) + member birthdays + movable dates resolved live per year via
 // search grounding (cached; fixture only as fallback).
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const dir = join(process.cwd(), "rituals");
   const configs: { slug: string; title: string; cultureNotes: string; steps: unknown[] }[] = [];

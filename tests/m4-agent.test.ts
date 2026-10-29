@@ -17,7 +17,7 @@ describe("runAgent (mock planner)", () => {
 
   it("maps a role goal to assign_daily_role and never writes directly", async () => {
     const before = listCards().length;
-    const result = await runAgent("Bless Leo's exam with a daily role for Dadi", agentTools());
+    const result = await runAgent("Bless Leo's exam with a daily role for Dadi", agentTools("demo-family"));
     expect(result.status).toBe("done");
     expect(result.toolCalls.map((c) => c.name)).toContain("assign_daily_role");
     expect(result.suggestions.length).toBeGreaterThan(0);
@@ -26,10 +26,10 @@ describe("runAgent (mock planner)", () => {
   });
 
   it("maps wish/reel goals to request_wish and gather goals to sessions", async () => {
-    const wish = await runAgent("Collect birthday wishes for the reel", agentTools());
+    const wish = await runAgent("Collect birthday wishes for the reel", agentTools("demo-family"));
     expect(wish.toolCalls[0]?.name).toBe("request_wish");
 
-    const gather = await runAgent("Plan a family evening together with a playlist", agentTools());
+    const gather = await runAgent("Plan a family evening together with a playlist", agentTools("demo-family"));
     expect(gather.toolCalls[0]?.name).toBe("create_gather_session");
   });
 });

@@ -552,3 +552,84 @@ Source: the 26 Oct evidence brief (ikigai/Okinawa, Holt-Lunstad, WHO 2025, Balda
 ---
 
 *Sources checked for §9 (Oct 2026):* quick-commerce "APIs" are unofficial data scrapers (slideshare.net/slideshow/quick-commerce-data-apis-...); ONDC buyer apps incl. Bajaj Markets food & grocery (inc42.com/buzz/bajaj-markets-ventures-into-grocery-food-delivery-via-ondc); Instacart Developer Platform (docs.instacart.com/developer_platform_api); India e-pharmacy draft rules not notified (vajiramandravi.com e-pharmacy explainer).
+
+---
+
+## 23. Five spaces and the plaque 🆕
+
+**Why:** the A-grade review (30 Oct) scored the rooms menu 5.2: thirteen doors is a menu, not a home. Loved apps have three to five places.
+| Space | Rooms inside |
+|---|---|
+| Home | the courtyard: one now card + the latest voice |
+| Memories | Albums (Memory Lane) · Stories |
+| Kitchen | the recipe library |
+| Care | Tasks & helpers · Safe & sound |
+| Family | Everyone · Together · Occasions · Sit together |
+Around home opens from a person's page; *What Muse did* lives in Settings. Settings has three tabs: You · Family · Privacy.
+
+**One now card.** Home never stacks banners. Priority: an open door → your move in a game → tonight's story (children) → a visit countdown → the far home's day. Safety alerts always show.
+
+**The plaque** (voice and video cards). Like a song plaque on a shelf: one inset photo, the words in the voice font, a thin line of time with elapsed/remaining, one round button, and the voice's own waveform drawn as a code strip (real peaks, so every voice looks different). Video plays inline in the same frame. Lists stay compact rows; the plaque is for the one thing that matters on a screen.
+
+---
+
+## 24. Games — few, and across homes 🆕
+
+**Together keeps five activities:** plan a visit · family quiz · the family cookbook · a word a day · birthday surprise. Cut: antakshari, baby photos, two truths, plant, decorate, homework hour, teach me your skill (good ideas, but they read as a list; each can return as a seasonal suggestion).
+
+**Three games**, turn-based so a grandparent in Kanpur and a grandchild in New York can play over a day:
+| Game | Rules | Why |
+|---|---|---|
+| Ludo | Round board, two pieces each, six to start, exact roll home, capture off safe squares, extra turn on six/capture/home | the game every Indian family already knows |
+| Tic-tac-toe | 3×3, two players | thirty seconds, any age |
+| Match the family | 12 cards, the family's own faces (symbols fill in) | kids learn the wider family's faces |
+**Server-authoritative:** the server rolls (crypto), shuffles, checks turn and move count (stale → 409) and masks face-down cards. **Not:** chat, timers, leaderboards, streaks, ads, or short videos.
+
+**Data:** `game` doc `{id, game, players[], turn, moves, status, winner, state{board|deck,matched,flipped,shown,scores|tokens,dice}, lastMove, createdBy, createdAt, updatedAt}`.
+
+---
+
+## 25. Two courtyards, one door — both sides of the family 🆕
+
+**Ask:** "I see my parents, siblings, wife and kid. My wife's login should show *her* side. How are family members added or split across two families?"
+
+**Model.** Every family is its own Aangan (Sharma, Iyer). A married couple and their children are the **door**: each has a place in both, linked by a server-set `personId`. Priya opens on the Iyer side, Arjun on the Sharma side, the children switch between Dadi's side and Nani's. Each courtyard stays small (few, deep ties); the web of doors can be large; nobody sees friends of friends.
+**Visibility.** Nothing crosses between Aangans. The care board, recipes and stories of one side stay there unless someone shares them.
+**Joining.**
+1. *Add my family* (Family → Both sides): creates the other side's Aangan with you as admin and your own home (spouse, children) inside it, then an invite code for your parents and siblings.
+2. If the other side already uses Aangan: sign in with your email and join their invite; your account gets a place on that side too.
+**Wider family.** The Family page groups people into three circles: at home · close family (one step: parents, siblings, children) · wider family (in-laws, cousins, aunts and uncles, their children), labelled from the tree (sister-in-law, cousin, nephew). The demo has cousins on both sides (Anaya, Kabir; Diya).
+**Security.** You can switch only to an Aangan where the same person already has a place. `personId` and other members' emails never leave the server. A child can't create a side; at most four sides per person.
+**Data.** `members.person_id` (nullable, indexed). Email unique per family, not globally. No other table: each Aangan keeps strict `family_id` tenancy, which is the main reason to prefer this over a shared multi-family membership table.
+**Later:** "post to both sides" for the couple's own news (each side gets its own copy); a tinted second side in the constellation for people on both.
+
+---
+
+## 26. Security and hackathon-rules review (29 Oct) 🆕
+
+An independent read-only audit of every route under `app/api/**`, plus our own checks. Fixed in stages 13–14:
+| # | Finding | Severity | Fix |
+|---|---|---|---|
+| 1 | Feed routes (`plays`, `reactions`, `wishes`, `suggestions?status=`) read **every family's** rows | high | `familyId` is now a required argument on every family-owned db function (no `"demo-family"` defaults); the type checker found every caller |
+| 2 | Writes with no family (`plays`, `reactions`, `wishes`, `gather`, agent runs, approvals) landed in the public demo family; an approved agent card was hard-coded to `demo-family` | high | same: written to the session's family only |
+| 3 | "Add my family" from a demo family would share one `personId` across every visitor | high | refused in demo families |
+| 4 | A removed member's 30-day cookie kept working | medium-high | `requireSession` checks the person is still in that family; TTL 14 days |
+| 5 | Client-supplied agent payloads were stored and run on approval; run ids matched across families; children could approve | medium | client payloads never stored; every status update scoped by family; members and runs in a payload must be the family's own; grown-ups only |
+| 6 | Mock media routes reachable with a live database; any mime (HTML) served back on the app origin | medium | 404 when the database is live; photos/voices/videos only; `nosniff` + sandbox CSP |
+| 7 | A missing model key put sign-in into mock mode (`000000` for any email) | medium | mock codes only with an explicit `MOCK=true`; in production without Supabase Auth, codes fail |
+| 8 | No limit on invite-code exchange; 6-character codes; model routes without rate limits; agent runs bypassed the spend cap | medium | per-address and per-member limits; 8-character codes; kitchen, stories, together, keeper, places, kinship, albums, care rate-limited; agent uses the shared ledger |
+| 9 | Media refs could point at another host (tracking pixel); `bump_share_views` callable by anon without `search_path`; wishes accepted other families' cards | low | only our storage or same-origin refs are loaded; function pinned and service-role only; card and occasion checked |
+| — | Invite codes could open admins/account holders; persona switch worked in real families; others' emails reached the browser; `ilike` wildcard email match; uploads from real families failed (`familyId` defaulted to demo) | high (stage 13) | fixed |
+| — | The Baseten provider sent the **Meta** key to Baseten | bug | each provider gets its own key (`BASETEN_API_KEY`) |
+
+**Still open (production, not the demo):** rate limits and the spend total live in process memory (per Vercel instance) → move both to a Supabase table; push notifications; album edits have no author check (family-wide by design, children included: revisit).
+
+**Hackathon rules.** Every runtime model is Meta's: Muse Spark (text, vision, tool calling, structured output), Muse Voice Transcribe, Muse Image (seed script only), Muse Spark Open on Baseten as the second host. Google Maps is a map, not a model. All demo data is synthetic. Built during the event (BUILD_LOG). Not used yet: **SAM 3.1** and **Muse Code** at runtime (Meta tooling is a judging criterion, see §27).
+
+---
+
+## 27. Partner credits: Baseten ($100) and Modal 🆕
+
+**Baseten → Muse Spark Open (`meta-models/muse-spark-open-1026`), wired in now.** Set `BASETEN_API_KEY` in Vercel. Every Muse text or vision call (captions, recipe scribe, translations into 29 languages, quiz, story labels, album titles, care notes, the agent) retries on Baseten when the Meta API fails or is rate-limited; `MUSE_PROVIDER=baseten` makes it primary for the demo week so the Meta budget is kept for voice. Transcription stays on `muse-voice-transcribe` (our recordings are webm/opus; Baseten audio takes wav/mp3). Next: run `npm run eval:golden` against both hosts and record latency and pass rate in BUILD_LOG.
+
+**Modal → SAM 3.1 (Meta) on a serverless GPU** (Modal's managed Endpoints list text models, not SAM, so it runs as our own function). The one feature worth it: **cut-out** — on a tap, lift the person or the dish out of a photo for the plaque, the family poster and the print store (frame, cookbook cover). Segmentation only: no recognition, no identity, never automatic, never on children's photos without a parent tapping. One HTTPS function (`modal deploy`), image in → mask out, cached by image hash, scales to zero; costs are per GPU-second (check modal.com/pricing), cold start of tens of seconds, so the UI shows "cutting out…" and falls back to the uncut photo. Adds a second named Meta model to the demo.

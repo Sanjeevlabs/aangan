@@ -4,7 +4,7 @@ import { POST as sessionPost } from "@/app/api/session/route";
 import { POST as switchPost } from "@/app/api/session/switch/route";
 import { GET as sidesGet, POST as sidesPost } from "@/app/api/sides/route";
 import { circles } from "@/lib/circles";
-import { dbCreateInvite, dbGetMember, dbListMembers, dbListRelationships, dbUpdateMemberProfile } from "@/lib/db";
+import { dbAddMember, dbCreateFamily, dbCreateInvite, dbGetMember, dbLinkMembers, dbListMembers, dbListRelationships, dbUpdateMemberProfile } from "@/lib/db";
 import type { Member } from "@/lib/schemas";
 import { resetDemo } from "@/lib/store";
 import { clearAuthAttempts } from "@/lib/otp";
@@ -14,6 +14,20 @@ const req = (url: string, member: string, family = "demo-family", body?: unknown
   new Request(`http://test${url}`, { method: body === undefined ? "GET" : "POST", headers: { "content-type": "application/json", cookie: sessionCookie(member, family) }, body: body === undefined ? undefined : JSON.stringify(body) });
 const json = async <T = Record<string, unknown>>(r: Response | Promise<Response>) => (await (await r).json()) as T;
 type Sides = { current: string; sides: { familyId: string; memberId: string; name: string; people: number }[] };
+
+/** A real (non-demo) family: Kavya, her husband Rahul, their daughter Anaya, and her mother. */
+async function realFamily() {
+  const familyId = await dbCreateFamily("Sharma");
+  const add = (firstName: string, displayName: string, role: Member["role"], access: Member["access"]) => dbAddMember({ familyId, firstName, displayName, role, access, tz: "Asia/Kolkata" });
+  const kavya = await add("Kavya", "Bua", "adult", "admin");
+  const rahul = await add("Rahul", "Fufa", "adult", "member");
+  const anaya = await add("Anaya", "Anaya", "child", "child");
+  const mother = await add("Dadi", "Dadi", "elder", "member");
+  await dbLinkMembers({ familyId, memberId: kavya.id, relationMemberId: rahul.id, relation: "husband" });
+  await dbLinkMembers({ familyId, memberId: kavya.id, relationMemberId: anaya.id, relation: "daughter" });
+  await dbLinkMembers({ familyId, memberId: kavya.id, relationMemberId: mother.id, relation: "mother" });
+  return { familyId, kavya, rahul, anaya, mother };
+}
 
 beforeEach(() => {
   resetDemo();
@@ -44,18 +58,23 @@ describe("two courtyards, one door", () => {
   });
 
   it("Add my family: a new Aangan with only my own home inside it, and an invite for my parents", async () => {
-    expect((await sidesPost(req("/api/sides", "kavya", "demo-family", { action: "create", familyName: "Verma", bring: ["dadi"] }))).status).toBe(400);
-    const out = await json<{ familyId: string; memberId: string; invite: { code: string } }>(sidesPost(req("/api/sides", "kavya", "demo-family", { action: "create", familyName: "Verma", bring: ["rahul", "anaya"] })));
+    const f = await realFamily();
+    expect((await sidesPost(req("/api/sides", f.kavya.id, f.familyId, { action: "create", familyName: "Verma", bring: [f.mother.id] }))).status).toBe(400);
+    const out = await json<{ familyId: string; memberId: string; invite: { code: string } }>(sidesPost(req("/api/sides", f.kavya.id, f.familyId, { action: "create", familyName: "Verma", bring: [f.rahul.id, f.anaya.id] })));
     expect(out.invite.code).toBeTruthy();
     const there = await dbListMembers(out.familyId);
     expect(there.map((m) => m.displayName).sort()).toEqual(["Anaya", "Bua", "Fufa"]);
     expect(there.find((m) => m.id === out.memberId)?.access).toBe("admin");
     expect(there.find((m) => m.displayName === "Anaya")?.access).toBe("child");
     expect(await dbListRelationships(out.familyId)).toHaveLength(2);
-    const kavya = await dbGetMember("kavya");
+    const kavya = await dbGetMember(f.kavya.id);
     expect(kavya?.personId).toBeTruthy();
     const sides = await json<Sides>(sidesGet(req("/api/sides", out.memberId, out.familyId)));
     expect(sides.sides.map((s) => s.name).sort()).toEqual(["Sharma", "Verma"]);
+  });
+
+  it("never from a shared demo family: every visitor is the same person there", async () => {
+    expect((await sidesPost(req("/api/sides", "arjun", "demo-family", { action: "create", familyName: "X", bring: [] }))).status).toBe(403);
   });
 
   it("children can't create a side", async () => {
@@ -74,13 +93,15 @@ describe("two courtyards, one door", () => {
 
 describe("session hardening", () => {
   it("the persona switcher works only in demo families", async () => {
-    const out = await json<{ familyId: string; memberId: string }>(sidesPost(req("/api/sides", "kavya", "demo-family", { action: "create", familyName: "Verma", bring: [] })));
+    const f = await realFamily();
+    const out = await json<{ familyId: string; memberId: string }>(sidesPost(req("/api/sides", f.kavya.id, f.familyId, { action: "create", familyName: "Verma", bring: [] })));
     const r = new Request("http://test/api/session/switch", { method: "POST", headers: { "content-type": "application/json", cookie: sessionCookie(out.memberId, out.familyId) }, body: JSON.stringify({ memberId: out.memberId }) });
     expect((await switchPost(r)).status).toBe(403);
   });
 
   it("an invite code never opens an admin or someone with their own account", async () => {
-    const out = await json<{ familyId: string; memberId: string; invite: { code: string } }>(sidesPost(req("/api/sides", "kavya", "demo-family", { action: "create", familyName: "Verma", bring: ["rahul"] })));
+    const f = await realFamily();
+    const out = await json<{ familyId: string; memberId: string; invite: { code: string } }>(sidesPost(req("/api/sides", f.kavya.id, f.familyId, { action: "create", familyName: "Verma", bring: [f.rahul.id] })));
     const claim = (memberId: string, code: string) => sessionPost(new Request("http://test/api/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ inviteCode: code, memberId }) }));
     expect((await claim(out.memberId, out.invite.code)).status).toBe(403);
     const rahul = (await dbListMembers(out.familyId)).find((m) => m.displayName === "Fufa");

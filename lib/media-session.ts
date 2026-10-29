@@ -43,7 +43,10 @@ export function getSessionMedia(ref: string): { blob: Blob; url: string | null }
 export function resolveMediaUrl(ref: string | null | undefined): string | null {
   if (!ref) return null;
   if (ref.startsWith("storage:")) return `/api/media/${ref.slice("storage:".length)}`;
-  if (ref.startsWith("http") || ref.startsWith("/") || ref.startsWith("blob:")) return ref;
+  // Our own storage, same-origin files and local previews only. A ref naming
+  // another host ("https://…", "//host/…") is never loaded: it would let one
+  // member's card act as a tracking pixel on everyone else's screen.
+  if (ref.startsWith("blob:") || (ref.startsWith("/") && !ref.startsWith("//"))) return ref;
   return blobs.get(ref)?.url ?? null;
 }
 

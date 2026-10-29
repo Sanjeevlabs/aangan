@@ -1,17 +1,17 @@
 import { z } from "zod";
 import { createUploadUrl, storagePath } from "@/lib/storage";
 import { requireSession } from "@/lib/auth";
+import { isMediaMime } from "@/lib/media-types";
 
 const BodySchema = z.object({
   filename: z.string().min(1).max(120),
   mime: z.string().min(3).max(100),
-  familyId: z.string().min(1).max(64).default("demo-family"),
 });
 
 // Server-issued signed upload URL: the client PUTs bytes straight to the
 // private bucket (or to the mock endpoint when Supabase is unavailable).
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   let body: unknown;
   try {
@@ -23,8 +23,9 @@ export async function POST(req: Request): Promise<Response> {
   if (!parsed.success) {
     return Response.json({ error: "invalid-upload-url" }, { status: 400 });
   }
-  if (parsed.data.familyId !== auth.familyId) return Response.json({ error: "forbidden-family" }, { status: 403 });
-  const path = storagePath(parsed.data.familyId, parsed.data.filename);
+  if (!isMediaMime(parsed.data.mime)) return Response.json({ error: "unsupported-media" }, { status: 415 });
+  // Always the session's own family: the client never names where it writes.
+  const path = storagePath(auth.familyId, parsed.data.filename);
   const { uploadUrl, mock } = await createUploadUrl(path, parsed.data.mime);
   return Response.json({ path, uploadUrl, mock, ref: `storage:${path}` });
 }

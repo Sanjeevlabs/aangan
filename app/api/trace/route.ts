@@ -7,7 +7,7 @@ import { listDocs } from "@/lib/family-docs";
 // llm_calls rows mirror to Supabase only in live mode via db helpers;
 // the in-memory ledger total is always available.
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const [runs, suggestions, museCalls] = await Promise.all([dbListAgentRuns(auth.familyId), dbListSuggestions(undefined, auth.familyId), listDocs(auth.familyId, "muse_call")]);
   return Response.json({

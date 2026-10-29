@@ -13,7 +13,7 @@ const FieldsSchema = z.object({
 // `audio` (WAV) + fields. Cache key = sha256 of the bytes. Failures return
 // "Transcript unavailable" — never a model-written transcript.
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   if (!checkRateLimit(auth, "/api/transcribe")) return Response.json({ error: "rate-limited" }, { status: 429 });
   let form: FormData;

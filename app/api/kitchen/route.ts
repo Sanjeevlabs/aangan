@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { requireSession } from "@/lib/auth";
+import { checkRateLimit, requireSession } from "@/lib/auth";
 import { dbGetMember, dbListCards, dbListMembers } from "@/lib/db";
 import { deleteDoc, getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
 import { COURSES, IngredientSchema, StepSchema } from "@/lib/kinds";
@@ -43,15 +43,16 @@ const Body = z.discriminatedUnion("action", [
 ]);
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const [recipes, attempts] = await Promise.all([listDocs(auth.familyId, "recipe"), listDocs(auth.familyId, "attempt")]);
   return Response.json({ recipes, attempts });
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
+  if (!checkRateLimit(auth, "/api/kitchen")) return Response.json({ error: "rate-limited" }, { status: 429 });
   let raw: unknown;
   try {
     raw = await req.json();

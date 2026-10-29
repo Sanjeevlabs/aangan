@@ -1,5 +1,6 @@
 // Single source of truth for providers and model IDs.
-// Nothing here is secret. The API key always comes from META_API_KEY env.
+// Nothing here is secret. Keys come from the environment only:
+// META_API_KEY (Meta Model API) and BASETEN_API_KEY (Baseten-hosted Muse Spark Open).
 
 export const SPEND_CAP_USD = 120;
 
@@ -28,11 +29,25 @@ export const PROVIDERS: Record<ProviderName, ProviderConfig> = {
   },
 };
 
-// Baseten is used only when credits are confirmed via env.
+/** Each provider's own key. Never send one provider's key to the other. */
+export function providerKey(p: ProviderName): string | undefined {
+  return p === "baseten" ? process.env.BASETEN_API_KEY : process.env.META_API_KEY;
+}
+
+/**
+ * Meta's Model API is primary. MUSE_PROVIDER=baseten makes the Baseten-hosted
+ * Muse Spark Open primary instead (when its key is set).
+ */
 export function activeProvider(): ProviderName {
-  return process.env.BASETEN_CREDITS_CONFIRMED === "1" ? "baseten" : "meta";
+  return process.env.MUSE_PROVIDER === "baseten" && process.env.BASETEN_API_KEY ? "baseten" : "meta";
+}
+
+/** Where a failed text/vision call goes next: the other Muse host, if it has a key. */
+export function failoverProvider(p: ProviderName): ProviderName | null {
+  const other: ProviderName = p === "meta" ? "baseten" : "meta";
+  return providerKey(other) ? other : null;
 }
 
 export function isMockMode(): boolean {
-  return process.env.MOCK === "true" || !process.env.META_API_KEY;
+  return process.env.MOCK === "true" || !providerKey(activeProvider());
 }

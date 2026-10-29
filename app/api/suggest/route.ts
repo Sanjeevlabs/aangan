@@ -10,7 +10,7 @@ const QuerySchema = z.object({
 });
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   if (!checkRateLimit(auth, "/api/suggest")) return Response.json({ error: "rate-limited" }, { status: 429 });
   const { searchParams } = new URL(req.url);

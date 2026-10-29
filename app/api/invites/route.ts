@@ -3,7 +3,7 @@ import { dbCreateInvite, dbListInvites, dbRevokeInvite } from "@/lib/db";
 import { requireCan, requireSession } from "@/lib/auth";
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const invites = (await dbListInvites()).filter(
     (i) => i.familyId === auth.familyId && new Date(i.expiresAt).getTime() > Date.now(),
@@ -14,7 +14,7 @@ export async function GET(req: Request): Promise<Response> {
 // Expiring invite codes (7 days). Session members mint codes for their own
 // family; the code is exchanged for a session at /api/session.
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const allowed = await requireCan(auth, "invite.create");
   if (allowed instanceof Response) return allowed;
@@ -28,7 +28,7 @@ export async function POST(req: Request): Promise<Response> {
 
 // Revoke a code before it expires (admins).
 export async function DELETE(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const allowed = await requireCan(auth, "invite.revoke");
   if (allowed instanceof Response) return allowed;

@@ -3,7 +3,7 @@ import { dbDeleteRelationship, dbListRelationships } from "@/lib/db";
 
 // Remove one link from the tree (a mistake, or a relation that's wrong).
 export async function DELETE(req: Request, { params }: { params: { id: string } }): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const allowed = await requireCan(auth, "tree.edit");
   if (allowed instanceof Response) return allowed;

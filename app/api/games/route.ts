@@ -25,14 +25,14 @@ const Body = z.discriminatedUnion("action", [
 const OPEN_LIMIT = 30;
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const games = await listDocs(auth.familyId, "game");
   return Response.json({ games: games.map(masked) });
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "invalid-game" }, { status: 400 });

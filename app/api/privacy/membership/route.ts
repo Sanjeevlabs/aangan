@@ -8,7 +8,7 @@ const BodySchema = z.object({ memberId: z.string().min(1) });
 // "Leave family": remove the member completely (member, edges, traces).
 // Shared family cards are kept — the UI says exactly this.
 export async function DELETE(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   let body: unknown;
   try {

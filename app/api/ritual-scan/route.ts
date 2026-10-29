@@ -26,7 +26,7 @@ export async function GET(req: Request): Promise<Response> {
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   return runScan(auth.familyId);
 }
@@ -69,7 +69,7 @@ async function runScan(familyId: string): Promise<Response> {
   const plan = planRitualScan(nowISO, members, configs, movable, { runs, wishes, roles }, familyId);
 
   for (const r of plan.ensureRuns) await dbEnsureRitualRun(r.slug, r.occasionDate, familyId);
-  for (const id of plan.deliverRuns) await dbSetRitualRunStatus(id, "delivered");
+  for (const id of plan.deliverRuns) await dbSetRitualRunStatus(id, "delivered", familyId);
   for (const role of plan.roles) await dbAssignDailyRole(role.memberId, role.prompt, role.roleDate, familyId);
   const created = [];
   for (const s of plan.suggestions) created.push(await dbAddSuggestion({ goal: s.goal, payload: s.payload, familyId }));

@@ -23,13 +23,13 @@ const Body = z.discriminatedUnion("action", [
 ]);
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   return Response.json({ pets: await listDocs(auth.familyId, "pet") });
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const allowed = await requireCan(auth, "tree.add");
   if (allowed instanceof Response) return allowed;

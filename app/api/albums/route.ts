@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { requireSession } from "@/lib/auth";
+import { checkRateLimit, requireSession } from "@/lib/auth";
 import { eventFromText, fileCard } from "@/lib/albums";
 import { dbListCards } from "@/lib/db";
 import { deleteDoc, getDoc, listDocs, putDoc } from "@/lib/family-docs";
@@ -23,15 +23,16 @@ const Body = z.discriminatedUnion("action", [
 ]);
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const albums = (await listDocs(auth.familyId, "album")).sort((a, b) => b.endAt.localeCompare(a.endAt));
   return Response.json({ albums });
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
+  if (!checkRateLimit(auth, "/api/albums")) return Response.json({ error: "rate-limited" }, { status: 429 });
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "invalid-album" }, { status: 400 });
   const body = parsed.data;

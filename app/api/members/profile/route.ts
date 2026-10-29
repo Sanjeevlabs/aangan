@@ -21,7 +21,7 @@ const ProfileSchema = z.object({
 
 // The session member edits only their own profile; no member id is accepted.
 export async function PATCH(req: Request): Promise<Response> {
-  const auth = requireSession(req);
+  const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   let body: unknown;
   try {

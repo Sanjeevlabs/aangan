@@ -368,9 +368,12 @@ create table if not exists public_shares (
 );
 create index if not exists public_shares_family_idx on public_shares (family_id, created_at desc);
 alter table public_shares enable row level security;
-create or replace function bump_share_views(t text) returns void language sql security definer as $$
+create or replace function bump_share_views(t text) returns void language sql security definer set search_path = public as $$
   update public_shares set views = views + 1 where token = t and revoked_at is null;
 $$;
+-- Called by the server (service role) only; never by anonymous clients.
+revoke execute on function bump_share_views(text) from public, anon, authenticated;
+grant execute on function bump_share_views(text) to service_role;
 
 -- -------------------------------------------------------------------- seed
 insert into families (id, name) values ('demo-family', 'Sharma')
