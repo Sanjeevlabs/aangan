@@ -1,8 +1,10 @@
 "use client";
 
+import { GameArt } from "./games";
+import { GAME_LOOK, myTurn } from "@/lib/games";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { CareSettings, Knock, Need, Pet, Presence, PresenceMoment, Project, Question } from "@/lib/kinds";
+import type { CareSettings, Game, Knock, Need, Pet, Presence, PresenceMoment, Project, Question } from "@/lib/kinds";
 import { callName, memberPhoto } from "@/lib/people";
 import { MOMENT_LABEL, SHAREABLE, latestFor, quietDay, todayFor } from "@/lib/presence";
 import type { Member } from "@/lib/schemas";
@@ -51,6 +53,8 @@ export function CourtyardNow() {
   const pets = useJson<{ pets: Pet[] }>("/api/pets");
   const stories = useJson<{ stories: StoryLite[] }>(viewer.role === "child" ? "/api/stories" : null);
   const visit = useNextVisit();
+  const games = useJson<{ games: Game[] }>("/api/games");
+  const turn = myTurn(games.data?.games ?? [], viewer.id)[0];
   const knocks = (sit.data?.knocks ?? []).filter((k) => k.memberId !== viewer.id);
 
   if (viewer.role === "elder")
@@ -70,6 +74,8 @@ export function CourtyardNow() {
   const story = stories.data?.stories[0];
   const now = knocks[0] ? (
     <KnockBanner knock={knocks[0]} member={members.find((m) => m.id === knocks[0].memberId)} />
+  ) : turn ? (
+    <YourMove game={turn} />
   ) : story ? (
     <StoryDoor story={story} />
   ) : visit ? (
@@ -83,6 +89,22 @@ export function CourtyardNow() {
       <SafetyWatch />
       {now}
     </div>
+  );
+}
+
+/** "Dadi played. Your move." The gentlest reason to open the app. */
+function YourMove({ game }: { game: Game }) {
+  const { members } = useViewer();
+  const by = members.find((m) => m.id === game.lastMove?.by);
+  return (
+    <Link href={`/together/play/${game.id}`} className="flex items-center gap-3 rounded-card bg-surface px-4 py-3.5 text-ink no-underline">
+      <GameArt kind={game.game} size={44} />
+      <span className="min-w-0 flex-1">
+        <span className="block text-[13px] text-ink-soft">{by ? `${callName(by)} ${game.lastMove?.text}` : "A new game"}</span>
+        <span className="block truncate text-[16px] font-semibold">Your move in {GAME_LOOK[game.game].title}</span>
+      </span>
+      <Icon name="chevron" size={18} className="text-ink-faint" />
+    </Link>
   );
 }
 

@@ -35,6 +35,12 @@ export function seedDemoRooms(now = Date.now()): void {
   // ---------- Albums: Muse sorted the courtyard morning into one ----------
   seedDoc(FAM, "album", { id: "album-courtyard-2019", title: "A Sunday morning in the courtyard", event: "gathering", cardIds: ["demo-years-2", "demo-court-dadi", "demo-court-leo", "demo-court-aria"], startAt: "2019-10-27T08:00:00.000Z", endAt: "2019-10-27T08:38:00.000Z", coverId: "demo-years-2", madeBy: "muse", fixedBy: null, createdAt: "2019-10-27T09:00:00.000Z" });
 
+  // ---------- Games across homes: one move each, whenever ----------
+  const game = (g: Record<string, unknown>) => seedDoc(FAM, "game", { status: "playing", winner: null, createdAt: ago(60 * 26, now), updatedAt: ago(40, now), ...g });
+  const blank = { board: [], deck: [], matched: [], flipped: [], shown: [], scores: [], tokens: [], dice: null };
+  game({ id: "game-ludo-dada-leo", game: "ludo", players: ["dada", "leo"], turn: 1, moves: 14, createdBy: "leo", state: { ...blank, tokens: [[9, -1], [33, 4]] }, lastMove: { by: "dada", text: "brought a piece out", at: ago(40, now) } });
+  game({ id: "game-ttt-dadi-arjun", game: "tictactoe", players: ["dadi", "arjun"], turn: 1, moves: 3, createdBy: "dadi", state: { ...blank, board: [0, -1, -1, -1, 1, -1, -1, -1, 0] }, lastMove: { by: "dadi", text: "played", at: ago(95, now) } });
+
   // ---------- Around home (Dadi & Dada's neighbourhood) ----------
   seedDoc(FAM, "place", { id: "place-temple", name: "The temple at the corner", kind: "temple", nearMemberId: "dadi", lat: null, lng: null, googlePlaceId: null, note: "Dadi walks here with Mrs. Kapoor most mornings, before the sun gets hot.", cardIds: ["demo-from-dadi-1"], addedBy: "arjun", createdAt: ago(60 * 24 * 9, now) });
   seedDoc(FAM, "place", { id: "place-kirana", name: "Ramesh's kirana", kind: "market", nearMemberId: "dadi", lat: null, lng: null, googlePlaceId: null, note: "Everything for the house; he delivers before 11.", cardIds: [], addedBy: "arjun", createdAt: ago(60 * 24 * 8, now) });

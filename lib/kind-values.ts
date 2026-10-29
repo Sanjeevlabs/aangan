@@ -10,6 +10,8 @@ export const RECURRENCE = ["none", "weekly", "monthly"] as const;
 export const COURSES = ["breakfast", "main", "side", "snack", "sweet", "drink", "other"] as const;
 export const STORY_THEMES = ["animals", "legends", "our-village", "family", "funny", "lesson", "lullaby", "other"] as const;
 export const STORY_AGES = ["all", "under-5", "5-8", "9-12"] as const;
+/** Turn-based games across homes: one move each, whenever you open the app. */
+export const GAME_KINDS = ["ludo", "tictactoe", "memory"] as const;
 export const PROJECT_KINDS = ["play", "make", "learn", "celebrate", "visit"] as const;
 /** What a photo is of, as Muse sees it (drives automatic albums). */
 export const EVENT_KINDS = ["wedding", "ritual", "festival", "birthday", "gathering", "trip", "food", "nature", "school", "everyday"] as const;

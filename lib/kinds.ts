@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { COURSES, EVENT_KINDS, HELPER_ROLES, PLACE_KINDS, PROJECT_KINDS, STORY_AGES, STORY_THEMES, NEED_KINDS, NEED_STATUSES, PET_SPECIES, PRESENCE_MOMENTS, PRIORITIES, RECURRENCE, SAFETY_KINDS, SITTING_REASONS } from "./kind-values";
+import { COURSES, EVENT_KINDS, GAME_KINDS, HELPER_ROLES, PLACE_KINDS, PROJECT_KINDS, STORY_AGES, STORY_THEMES, NEED_KINDS, NEED_STATUSES, PET_SPECIES, PRESENCE_MOMENTS, PRIORITIES, RECURRENCE, SAFETY_KINDS, SITTING_REASONS } from "./kind-values";
 
 export { COURSES, EVENT_KINDS, HELPER_ROLES, PLACE_KINDS, PROJECT_KINDS, STORY_AGES, STORY_THEMES, NEED_KINDS, NEED_STATUSES, PET_SPECIES, PRESENCE_MOMENTS, PRIORITIES, RECURRENCE, SAFETY_KINDS, SITTING_REASONS };
 
@@ -195,6 +195,38 @@ export const ProjectSchema = z.object({
   createdAt: iso,
 });
 
+// ---------- Games (turn-based, server-authoritative) ----------
+const int = z.number().int();
+export const GameStateSchema = z.object({
+  /** Tic-tac-toe: 9 cells, -1 empty, else the player's seat. */
+  board: z.array(int.min(-1).max(3)).max(9).default([]),
+  /** Memory: the shuffled faces. Never sent to the browser unmasked. */
+  deck: z.array(z.string().max(60)).max(24).default([]),
+  matched: z.array(int.min(0).max(23)).max(24).default([]),
+  /** This turn's face-up card(s), and last turn's miss, shown to everyone. */
+  flipped: z.array(int.min(0).max(23)).max(2).default([]),
+  shown: z.array(int.min(0).max(23)).max(2).default([]),
+  scores: z.array(int.min(0)).max(4).default([]),
+  /** Ludo: per player, each piece's progress: -1 at home base, 0-55 on the way, 56 home. */
+  tokens: z.array(z.array(int.min(-1).max(56)).max(4)).max(4).default([]),
+  dice: int.min(1).max(6).nullable().default(null),
+});
+export const GameSchema = z.object({
+  id,
+  game: z.enum(GAME_KINDS),
+  players: z.array(id).min(2).max(4),
+  turn: int.min(0).max(3).default(0),
+  /** Move counter: a stale client's move is refused, not merged. */
+  moves: int.min(0).default(0),
+  status: z.enum(["playing", "done"]).default("playing"),
+  winner: id.nullable().default(null),
+  state: GameStateSchema,
+  lastMove: z.object({ by: id, text: z.string().max(80), at: iso }).nullable().default(null),
+  createdBy: id,
+  createdAt: iso,
+  updatedAt: iso,
+});
+
 // ---------- Albums (Muse sorts photos into events) ----------
 export const AlbumSchema = z.object({
   id,
@@ -348,6 +380,7 @@ export const DOC_SCHEMAS = {
   album: AlbumSchema,
   place: PlaceSchema,
   project: ProjectSchema,
+  game: GameSchema,
   safety_settings: SafetySettingsSchema,
   safety_checkin: SafetyCheckinSchema,
   sitting: SittingSchema,
@@ -373,6 +406,8 @@ export type Story = DocOf<"story">;
 export type Album = DocOf<"album">;
 export type Place = DocOf<"place">;
 export type Project = DocOf<"project">;
+export type Game = DocOf<"game">;
+export type GameState = z.infer<typeof GameStateSchema>;
 export type ProjectTask = z.infer<typeof ProjectTaskSchema>;
 export type QuizItem = z.infer<typeof QuizItemSchema>;
 export type SafetySettings = DocOf<"safety_settings">;

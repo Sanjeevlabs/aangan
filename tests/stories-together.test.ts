@@ -47,13 +47,13 @@ describe("stories", () => {
 });
 
 describe("together", () => {
-  it("has a starter set covering every kind", () => {
-    expect(TEMPLATES.length).toBeGreaterThanOrEqual(12);
+  it("keeps a short, deliberate set covering every kind", () => {
+    expect(TEMPLATES.map((t) => t.id).sort()).toEqual(["birthday-surprise", "cookbook", "quiz-night", "visit", "word-a-day"]);
     expect(new Set(TEMPLATES.map((t) => t.kind))).toEqual(new Set(["play", "make", "learn", "celebrate", "visit"]));
   });
 
   it("start → assign → tick → edit → delete a task → finish", async () => {
-    const started = await json<{ project: Project }>(togetherPost(req("/api/together", "priya", { action: "start", templateId: "plant" })));
+    const started = await json<{ project: Project }>(togetherPost(req("/api/together", "priya", { action: "start", templateId: "cookbook" })));
     const p = started.project;
     expect(p.tasks.length).toBe(3);
     const t = p.tasks[0];
@@ -61,10 +61,10 @@ describe("together", () => {
     expect(r.project.tasks[0].assignee).toBe("dadi");
     r = await json(togetherPost(req("/api/together", "dadi", { action: "task-toggle", projectId: p.id, taskId: t.id })));
     expect(r.project.tasks[0].done).toBe(true);
-    r = await json(togetherPost(req("/api/together", "leo", { action: "task-add", projectId: p.id, text: "Name the plant" })));
+    r = await json(togetherPost(req("/api/together", "leo", { action: "task-add", projectId: p.id, text: "Add a dedication" })));
     expect(r.project.tasks).toHaveLength(4);
-    r = await json(togetherPost(req("/api/together", "leo", { action: "task-edit", projectId: p.id, taskId: r.project.tasks[3].id, text: "Name it Tulsi" })));
-    expect(r.project.tasks[3].text).toBe("Name it Tulsi");
+    r = await json(togetherPost(req("/api/together", "leo", { action: "task-edit", projectId: p.id, taskId: r.project.tasks[3].id, text: "Dedication for Dadi" })));
+    expect(r.project.tasks[3].text).toBe("Dedication for Dadi");
     r = await json(togetherPost(req("/api/together", "leo", { action: "task-delete", projectId: p.id, taskId: r.project.tasks[3].id })));
     expect(r.project.tasks).toHaveLength(3);
     expect((await togetherPost(req("/api/together", "dadi", { action: "task-assign", projectId: p.id, taskId: t.id, assignee: "stranger" }))).status).toBe(400);
