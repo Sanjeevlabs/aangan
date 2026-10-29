@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { CareSettings, Knock, Need, Pet, Presence, PresenceMoment, Question } from "@/lib/kinds";
+import type { CareSettings, Knock, Need, Pet, Presence, PresenceMoment, Project, Question } from "@/lib/kinds";
 import { callName, memberPhoto } from "@/lib/people";
 import { MOMENT_LABEL, SHAREABLE, latestFor, quietDay, todayFor } from "@/lib/presence";
 import type { Member } from "@/lib/schemas";
@@ -59,6 +59,7 @@ export function CourtyardNow() {
         <KnockBanner key={k.id} knock={k} member={members.find((m) => m.id === k.memberId)} />
       ))}
       <SafetyWatch />
+      <VisitCountdown />
       {viewer.role === "elder" ? (
         <>
           <ShareMyDay presence={pres.data?.presence ?? []} onShared={() => void pres.reload()} />
@@ -67,6 +68,7 @@ export function CourtyardNow() {
         </>
       ) : (
         <>
+          {viewer.role === "child" && <StoryDoor />}
           {farHomes.map((h) => (
             <HomeNow key={h.id} home={h} presence={pres.data?.presence ?? null} settings={pres.data?.settings ?? []} viewerId={viewer.id} pets={(pets.data?.pets ?? []).filter((p) => h.members.some((m) => m.id === p.livesWith))} />
           ))}
@@ -84,6 +86,52 @@ export function CourtyardNow() {
         </>
       )}
     </div>
+  );
+}
+
+/** For children: tonight's story, one tap from the courtyard. */
+function StoryDoor() {
+  const { members } = useViewer();
+  const { data } = useJson<{ stories: { id: string; tellerId: string; title: string }[] }>("/api/stories");
+  const latest = data?.stories[0];
+  if (!latest) return null;
+  const teller = members.find((m) => m.id === latest.tellerId);
+  return (
+    <Link href="/stories" className="flex items-center gap-3 rounded-card px-4 py-3.5 text-white no-underline" style={{ background: "linear-gradient(160deg,#141c3a,#2d3a6b)" }}>
+      <Avatar src={memberPhoto(teller)} name={callName(teller)} size={44} ring />
+      <span className="min-w-0 flex-1">
+        <span className="block text-[13px] text-white/70">A story from {callName(teller)}</span>
+        <span className="block truncate text-[16px] font-semibold">{latest.title}</span>
+      </span>
+      <Icon name="moon" size={20} className="text-[#f2c46d]" />
+    </Link>
+  );
+}
+
+/** "12 days till Arjun is home": for the traveller and the home waiting. */
+function VisitCountdown() {
+  const { viewer, members } = useViewer();
+  const { data } = useJson<{ projects: Project[] }>("/api/together");
+  const now = Date.now();
+  const visit = (data?.projects ?? [])
+    .filter((p) => p.kind === "visit" && p.status === "active" && p.dueAt && Date.parse(p.dueAt) > now - 86_400_000)
+    .filter((p) => p.visitorId === viewer.id || p.hostIds.includes(viewer.id))
+    .sort((a, b) => (a.dueAt ?? "").localeCompare(b.dueAt ?? ""))[0];
+  if (!visit?.dueAt) return null;
+  const days = Math.max(0, Math.ceil((Date.parse(visit.dueAt) - now) / 86_400_000));
+  const who = members.find((m) => m.id === visit.visitorId);
+  const coming = visit.visitorId === viewer.id;
+  const hosts = visit.hostIds.map((id) => members.find((m) => m.id === id)).filter(Boolean).map((m) => callName(m)).join(" & ");
+  const left = visit.tasks.filter((t) => !t.done && t.assignee === viewer.id).length;
+  return (
+    <Link href={`/together/${visit.id}`} className="flex items-center gap-4 rounded-card bg-[#fff2d6] px-4 py-3.5 text-ink no-underline">
+      <span className="text-[40px] font-bold leading-none text-[#8a5a12]">{days || "Today"}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[15px] font-semibold">{days ? `day${days > 1 ? "s" : ""} till ${coming ? `you're home with ${hosts}` : `${callName(who)} is home`}` : coming ? "You're going home today" : `${callName(who)} comes home today`}</span>
+        <span className="block truncate text-[13px] text-[#8a5a12]">{left ? `${left} thing${left > 1 ? "s" : ""} on your list` : visit.title}</span>
+      </span>
+      <Icon name="chevron" size={18} className="text-ink-faint" />
+    </Link>
   );
 }
 
@@ -252,12 +300,14 @@ function MyQuestions() {
                 onClick={() =>
                   q.topic === "recipe" && q.askedBy
                     ? openAdd("voice", { kind: "recipe", questionId: q.id, title: q.text.replace(/^How do you make your /i, "").replace(/\?$/, "") })
-                    : openAdd("voice", { kind: "answer", questionId: q.id, prompt: q.text })
+                    : q.topic === "story" && q.askedBy
+                      ? openAdd("voice", { kind: "story", questionId: q.id, prompt: q.text })
+                      : openAdd("voice", { kind: "answer", questionId: q.id, prompt: q.text })
                 }
                 className="press flex h-11 shrink-0 items-center gap-1.5 rounded-full bg-black px-4 text-[14px] font-semibold text-white"
               >
                 <Icon name="mic" size={16} />
-                Answer
+                {q.topic === "story" && q.askedBy ? "Tell it" : "Answer"}
               </button>
             </div>
             <div className="mt-1 text-right">

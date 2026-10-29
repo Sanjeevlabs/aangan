@@ -435,4 +435,83 @@ Daily needs stay as concierge deep-links/partners (§9). Payments via Razorpay (
 
 ---
 
+## 18. Did we cover the research? (audit, 29 Oct)
+
+Source: the 26 Oct evidence brief (ikigai/Okinawa, Holt-Lunstad, WHO 2025, Baldassar's copresence, Hilbrand "being needed", Harvard, Carstensen, Gottman, Fingerman, Bengtson) and the ikigai table that shaped the PRD.
+
+| Lesson | What it asks of Aangan | Status |
+|---|---|---|
+| Ikigai: a reason to get up | One small daily role for elders ("Teach Aria one word") | ✅ daily roles (ritual agent) |
+| Ikigai: never fully retire / give | Elders give: recipes, advice, tasks for children | ✅ Kitchen, weekly question, parents add care tasks |
+| Ikigai: being needed by the next generation | **Bedtime stories for grandchildren** | ❌ → §19 Stories |
+| Ikigai: small joys | "Aaj ki ek achhi baat" (one good thing a day) | 🔧 presence moments only → add "one good thing" to Share my day |
+| Ikigai: flow | Deep stories, crafts, recipes | ✅ recipes · ❌ life-story chapters (P1) |
+| Ikigai: moai | A small circle that does things together | ✅ family · ❌ **doing things together** → §20 Together |
+| Baldassar: virtual copresence | voice, video, same time | ✅ voices, Sit together |
+| Baldassar: proxy copresence | gifts, objects | 🔧 store/concierge prototype (§17.6) |
+| Baldassar: imagined copresence | memories, their day | ✅ Memory Lane, presence, (§17.2 sky/weather) |
+| Baldassar: physical copresence | **plan visits, count down to them** | ❌ → §20 "Plan a visit" template + countdown |
+| Hilbrand: being needed (37% lower mortality for occasional carers) | grandparent story time, homework help, advice | ❌ story time → §19 · ❌ homework hour → §20 |
+| Harvard: small and frequent | 30-second daily rituals | ✅ |
+| Carstensen: few, deep, positive | small circle, positive-first | ✅ (and §17.3 positive-only news) |
+| Gottman: turning toward bids | answer the parent's bid within 24 h; north-star metric | ✅ Heard loop, reply-first dock · ❌ metric in *What Muse did* |
+| Fingerman: ambivalence | warm repair, no guilt loops | ✅ no guilt copy · ❌ repair nudges (post-hackathon) |
+| Heritage & language | elder's word of the day | ❌ → §20 template "A word a day" |
+| Family news ("gossip") | short posts + weekly Muse digest | ❌ (§5.9, still planned) |
+| Milestones | first day of school, new job | ⏸ |
+
+**Gaps worth closing before 4 Nov:** Stories (§19), Together templates incl. plan-a-visit, a-word-a-day, homework hour (§20), "one good thing", and the bids metric (one line in *What Muse did*: "Dadi's voices answered within 24 h this week: 5 of 6").
+
+---
+
+## 19. Stories — the kids' corner 🆕
+
+**Why:** being needed by the next generation is the strongest ikigai lesson and the best-evidenced (Hilbrand). A grandparent telling a bedtime story across the world is the single most emotional moment the app can create.
+
+**Who does what**
+- **Elders tell** (one tap: *Tell a story*): record voice (or video). Muse writes the title, picks a theme (animals, gods & legends, our village, family history, funny, lesson, lullaby), a one-line summary and a cover, and suggests an age band. The teller can change any of it.
+- **Muse helps them start** (never tells the story for them): prompts from the family's own memory ("the day you got lost at the mela", "how Dada learned to swim") and from what a child asked for.
+- **Kids listen**: a bright *Kids corner* with shelves per storyteller; **Bedtime mode** (dark, warm, big play button, plays a chosen teller's stories in a row, **sleep timer 10/20/30 min**, then stops; never autoplays anything else).
+- **Kids ask**: "Dadi, tell me a story about elephants" (by voice or a picture chip). It reaches the teller as a request on their courtyard.
+- **Kids answer back**: "Tell me another!" and the three reactions; the teller sees "Leo listened at bedtime · 8:40 PM his time".
+- **Words, not just sound**: the transcript plays along (karaoke style, in the child's language, original one tap away), so a story in Hindi still reaches a child abroad. Language heritage, with no lessons.
+
+**Operations:** C tell (voice/video) · C turn an existing voice note into a story · U title/theme/age/summary (teller, admin) · D story (teller, admin; the voice note stays in Memory Lane unless also deleted) · C request a story (anyone, kids included) · D/withdraw a request (asker) · R shelves, themes, bedtime playlist · C/D "listened" (automatic, per play).
+
+**Safety:** stories never leave the family (no public share of voices); child accounts can listen and ask, not delete; Muse's classifier only labels themes, it doesn't judge content.
+
+**Data:** `story` doc: `{id, tellerId, cardId, title, theme, ages, summary, lang, requestId?, createdAt}`; `story_request`: `{id, askedBy, toMemberId, about, status, storyId?, createdAt}`. Listens reuse `plays`.
+
+---
+
+## 20. Together — ready-made things to do as a family 🆕
+
+**Why:** "do activities together, not interviews" (Ames et al.) and moai; physical copresence (Baldassar). Families want to do things together but someone has to think of it and organise it. Templates remove both.
+
+**A template** (data-driven, `together/*.json`, never hard-coded): title, kind (**Play · Make · Learn · Celebrate · Visit**), time, ages, who's needed, what you need, steps, roles (Host, Quizmaster…), and a **starter task list**. *Start* turns it into a **family project**: the task list with people assigned (anyone can add, edit, tick, reassign, delete), an optional date that books a *Sit together*, and "keep a moment" afterwards (photo/voice → Memory Lane).
+
+**Starter set (12)**
+| Kind | Template | Muse's part |
+|---|---|---|
+| Play | **Family quiz night**: questions about *your* family | Writes 8–10 questions from Memory Lane, recipes and the tree (grounded, cached, never invented facts) |
+| Play | Antakshari across homes | Suggests first letters; keeps score |
+| Play | Guess the baby photo | — |
+| Play | Two truths and a lie, grandparents' edition | — |
+| Make | **The family cookbook** (one recipe from every home by Sunday) | Tracks who's still to add one |
+| Make | Plant something in every home | — |
+| Make | Festival decorations, same theme, every home | — |
+| Learn | **A word a day** (an elder teaches one word to a grandchild for 7 days) | Picks the words from the elder's language |
+| Learn | Homework hour with Dadi/Dada | — |
+| Learn | Teach me your skill (knitting, rangoli, cricket grip) | — |
+| Celebrate | Surprise for someone's birthday (wishes, a song, a card) | Hands off to Occasions/Reel |
+| Visit | **Plan a visit home** (dates, tickets, gifts, what to cook) | Countdown on the courtyard for both homes: "12 days till Arjun is home" |
+
+**Operations:** R gallery by kind · C start a project from a template · C blank project · U title/date · C/U/D tasks, assign, tick · D project (creator/admin) · C book it as a Sit together · C keep a moment.
+
+**Data:** `project` doc: `{id, templateId, title, kind, createdBy, dueAt, sittingId?, tasks:[{id,text,assignee,done}], status, createdAt}`. Quiz questions cached per family and template.
+
+**Not:** points, leaderboards, streaks or guilt ("You missed 3 days"). Celebrate together, never rank people.
+
+---
+
 *Sources checked for §9 (Oct 2026):* quick-commerce "APIs" are unofficial data scrapers (slideshare.net/slideshow/quick-commerce-data-apis-...); ONDC buyer apps incl. Bajaj Markets food & grocery (inc42.com/buzz/bajaj-markets-ventures-into-grocery-food-delivery-via-ondc); Instacart Developer Platform (docs.instacart.com/developer_platform_api); India e-pharmacy draft rules not notified (vajiramandravi.com e-pharmacy explainer).
