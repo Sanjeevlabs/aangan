@@ -48,76 +48,83 @@ export function CourtyardNow() {
   useVisit();
   const { relationships } = useViewer();
   const farHomes = households(members, relationships).filter((h) => h.elders && !h.members.some((m) => m.id === viewer.id));
-  const care = useJson<{ needs: Need[] }>("/api/care");
   const pets = useJson<{ pets: Pet[] }>("/api/pets");
-  const mine = (care.data?.needs ?? []).filter((n) => n.claimedBy === viewer.id && n.status !== "done" && n.status !== "cancelled");
+  const stories = useJson<{ stories: StoryLite[] }>(viewer.role === "child" ? "/api/stories" : null);
+  const visit = useNextVisit();
   const knocks = (sit.data?.knocks ?? []).filter((k) => k.memberId !== viewer.id);
+
+  if (viewer.role === "elder")
+    return (
+      <div className="mt-5 space-y-3">
+        {knocks[0] && <KnockBanner knock={knocks[0]} member={members.find((m) => m.id === knocks[0].memberId)} />}
+        <SafetyWatch />
+        <ShareMyDay presence={pres.data?.presence ?? []} onShared={() => void pres.reload()} />
+        <MyQuestions />
+        <MyNeeds />
+      </div>
+    );
+
+  // One "now" card, never a stack: an open door beats a story, a story beats a
+  // visit, a visit beats the far home's day. Safety alerts always show.
+  const home = farHomes[0];
+  const story = stories.data?.stories[0];
+  const now = knocks[0] ? (
+    <KnockBanner knock={knocks[0]} member={members.find((m) => m.id === knocks[0].memberId)} />
+  ) : story ? (
+    <StoryDoor story={story} />
+  ) : visit ? (
+    <VisitCountdown visit={visit} />
+  ) : home ? (
+    <HomeNow home={home} presence={pres.data?.presence ?? null} settings={pres.data?.settings ?? []} viewerId={viewer.id} pets={(pets.data?.pets ?? []).filter((p) => home.members.some((m) => m.id === p.livesWith))} />
+  ) : null;
 
   return (
     <div className="mt-5 space-y-3">
-      {knocks.map((k) => (
-        <KnockBanner key={k.id} knock={k} member={members.find((m) => m.id === k.memberId)} />
-      ))}
       <SafetyWatch />
-      <VisitCountdown />
-      {viewer.role === "elder" ? (
-        <>
-          <ShareMyDay presence={pres.data?.presence ?? []} onShared={() => void pres.reload()} />
-          <MyQuestions />
-          <MyNeeds />
-        </>
-      ) : (
-        <>
-          {viewer.role === "child" && <StoryDoor />}
-          {farHomes.map((h) => (
-            <HomeNow key={h.id} home={h} presence={pres.data?.presence ?? null} settings={pres.data?.settings ?? []} viewerId={viewer.id} pets={(pets.data?.pets ?? []).filter((p) => h.members.some((m) => m.id === p.livesWith))} />
-          ))}
-          {mine.length > 0 && (
-            <Link href="/care" className="flex items-center justify-between gap-3 rounded-card bg-surface px-4 py-3 text-ink no-underline">
-              <span className="min-w-0">
-                <span className="block text-[15px] font-semibold">
-                  {mine.length} care task{mine.length > 1 ? "s" : ""} for you
-                </span>
-                <span className="block truncate text-[13px] text-ink-soft">{mine.slice(0, 2).map((n) => n.title).join(" · ")}</span>
-              </span>
-              <Icon name="chevron" size={18} className="text-ink-faint" />
-            </Link>
-          )}
-        </>
-      )}
+      {now}
     </div>
   );
 }
 
+interface StoryLite {
+  id: string;
+  tellerId: string;
+  title: string;
+}
+
 /** For children: tonight's story, one tap from the courtyard. */
-function StoryDoor() {
+function StoryDoor({ story }: { story: StoryLite }) {
   const { members } = useViewer();
-  const { data } = useJson<{ stories: { id: string; tellerId: string; title: string }[] }>("/api/stories");
-  const latest = data?.stories[0];
-  if (!latest) return null;
-  const teller = members.find((m) => m.id === latest.tellerId);
+  const teller = members.find((m) => m.id === story.tellerId);
   return (
     <Link href="/stories" className="flex items-center gap-3 rounded-card px-4 py-3.5 text-white no-underline" style={{ background: "linear-gradient(160deg,#141c3a,#2d3a6b)" }}>
       <Avatar src={memberPhoto(teller)} name={callName(teller)} size={44} ring />
       <span className="min-w-0 flex-1">
         <span className="block text-[13px] text-white/70">A story from {callName(teller)}</span>
-        <span className="block truncate text-[16px] font-semibold">{latest.title}</span>
+        <span className="block truncate text-[16px] font-semibold">{story.title}</span>
       </span>
       <Icon name="moon" size={20} className="text-[#f2c46d]" />
     </Link>
   );
 }
 
-/** "12 days till Arjun is home": for the traveller and the home waiting. */
-function VisitCountdown() {
-  const { viewer, members } = useViewer();
+function useNextVisit(): Project | null {
+  const { viewer } = useViewer();
   const { data } = useJson<{ projects: Project[] }>("/api/together");
   const now = Date.now();
-  const visit = (data?.projects ?? [])
-    .filter((p) => p.kind === "visit" && p.status === "active" && p.dueAt && Date.parse(p.dueAt) > now - 86_400_000)
-    .filter((p) => p.visitorId === viewer.id || p.hostIds.includes(viewer.id))
-    .sort((a, b) => (a.dueAt ?? "").localeCompare(b.dueAt ?? ""))[0];
-  if (!visit?.dueAt) return null;
+  return (
+    (data?.projects ?? [])
+      .filter((p) => p.kind === "visit" && p.status === "active" && p.dueAt && Date.parse(p.dueAt) > now - 86_400_000)
+      .filter((p) => p.visitorId === viewer.id || p.hostIds.includes(viewer.id))
+      .sort((a, b) => (a.dueAt ?? "").localeCompare(b.dueAt ?? ""))[0] ?? null
+  );
+}
+
+/** "12 days till Arjun is home": for the traveller and the home waiting. */
+function VisitCountdown({ visit }: { visit: Project }) {
+  const { viewer, members } = useViewer();
+  const now = Date.now();
+  if (!visit.dueAt) return null;
   const days = Math.max(0, Math.ceil((Date.parse(visit.dueAt) - now) / 86_400_000));
   const who = members.find((m) => m.id === visit.visitorId);
   const coming = visit.visitorId === viewer.id;

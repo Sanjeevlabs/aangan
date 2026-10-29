@@ -4,49 +4,17 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { daysUntilBirthday } from "@/lib/family";
 import { greetingForHour } from "@/lib/i18n";
-import { callName, cardCover, cardDuration, formatDuration, memberPhoto, peopleByRecency, relativeDay, tintShadow } from "@/lib/people";
+import { callName, cardCover, memberPhoto, peopleByRecency, relativeDay, tintShadow } from "@/lib/people";
 import type { Card, Member } from "@/lib/schemas";
 import { useDisplayText } from "@/lib/use-display-text";
 import { useFamilyCards } from "@/lib/use-family";
 import { CourtyardNow } from "./home-presence";
+import { VoicePlaque } from "./plaque";
 import { HeardChip } from "./reactions";
 import { usePlayer } from "./player";
 import { useShell } from "./shell";
-import { Avatar, Icon, LiveDot, Monogram, Photo, PlayButton, SectionTitle, Wave } from "./ui/kit";
+import { Avatar, Icon, Monogram, Photo, SectionTitle } from "./ui/kit";
 import { useViewer } from "./viewer";
-
-/* The hero is the latest voice from someone else: the reason to open the app today. */
-function HeroVoice({ card, author }: { card: Card; author: Member | undefined }) {
-  const { members, displayLang } = useViewer();
-  const { play, current, isPlaying, toggle, currentTime, duration } = usePlayer();
-  const { text } = useDisplayText(card.transcript || card.caption, card.transcript ? card.transcriptLang : card.lang, displayLang);
-  const active = current?.id === card.id;
-  const progress = active && duration > 0 ? currentTime / duration : 0;
-  const quote = (text ?? card.caption).split(/(?<=[.!?।])\s+/).slice(0, 2).join(" ");
-
-  return (
-    <article
-      className="relative mt-5 h-[440px] overflow-hidden rounded-hero bg-surface"
-      style={{ boxShadow: tintShadow(card, 0.6) }}
-    >
-      <Photo src={cardCover(card, members)} alt={`${callName(author)}'s photo`} sizes="(max-width: 480px) 100vw, 440px" priority position="center 28%" />
-      <div className="glass absolute inset-x-2.5 bottom-2.5 rounded-[22px] p-4">
-        <p className="m-0 flex items-center gap-1.5 text-[13px] font-medium text-white/85">
-          <LiveDot />
-          {callName(author)} · {relativeDay(card.takenAt)}
-        </p>
-        <p className="voice m-0 mb-3.5 mt-1.5 line-clamp-3 text-[21px] leading-[1.3] text-white">
-          {text === null ? <span className="inline-block h-6 w-3/4 rounded bg-white/25" /> : `“${quote}”`}
-        </p>
-        <div className="flex items-center gap-3">
-          <PlayButton playing={active && isPlaying} onClick={() => (active ? toggle() : play(card))} label={active && isPlaying ? "Pause" : `Play ${callName(author)}'s voice note`} />
-          <Wave peaks={card.peaks} progress={progress} className="flex-1" />
-          <span className="tnum text-[12px] text-white/85">{formatDuration(active ? duration - currentTime : cardDuration(card))}</span>
-        </div>
-      </div>
-    </article>
-  );
-}
 
 /* One album per person: the people are the artists. */
 function PersonAlbum({ member, latest }: { member: Member; latest: Card | undefined }) {
@@ -154,10 +122,12 @@ export function Home() {
       <CourtyardNow />
 
       {cards === null ? (
-        <div className="skeleton mt-5 h-[440px] rounded-hero" aria-busy="true" aria-label="Loading" />
+        <div className="skeleton mt-5 h-[560px] rounded-[30px]" aria-busy="true" aria-label="Loading" />
       ) : hero ? (
         <>
-          <HeroVoice card={hero} author={heroAuthor} />
+          <div className="mt-5">
+            <VoicePlaque card={hero} priority />
+          </div>
           <div className="mt-3 flex min-h-[20px] items-center gap-2 px-1 text-[13px] text-ink-soft [&_p]:text-[13px]">
             <HeardChip cardId={hero.id} />
           </div>
@@ -203,7 +173,7 @@ export function Home() {
         </section>
       )}
 
-      {yearsAgo && (
+      {!next && yearsAgo && (
         <section aria-label="From the years">
           <SectionTitle href="/lane" linkLabel="Memory Lane">
             From the years

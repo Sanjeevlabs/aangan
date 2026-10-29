@@ -160,6 +160,12 @@ function Group({ title, id, children }: { title: string; id?: string; children: 
   );
 }
 
+const TABS = [
+  ["you", "You"],
+  ["family", "Family"],
+  ["privacy", "Privacy"],
+] as const;
+
 export default function SettingsPage() {
   const router = useRouter();
   const { viewer, displayLang, setDisplayLang, refreshMembers } = useViewer();
@@ -172,6 +178,12 @@ export default function SettingsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const portraitRef = useRef<HTMLInputElement>(null);
   const homeRef = useRef<HTMLInputElement>(null);
+  const [tab, setTab] = useState<"you" | "family" | "privacy">("you");
+  useEffect(() => {
+    const h = window.location.hash;
+    if (h === "#invite" || h === "#roles") setTab("family");
+    if (h === "#privacy") setTab("privacy");
+  }, []);
 
   useEffect(() => {
     setName(viewer.firstName);
@@ -306,6 +318,16 @@ export default function SettingsPage() {
         <input ref={portraitRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && void uploadImage(e.target.files[0], "portrait")} />
       </div>
 
+      <nav aria-label="Settings sections" className="mt-7 grid grid-cols-3 gap-1 rounded-full bg-surface p-1">
+        {TABS.map(([id, label]) => (
+          <button key={id} type="button" aria-pressed={tab === id} onClick={() => setTab(id)} className={cn("press h-10 rounded-full text-[15px] font-semibold", tab === id ? "bg-white text-ink shadow-sm" : "text-ink-soft")}>
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {tab === "you" && (
+        <>
       <Group title="Hear the family in">
         <LanguagePicker
           value={displayLang}
@@ -351,6 +373,11 @@ export default function SettingsPage() {
         </div>
       </Group>
 
+        </>
+      )}
+
+      {tab === "family" && (
+        <>
       <Group title="Invite family" id="invite">
         {!can(viewer, "invite.create") ? (
           <p className="m-0 text-[15px] text-ink-soft">Ask a grown-up in the family to invite people.</p>
@@ -388,7 +415,12 @@ export default function SettingsPage() {
         <PeopleAndRoles onMessage={flash} />
       </Group>
 
-      <Group title="Privacy">
+        </>
+      )}
+
+      {tab === "privacy" && (
+        <>
+      <Group title="Privacy" id="privacy">
         <ul className="m-0 list-none space-y-2 p-0 text-[15px] text-ink-soft">
           <li>Only your family sees what you share. Photos lose their location before upload.</li>
           <li>Voices are never cloned. No face recognition, and no tagging of children.</li>
@@ -432,10 +464,19 @@ export default function SettingsPage() {
             </button>
           )}
         </div>
-        <Link href="/trace" className="mt-3 inline-flex h-11 items-center text-[14px] font-medium text-ink-soft no-underline">
-          ✦ What Muse did for your family, step by step
+      </Group>
+
+      <Group title="Muse">
+        <Link href="/trace" className="press flex items-center justify-between rounded-[22px] bg-surface px-4 py-4 text-[16px] font-medium text-ink no-underline">
+          <span>
+            <span className="block">What Muse did for your family</span>
+            <span className="block text-[13px] font-normal text-ink-soft">Every caption, translation and suggestion, step by step</span>
+          </span>
+          <Icon name="chevron" size={18} className="text-ink-faint" />
         </Link>
       </Group>
+        </>
+      )}
 
       <Button variant="secondary" className="mt-9 w-full" onClick={() => void signOut()}>
         Sign out

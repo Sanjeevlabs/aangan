@@ -2,13 +2,15 @@
 
 import { placeFromTz } from "@/lib/zones";
 import { PersonDetails } from "@/components/person-details";
-import { Monogram } from "@/components/ui/kit";
 
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { PhotoCard, VoiceRow } from "@/components/memory-card";
+import { VideoPlaque, VoicePlaque } from "@/components/plaque";
+import { households } from "@/lib/households";
 import { useShell } from "@/components/shell";
-import { EmptyLine, Photo, RoomHeader } from "@/components/ui/kit";
+import { EmptyLine, Icon, Monogram, Photo, RoomHeader } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
 import { daysUntilBirthday } from "@/lib/family";
 import { callName, memberPhoto } from "@/lib/people";
@@ -27,7 +29,7 @@ function localTime(tz: string): string {
 // tracks and their photos. The dock on this screen talks to them.
 export default function PersonPage() {
   const { id } = useParams<{ id: string }>();
-  const { members } = useViewer();
+  const { members, relationships } = useViewer();
   const { refreshKey } = useShell();
   const { cards } = useFamilyCards(refreshKey);
   const person = members.find((m) => m.id === id);
@@ -53,6 +55,7 @@ export default function PersonPage() {
     );
   }
   const photo = memberPhoto(person);
+  const home = households(members, relationships).find((h) => h.elders && h.members.some((x) => x.id === person.id));
   const days = daysUntilBirthday(person.birthday);
 
   return (
@@ -81,11 +84,18 @@ export default function PersonPage() {
         ) : voices.length === 0 ? (
           <EmptyLine>No voice notes from {callName(person)} yet. Ask them something.</EmptyLine>
         ) : (
-          <div className="divide-y divide-[var(--line)]">
-            {voices.map((c) => (
-              <VoiceRow key={c.id} card={c} showAuthor={false} />
-            ))}
-          </div>
+          <>
+            <div className="mt-3">
+              <VoicePlaque card={voices[0]} />
+            </div>
+            {voices.length > 1 && (
+              <div className="mt-4 divide-y divide-[var(--line)]">
+                {voices.slice(1).map((c) => (
+                  <VoiceRow key={c.id} card={c} showAuthor={false} />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </section>
 
@@ -93,11 +103,19 @@ export default function PersonPage() {
         <section aria-label="Photos" className="mt-8">
           <h2 className="m-0 mb-3 text-[20px]">Moments</h2>
           <div className="space-y-4">
-            {photos.map((c) => (
-              <PhotoCard key={c.id} card={c} />
-            ))}
+            {photos.map((c) => (c.type === "video" ? <VideoPlaque key={c.id} card={c} /> : <PhotoCard key={c.id} card={c} />))}
           </div>
         </section>
+      )}
+      {home && (
+        <Link href={`/around?home=${encodeURIComponent(home.id)}`} className="mt-8 flex items-center gap-3 rounded-card bg-surface px-4 py-3.5 text-ink no-underline">
+          <Icon name="village" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[16px] font-semibold">Around {callName(person)}&rsquo;s home</span>
+            <span className="block truncate text-[13px] text-ink-soft">The places near {placeFromTz(home.tz)}, with the family&rsquo;s memories</span>
+          </span>
+          <Icon name="chevron" size={18} className="text-ink-faint" />
+        </Link>
       )}
       <PersonDetails person={person} onChanged={() => undefined} />
     </div>

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { AlbumCover, EVENT_LABEL } from "@/components/albums";
 import { PhotoCard, VoiceRow } from "@/components/memory-card";
+import { VideoPlaque } from "@/components/plaque";
 import { useShell } from "@/components/shell";
 import { Avatar, EmptyLine, MuseMark, RoomHeader } from "@/components/ui/kit";
 import type { Album } from "@/lib/kinds";
@@ -128,7 +129,7 @@ export default function LanePage() {
           <section key={chapter} aria-label={chapter} className="mt-8">
             <h2 className="sticky top-0 z-10 -mx-5 m-0 mb-3 bg-white/85 px-5 py-2 text-[20px] backdrop-blur-md">{chapter}</h2>
             <div className="space-y-4">
-              {list.map((c) => (c.type === "audio" ? <VoiceRow key={c.id} card={c} /> : <PhotoCard key={c.id} card={c} />))}
+              {list.map((c) => (c.type === "audio" ? <VoiceRow key={c.id} card={c} /> : c.type === "video" ? <VideoPlaque key={c.id} card={c} /> : <PhotoCard key={c.id} card={c} />))}
             </div>
           </section>
         ))

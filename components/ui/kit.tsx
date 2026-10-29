@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { spaceFor } from "@/lib/spaces";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -369,7 +370,33 @@ export function RoomHeader({ title, subtitle, action }: { title: string; subtitl
       </div>
       <h1 className="m-0 text-[32px] leading-[1.05]">{title}</h1>
       {subtitle && <p className="m-0 mt-1.5 text-[15px] text-ink-soft">{subtitle}</p>}
+      <SpaceTabs />
     </header>
+  );
+}
+
+/** The rooms of the current space, as one quiet row. Only on a room's own page. */
+function SpaceTabs() {
+  const pathname = usePathname();
+  const at = spaceFor(pathname);
+  if (!at || at.room !== pathname || at.space.rooms.length < 2) return null;
+  return (
+    <nav aria-label={at.space.title} className="no-scrollbar -mx-5 mt-4 flex gap-1.5 overflow-x-auto px-5">
+      {at.space.rooms.map((r) => (
+        <Link
+          key={r.href}
+          href={r.href}
+          replace
+          aria-current={r.href === at.room ? "page" : undefined}
+          className={cn(
+            "press flex h-9 shrink-0 items-center rounded-full px-4 text-[14px] font-semibold no-underline",
+            r.href === at.room ? "bg-ink text-white" : "bg-surface text-ink-soft",
+          )}
+        >
+          {r.title}
+        </Link>
+      ))}
+    </nav>
   );
 }
 

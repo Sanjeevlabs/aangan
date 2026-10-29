@@ -8,6 +8,7 @@ import { householdName, talkTarget } from "@/lib/households";
 import { callName, peopleByRecency } from "@/lib/people";
 import { useFamilyCards } from "@/lib/use-family";
 import { useLargeText } from "@/lib/use-large-text";
+import { SPACES } from "@/lib/spaces";
 import dynamic from "next/dynamic";
 import type { AddTab, ReplyContribution } from "./add-sheet";
 
@@ -41,19 +42,7 @@ export function useShell(): ShellState {
   return ctx;
 }
 
-const ROOMS = [
-  { href: "/care", icon: "care", title: "Care circle", note: "Shared tasks, local helpers, whose week" },
-  { href: "/safe", icon: "shield", title: "Safe & sound", note: "Home safe, heading home, I need help" },
-  { href: "/around", icon: "village", title: "Around home", note: "The places around their home, with your memories" },
-  { href: "/stories", icon: "moon", title: "Stories", note: "Bedtime stories in the voices that tell them" },
-  { href: "/together", icon: "gather", title: "Together", note: "Games, projects and visits, as a family" },
-  { href: "/kitchen", icon: "pot", title: "Kitchen", note: "Recipes in the voices that taught them" },
-  { href: "/gather", icon: "door", title: "Sit together", note: "A reason to be in the same room" },
-  { href: "/lane", icon: "lane", title: "Memory Lane", note: "Walk back through the years" },
-  { href: "/rituals", icon: "calendar", title: "Occasions", note: "Birthdays and festivals ahead" },
-  { href: "/bond", icon: "tree", title: "Family", note: "Everyone, and how you're all connected" },
-  { href: "/settings", icon: "settings", title: "Settings", note: "Language, time zone, privacy" },
-] as const;
+const ROOMS = SPACES.filter((sp) => sp.id !== "home");
 
 function RoomsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   useEffect(() => {
@@ -65,10 +54,10 @@ function RoomsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Rooms">
+        <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Spaces">
           <m.button
             type="button"
-            aria-label="Close rooms"
+            aria-label="Close"
             className="absolute inset-0 bg-black/20"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -92,7 +81,7 @@ function RoomsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
                     className="press flex items-center gap-4 rounded-[22px] px-4 py-2.5 text-ink no-underline hover:bg-black/[.04]"
                   >
                     <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-black/[.05]">
-                      <Icon name={r.icon} />
+                      <Icon name={r.icon as Parameters<typeof Icon>[0]["name"]} />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-[17px] font-semibold">{r.title}</span>
@@ -103,9 +92,9 @@ function RoomsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
                 </li>
               ))}
             </ul>
-            <Link href="/trace" onClick={onClose} className="flex h-11 items-center justify-center gap-1.5 text-[13px] font-medium text-ink-soft no-underline">
-              <Icon name="sparkle" size={14} />
-              What Muse did for your family
+            <Link href="/settings" onClick={onClose} className="flex h-11 items-center justify-center gap-1.5 text-[14px] font-medium text-ink-soft no-underline">
+              <Icon name="settings" size={16} />
+              Settings
             </Link>
           </m.nav>
         </div>
@@ -183,7 +172,7 @@ function Dock() {
               <button
                 type="button"
                 onClick={() => setRooms(true)}
-                aria-label="Open rooms"
+                aria-label="Open spaces"
                 className="press grid h-14 w-14 place-items-center rounded-full"
               >
                 <Icon name="more" size={24} />
