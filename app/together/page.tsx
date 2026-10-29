@@ -6,7 +6,6 @@ import { useState } from "react";
 import { KIND_LOOK, KindBadge, daysUntil } from "@/components/together-art";
 import { Avatar, Button, EmptyLine, Icon, MuseMark, RoomHeader, SectionTitle } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
-import { GAME_KINDS } from "@/lib/kind-values";
 import { GAME_LOOK, type GameKind } from "@/lib/games";
 import { GameArt } from "@/components/games";
 import type { Game, Project } from "@/lib/kinds";
@@ -34,30 +33,7 @@ export default function TogetherPage() {
 
   return (
     <div>
-      <RoomHeader title="Together" subtitle="Play and plan as a family, wherever everyone is" />
-
-      <section aria-label="Games">
-        <h2 className="m-0 mb-3 text-[20px]">Play</h2>
-        <ul className="m-0 grid list-none grid-cols-3 gap-2 p-0">
-          {GAME_KINDS.map((g) => (
-            <li key={g}>
-              <button type="button" onClick={() => setNewGame(g)} className="press flex w-full flex-col items-center gap-2 rounded-card bg-surface px-2 py-4 text-center">
-                <GameArt kind={g} />
-                <span className="text-[14px] font-semibold leading-tight">{GAME_LOOK[g].title}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-        {playing.length > 0 && (
-          <ul className="m-0 mt-3 list-none space-y-2 p-0">
-            {playing.map((g) => (
-              <li key={g.id}>
-                <GameRow game={g} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <RoomHeader title="Together" subtitle="Visits, birthdays and the evenings you spend together" />
 
       {active.length > 0 && (
         <section aria-label="What the family is doing" className="mt-8">
@@ -109,6 +85,27 @@ export default function TogetherPage() {
         </div>
       )}
 
+      <section aria-label="Ludo" className="mt-10">
+        <h2 className="m-0 mb-3 text-[20px]">Play Ludo together</h2>
+        <button type="button" onClick={() => setNewGame("ludo")} className="press flex w-full items-center gap-4 rounded-card bg-surface p-4 text-left">
+          <GameArt size={56} />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[16px] font-semibold">New game</span>
+            <span className="block text-[13px] text-ink-soft">On a call, or one move at a time across time zones</span>
+          </span>
+          <Icon name="chevron" size={18} className="text-ink-faint" />
+        </button>
+        {playing.length > 0 && (
+          <ul className="m-0 mt-2 list-none space-y-2 p-0">
+            {playing.map((g) => (
+              <li key={g.id}>
+                <GameRow game={g} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       {done.length > 0 && (
         <section aria-label="Done together">
           <SectionTitle>Done together</SectionTitle>
@@ -135,7 +132,7 @@ function GameRow({ game }: { game: Game }) {
   const turnOf = members.find((x) => x.id === game.players[game.turn]);
   return (
     <Link href={`/together/play/${game.id}`} className={cn("press flex items-center gap-3 rounded-card p-3 text-ink no-underline", mine ? "bg-[#fff2d6]" : "bg-surface")}>
-      <GameArt kind={game.game} size={44} />
+      <GameArt size={44} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[16px] font-semibold">
           {GAME_LOOK[game.game].title} with {others.map((o) => callName(o)).join(" & ")}
@@ -161,7 +158,7 @@ function NewGameSheet({ kind, onClose }: { kind: GameKind; onClose: () => void }
       <button type="button" aria-label="Close" className="absolute inset-0 bg-black/25" onClick={onClose} />
       <div className="relative max-h-[90vh] w-full max-w-[480px] overflow-y-auto rounded-t-[32px] bg-white px-5 pt-5 shadow-frost" style={{ paddingBottom: "calc(20px + env(safe-area-inset-bottom))" }}>
         <div className="flex items-center gap-3">
-          <GameArt kind={kind} />
+          <GameArt />
           <div className="min-w-0 flex-1">
             <p className="m-0 text-[21px] font-semibold leading-tight">{look.title}</p>
             <p className="m-0 text-[14px] text-ink-soft">{look.note}</p>

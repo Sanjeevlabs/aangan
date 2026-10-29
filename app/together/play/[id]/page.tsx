@@ -2,8 +2,9 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Dice, LudoBoard, MemoryBoard, Players, TicTacToeBoard } from "@/components/games";
-import { Button, EmptyLine, RoomHeader } from "@/components/ui/kit";
+import { Dice, LudoBoard, Players } from "@/components/games";
+import { Button, EmptyLine, Icon, RoomHeader } from "@/components/ui/kit";
+import { roomUrl } from "@/lib/overlap";
 import { useViewer } from "@/components/viewer";
 import { GAME_LOOK, type Move } from "@/lib/games";
 import type { Game } from "@/lib/kinds";
@@ -59,7 +60,7 @@ export default function GamePage() {
   const turnOf = members.find((x) => x.id === game.players[game.turn]);
   const winner = members.find((x) => x.id === game.winner);
   const status =
-    game.status === "done" ? (winner ? (winner.id === viewer.id ? "You won!" : `${callName(winner)} won`) : "It's a draw") : mine ? (game.game === "ludo" && game.state.dice !== null ? "Pick a piece to move" : "Your move") : `${callName(turnOf)}'s move`;
+    game.status === "done" ? (winner ? (winner.id === viewer.id ? "You won!" : `${callName(winner)} won`) : "Game over") : mine ? (game.state.dice !== null ? "Pick a piece to move" : "Your roll") : `${callName(turnOf)}'s move`;
 
   return (
     <div>
@@ -71,20 +72,24 @@ export default function GamePage() {
       <p className="m-0 mt-1 min-h-[20px] text-center text-[14px] text-ink-soft">{note ?? (last ? `${last.by === viewer.id ? "You" : callName(lastBy)} ${last.text} · ${ago(last.at)}` : "First move")}</p>
 
       <div className="mt-6">
-        {game.game === "tictactoe" && <TicTacToeBoard game={game} canMove={mine && !busy} onMove={(cell) => void move({ cell })} />}
-        {game.game === "memory" && <MemoryBoard game={game} members={members} canMove={mine && !busy} onMove={(card) => void move({ card })} />}
-        {game.game === "ludo" && (
-          <>
-            <LudoBoard game={game} viewerSeat={seat} onToken={(token) => void move({ token })} />
-            <div className="mt-4 flex items-center justify-center gap-4">
-              <Dice value={game.state.dice} />
-              {mine && game.state.dice === null && (
-                <Button className="h-14 px-8 text-[17px]" disabled={busy} onClick={() => void move({ roll: true })}>
-                  Roll
-                </Button>
-              )}
-            </div>
-          </>
+        <LudoBoard game={game} viewerSeat={seat} onToken={(token) => void move({ token })} />
+        <div className="mt-5 flex items-center justify-center gap-4">
+          {mine && game.state.dice === null && game.status === "playing" ? (
+            <button type="button" onClick={() => void move({ roll: true })} disabled={busy} aria-label="Roll the dice" className="press flex items-center gap-3 rounded-full bg-ink py-2 pl-2 pr-6 text-[17px] font-semibold text-white">
+              <span className="rounded-[14px] bg-white">
+                <Dice value={game.state.lastRoll} size={48} live />
+              </span>
+              Roll
+            </button>
+          ) : (
+            <Dice value={game.state.dice ?? game.state.lastRoll} size={56} />
+          )}
+        </div>
+        {seat >= 0 && game.status === "playing" && (
+          <a href={roomUrl(game.id)} target="_blank" rel="noreferrer" className="press mx-auto mt-4 flex h-11 w-fit items-center gap-2 rounded-full bg-surface px-5 text-[15px] font-semibold text-ink no-underline">
+            <Icon name="phone" size={16} />
+            Play on a call
+          </a>
         )}
       </div>
 

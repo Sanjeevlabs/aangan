@@ -9,7 +9,7 @@ import { askWeeklyQuestions } from "@/lib/keeper";
 const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("weekly") }),
   z.object({ action: z.literal("answer"), questionId: z.string().min(1), cardId: z.string().min(1) }),
-  z.object({ action: z.literal("ask"), toMemberId: z.string().min(1), text: z.string().trim().min(6).max(200) }),
+  z.object({ action: z.literal("ask"), toMemberId: z.string().min(1), text: z.string().trim().min(6).max(200), topic: z.enum(["wisdom", "blessing", "story"]).default("wisdom") }),
   // The person who asked withdraws it; the elder may skip any question.
   z.object({ action: z.literal("remove"), questionId: z.string().min(1) }),
 ]);
@@ -61,13 +61,14 @@ export async function POST(req: Request): Promise<Response> {
 
   const to = (await dbListMembers(auth.familyId)).find((m) => m.id === body.toMemberId);
   if (!to) return Response.json({ error: "unknown-member" }, { status: 404 });
+  if (to.id === auth.memberId) return Response.json({ error: "ask-someone-else" }, { status: 400 });
   const question = await putDoc(auth.familyId, "question", {
     id: newId("ask"),
     toMemberId: to.id,
     text: body.text,
     lang: "en",
     askedBy: auth.memberId,
-    topic: "story",
+    topic: body.topic,
     answeredCardId: null,
     madeBy: "family",
     createdAt: new Date().toISOString(),

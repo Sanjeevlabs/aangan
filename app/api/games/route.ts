@@ -3,19 +3,14 @@ import { z } from "zod";
 import { requireSession } from "@/lib/auth";
 import { dbGetMember, dbListMembers } from "@/lib/db";
 import { deleteDoc, getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
-import { masked, newGame, play, validPlayers, type Move } from "@/lib/games";
+import { newGame, play, validPlayers, type Move } from "@/lib/games";
 import { GAME_KINDS } from "@/lib/kind-values";
 
-// Family games. GET → every game (memory decks masked).
-// POST → new · move · end. The server rolls, shuffles and referees.
+// Ludo across homes. GET → the family's games. POST → new · move · end.
+// The server rolls and referees.
 
 const id = z.string().min(1).max(80);
-const MoveSchema = z.union([
-  z.object({ cell: z.number().int().min(0).max(8) }).strict(),
-  z.object({ card: z.number().int().min(0).max(23) }).strict(),
-  z.object({ roll: z.literal(true) }).strict(),
-  z.object({ token: z.number().int().min(0).max(3) }).strict(),
-]);
+const MoveSchema = z.union([z.object({ roll: z.literal(true) }).strict(), z.object({ token: z.number().int().min(0).max(3) }).strict()]);
 const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("new"), game: z.enum(GAME_KINDS), players: z.array(id).min(2).max(4) }),
   z.object({ action: z.literal("move"), gameId: id, v: z.number().int().min(0), move: MoveSchema }),
@@ -28,7 +23,7 @@ export async function GET(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const games = await listDocs(auth.familyId, "game");
-  return Response.json({ games: games.map(masked) });
+  return Response.json({ games: games });
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -46,9 +41,8 @@ export async function POST(req: Request): Promise<Response> {
     if (!validPlayers(body.game, body.players)) return Response.json({ error: "wrong-player-count" }, { status: 400 });
     const open = (await listDocs(auth.familyId, "game")).filter((g) => g.status === "playing");
     if (open.length >= OPEN_LIMIT) return Response.json({ error: "too-many-games" }, { status: 429 });
-    const faces = members.filter((m) => m.photoRef).map((m) => m.id);
-    const game = await putDoc(auth.familyId, "game", newGame(body.game, body.players, auth.memberId, now, newId("game"), faces, randomInt));
-    return Response.json({ game: masked(game) });
+    const game = await putDoc(auth.familyId, "game", newGame(body.game, body.players, auth.memberId, now, newId("game")));
+    return Response.json({ game: game });
   }
 
   const game = await getDoc(auth.familyId, "game", body.gameId);
@@ -62,7 +56,7 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const out = play(game, auth.memberId, body.v, body.move as Move, now, randomInt);
-  if (!out.ok) return Response.json({ error: out.error, game: masked(game) }, { status: out.error === "stale" ? 409 : 400 });
+  if (!out.ok) return Response.json({ error: out.error, game: game }, { status: out.error === "stale" ? 409 : 400 });
   const saved = await putDoc(auth.familyId, "game", out.game);
-  return Response.json({ game: masked(saved) });
+  return Response.json({ game: saved });
 }

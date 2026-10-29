@@ -37,9 +37,8 @@ export function seedDemoRooms(now = Date.now()): void {
 
   // ---------- Games across homes: one move each, whenever ----------
   const game = (g: Record<string, unknown>) => seedDoc(FAM, "game", { status: "playing", winner: null, createdAt: ago(60 * 26, now), updatedAt: ago(40, now), ...g });
-  const blank = { board: [], deck: [], matched: [], flipped: [], shown: [], scores: [], tokens: [], dice: null };
-  game({ id: "game-ludo-dada-leo", game: "ludo", players: ["dada", "leo"], turn: 1, moves: 14, createdBy: "leo", state: { ...blank, tokens: [[9, -1], [33, 4]] }, lastMove: { by: "dada", text: "brought a piece out", at: ago(40, now) } });
-  game({ id: "game-ttt-dadi-arjun", game: "tictactoe", players: ["dadi", "arjun"], turn: 1, moves: 3, createdBy: "dadi", state: { ...blank, board: [0, -1, -1, -1, 1, -1, -1, -1, 0] }, lastMove: { by: "dadi", text: "played", at: ago(95, now) } });
+  const blank = { tokens: [], dice: null, lastRoll: null };
+  game({ id: "game-ludo-dada-leo", game: "ludo", players: ["dada", "leo"], turn: 1, moves: 14, createdBy: "leo", state: { ...blank, tokens: [[9, -1], [33, 4]], lastRoll: 6 }, lastMove: { by: "dada", text: "brought a piece out", at: ago(40, now) } });
 
   // ---------- Around home (Dadi & Dada's neighbourhood) ----------
   seedDoc(FAM, "place", { id: "place-temple", name: "The temple at the corner", kind: "temple", nearMemberId: "dadi", lat: null, lng: null, googlePlaceId: null, note: "Dadi walks here with Mrs. Kapoor most mornings, before the sun gets hot.", cardIds: ["demo-from-dadi-1"], addedBy: "arjun", createdAt: ago(60 * 24 * 9, now) });
@@ -318,6 +317,10 @@ export function seedDemoRooms(now = Date.now()): void {
     madeBy: "family",
     createdAt: ago(60 * 6, now),
   });
+
+  // ---------- Asks the family made, answered by voice ----------
+  seedDoc(FAM, "question", { id: "ask-arjun-patience", toMemberId: "dadi", text: "How do I stay patient when Leo won't sleep?", lang: "en", askedBy: "arjun", topic: "wisdom", answeredCardId: "demo-dadi-advice-1", madeBy: "family", createdAt: ago(60 * 24 * 6, now) });
+  seedDoc(FAM, "question", { id: "ask-aria-exam", toMemberId: "dada", text: "Will you bless me for my exam on Friday?", lang: "en", askedBy: "aria", topic: "blessing", answeredCardId: "demo-dada-bless-1", madeBy: "family", createdAt: ago(60 * 24 * 3, now) });
 
   // ---------- What Muse did this week (sample activity for the demo) ----------
   const calls: [string, number, number, boolean][] = [

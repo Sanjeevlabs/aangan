@@ -633,3 +633,36 @@ An independent read-only audit of every route under `app/api/**`, plus our own c
 **Baseten → Muse Spark Open (`meta-models/muse-spark-open-1026`), wired in now.** Set `BASETEN_API_KEY` in Vercel. Every Muse text or vision call (captions, recipe scribe, translations into 29 languages, quiz, story labels, album titles, care notes, the agent) retries on Baseten when the Meta API fails or is rate-limited; `MUSE_PROVIDER=baseten` makes it primary for the demo week so the Meta budget is kept for voice. Transcription stays on `muse-voice-transcribe` (our recordings are webm/opus; Baseten audio takes wav/mp3). Next: run `npm run eval:golden` against both hosts and record latency and pass rate in BUILD_LOG.
 
 **Modal → SAM 3.1 (Meta) on a serverless GPU** (Modal's managed Endpoints list text models, not SAM, so it runs as our own function). The one feature worth it: **cut-out** — on a tap, lift the person or the dish out of a photo for the plaque, the family poster and the print store (frame, cookbook cover). Segmentation only: no recognition, no identity, never automatic, never on children's photos without a parent tapping. One HTTPS function (`modal deploy`), image in → mask out, cached by image hash, scales to zero; costs are per GPU-second (check modal.com/pricing), cold start of tens of seconds, so the UI shows "cutting out…" and falls back to the uncut photo. Adds a second named Meta model to the demo.
+
+---
+
+## 28. Parents first: one hero, one promise 🆕
+
+**Promise (landing, welcome, Home):** *Aangan keeps your parents needed.* The hero is the parent or guardian far away. Everything else is a supporting character.
+
+**What the evidence says** (checked 29 Oct):
+| Finding | Source | What it means for us |
+|---|---|---|
+| Older adults who rarely or never felt useful to others had ~3× the odds of disability and death over 7 years, after adjusting for health, mood and social ties | Gruenewald et al. 2007, MacArthur Study (n=1,030) | Being *useful* is the outcome to design for, not being contacted |
+| Grandparents who only *received* help had the most depressive symptoms; those who gave, or gave and received, had the fewest | Moorman & Stokes 2013, Longitudinal Study of Generations | The app must let parents give, not only be looked after |
+| Parents' wellbeing depends on giving matching how rewarding they find it | Bangerter, Fingerman et al. 2014 | Show them their giving landed: who used it, who heard it |
+| Left-behind parents want to be included in everyday life, not only festivals and emergencies; they downplay problems so as not to burden children | NRI-parent care providers (observational) | The child's ordinary day must flow *to* the parent; asking for help must feel normal |
+| One control, the family does the work (KOMP); a weekly question by voice beats typing (Storyworth reviews) | product evidence | The parent's screen is a short queue of things only they can do, answered by voice |
+
+**Rule:** every screen answers one of three questions, or it goes.
+1. **Ask:** what can the family ask of the parent? (a recipe, a story, advice, a blessing)
+2. **Give:** how does the parent answer, and see that it mattered? ("Priya cooked your dal on Sunday", "Leo listened to your story last night": text, never counts)
+3. **Keep them able to give:** their day felt both ways, help at home, safe and sound.
+
+**Menu.**
+| For children and adults | For the parent |
+|---|---|
+| **Home**: their day, what they're waiting for, the latest voice | **Home**: what the family asked of you, what your gifts did this week, your children's day, share your day |
+| **Ask**: ask Dadi or Nana for a recipe, a story, advice or a blessing; what's waiting, what's answered | — |
+| **Library**: everything they've given (recipes, stories, advice) | **Library**: what you've given |
+| **Care**: help at their home, local helpers, safe and sound | **Care**: ask for help; your helpers |
+| **Family**: the family in pots, both sides, Together (visits, birthdays, one game), Memories, Occasions | **Family** |
+
+**Cuts.** Tic-tac-toe and Match the family (no giving in them). Ludo stays, one game, as the thing a grandchild asks to play with Dada, drawn as the classic board everyone recognises. Memories, Occasions and Around home move under Family / a person's page. Circles become **pots**: one pot per home, a stick per person with their face, taller for elders.
+
+**New:** Share my day for everyone ("at work", "school", "home", "cooked your dal", "thinking of you"), shown on the parent's Home. A gifts feed for the parent, built from plays, recipe attempts and answered asks.

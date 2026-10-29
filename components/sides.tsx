@@ -1,8 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useMemo, useState } from "react";
-import { circles, type CirclePerson } from "@/lib/circles";
+import { useState } from "react";
 import { callName, memberPhoto } from "@/lib/people";
 import type { Member, Relationship } from "@/lib/schemas";
 import { resetFamilyCards } from "@/lib/use-family";
@@ -198,59 +196,5 @@ function AddSideSheet({ home, onClose }: { home: Member[]; onClose: () => void }
         )}
       </div>
     </div>
-  );
-}
-
-/* --------------------------------------------------------------- circles */
-
-function CircleRow({ title, note, people }: { title: string; note: string; people: CirclePerson[] }) {
-  const [open, setOpen] = useState(false);
-  if (people.length === 0) return null;
-  return (
-    <li className="rounded-card bg-surface">
-      <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className="press flex w-full items-center gap-3 px-4 py-3.5 text-left">
-        <span className="tnum w-9 shrink-0 text-[26px] font-bold leading-none">{people.length}</span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[16px] font-semibold">{title}</span>
-          <span className="block truncate text-[13px] text-ink-soft">{note}</span>
-        </span>
-        <span className="flex shrink-0 -space-x-2">
-          {people.slice(0, 4).map((p) => (
-            <Avatar key={p.member.id} src={memberPhoto(p.member)} name={callName(p.member)} size={30} ring />
-          ))}
-        </span>
-      </button>
-      {open && (
-        <ul className="m-0 grid list-none grid-cols-3 gap-2 px-3 pb-3 p-0">
-          {people.map((p) => (
-            <li key={p.member.id}>
-              <Link href={`/people/${p.member.id}`} className="press flex flex-col items-center gap-1 rounded-[18px] bg-white px-1 py-3 text-center text-ink no-underline">
-                <Avatar src={memberPhoto(p.member)} name={callName(p.member)} size={48} />
-                <span className="max-w-full truncate text-[14px] font-semibold">{callName(p.member)}</span>
-                {p.label && <span className="max-w-full truncate text-[12px] text-ink-soft">{p.label}</span>}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </li>
-  );
-}
-
-/** Home, close and wider: the in-laws and cousins get a place of their own. */
-export function FamilyCircles({ members, relationships }: { members: Member[]; relationships: Relationship[] }) {
-  const { viewer } = useViewer();
-  const c = useMemo(() => circles(members, relationships, viewer.id), [members, relationships, viewer.id]);
-  const words = (ps: CirclePerson[]) => Array.from(new Set(ps.map((p) => p.label.toLowerCase()).filter(Boolean))).slice(0, 3).join(", ");
-  if (c.home.length + c.close.length + c.wider.length === 0) return null;
-  return (
-    <section aria-label="Your circles" className="mt-10">
-      <h2 className="m-0 mb-3 text-[20px]">Your circles</h2>
-      <ul className="m-0 list-none space-y-2 p-0">
-        <CircleRow title="At home" note={words(c.home) || "Under your roof"} people={c.home} />
-        <CircleRow title="Close family" note={words(c.close) || "Parents, siblings, children"} people={c.close} />
-        <CircleRow title="Wider family" note={words(c.wider) || "In-laws, cousins, aunts and uncles"} people={c.wider} />
-      </ul>
-    </section>
   );
 }

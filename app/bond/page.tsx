@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils";
 import { useViewer } from "@/components/viewer";
 import { FamilyConstellation } from "@/components/constellation";
 import { PetsSection } from "@/components/pets";
-import { BothSides, FamilyCircles } from "@/components/sides";
+import { BothSides } from "@/components/sides";
+import { FamilyPots } from "@/components/pots";
 import { can } from "@/lib/permissions";
 import { ZONES, placeFromTz } from "@/lib/zones";
 
@@ -209,12 +210,14 @@ export default function BondPage() {
 
   return (
     <div>
-      <RoomHeader title="Family" subtitle="Everyone, and how you're all connected" />
+      <RoomHeader title="Family" subtitle="Everyone, home by home, on both sides" />
       {failed && <EmptyLine>Couldn&rsquo;t load the family. Try again in a moment.</EmptyLine>}
       {members === null && !failed && <div className="skeleton h-[420px] rounded-card" aria-busy="true" aria-label="Loading family" />}
       {members && (
         <>
-          <section aria-label="Family constellation">
+          <FamilyPots members={members} relationships={relationships ?? []} />
+          <section aria-label="Family constellation" className="mt-10">
+            <h2 className="m-0 mb-3 text-[20px]">How we&rsquo;re related</h2>
             <FamilyConstellation
               members={members}
               relationships={relationships ?? []}
@@ -230,7 +233,6 @@ export default function BondPage() {
               }
             />
           </section>
-          <FamilyCircles members={members} relationships={relationships ?? []} />
           <BothSides />
           <PetsSection />
           {can(viewer, "tree.add") ? (

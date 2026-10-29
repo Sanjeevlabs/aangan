@@ -29,8 +29,8 @@ export function Landing({ onDemo }: { onDemo: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   return (
     <EntryFrame>
-      <h1 className="m-0 text-[30px] leading-[1.1] text-white">Hear the people you love, every day.</h1>
-      <p className="m-0 mt-2 text-[16px] leading-snug text-white/80">A private courtyard for your family&rsquo;s voices, photos and occasions, wherever everyone lives.</p>
+      <h1 className="m-0 text-[30px] leading-[1.1] text-white">Keep your parents needed.</h1>
+      <p className="m-0 mt-2 text-[16px] leading-snug text-white/80">Ask them for what only they can give: a recipe, a story, their advice, a blessing. They answer by voice, from wherever they are.</p>
       <div className="mt-6 space-y-2.5">
         <Link href="/create" className="press flex h-[52px] items-center justify-center rounded-full bg-white text-[16px] font-semibold text-black no-underline">
           Start your family&rsquo;s Aangan

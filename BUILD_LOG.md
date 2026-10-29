@@ -255,3 +255,15 @@
 
 - Removed dead code (unused skeleton component, legacy `MemoryCard` export). README: five spaces, two sides, security model.
 - Security review and Meta-usage review: SPEC §26.
+
+## Stage 15: Parents first (SPEC §28)
+
+- Research (Gruenewald 2007, Moorman & Stokes 2013, Bangerter & Fingerman 2014, KOMP, Storyworth): design for parents feeling *useful*, letting them *give*, and showing them it landed.
+- **Menu** around the hero: Home · **Ask** · **Library** · Care · Family. Parents see Home · Library ("what you've given") · Care · Family. Promise on the landing: "Keep your parents needed."
+- **Ask** (`/ask`): pick a parent, ask for a recipe, a story, advice or a blessing; waiting and answered lists. Keeper asks gain `wisdom` and `blessing` topics.
+- **Advice & blessings** (`/advice`): answers kept with their question, by the parent who gave them.
+- **Parent's Home**: asks first (family before Muse's weekly question), "What you gave this week" (`/api/gifts`, `lib/gifts.ts`: recipes cooked, stories and answers heard; words, never counts), "Your family today", share your day, ask for help.
+- **Share your day** for children and grandchildren too (at work, school, home, cooked your recipe, thinking of you).
+- **One game**: tic-tac-toe and Match the family removed; Ludo redrawn as the classic cross board with four yards, star squares and coloured home paths; "Play on a call".
+- **Pots**: the Family page opens with one pot per home, a stick per person with their face (painted silhouette without a photo), the parents' homes first; the constellation follows as "How we're related".
+- Home: "Coming up" only for a parent's birthday within 30 days. Tests: 207 passed.

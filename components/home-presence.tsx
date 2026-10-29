@@ -6,7 +6,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { CareSettings, Game, Knock, Need, Pet, Presence, PresenceMoment, Project, Question } from "@/lib/kinds";
 import { callName, memberPhoto } from "@/lib/people";
-import { MOMENT_LABEL, SHAREABLE, latestFor, quietDay, todayFor } from "@/lib/presence";
+import { MOMENT_LABEL, latestFor, quietDay, shareableFor, todayFor } from "@/lib/presence";
+import type { Gift } from "@/lib/gifts";
 import type { Member } from "@/lib/schemas";
 import { useDisplayText } from "@/lib/use-display-text";
 import { ago, postJson, useJson } from "@/lib/use-json";
@@ -62,8 +63,10 @@ export function CourtyardNow() {
       <div className="mt-5 space-y-3">
         {knocks[0] && <KnockBanner knock={knocks[0]} member={members.find((m) => m.id === knocks[0].memberId)} />}
         <SafetyWatch />
-        <ShareMyDay presence={pres.data?.presence ?? []} onShared={() => void pres.reload()} />
         <MyQuestions />
+        <GiftsThisWeek />
+        <ChildrenToday presence={pres.data?.presence ?? null} />
+        <ShareMyDay presence={pres.data?.presence ?? []} onShared={() => void pres.reload()} />
         <MyNeeds />
       </div>
     );
@@ -98,7 +101,7 @@ function YourMove({ game }: { game: Game }) {
   const by = members.find((m) => m.id === game.lastMove?.by);
   return (
     <Link href={`/together/play/${game.id}`} className="flex items-center gap-3 rounded-card bg-surface px-4 py-3.5 text-ink no-underline">
-      <GameArt kind={game.game} size={44} />
+      <GameArt size={44} />
       <span className="min-w-0 flex-1">
         <span className="block text-[13px] text-ink-soft">{by ? `${callName(by)} ${game.lastMove?.text}` : "A new game"}</span>
         <span className="block truncate text-[16px] font-semibold">Your move in {GAME_LOOK[game.game].title}</span>
@@ -259,6 +262,93 @@ function HomeNow({ home, presence, settings, viewerId, pets = [] }: { home: Hous
   );
 }
 
+/** For parents: proof their giving landed. Words, never counts. */
+function GiftsThisWeek() {
+  const { members } = useViewer();
+  const { data } = useJson<{ gifts: Gift[] }>("/api/gifts");
+  const gifts = data?.gifts ?? [];
+  if (gifts.length === 0) return null;
+  return (
+    <section aria-label="Your gifts this week" className="rounded-card bg-surface p-4">
+      <p className="m-0 text-[17px] font-semibold">What you gave this week</p>
+      <ul className="m-0 mt-2 list-none space-y-2.5 p-0">
+        {gifts.map((g) => {
+          const by = members.find((m) => m.id === g.byId);
+          return (
+            <li key={g.id}>
+              <Link href={g.href} className="flex items-center gap-3 text-ink no-underline">
+                <Avatar src={memberPhoto(by)} name={callName(by)} size={36} />
+                <span className="min-w-0 flex-1 text-[15px] leading-snug">
+                  <span className="font-semibold">{callName(by)}</span> {g.text}
+                  <span className="text-ink-faint"> · {ago(g.at)}</span>
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+/** For parents: their children's ordinary day, the thing they miss most. */
+function ChildrenToday({ presence }: { presence: Presence[] | null }) {
+  const { viewer, members, relationships } = useViewer();
+  const homes = households(members, relationships).filter((h) => !h.elders && !h.members.some((m) => m.id === viewer.id));
+  if (presence === null || homes.length === 0) return null;
+  const rows = homes.flatMap((h) => h.members.map((m) => ({ m, home: h, last: latestFor(m.id, presence.filter((p) => p.moment !== "here" && Date.now() - Date.parse(p.at) < 24 * 3_600_000)) })));
+  const shared = rows.filter((r) => r.last);
+  if (shared.length === 0) return null;
+  return (
+    <section aria-label="Your children today" className="rounded-card bg-surface p-4">
+      <p className="m-0 text-[17px] font-semibold">Your family today</p>
+      <ul className="m-0 mt-2 list-none space-y-2 p-0">
+        {shared.map(({ m, home, last }) => (
+          <li key={m.id} className="flex items-center gap-3">
+            <Avatar src={memberPhoto(m)} name={callName(m)} size={36} />
+            <span className="min-w-0 flex-1 text-[15px] leading-snug">
+              <span className="font-semibold">{callName(m)}</span> {last ? MOMENT_LABEL[last.moment].line : ""}
+              {last?.note ? <span className="voice text-ink-soft"> · {last.note}</span> : null}
+              <span className="block text-[13px] text-ink-faint">
+                {last ? ago(last.at) : ""} · {timeIn(home.tz)} in {placeFromTz(home.tz)}
+              </span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** For children and grandchildren: let the parents feel *your* day, one tap. */
+export function ShareYourDay() {
+  const { viewer, members } = useViewer();
+  const pres = useJson<{ presence: Presence[] }>("/api/presence");
+  const [sent, setSent] = useState<PresenceMoment | null>(null);
+  const elders = members.filter((m) => m.role === "elder");
+  if (viewer.role === "elder" || elders.length === 0) return null;
+  const names = elders.slice(0, 2).map((m) => callName(m)).join(" & ");
+  const today = todayFor(viewer.id, pres.data?.presence ?? [], viewer.tz).filter((p) => p.moment !== "here");
+  const share = async (moment: PresenceMoment) => {
+    setSent(moment);
+    await postJson("/api/presence", { moment });
+    await pres.reload();
+  };
+  return (
+    <section aria-label="Share your day" className="mt-5">
+      <p className="m-0 text-[15px] font-semibold">{sent ? `${names} will see: ${MOMENT_LABEL[sent].label}` : `Let ${names} feel your day`}</p>
+      <p className="m-0 text-[13px] text-ink-soft">{today.length ? `Shared today: ${today.map((p) => MOMENT_LABEL[p.moment].label).join(", ")}` : "The ordinary day is what they miss most."}</p>
+      <div className="no-scrollbar -mx-5 mt-2.5 flex gap-2 overflow-x-auto px-5">
+        {shareableFor(viewer.role).map((mo) => (
+          <button key={mo} type="button" onClick={() => void share(mo)} className={cn("press h-10 shrink-0 rounded-full px-4 text-[14px] font-semibold", sent === mo ? "bg-marigold text-black" : "bg-surface")}>
+            {MOMENT_LABEL[mo].label}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 /** For parents: let the family feel your day, one tap at a time. */
 function ShareMyDay({ presence, onShared }: { presence: Presence[]; onShared: () => void }) {
   const { viewer } = useViewer();
@@ -289,7 +379,7 @@ function ShareMyDay({ presence, onShared }: { presence: Presence[]; onShared: ()
         )}
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
-        {SHAREABLE.map((m) => (
+        {shareableFor("elder").map((m) => (
           <button key={m} type="button" onClick={() => void share(m)} className={cn("press h-11 rounded-full px-4 text-[15px] font-semibold", sent === m ? "bg-marigold text-black" : "bg-white")}>
             {MOMENT_LABEL[m].label}
           </button>
@@ -310,7 +400,11 @@ function MyQuestions() {
   const { viewer, members } = useViewer();
   const { openAdd } = useShell();
   const { data, reload } = useJson<{ questions: Question[] }>("/api/keeper");
-  const open = (data?.questions ?? []).filter((q) => q.toMemberId === viewer.id && !q.answeredCardId).slice(0, 2);
+  // Asks from the family first (someone is waiting), then this week's question.
+  const open = (data?.questions ?? [])
+    .filter((q) => q.toMemberId === viewer.id && !q.answeredCardId)
+    .sort((a, b) => Number(Boolean(b.askedBy)) - Number(Boolean(a.askedBy)) || b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 3);
   if (open.length === 0) return null;
   return (
     <>
@@ -336,7 +430,7 @@ function MyQuestions() {
                 className="press flex h-11 shrink-0 items-center gap-1.5 rounded-full bg-black px-4 text-[14px] font-semibold text-white"
               >
                 <Icon name="mic" size={16} />
-                {q.topic === "story" && q.askedBy ? "Tell it" : "Answer"}
+                {q.topic === "story" && q.askedBy ? "Tell it" : q.topic === "recipe" && q.askedBy ? "Teach it" : q.topic === "blessing" ? "Bless" : "Answer"}
               </button>
             </div>
             <div className="mt-1 text-right">

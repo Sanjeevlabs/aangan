@@ -213,6 +213,16 @@ export function seedDemo(): void {
 export function resetDemo(): void {
   members = [...DEMO_MEMBERS, ...DEMO_IYER_MEMBERS].map((m) => MemberSchema.parse(m));
   clearPlays();
+  // A few real-looking listens so a parent's "your gifts this week" isn't empty
+  // in the demo: each is someone hearing something Dadi or Dada gave.
+  const h = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
+  for (const [id, cardId, memberId, at] of [
+    ["play-leo-elephant", "demo-story-elephant", "leo", h(14)],
+    ["play-arjun-advice", "demo-dadi-advice-1", "arjun", h(30)],
+    ["play-aria-blessing", "demo-dada-bless-1", "aria", h(50)],
+    ["play-priya-morning", "demo-from-dadi-1", "priya", h(3)],
+  ] as const)
+    addPlay({ id, familyId: "demo-family", cardId, memberId, playedAt: at });
   clearReactions();
   clearRelationships();
   kinshipCache.clear();

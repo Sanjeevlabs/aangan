@@ -1,138 +1,79 @@
 "use client";
 
 import { m } from "framer-motion";
-import { HOME, RING, isSafe, legalTokens, ringSquare, seats, type GameKind } from "@/lib/games";
+import { HOME, PIECES, isSafe, legalTokens, ringSquare, seats } from "@/lib/games";
 import type { Game } from "@/lib/kinds";
 import type { Member } from "@/lib/schemas";
 import { callName, memberPhoto } from "@/lib/people";
-import { cn } from "@/lib/utils";
-import { Avatar, Icon, Photo } from "./ui/kit";
+import { Avatar } from "./ui/kit";
 
-// The boards. Calm, flat, no chrome: dots and lines, the family's own faces.
+// The classic Ludo board everyone recognises (SPEC §28): a 15 × 15 cross,
+// four coloured yards, a 52-square track with star squares, coloured paths
+// home to the centre triangle. Each yard carries its player's face.
 
-export const SEAT_COLOURS = ["#e39b12", "#2a8f84", "#cf5f74", "#4c5fd5"];
+/** Clockwise from the top-left yard. A player's colour follows their seat. */
+export const SEAT_COLOURS = ["#d64545", "#2f9e5b", "#e3a412", "#2f6fd1"];
+const SEAT_TINT = ["#fbe4e2", "#e1f3e7", "#fdf0cf", "#e1ebfa"];
 
-/* --------------------------------------------------------------- art */
+const CELL = 24;
+const SIZE = CELL * 15;
 
-export function GameArt({ kind, size = 56 }: { kind: GameKind; size?: number }) {
-  return (
-    <svg viewBox="0 0 56 56" width={size} height={size} aria-hidden="true">
-      <rect width="56" height="56" rx="16" fill={kind === "ludo" ? "#fff2d6" : kind === "tictactoe" ? "#e7eefc" : "#fbe6ea"} />
-      {kind === "ludo" && (
-        <g>
-          <circle cx="28" cy="28" r="16" fill="none" stroke="#e39b12" strokeWidth="2" strokeDasharray="2 4" strokeLinecap="round" />
-          {SEAT_COLOURS.map((c, i) => (
-            <circle key={c} cx={28 + 16 * Math.cos((i * Math.PI) / 2 - Math.PI / 2)} cy={28 + 16 * Math.sin((i * Math.PI) / 2 - Math.PI / 2)} r="4.5" fill={c} />
-          ))}
-          <circle cx="28" cy="28" r="4" fill="#1d1d1f" />
-        </g>
-      )}
-      {kind === "tictactoe" && (
-        <g stroke="#2f4f8a" strokeWidth="2.4" strokeLinecap="round" fill="none">
-          <path d="M22 14v28M34 14v28M14 22h28M14 34h28" opacity=".35" />
-          <path d="M16 16l4 4M20 16l-4 4" />
-          <circle cx="28" cy="28" r="2.8" />
-          <path d="M36 36l4 4M40 36l-4 4" />
-        </g>
-      )}
-      {kind === "memory" && (
-        <g>
-          <rect x="12" y="15" width="14" height="19" rx="4" fill="#cf5f74" transform="rotate(-8 19 24)" />
-          <rect x="29" y="20" width="14" height="19" rx="4" fill="#fff" stroke="#cf5f74" strokeWidth="2" transform="rotate(7 36 30)" />
-          <circle cx="36" cy="28" r="3" fill="#cf5f74" />
-        </g>
-      )}
-    </svg>
-  );
-}
+// The 52 track squares as [col, row], starting at the top-left player's start
+// (just under their yard) and going clockwise.
+const TRACK: [number, number][] = [
+  ...[1, 2, 3, 4, 5].map((c) => [c, 6] as [number, number]),
+  ...[5, 4, 3, 2, 1, 0].map((r) => [6, r] as [number, number]),
+  [7, 0],
+  [8, 0],
+  ...[1, 2, 3, 4, 5].map((r) => [8, r] as [number, number]),
+  ...[9, 10, 11, 12, 13, 14].map((c) => [c, 6] as [number, number]),
+  [14, 7],
+  [14, 8],
+  ...[13, 12, 11, 10, 9].map((c) => [c, 8] as [number, number]),
+  ...[9, 10, 11, 12, 13, 14].map((r) => [8, r] as [number, number]),
+  [7, 14],
+  [6, 14],
+  ...[13, 12, 11, 10, 9].map((r) => [6, r] as [number, number]),
+  ...[5, 4, 3, 2, 1, 0].map((c) => [c, 8] as [number, number]),
+  [0, 7],
+  [0, 6],
+];
 
-/* ------------------------------------------------------- tic-tac-toe */
+// Each start square's home path (5 squares) toward the centre, by track start.
+const HOME_PATH: Record<number, [number, number][]> = {
+  0: [1, 2, 3, 4, 5].map((c) => [c, 7]),
+  13: [1, 2, 3, 4, 5].map((r) => [7, r]),
+  26: [13, 12, 11, 10, 9].map((c) => [c, 7]),
+  39: [13, 12, 11, 10, 9].map((r) => [7, r]),
+};
+// Yards (top-left corner cell) by track start: the start square sits beside its yard.
+const YARD: Record<number, [number, number]> = { 0: [0, 0], 13: [9, 0], 26: [9, 9], 39: [0, 9] };
+const SEAT_INDEX: Record<number, number> = { 0: 0, 13: 1, 26: 2, 39: 3 };
 
-const LINES = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]];
+const centreOf = ([c, r]: [number, number]) => ({ x: c * CELL + CELL / 2, y: r * CELL + CELL / 2 });
 
-export function TicTacToeBoard({ game, canMove, onMove }: { game: Game; canMove: boolean; onMove: (cell: number) => void }) {
-  const b = game.state.board;
-  const win = LINES.find((l) => b[l[0]] !== -1 && l.every((i) => b[i] === b[l[0]]));
-  return (
-    <div className="mx-auto grid aspect-square w-full max-w-[320px] grid-cols-3 gap-2" role="grid" aria-label="Tic-tac-toe board">
-      {b.map((v, i) => (
-        <button
-          key={i}
-          type="button"
-          role="gridcell"
-          disabled={!canMove || v !== -1}
-          onClick={() => onMove(i)}
-          aria-label={v === -1 ? `Empty square ${i + 1}` : `Square ${i + 1}: ${v === 0 ? "cross" : "nought"}`}
-          className={cn("press grid place-items-center rounded-[22px] transition-colors", win?.includes(i) ? "bg-[#fff2d6]" : "bg-surface", canMove && v === -1 && "hover:bg-black/[.06]")}
-        >
-          {v !== -1 && (
-            <m.svg viewBox="0 0 40 40" className="h-1/2 w-1/2" initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.18 }}>
-              {v === 0 ? <path d="M9 9l22 22M31 9L9 31" stroke={SEAT_COLOURS[0]} strokeWidth="5" strokeLinecap="round" /> : <circle cx="20" cy="20" r="12" fill="none" stroke={SEAT_COLOURS[1]} strokeWidth="5" />}
-            </m.svg>
-          )}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------ memory */
-
-export function MemoryBoard({ game, members, canMove, onMove }: { game: Game; members: Member[]; canMove: boolean; onMove: (card: number) => void }) {
-  const s = game.state;
-  return (
-    <div className="mx-auto grid w-full max-w-[360px] grid-cols-4 gap-2" role="grid" aria-label="Memory cards">
-      {s.deck.map((face, i) => {
-        const open = face !== "";
-        const matched = s.matched.includes(i);
-        const person = face.startsWith("m:") ? members.find((x) => x.id === face.slice(2)) : undefined;
-        const photo = memberPhoto(person);
-        return (
-          <button
-            key={i}
-            type="button"
-            role="gridcell"
-            disabled={!canMove || open}
-            onClick={() => onMove(i)}
-            aria-label={open ? (person ? callName(person) : face.slice(2)) : `Card ${i + 1}, face down`}
-            className={cn("press relative aspect-[3/4] overflow-hidden rounded-[16px]", open ? "bg-white ring-1 ring-black/[.08]" : "bg-[#cf5f74]", matched && "opacity-60")}
-          >
-            {!open && (
-              <svg viewBox="0 0 30 40" className="absolute inset-0 h-full w-full" aria-hidden="true">
-                <circle cx="15" cy="20" r="5" fill="none" stroke="#fff" strokeOpacity=".7" strokeWidth="1.5" />
-                <circle cx="15" cy="20" r="1.6" fill="#fff" fillOpacity=".8" />
-              </svg>
-            )}
-            {open && person && photo && <Photo src={photo} alt="" sizes="96px" position="center 30%" />}
-            {open && person && !photo && <span className="grid h-full place-items-center text-[22px] font-bold">{callName(person).slice(0, 1)}</span>}
-            {open && !person && (
-              <span className="grid h-full place-items-center text-[#cf5f74]">
-                <Icon name={face.slice(2) as Parameters<typeof Icon>[0]["name"]} size={28} />
-              </span>
-            )}
-            {open && person && <span className="absolute inset-x-1 bottom-1 truncate rounded-full bg-white/90 px-1 text-center text-[10px] font-semibold">{callName(person)}</span>}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/* --------------------------------------------------------------- ludo */
-
-const C = 180;
-const R = 140;
-const angle = (sq: number) => -Math.PI / 2 + (sq / RING) * Math.PI * 2;
-const at = (a: number, r: number) => ({ x: C + r * Math.cos(a), y: C + r * Math.sin(a) });
-
-/** Board position of a piece, by its player's start square and progress. */
 function piecePos(start: number, p: number, k: number): { x: number; y: number } {
-  if (p === -1) return at(angle(start) - 0.13 + k * 0.26, R + 26);
+  if (p === -1) {
+    // Waiting in the yard: side by side in its white square.
+    const [yc, yr] = YARD[start];
+    return { x: (yc + (k === 0 ? 2 : 4)) * CELL, y: (yr + 3) * CELL };
+  }
+  if (p === HOME) {
+    const toward = centreOf(HOME_PATH[start][4]);
+    return { x: (toward.x + SIZE / 2) / 2 + (k ? 5 : -5), y: (toward.y + SIZE / 2) / 2 + (k ? 5 : -5) };
+  }
   const sq = ringSquare(start, p);
-  if (sq !== null) return at(angle(sq), R);
-  const a = angle(start) - Math.PI / RING; // the path up to the centre leaves just before your start
-  if (p === HOME) return at(angle(start), 10 + k * 8);
-  return at(a, R - 22 * (p - 50));
+  if (sq !== null) return centreOf(TRACK[sq]);
+  return centreOf(HOME_PATH[start][p - 51]);
+}
+
+function Star({ x, y, fill }: { x: number; y: number; fill: string }) {
+  const pts = Array.from({ length: 10 }, (_, i) => {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    const r = i % 2 ? 3.6 : 8;
+    return `${x + r * Math.cos(a)},${y + r * Math.sin(a)}`;
+  }).join(" ");
+  return <polygon points={pts} fill={fill} />;
 }
 
 export function LudoBoard({ game, viewerSeat, onToken }: { game: Game; viewerSeat: number; onToken: (k: number) => void }) {
@@ -140,31 +81,74 @@ export function LudoBoard({ game, viewerSeat, onToken }: { game: Game; viewerSea
   const starts = seats(n);
   const dice = game.state.dice;
   const legal = dice !== null && game.turn === viewerSeat ? legalTokens(game.state.tokens[viewerSeat] ?? [], dice) : [];
+  const owner = (start: number) => starts.indexOf(start);
+  const colourOf = (start: number) => SEAT_COLOURS[SEAT_INDEX[start]];
+  const tintOf = (start: number) => SEAT_TINT[SEAT_INDEX[start]];
   return (
-    <svg viewBox="0 0 360 360" className="mx-auto block w-full max-w-[360px]" role="img" aria-label="Ludo board">
-      {Array.from({ length: RING }, (_, sq) => {
-        const p = at(angle(sq), R);
-        const owner = starts.indexOf(sq);
-        return <circle key={sq} cx={p.x} cy={p.y} r={owner >= 0 ? 8 : isSafe(sq) ? 6 : 4.2} fill={owner >= 0 ? SEAT_COLOURS[owner] : isSafe(sq) ? "#d9d2c5" : "#e9e5de"} opacity={owner >= 0 ? 0.35 : 1} />;
+    <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="mx-auto block w-full max-w-[380px] rounded-[22px] bg-white shadow-[0_18px_40px_-24px_rgba(0,0,0,.35)] ring-1 ring-black/[.06]" role="img" aria-label="Ludo board">
+      {/* Yards */}
+      {[0, 13, 26, 39].map((start) => {
+        const [c, r] = YARD[start];
+        const seat = owner(start);
+        return (
+          <g key={start}>
+            <rect x={c * CELL} y={r * CELL} width={CELL * 6} height={CELL * 6} fill={seat >= 0 ? colourOf(start) : "#efece6"} />
+            <rect x={c * CELL + CELL * 0.75} y={r * CELL + CELL * 0.75} width={CELL * 4.5} height={CELL * 4.5} rx={14} fill="#fff" />
+            {seat >= 0 &&
+              Array.from({ length: PIECES }, (_, k) => {
+                const p = piecePos(start, -1, k);
+                return <circle key={k} cx={p.x} cy={p.y} r={CELL * 0.62} fill={tintOf(start)} stroke={colourOf(start)} strokeOpacity={0.35} />;
+              })}
+          </g>
+        );
       })}
-      {starts.map((start, i) => {
-        const a = angle(start) - Math.PI / RING;
-        return Array.from({ length: 5 }, (_, j) => {
-          const p = at(a, R - 22 * (j + 1));
-          return <circle key={`${i}-${j}`} cx={p.x} cy={p.y} r={4.2} fill={SEAT_COLOURS[i]} opacity={0.3} />;
-        });
+      {/* Track */}
+      {TRACK.map(([c, r], sq) => {
+        const isStart = sq % 13 === 0;
+        const start = isStart ? sq : -1;
+        return (
+          <g key={sq}>
+            <rect x={c * CELL} y={r * CELL} width={CELL} height={CELL} fill={isStart ? colourOf(start) : "#fff"} stroke="#e4e0d8" strokeWidth={1} />
+            {isSafe(sq) && !isStart && <Star x={c * CELL + CELL / 2} y={r * CELL + CELL / 2} fill="#c9c2b4" />}
+            {isStart && <Star x={c * CELL + CELL / 2} y={r * CELL + CELL / 2} fill="rgba(255,255,255,.85)" />}
+          </g>
+        );
       })}
-      <circle cx={C} cy={C} r={14} fill="#1d1d1f" />
+      {/* Home paths */}
+      {[0, 13, 26, 39].map((start) =>
+        HOME_PATH[start].map(([c, r], i) => <rect key={`${start}-${i}`} x={c * CELL} y={r * CELL} width={CELL} height={CELL} fill={colourOf(start)} stroke="#fff" strokeOpacity={0.6} />),
+      )}
+      {/* Centre */}
+      {[
+        [0, `${6 * CELL},${6 * CELL} ${6 * CELL},${9 * CELL} ${SIZE / 2},${SIZE / 2}`],
+        [13, `${6 * CELL},${6 * CELL} ${9 * CELL},${6 * CELL} ${SIZE / 2},${SIZE / 2}`],
+        [26, `${9 * CELL},${6 * CELL} ${9 * CELL},${9 * CELL} ${SIZE / 2},${SIZE / 2}`],
+        [39, `${6 * CELL},${9 * CELL} ${9 * CELL},${9 * CELL} ${SIZE / 2},${SIZE / 2}`],
+      ].map(([start, pts]) => (
+        <polygon key={start as number} points={pts as string} fill={colourOf(start as number)} />
+      ))}
+      {/* Pieces */}
       {game.state.tokens.map((toks, i) =>
         toks.map((p, k) => {
           const pos = piecePos(starts[i], p, k);
+          const colour = colourOf(starts[i]);
           const can = i === viewerSeat && legal.includes(k);
           return (
-            <g key={`${i}-${k}`} onClick={can ? () => onToken(k) : undefined} style={{ cursor: can ? "pointer" : "default" }} role={can ? "button" : undefined} aria-label={can ? `Move piece ${k + 1}` : undefined} tabIndex={can ? 0 : undefined} onKeyDown={can ? (e) => (e.key === "Enter" || e.key === " ") && onToken(k) : undefined}>
-              {can && (
-                <m.circle cx={pos.x} cy={pos.y} r={17} fill={SEAT_COLOURS[i]} initial={{ opacity: 0.15 }} animate={{ opacity: [0.15, 0.4, 0.15] }} transition={{ duration: 1.4, repeat: Infinity }} />
-              )}
-              <m.circle animate={{ cx: pos.x, cy: pos.y }} transition={{ type: "spring", stiffness: 260, damping: 26 }} r={10} fill={SEAT_COLOURS[i]} stroke="#fff" strokeWidth={3} />
+            <g
+              key={`${i}-${k}`}
+              onClick={can ? () => onToken(k) : undefined}
+              style={{ cursor: can ? "pointer" : "default" }}
+              role={can ? "button" : undefined}
+              aria-label={can ? `Move piece ${k + 1}` : undefined}
+              tabIndex={can ? 0 : undefined}
+              onKeyDown={can ? (e) => (e.key === "Enter" || e.key === " ") && onToken(k) : undefined}
+            >
+              {can && <m.circle cx={pos.x} cy={pos.y} r={15} fill={colour} initial={{ opacity: 0.15 }} animate={{ opacity: [0.15, 0.45, 0.15] }} transition={{ duration: 1.3, repeat: Infinity }} />}
+              <m.g animate={{ x: pos.x, y: pos.y }} initial={false} transition={{ type: "spring", stiffness: 260, damping: 24 }}>
+                <ellipse cx={0} cy={7} rx={7.5} ry={2.6} fill="rgba(0,0,0,.18)" />
+                <circle cx={0} cy={0} r={8.5} fill={colour} stroke="#fff" strokeWidth={2.6} />
+                <circle cx={-2.4} cy={-2.6} r={2.2} fill="#fff" opacity={0.55} />
+              </m.g>
             </g>
           );
         }),
@@ -173,40 +157,79 @@ export function LudoBoard({ game, viewerSeat, onToken }: { game: Game; viewerSea
   );
 }
 
-export function Dice({ value, size = 64 }: { value: number | null; size?: number }) {
+export function Dice({ value, size = 64, live = false }: { value: number | null; size?: number; live?: boolean }) {
   const pips: Record<number, [number, number][]> = {
     1: [[2, 2]],
-    2: [[1, 1], [3, 3]],
-    3: [[1, 1], [2, 2], [3, 3]],
-    4: [[1, 1], [3, 1], [1, 3], [3, 3]],
-    5: [[1, 1], [3, 1], [2, 2], [1, 3], [3, 3]],
-    6: [[1, 1], [3, 1], [1, 2], [3, 2], [1, 3], [3, 3]],
+    2: [
+      [1, 1],
+      [3, 3],
+    ],
+    3: [
+      [1, 1],
+      [2, 2],
+      [3, 3],
+    ],
+    4: [
+      [1, 1],
+      [3, 1],
+      [1, 3],
+      [3, 3],
+    ],
+    5: [
+      [1, 1],
+      [3, 1],
+      [2, 2],
+      [1, 3],
+      [3, 3],
+    ],
+    6: [
+      [1, 1],
+      [3, 1],
+      [1, 2],
+      [3, 2],
+      [1, 3],
+      [3, 3],
+    ],
   };
   return (
     <svg viewBox="0 0 40 40" width={size} height={size} aria-label={value ? `Dice shows ${value}` : "Dice"}>
-      <rect x="2" y="2" width="36" height="36" rx="10" fill="#fff" stroke="#1d1d1f" strokeOpacity=".12" strokeWidth="1.5" />
-      {(value ? pips[value] : []).map(([x, y], i) => (
-        <circle key={i} cx={x * 9 + 2} cy={y * 9 + 2} r="3.2" fill="#1d1d1f" />
+      <rect x="2" y="2" width="36" height="36" rx="10" fill="#fff" stroke="#1d1d1f" strokeOpacity={live ? 0.5 : 0.12} strokeWidth="1.5" />
+      {(value ? pips[value] : pips[6]).map(([x, y], i) => (
+        <circle key={i} cx={x * 9 + 2} cy={y * 9 + 2} r="3.2" fill="#1d1d1f" opacity={value ? 1 : 0.12} />
       ))}
     </svg>
   );
 }
 
-export function Players({ game, members, viewerId }: { game: Game; members: Member[]; viewerId: string }) {
+export function GameArt({ size = 56 }: { size?: number }) {
   return (
-    <ul className="m-0 flex list-none justify-center gap-4 p-0">
+    <svg viewBox="0 0 56 56" width={size} height={size} aria-hidden="true">
+      <rect width="56" height="56" rx="16" fill="#fff" stroke="#e4e0d8" />
+      <rect x="6" y="6" width="18" height="18" rx="4" fill={SEAT_COLOURS[0]} />
+      <rect x="32" y="6" width="18" height="18" rx="4" fill={SEAT_COLOURS[1]} />
+      <rect x="32" y="32" width="18" height="18" rx="4" fill={SEAT_COLOURS[2]} />
+      <rect x="6" y="32" width="18" height="18" rx="4" fill={SEAT_COLOURS[3]} />
+      <circle cx="28" cy="28" r="4" fill="#1d1d1f" />
+    </svg>
+  );
+}
+
+export function Players({ game, members, viewerId }: { game: Game; members: Member[]; viewerId: string }) {
+  const starts = seats(game.players.length);
+  return (
+    <ul className="m-0 flex list-none justify-center gap-5 p-0">
       {game.players.map((id, i) => {
         const p = members.find((x) => x.id === id);
         const turn = game.status === "playing" && game.turn === i;
+        const colour = SEAT_COLOURS[{ 0: 0, 13: 1, 26: 2, 39: 3 }[starts[i]] ?? i];
         return (
           <li key={id} className="flex flex-col items-center gap-1">
-            <span className="rounded-full p-[3px]" style={{ background: turn ? SEAT_COLOURS[i] : "transparent" }}>
+            <span className="rounded-full p-[3px]" style={{ background: turn ? colour : "transparent" }}>
               <Avatar src={memberPhoto(p)} name={callName(p)} size={48} ring />
             </span>
             <span className="flex items-center gap-1 text-[13px] font-semibold">
-              <span className="h-2 w-2 rounded-full" style={{ background: SEAT_COLOURS[i] }} aria-hidden="true" />
+              <span className="h-2 w-2 rounded-full" style={{ background: colour }} aria-hidden="true" />
               {id === viewerId ? "You" : callName(p)}
-              {game.game === "memory" && <span className="tnum text-ink-soft">· {game.state.scores[i] ?? 0}</span>}
             </span>
           </li>
         );

@@ -8,7 +8,7 @@ import { callName, cardCover, memberPhoto, peopleByRecency, relativeDay, tintSha
 import type { Card, Member } from "@/lib/schemas";
 import { useDisplayText } from "@/lib/use-display-text";
 import { useFamilyCards } from "@/lib/use-family";
-import { CourtyardNow } from "./home-presence";
+import { CourtyardNow, ShareYourDay } from "./home-presence";
 import { VoicePlaque } from "./plaque";
 import { SideSwitch } from "./sides";
 import { HeardChip } from "./reactions";
@@ -16,6 +16,28 @@ import { usePlayer } from "./player";
 import { useShell } from "./shell";
 import { Avatar, Icon, Monogram, Photo, SectionTitle } from "./ui/kit";
 import { useViewer } from "./viewer";
+
+/* Ask the parents for what only they can give. */
+function AskStrip() {
+  const { viewer, members } = useViewer();
+  const elders = members.filter((m) => m.role === "elder" && m.id !== viewer.id);
+  if (viewer.role === "elder" || elders.length === 0) return null;
+  const names = elders.slice(0, 2).map((m) => callName(m)).join(" & ");
+  return (
+    <section aria-label={`Ask ${names}`}>
+      <SectionTitle href="/ask" linkLabel="Ask">
+        Ask {names}
+      </SectionTitle>
+      <div className="grid grid-cols-4 gap-2">
+        {(["A recipe", "A story", "Advice", "A blessing"] as const).map((label) => (
+          <Link key={label} href="/ask" className="press flex h-[72px] items-end rounded-[20px] bg-surface p-3 text-[14px] font-semibold leading-tight text-ink no-underline">
+            {label}
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 /* One album per person: the people are the artists. */
 function PersonAlbum({ member, latest }: { member: Member; latest: Card | undefined }) {
@@ -96,10 +118,11 @@ export function Home() {
   const heroAuthor = members.find((m) => m.id === hero?.authorId);
   const people = useMemo(() => peopleByRecency(viewer.id, members, cards ?? []), [viewer.id, members, cards]);
   const latestBy = (id: string) => (cards ?? []).find((c) => c.authorId === id);
+  // Only the parents' birthdays, and only when it's close: a wish is an ask too.
   const next = members
-    .filter((m) => m.id !== viewer.id)
+    .filter((m) => m.id !== viewer.id && m.role === "elder")
     .map((member) => ({ member, days: daysUntilBirthday(member.birthday) }))
-    .filter((o) => Number.isFinite(o.days))
+    .filter((o) => Number.isFinite(o.days) && o.days <= 30)
     .sort((a, b) => a.days - b.days)[0];
   const thisYear = new Date().getFullYear();
   const yearsAgo = (cards ?? []).find((c) => c.type === "photo" && new Date(c.takenAt).getFullYear() < thisYear);
@@ -153,6 +176,9 @@ export function Home() {
         </div>
       )}
 
+      <ShareYourDay />
+      <AskStrip />
+
       {people.length > 0 && (
         <section aria-label="Your family">
           <SectionTitle href="/bond" linkLabel="Family tree">
@@ -175,7 +201,7 @@ export function Home() {
         </section>
       )}
 
-      {!next && yearsAgo && (
+      {!next && yearsAgo && viewer.role !== "elder" && (
         <section aria-label="From the years">
           <SectionTitle href="/lane" linkLabel="Memory Lane">
             From the years

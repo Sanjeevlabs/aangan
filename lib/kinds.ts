@@ -198,18 +198,12 @@ export const ProjectSchema = z.object({
 // ---------- Games (turn-based, server-authoritative) ----------
 const int = z.number().int();
 export const GameStateSchema = z.object({
-  /** Tic-tac-toe: 9 cells, -1 empty, else the player's seat. */
-  board: z.array(int.min(-1).max(3)).max(9).default([]),
-  /** Memory: the shuffled faces. Never sent to the browser unmasked. */
-  deck: z.array(z.string().max(60)).max(24).default([]),
-  matched: z.array(int.min(0).max(23)).max(24).default([]),
-  /** This turn's face-up card(s), and last turn's miss, shown to everyone. */
-  flipped: z.array(int.min(0).max(23)).max(2).default([]),
-  shown: z.array(int.min(0).max(23)).max(2).default([]),
-  scores: z.array(int.min(0)).max(4).default([]),
-  /** Ludo: per player, each piece's progress: -1 at home base, 0-55 on the way, 56 home. */
+  /** Ludo: per player, each piece's progress: -1 in the yard, 0-55 on the way, 56 home. */
   tokens: z.array(z.array(int.min(-1).max(56)).max(4)).max(4).default([]),
+  /** The roll waiting to be moved, if any. */
   dice: int.min(1).max(6).nullable().default(null),
+  /** The last roll, so everyone sees what was thrown. */
+  lastRoll: int.min(1).max(6).nullable().default(null),
 });
 export const GameSchema = z.object({
   id,
@@ -348,7 +342,7 @@ export const QuestionSchema = z.object({
   lang: z.string().default("en"),
   /** Optional: a grandchild asked this, Muse only phrased it. */
   askedBy: z.string().nullable().default(null),
-  topic: z.enum(["story", "recipe", "wisdom", "song", "place"]).default("story"),
+  topic: z.enum(["story", "recipe", "wisdom", "blessing", "song", "place"]).default("story"),
   answeredCardId: z.string().nullable().default(null),
   madeBy: z.enum(["family", "muse"]).default("muse"),
   createdAt: iso,

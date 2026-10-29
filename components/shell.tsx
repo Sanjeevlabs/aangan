@@ -8,7 +8,7 @@ import { householdName, talkTarget } from "@/lib/households";
 import { callName, peopleByRecency } from "@/lib/people";
 import { useFamilyCards } from "@/lib/use-family";
 import { useLargeText } from "@/lib/use-large-text";
-import { SPACES } from "@/lib/spaces";
+import { spacesFor } from "@/lib/spaces";
 import dynamic from "next/dynamic";
 import type { AddTab, ReplyContribution } from "./add-sheet";
 
@@ -42,9 +42,10 @@ export function useShell(): ShellState {
   return ctx;
 }
 
-const ROOMS = SPACES.filter((sp) => sp.id !== "home");
 
 function RoomsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { viewer } = useViewer();
+  const ROOMS = spacesFor(viewer.role === "elder").filter((sp) => sp.id !== "home");
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
