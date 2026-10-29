@@ -9,7 +9,7 @@ import { useViewer } from "@/components/viewer";
 import { FamilyConstellation } from "@/components/constellation";
 import { PetsSection } from "@/components/pets";
 import { BothSides } from "@/components/sides";
-import { FamilyPots } from "@/components/pots";
+import { FamilyCircles, FamilyHomes } from "@/components/family-homes";
 import { can } from "@/lib/permissions";
 import { ZONES, placeFromTz } from "@/lib/zones";
 
@@ -215,7 +215,7 @@ export default function BondPage() {
       {members === null && !failed && <div className="skeleton h-[420px] rounded-card" aria-busy="true" aria-label="Loading family" />}
       {members && (
         <>
-          <FamilyPots members={members} relationships={relationships ?? []} />
+          <FamilyHomes members={members} relationships={relationships ?? []} />
           <section aria-label="Family constellation" className="mt-10">
             <h2 className="m-0 mb-3 text-[20px]">How we&rsquo;re related</h2>
             <FamilyConstellation
@@ -233,6 +233,7 @@ export default function BondPage() {
               }
             />
           </section>
+          <FamilyCircles members={members} relationships={relationships ?? []} />
           <BothSides />
           <PetsSection />
           {can(viewer, "tree.add") ? (

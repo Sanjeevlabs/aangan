@@ -8,7 +8,8 @@ import { householdName, talkTarget } from "@/lib/households";
 import { callName, peopleByRecency } from "@/lib/people";
 import { useFamilyCards } from "@/lib/use-family";
 import { useLargeText } from "@/lib/use-large-text";
-import { spacesFor } from "@/lib/spaces";
+import { menuFor } from "@/lib/menu";
+import { cn } from "@/lib/utils";
 import dynamic from "next/dynamic";
 import type { AddTab, ReplyContribution } from "./add-sheet";
 
@@ -44,8 +45,14 @@ export function useShell(): ShellState {
 
 
 function RoomsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { viewer } = useViewer();
-  const ROOMS = spacesFor(viewer.role === "elder").filter((sp) => sp.id !== "home");
+  const { viewer, members } = useViewer();
+  const parent = viewer.role === "elder";
+  const names = members
+    .filter((m) => m.role === "elder" && m.id !== viewer.id)
+    .slice(0, 2)
+    .map((m) => callName(m))
+    .join(" & ");
+  const groups = menuFor(parent, names);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -55,47 +62,44 @@ function RoomsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Spaces">
-          <m.button
-            type="button"
-            aria-label="Close"
-            className="absolute inset-0 bg-black/20"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-          />
+        <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Menu">
+          <m.button type="button" aria-label="Close" className="absolute inset-0 bg-black/25" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
           <m.nav
-            className="frost glass-sheet relative mx-3 mb-3 w-full max-w-[460px] p-2"
-            style={{ marginBottom: "calc(12px + env(safe-area-inset-bottom))" }}
-            initial={{ y: 40, opacity: 0, scale: 0.98 }}
-            animate={{ y: 0, opacity: 1, scale: 1 }}
-            exit={{ y: 40, opacity: 0, scale: 0.98 }}
-            transition={{ type: "spring", stiffness: 420, damping: 36 }}
+            className="relative w-full max-w-[480px] overflow-y-auto rounded-t-[32px] bg-[#f6f4f0] px-4 pt-3 shadow-frost"
+            style={{ maxHeight: "88vh", paddingBottom: "calc(16px + env(safe-area-inset-bottom))" }}
+            initial={{ y: 60, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 60, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 420, damping: 38 }}
           >
-            <ul className="m-0 list-none p-0">
-              {ROOMS.map((r) => (
-                <li key={r.href}>
-                  <Link
-                    href={r.href}
-                    onClick={onClose}
-                    className="press flex items-center gap-4 rounded-[22px] px-4 py-2.5 text-ink no-underline hover:bg-black/[.04]"
-                  >
-                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-black/[.05]">
-                      <Icon name={r.icon as Parameters<typeof Icon>[0]["name"]} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[17px] font-semibold">{r.title}</span>
-                      <span className="block text-[14px] text-ink-soft">{r.note}</span>
-                    </span>
-                    <Icon name="chevron" size={18} className="text-ink-faint" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-            <Link href="/settings" onClick={onClose} className="flex h-11 items-center justify-center gap-1.5 text-[14px] font-medium text-ink-soft no-underline">
-              <Icon name="settings" size={16} />
-              Settings
+            <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-black/15" aria-hidden="true" />
+            {groups.map((g) => (
+              <section key={g.id} aria-label={g.title} className="mb-4">
+                <h2 className="m-0 mb-1.5 px-3 text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-soft">{g.title}</h2>
+                <ul className="m-0 list-none overflow-hidden rounded-[22px] bg-white p-0">
+                  {g.items.map((r, i) => (
+                    <li key={r.href + r.title} className={i ? "border-t border-[var(--line)]" : ""}>
+                      <Link href={r.href} onClick={onClose} className="press flex items-center gap-3.5 px-3.5 py-2.5 text-ink no-underline hover:bg-black/[.03]">
+                        <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-[12px]", g.id === "parents" ? "bg-[#fff0cc] text-[#8a5a12]" : g.id === "given" ? "bg-[#fbe6dc] text-[#8a3f1d]" : "bg-[#eef0f4] text-[#3d4a63]")}>
+                          <Icon name={r.icon as Parameters<typeof Icon>[0]["name"]} size={20} />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-[16px] font-semibold leading-tight">{r.title}</span>
+                          <span className="block truncate text-[13px] text-ink-soft">{r.note}</span>
+                        </span>
+                        <Icon name="chevron" size={16} className="text-ink-faint" />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+            <Link href="/settings" onClick={onClose} className="press flex items-center gap-3.5 rounded-[22px] bg-white px-3.5 py-3 text-ink no-underline">
+              <span className="grid h-10 w-10 place-items-center rounded-[12px] bg-[#eef0f4]">
+                <Icon name="settings" size={20} />
+              </span>
+              <span className="flex-1 text-[16px] font-semibold">Settings</span>
+              <Icon name="chevron" size={16} className="text-ink-faint" />
             </Link>
           </m.nav>
         </div>
@@ -173,7 +177,7 @@ function Dock() {
               <button
                 type="button"
                 onClick={() => setRooms(true)}
-                aria-label="Open spaces"
+                aria-label="Open menu"
                 className="press grid h-14 w-14 place-items-center rounded-full"
               >
                 <Icon name="more" size={24} />

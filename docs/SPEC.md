@@ -663,6 +663,13 @@ An independent read-only audit of every route under `app/api/**`, plus our own c
 | **Care**: help at their home, local helpers, safe and sound | **Care**: ask for help; your helpers |
 | **Family**: the family in pots, both sides, Together (visits, birthdays, one game), Memories, Occasions | **Family** |
 
-**Cuts.** Tic-tac-toe and Match the family (no giving in them). Ludo stays, one game, as the thing a grandchild asks to play with Dada, drawn as the classic board everyone recognises. Memories, Occasions and Around home move under Family / a person's page. Circles become **pots**: one pot per home, a stick per person with their face, taller for elders.
+**28.1 Revision (29 Oct feedback): parents first, nothing hidden.** Four spaces read as "features cut". The menu is now one grouped list, every feature one tap away:
+- **For Dadi & Dada** (parents: *For you*): Ask them · Help at their home · Safe & sound · Plan a visit · Around their home
+- **What they've given**: Recipes · Stories · Advice & blessings
+- **Family**: Everyone (home by home, both sides, how we're related, circles) · Memories · Occasions · Together · Sit together
+- Settings
+Spaces remain only as tabs inside a page. Pots were dropped (read as childish): the Family page opens with **Home by home** cards (city, local time, portraits with kin labels, parents' homes first), then the constellation, **Your circles** and Both sides.
+
+**Cuts.** Tic-tac-toe and Match the family (no giving in them). Ludo stays, one game, as the thing a grandchild asks to play with Dada, drawn as the classic board everyone recognises. Memories, Occasions and Around home move under Family / a person's page.
 
 **New:** Share my day for everyone ("at work", "school", "home", "cooked your dal", "thinking of you"), shown on the parent's Home. A gifts feed for the parent, built from plays, recipe attempts and answered asks.

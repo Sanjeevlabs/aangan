@@ -5,6 +5,7 @@ import type { Gift } from "@/lib/gifts";
 import type { Question } from "@/lib/kinds";
 import { shareableFor } from "@/lib/presence";
 import { spacesFor } from "@/lib/spaces";
+import { menuFor } from "@/lib/menu";
 import { resetDemo } from "@/lib/store";
 import { sessionCookie } from "./auth-helper";
 
@@ -35,5 +36,16 @@ describe("parents first", () => {
     expect(spacesFor(true).map((s) => s.id)).toEqual(["home", "library", "care", "family"]);
     expect(shareableFor("adult")).toContain("work");
     expect(shareableFor("child")).toContain("school");
+  });
+
+  it("puts the parents first in the menu, and still reaches every family feature", () => {
+    const kid = menuFor(false, "Dadi & Dada");
+    expect(kid[0].title).toBe("For Dadi & Dada");
+    expect(kid[0].items[0].href).toBe("/ask");
+    const hrefs = kid.flatMap((g) => g.items.map((i) => i.href));
+    for (const h of ["/ask", "/care", "/safe", "/kitchen", "/stories", "/advice", "/bond", "/lane", "/rituals", "/together", "/gather", "/around"]) expect(hrefs).toContain(h);
+    const parent = menuFor(true, "");
+    expect(parent[0].title).toBe("For you");
+    expect(parent.flatMap((g) => g.items.map((i) => i.href))).not.toContain("/ask");
   });
 });
