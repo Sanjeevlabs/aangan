@@ -267,3 +267,4 @@
 - **One game**: tic-tac-toe and Match the family removed; Ludo redrawn as the classic cross board with four yards, star squares and coloured home paths; "Play on a call".
 - **Pots**: the Family page opens with one pot per home, a stick per person with their face (painted silhouette without a photo), the parents' homes first; the constellation follows as "How we're related".
 - Home: "Coming up" only for a parent's birthday within 30 days. Tests: 207 passed.
+- Revision after feedback: the menu is one grouped list (For Dadi & Dada, What they've given, Family, Settings), every feature one tap away (lib/menu.ts); pots replaced by Home by home cards; Your circles restored. Tests: 208 passed.
