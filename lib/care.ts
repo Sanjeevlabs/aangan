@@ -16,7 +16,8 @@ export type NeedDraft = z.infer<typeof NeedDraftSchema>;
 
 const NEED_SYSTEM = [
   "A parent asked their family for practical help by voice. Turn it into one task. Reply JSON only:",
-  '{"title": str, "kind": "groceries"|"house"|"ride"|"repair"|"gas"|"errand"|"visit"|"other", "when": str}',
+  '{"title": str, "kind": "groceries"|"house"|"ride"|"repair"|"gas"|"bills"|"health"|"errand"|"visit"|"pets"|"other", "when": str}',
+  "- kind \"health\" is only for logistics (an appointment, a medicine pickup); \"bills\" is only a reminder task. Aangan never handles money.",
   "- title: short, in English, in the parent's own framing (\"The geyser isn't heating\").",
   "- when: only if they said a time (\"Tuesday morning\"), else \"\".",
   "- Never diagnose, never give medical or any other advice. If they mention feeling unwell, the task is kind \"visit\": \"Someone to visit and check on me\".",
@@ -28,6 +29,9 @@ const KEYWORDS: [RegExp, NeedDraft["kind"]][] = [
   [/\b(?:ride|drive|car|take me|temple|clinic|station)\b|ले चलो|गाड़ी/i, "ride"],
   [/broken|fix|repair|geyser|leak|fan|light|ठीक|खराब/i, "repair"],
   [/clean|wash|house|safai|सफ़ाई/i, "house"],
+  [/\bbill\b|electricity|internet bill|recharge|बिल/i, "bills"],
+  [/\bdog\b|\bcat\b|\bvet\b|pet food|walker/i, "pets"],
+  [/appointment|check-?up|medicine|pharmacy|refill|दवा/i, "health"],
   [/unwell|not (?:feeling |doing )?(?:so )?well|feeling (?:low|weak|dizzy)|tired|lonely|अकेल|तबीयत/i, "visit"],
 ];
 

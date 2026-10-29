@@ -182,3 +182,12 @@
 - Every gap from the CRUD audit closed: edit/delete voice notes and photos (author; admin can remove), edit/delete recipes (cook), delete attempts, take back a blessing, withdraw or skip questions, undo a shared moment, edit/withdraw needs, edit Village contacts, leave the rota, revoke invites, link two existing people and remove a link, take back a reaction, RSVP and reschedule sittings.
 - `docs/SPEC.md` v2: what families far apart care about, every screen's operations and states, Care as a ticket tracker, Safe & sound (no tracking), pets, extended family, the Aangan map, plans (₹399 / ₹999), curated concierge (ONDC / Instacart / licensed partners; no marketplace), brand. Decisions recorded in §15.
 - Verified: lint ok, typecheck ok, tests 152 passed + 3 skipped, production build ok; role-based UI probe (admin vs child) matches the rules; no page errors.
+
+## 29 Oct 2026 · Stage 6: Care board, extended family, pets
+
+- Care is a ticket tracker per home: To do · In progress · Done this week; filters (All, Mine, Unassigned, Urgent, kind); each person's open load at the top; compact rows (kind tag, priority dot, due, for whom, assignee). Ticket sheet: kind, for whom, priority, due, repeats, assign to any family member (not children), the Village person who'll go, Start / Done / Cancel / Re-open, the note the parent sees, and a timeline of every change. Recurring tasks roll forward when done. Setup tab: whose week, who handles what, the Village.
+- New kinds: bills (reminder only), health visits (logistics only), pets. Pet words win over "appointment" in spoken requests.
+- Extended family: uncles, aunts and cousins are added through a parent ("Chachu is Papa's brother"); the tree puts siblings in the same generation and under the same grandparents; plain-English kinship for uncle/aunt/cousin/nephew/niece/in-laws.
+- Pets: part of a home (lives with someone), add/edit/remove on the Family page, shown on the home's card, can be the subject of care tasks. Demo: Bruno with Dadi, Mochi with Dad.
+- Courtyard shows "N care tasks for you".
+- Verified: lint ok, typecheck ok, tests 157 passed + 3 skipped, build ok; browser QA of board, ticket sheet, setup, and an extended family with an uncle, cousin, aunt and a pet; no page errors.

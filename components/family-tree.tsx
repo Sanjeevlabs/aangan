@@ -33,7 +33,7 @@ interface Unit {
   width: number;
 }
 
-function generations(members: Member[], rels: Relationship[]): { gen: Map<string, number>; parentOf: Map<string, Set<string>>; spouse: Map<string, string> } {
+function generations(members: Member[], rels: Relationship[]): { gen: Map<string, number>; parentOf: Map<string, Set<string>>; spouse: Map<string, string>; siblings: Map<string, Set<string>> } {
   const parentOf = new Map<string, Set<string>>();
   const spouse = new Map<string, string>();
   const addParent = (child: string, parent: string) => parentOf.set(child, (parentOf.get(child) ?? new Set()).add(parent));
@@ -42,6 +42,23 @@ function generations(members: Member[], rels: Relationship[]): { gen: Map<string
     if (r.canonicalKind === "child") addParent(r.relationMemberId, r.memberId);
   }
   partnersOf(rels).forEach((b, a) => spouse.set(a, b));
+  // Siblings share parents: Chachu (Papa's brother) hangs from the same
+  // grandparents, in Papa's generation, even if nobody linked him to them.
+  const siblings = new Map<string, Set<string>>();
+  const addSib = (a: string, b: string) => siblings.set(a, (siblings.get(a) ?? new Set()).add(b));
+  for (const r of rels) {
+    if (r.canonicalKind !== "sibling") continue;
+    addSib(r.memberId, r.relationMemberId);
+    addSib(r.relationMemberId, r.memberId);
+  }
+  for (let pass = 0; pass < 3; pass++) {
+    siblings.forEach((sibs, a) => {
+      sibs.forEach((b) => {
+        const pa = parentOf.get(a);
+        if (pa) pa.forEach((p) => addParent(b, p));
+      });
+    });
+  }
   const ids = new Set(members.map((m) => m.id));
   const gen = new Map<string, number>();
   // Depth = longest chain of known parents above you (so in-laws line up).
@@ -55,6 +72,14 @@ function generations(members: Member[], rels: Relationship[]): { gen: Map<string
     return d;
   };
   members.forEach((m) => depth(m.id));
+  // Siblings without known parents still stand in their sibling's generation.
+  for (let pass = 0; pass < 3; pass++) {
+    siblings.forEach((sibs, a) => sibs.forEach((b) => {
+      const g = Math.max(gen.get(a) ?? 0, gen.get(b) ?? 0);
+      gen.set(a, g);
+      gen.set(b, g);
+    }));
+  }
   // Partners share a generation: the deeper one wins.
   for (let pass = 0; pass < 3; pass++) {
     spouse.forEach((b, a) => {
@@ -64,11 +89,11 @@ function generations(members: Member[], rels: Relationship[]): { gen: Map<string
       gen.set(b, g);
     });
   }
-  return { gen, parentOf, spouse };
+  return { gen, parentOf, spouse, siblings };
 }
 
 function layout(members: Member[], rels: Relationship[]) {
-  const { gen, parentOf, spouse } = generations(members, rels);
+  const { gen, parentOf, spouse, siblings } = generations(members, rels);
   const units: Unit[] = [];
   const unitOf = new Map<string, string>();
   const order = [...members].sort((a, b) => (gen.get(a.id) ?? 0) - (gen.get(b.id) ?? 0) || a.id.localeCompare(b.id));

@@ -128,6 +128,10 @@ export function seedDemoRooms(now = Date.now()): void {
   village.forEach((h) => seedDoc(FAM, "helper", { ...h, forMemberId: "dadi", addedBy: "arjun", createdAt: ago(60 * 24 * 20, now) }));
   seedDoc(FAM, "helper", { id: "helper-dr-clinic", name: "Sharma Clinic", role: "doctor's clinic", forMemberId: "dada", phone: "+91 90000 00006", note: "Dada's regular check-ups. Imran bhai drives.", addedBy: "arjun", createdAt: ago(60 * 24 * 20, now) });
 
+  // ---------- Pets ----------
+  seedDoc(FAM, "pet", { id: "pet-bruno", name: "Bruno", species: "dog", livesWith: "dadi", photoRef: null, birthday: "02-14", note: "Waits at the gate for the milkman.", addedBy: "arjun", createdAt: ago(60 * 24 * 40, now) });
+  seedDoc(FAM, "pet", { id: "pet-mochi", name: "Mochi", species: "cat", livesWith: "arjun", photoRef: null, birthday: "", note: "Sleeps on Leo's homework.", addedBy: "leo", createdAt: ago(60 * 24 * 30, now) });
+
   // ---------- Care circle ----------
   seedDoc(FAM, "need", {
     id: "need-gas",

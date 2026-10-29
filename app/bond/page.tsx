@@ -7,6 +7,7 @@ import { callName, memberPhoto } from "@/lib/people";
 import { cn } from "@/lib/utils";
 import { useViewer } from "@/components/viewer";
 import { LivingTree, TreeLegend } from "@/components/family-tree";
+import { PetsSection } from "@/components/pets";
 import { can } from "@/lib/permissions";
 import { ZONES, placeFromTz } from "@/lib/zones";
 
@@ -77,6 +78,9 @@ function GuidedAdd({ onAdded }: { onAdded: () => void }) {
     <section aria-label="Add someone" className="mt-10">
       <h2 className="m-0 mb-1 text-[20px]">Add someone</h2>
       <p className="m-0 mb-4 text-[15px] text-ink-soft">Tell Aangan how they&rsquo;re related to someone already here.</p>
+      <p className="m-0 mb-4 rounded-[16px] bg-surface px-4 py-3 text-[14px] text-ink-soft">
+        <span className="font-semibold text-ink">Uncles, aunts and cousins:</span> add them through a parent. &ldquo;Chachu is <em>Papa&rsquo;s brother</em>&rdquo;, &ldquo;Mausi is <em>Maa&rsquo;s sister</em>&rdquo;, then their children as their son or daughter. Aangan works out &ldquo;your uncle&rdquo; or &ldquo;your cousin&rdquo; for everyone.
+      </p>
       {welcomed && (
         <div className="bond-bloom mb-4 rounded-[22px] bg-[#fff6e6] px-4 py-3" role="status">
           <p className="m-0 text-[17px] font-semibold">Welcome to the family, {welcomed}</p>
@@ -187,6 +191,25 @@ const PLAIN_KIN: Record<string, string> = {
   child: "your child",
   wife: "your wife",
   husband: "your husband",
+  // Extended family: a parent's siblings and their families.
+  "father's brother": "your uncle",
+  "mother's brother": "your uncle",
+  "father's sister": "your aunt",
+  "mother's sister": "your aunt",
+  "father's brother's wife": "your aunt",
+  "mother's brother's wife": "your aunt",
+  "father's sister's husband": "your uncle",
+  "mother's sister's husband": "your uncle",
+  "father's brother's child": "your cousin",
+  "father's sister's child": "your cousin",
+  "mother's brother's child": "your cousin",
+  "mother's sister's child": "your cousin",
+  "brother's child": "your nephew or niece",
+  "sister's child": "your nephew or niece",
+  "wife's mother": "your mother-in-law",
+  "wife's father": "your father-in-law",
+  "husband's mother": "your mother-in-law",
+  "husband's father": "your father-in-law",
 };
 function plainKin(term: string): string {
   const t = term.trim().toLowerCase();
@@ -254,6 +277,7 @@ export default function BondPage() {
             <LivingTree members={members} relationships={relationships ?? []} viewerId={viewer.id} kin={Object.fromEntries(members.map((m) => [m.id, plainKin(kin[m.id] ?? "")]))} />
             <TreeLegend />
           </section>
+          <PetsSection />
           {can(viewer, "tree.add") ? (
           <GuidedAdd
             onAdded={() => {
