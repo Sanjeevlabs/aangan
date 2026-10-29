@@ -41,6 +41,11 @@ export default function AroundPage() {
   const place = places.find((p) => p.id === selected) ?? null;
   const child = viewer.access === "child";
   useEffect(() => setSelected(null), [homeId]);
+  // Opened from a person's page: /around?home=<household id>.
+  useEffect(() => {
+    const h = new URLSearchParams(window.location.search).get("home");
+    if (h) setHomeId(h);
+  }, []);
 
   if (!home || !near) {
     return (
