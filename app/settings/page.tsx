@@ -12,11 +12,26 @@ import { processHomeImage } from "@/lib/media-client";
 import { resolveMediaUrl } from "@/lib/media-session";
 import { memberPhoto } from "@/lib/people";
 import { resetFamilyCards } from "@/lib/use-family";
+import { useLargeText } from "@/lib/use-large-text";
 import { cn } from "@/lib/utils";
 
 interface Invite {
   code: string;
   expiresAt: string;
+}
+
+function LargeTextToggle() {
+  const { viewer } = useViewer();
+  const [large, setLarge] = useLargeText(viewer.role === "elder");
+  return (
+    <label className="flex items-center justify-between gap-3 rounded-[20px] bg-surface px-4 py-3.5">
+      <span>
+        <span className="block text-[17px] font-semibold">Larger text</span>
+        <span className="block text-[14px] text-ink-soft">Bigger words and buttons, easier on the eyes</span>
+      </span>
+      <input type="checkbox" className="h-6 w-6 accent-black" checked={large} onChange={(e) => setLarge(e.target.checked)} />
+    </label>
+  );
 }
 
 /** Searchable picker: 29 languages would be a wall of radio buttons. */
@@ -244,6 +259,10 @@ export default function SettingsPage() {
         <p className="m-0 mt-2 text-[13px] text-ink-faint">Everything the family shares (voices, recipes, notes) is translated into your language by Muse. The app itself stays in English. Names stay as the family says them.</p>
       </Group>
 
+      <Group title="Reading">
+        <LargeTextToggle />
+      </Group>
+
       <Group title="Where you are">
         <label className="block">
           <span className="mb-1.5 block text-[13px] font-medium text-ink-soft">Time zone, so family sees your local time</span>
@@ -322,7 +341,7 @@ export default function SettingsPage() {
           )}
         </div>
         <Link href="/trace" className="mt-3 inline-flex h-11 items-center text-[14px] font-medium text-ink-soft no-underline">
-          What Aangan&rsquo;s agents did, step by step
+          ✦ What Muse did for your family, step by step
         </Link>
       </Group>
 
