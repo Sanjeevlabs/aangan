@@ -191,3 +191,13 @@
 - Pets: part of a home (lives with someone), add/edit/remove on the Family page, shown on the home's card, can be the subject of care tasks. Demo: Bruno with Dadi, Mochi with Dad.
 - Courtyard shows "N care tasks for you".
 - Verified: lint ok, typecheck ok, tests 157 passed + 3 skipped, build ok; browser QA of board, ticket sheet, setup, and an extended family with an uncle, cousin, aunt and a pet; no page errors.
+
+## Stage 7: Safe & sound
+
+- **What:** a check-in room owned by the person it protects (spec §7). Home safe, Heading home (15–90 min ETA), Travelling (2–18 h), Out late, I need help. Emergency card with the local number from the person's time zone (112 / 911 / 999 / 000 …).
+- **Privacy rules (enforced in `/api/safety`, tested):** off by default; only the person turns it on, picks watchers (family members only), pauses or turns it off; only chosen watchers ever receive their check-ins; location is accepted only with "I need help", only if they tick "send where I am, once", is cleared when they tap "I'm okay", and is stripped from reads after 24 h. No background tracking.
+- **Alerts only for a missed promise:** Heading home overdue 20 min after ETA; Travelling overdue 2 h after; or explicit help. Everything else is one quiet line on the Courtyard. A new check-in closes the previous open one.
+- **Courtyard:** `SafetyWatch` shows alerts first (with "See location" and the emergency number for *their* country), calm statuses as one line, and gives the traveller a one-tap "Home safe / Landed / I'm okay".
+- **Demo:** Aria (Chicago) shares with Dad and Dadi; last check-in "Home safe 2 h ago".
+- **Not yet:** push/SMS notifications (in-app only), escalation chains, scheduled "check on me at 11 pm" timers. Push is the real gap for production; needs web-push + a cron that evaluates overdue states server-side.
+- Tests: `tests/safety.test.ts` (state machine, 24 h TTL, emergency numbers, visibility, pause, location-only-on-help). 164 passed.
