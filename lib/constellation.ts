@@ -247,11 +247,12 @@ export function constellation(members: Member[], rels: Relationship[], focusId: 
     const left = Math.min(half, (gapTo(DIR[pk], c) * w) / (w + weightOf(pl)));
     spread(list, c - left, c + right);
   });
+  // Within a group, people are evenly spaced (Mum and Dad sit symmetrically
+  // above you however big either side of the family is).
   function spread(list: readonly Tree[], lo: number, hi: number) {
-    const sum = weightOf(list);
     let a = lo;
     for (const t of list) {
-      const span = ((hi - lo) * want(t)) / sum;
+      const span = (hi - lo) / list.length;
       wedge.set(t.id, [a, a + span]);
       a += span;
     }
