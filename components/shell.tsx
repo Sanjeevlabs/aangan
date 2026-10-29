@@ -4,6 +4,7 @@ import { AnimatePresence, LazyMotion, domAnimation, m } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { householdName, talkTarget } from "@/lib/households";
 import { callName, peopleByRecency } from "@/lib/people";
 import { useFamilyCards } from "@/lib/use-family";
 import { useLargeText } from "@/lib/use-large-text";
@@ -22,8 +23,9 @@ interface ShellState {
   addTab: AddTab;
   replyTo: ReplyContribution | null;
   /** Member a voice note is addressed to; null = whole family. */
-  addressee: string | null;
-  openAdd: (tab?: AddTab, replyTo?: ReplyContribution | null, addressee?: string | null) => void;
+  /** Preselected recipients: one person, a household, or none (everyone). */
+  addressee: string[] | null;
+  openAdd: (tab?: AddTab, replyTo?: ReplyContribution | null, addressee?: string | string[] | null) => void;
   closeAdd: () => void;
   refreshKey: number;
   bumpRefresh: () => void;
@@ -112,18 +114,23 @@ function RoomsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
 // one for moments, one door to the rooms. Shown only in the courtyard.
 function Dock() {
   const { openAdd, refreshKey, chromeHidden } = useShell();
-  const { viewer, members } = useViewer();
+  const { viewer, members, relationships } = useViewer();
   const { cards } = useFamilyCards(refreshKey);
   const { current, open: playerOpen } = usePlayer();
   const [rooms, setRooms] = useState(false);
   const pathname = usePathname();
 
-  // On a person's page the dock talks to that person; elsewhere, to whoever spoke last.
+  // On a person's page the dock talks to that person. Elsewhere it talks to
+  // a *home*: whoever is waiting for your reply, else the far home you've
+  // spoken to least recently (lib/households.ts explains why).
   const pagePerson = pathname.startsWith("/people/") ? members.find((mm) => mm.id === pathname.split("/")[2]) : undefined;
-  const person = useMemo(
-    () => (pagePerson && pagePerson.id !== viewer.id ? pagePerson : peopleByRecency(viewer.id, members, cards ?? [])[0]),
-    [pagePerson, viewer.id, members, cards],
-  );
+  const target = useMemo(() => {
+    if (pagePerson && pagePerson.id !== viewer.id) return { ids: [pagePerson.id], label: callName(pagePerson), reply: false };
+    const t = talkTarget(viewer, members, relationships, cards ?? []);
+    if (t) return { ids: t.home.members.map((m) => m.id), label: householdName(t.home, (m) => callName(m)), reply: t.reason === "reply" };
+    const p = peopleByRecency(viewer.id, members, cards ?? [])[0];
+    return p ? { ids: [p.id], label: callName(p), reply: false } : null;
+  }, [pagePerson, viewer, members, relationships, cards]);
   const show = (pathname === "/" || pathname.startsWith("/people/")) && !chromeHidden && !playerOpen;
 
   return (
@@ -139,16 +146,18 @@ function Dock() {
             transition={{ type: "spring", stiffness: 380, damping: 32 }}
           >
             <div className="frost glass-pill flex items-center gap-1 p-1.5">
-              {person ? (
+              {target ? (
                 <button
                   type="button"
-                  onClick={() => openAdd("voice", null, person.id)}
-                  className="press flex h-14 items-center gap-2.5 whitespace-nowrap rounded-full bg-black pl-2 pr-6 text-[16px] font-semibold text-white"
+                  onClick={() => openAdd("voice", null, target.ids)}
+                  className="press flex h-14 max-w-[248px] items-center gap-2.5 whitespace-nowrap rounded-full bg-black pl-2 pr-5 text-[16px] font-semibold text-white"
                 >
                   <span className="grid h-10 w-10 place-items-center rounded-full bg-marigold text-black">
                     <Icon name="mic" size={20} strokeWidth={2.2} />
                   </span>
-                  Talk to {callName(person)}
+                  <span className="truncate">
+                    {target.reply ? "Reply to" : "Talk to"} {target.label}
+                  </span>
                 </button>
               ) : (
                 <Link
@@ -195,14 +204,14 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   }, [addOpen]);
   const [addTab, setAddTab] = useState<AddTab>("photos");
   const [replyTo, setReplyTo] = useState<ReplyContribution | null>(null);
-  const [addressee, setAddressee] = useState<string | null>(null);
+  const [addressee, setAddressee] = useState<string[] | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [chromeHidden, setChromeHidden] = useState(false);
 
-  const openAdd = useCallback((tab: AddTab = "photos", contribution: ReplyContribution | null = null, to: string | null = null) => {
+  const openAdd = useCallback((tab: AddTab = "photos", contribution: ReplyContribution | null = null, to: string | string[] | null = null) => {
     setAddTab(tab);
     setReplyTo(contribution);
-    setAddressee(to);
+    setAddressee(to === null ? null : Array.isArray(to) ? to : [to]);
     setAddOpen(true);
   }, []);
   const closeAdd = useCallback(() => {

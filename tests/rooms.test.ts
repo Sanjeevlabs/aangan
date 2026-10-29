@@ -82,14 +82,15 @@ describe("story keeper", () => {
   it("asks each elder once per week, and only they can answer", async () => {
     resetDocs();
     const first = await json<{ created: { id: string; toMemberId: string }[] }>(keeperPost(req("/api/keeper", "leo", { action: "weekly" })));
-    expect(first.created.map((q) => q.toMemberId)).toEqual(["dadi"]);
+    expect(first.created.map((q) => q.toMemberId).sort()).toEqual(["dada", "dadi"]);
     const again = await json<{ created: unknown[] }>(keeperPost(req("/api/keeper", "leo", { action: "weekly" })));
     expect(again.created).toHaveLength(0);
     const card = await dbAddCard({ familyId: "demo-family", type: "audio", caption: "When I was small…", lang: "en", takenAt: new Date().toISOString(), authorId: "dadi" });
-    expect((await keeperPost(req("/api/keeper", "leo", { action: "answer", questionId: first.created[0].id, cardId: card.id }))).status).toBe(403);
-    expect((await keeperPost(req("/api/keeper", "dadi", { action: "answer", questionId: first.created[0].id, cardId: card.id }))).status).toBe(200);
-    const list = await json<{ questions: { answeredCardId: string | null }[] }>(keeperGet(req("/api/keeper")));
-    expect(list.questions[0].answeredCardId).toBe(card.id);
+    const dadis = first.created.find((q) => q.toMemberId === "dadi")!;
+    expect((await keeperPost(req("/api/keeper", "leo", { action: "answer", questionId: dadis.id, cardId: card.id }))).status).toBe(403);
+    expect((await keeperPost(req("/api/keeper", "dadi", { action: "answer", questionId: dadis.id, cardId: card.id }))).status).toBe(200);
+    const list = await json<{ questions: { id: string; answeredCardId: string | null }[] }>(keeperGet(req("/api/keeper")));
+    expect(list.questions.find((q) => q.id === dadis.id)?.answeredCardId).toBe(card.id);
   });
 
   it("weeks start on Monday", () => {

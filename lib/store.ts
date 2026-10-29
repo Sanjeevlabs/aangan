@@ -396,6 +396,9 @@ export function clearRelationships(): void {
     relation: "mother",
     canonicalKind: "parent",
   });
+  // Dadi and Dada share one home in India; Dada is Arjun's father.
+  addRelationship({ id: "rel-dadi-dada", familyId: "demo-family", memberId: "dadi", relationMemberId: "dada", relation: "husband", canonicalKind: "spouse" });
+  addRelationship({ id: "rel-arjun-dada", familyId: "demo-family", memberId: "arjun", relationMemberId: "dada", relation: "father", canonicalKind: "parent" });
   // Leo and Aria are Arjun's children.
   for (const kid of ["leo", "aria"]) {
     addRelationship({

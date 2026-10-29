@@ -9,6 +9,7 @@ import type { Member } from "@/lib/schemas";
 import { useDisplayText } from "@/lib/use-display-text";
 import { ago, postJson, useJson } from "@/lib/use-json";
 import { roomUrl } from "@/lib/overlap";
+import { householdName, households, type Household } from "@/lib/households";
 import { cn } from "@/lib/utils";
 import { dayPartIn, placeFromTz, timeIn } from "@/lib/zones";
 import { useShell } from "./shell";
@@ -44,7 +45,8 @@ export function CourtyardNow() {
   const pres = useJson<PresenceData>("/api/presence");
   const sit = useJson<{ knocks: Knock[] }>("/api/sit");
   useVisit();
-  const elders = members.filter((m) => m.role === "elder" && m.id !== viewer.id);
+  const { relationships } = useViewer();
+  const farHomes = households(members, relationships).filter((h) => h.elders && !h.members.some((m) => m.id === viewer.id));
   const knocks = (sit.data?.knocks ?? []).filter((k) => k.memberId !== viewer.id);
 
   return (
@@ -59,7 +61,7 @@ export function CourtyardNow() {
           <MyNeeds />
         </>
       ) : (
-        elders.map((p) => <ParentNow key={p.id} parent={p} presence={pres.data?.presence ?? null} settings={pres.data?.settings ?? []} viewerId={viewer.id} />)
+        farHomes.map((h) => <HomeNow key={h.id} home={h} presence={pres.data?.presence ?? null} settings={pres.data?.settings ?? []} viewerId={viewer.id} />)
       )}
     </div>
   );
@@ -83,46 +85,70 @@ function KnockBanner({ knock, member }: { knock: Knock; member: Member | undefin
   );
 }
 
-/** One parent, right now: what they shared, where their day is, a gentle flag only if they asked for one. */
-function ParentNow({ parent, presence, settings, viewerId }: { parent: Member; presence: Presence[] | null; settings: CareSettings[]; viewerId: string }) {
+/**
+ * One far-away home, right now. Maa and Papa are one card: the home's local
+ * time, then each parent's latest moment. A gentle flag only if a parent
+ * asked for one, and only for the person they chose.
+ */
+function HomeNow({ home, presence, settings, viewerId }: { home: Household; presence: Presence[] | null; settings: CareSettings[]; viewerId: string }) {
   const { openAdd } = useShell();
-  if (presence === null) return <div className="skeleton h-[84px] rounded-card" aria-busy="true" />;
-  const latest = latestFor(parent.id, presence);
-  const shared = latest && latest.moment !== "here" ? latest : latestFor(parent.id, presence.filter((p) => p.moment !== "here"));
-  const visit = latestFor(parent.id, presence.filter((p) => p.moment === "here"));
-  const today = todayFor(parent.id, presence, parent.tz).filter((p) => p.moment !== "here");
-  const quiet = quietDay(settings.find((s) => s.memberId === parent.id), viewerId, presence, parent.tz);
-  const fresh = shared && Date.now() - Date.parse(shared.at) < 6 * 3_600_000;
+  if (presence === null) return <div className="skeleton h-[96px] rounded-card" aria-busy="true" />;
+  const elders = home.members.filter((m) => m.role === "elder");
+  const name = householdName(home, (m) => callName(m));
+  const rows = elders.map((parent) => {
+    const shared = latestFor(parent.id, presence.filter((p) => p.moment !== "here"));
+    const visit = latestFor(parent.id, presence.filter((p) => p.moment === "here"));
+    const quiet = quietDay(settings.find((x) => x.memberId === parent.id), viewerId, presence, parent.tz);
+    const fresh = Boolean(shared && Date.now() - Date.parse(shared.at) < 8 * 3_600_000);
+    return { parent, shared, visit, quiet: quiet.quiet, fresh };
+  });
+  const quiet = rows.filter((r) => r.quiet);
 
   return (
-    <div className={cn("rounded-card p-3.5", quiet.quiet ? "bg-[#fff6e6]" : "bg-surface")}>
+    <div className={cn("rounded-card p-3.5", quiet.length ? "bg-[#fff6e6]" : "bg-surface")}>
       <Link href="/care" className="flex items-center gap-3 text-ink no-underline">
-        <Avatar src={memberPhoto(parent)} name={callName(parent)} size={48} ring />
+        <span className="flex shrink-0 -space-x-3">
+          {elders.slice(0, 2).map((m) => (
+            <Avatar key={m.id} src={memberPhoto(m)} name={callName(m)} size={44} ring />
+          ))}
+        </span>
         <div className="min-w-0 flex-1">
-          <p className="m-0 truncate text-[16px] font-semibold">
-            {quiet.quiet ? `A quiet day for ${callName(parent)} so far` : fresh && shared ? `${callName(parent)} ${MOMENT_LABEL[shared.moment].line}` : `${callName(parent)}'s ${dayPartIn(parent.tz)}`}
-          </p>
+          <p className="m-0 truncate text-[16px] font-semibold">{quiet.length ? `A quiet day for ${quiet.map((r) => callName(r.parent)).join(" & ")} so far` : `${name}'s ${dayPartIn(home.tz)}`}</p>
           <p className="m-0 truncate text-[13px] text-ink-soft">
-            {fresh && shared?.note ? <span className="voice text-[14px]">{shared.note} · </span> : null}
-            {timeIn(parent.tz)} in {placeFromTz(parent.tz)}
-            {shared ? ` · ${ago(shared.at)}` : visit ? ` · in Aangan ${ago(visit.at)}` : ""}
+            {timeIn(home.tz)} in {placeFromTz(home.tz)}
           </p>
         </div>
         <Icon name="chevron" size={18} className="text-ink-faint" />
       </Link>
-      {today.length > 1 && !quiet.quiet && (
-        <div className="mt-2.5 flex flex-wrap gap-1.5 pl-[60px]" aria-label={`${callName(parent)}'s day so far`}>
-          {today.slice(-5).map((p) => (
-            <span key={p.id} className="rounded-full bg-white px-2.5 py-1 text-[12px] font-medium text-ink-soft">
-              {MOMENT_LABEL[p.moment].label}
+      <ul className="m-0 mt-2.5 list-none space-y-1.5 p-0 pl-1">
+        {rows.map(({ parent, shared, visit, fresh }) => (
+          <li key={parent.id} className="flex items-baseline gap-2 text-[14px]">
+            <span className="h-1.5 w-1.5 shrink-0 translate-y-[-2px] rounded-full bg-marigold" aria-hidden="true" />
+            <span className="min-w-0 truncate">
+              <span className="font-semibold">{callName(parent)}</span>{" "}
+              {fresh && shared ? (
+                <>
+                  {MOMENT_LABEL[shared.moment].line}
+                  {shared.note ? <span className="voice text-[15px] text-ink-soft"> · {shared.note}</span> : null}
+                  <span className="text-ink-faint"> · {ago(shared.at)}</span>
+                </>
+              ) : visit ? (
+                <span className="text-ink-soft">was in Aangan {ago(visit.at)}</span>
+              ) : shared ? (
+                <span className="text-ink-soft">
+                  {MOMENT_LABEL[shared.moment].line} · {ago(shared.at)}
+                </span>
+              ) : (
+                <span className="text-ink-soft">hasn&rsquo;t shared anything yet</span>
+              )}
             </span>
-          ))}
-        </div>
-      )}
-      {quiet.quiet && (
-        <div className="mt-2.5 flex gap-2 pl-[60px]">
-          <button type="button" onClick={() => openAdd("voice", null, parent.id)} className="press h-9 rounded-full bg-black px-3.5 text-[13px] font-semibold text-white">
-            Send {callName(parent)} a voice note
+          </li>
+        ))}
+      </ul>
+      {quiet.length > 0 && (
+        <div className="mt-3 flex gap-2">
+          <button type="button" onClick={() => openAdd("voice", null, home.members.map((m) => m.id))} className="press h-9 rounded-full bg-black px-3.5 text-[13px] font-semibold text-white">
+            Send {name} a voice note
           </button>
         </div>
       )}

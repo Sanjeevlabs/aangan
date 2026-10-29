@@ -2,6 +2,7 @@
 
 import { placeFromTz } from "@/lib/zones";
 import { PersonDetails } from "@/components/person-details";
+import { Monogram } from "@/components/ui/kit";
 
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -58,7 +59,13 @@ export default function PersonPage() {
     <div>
       <RoomHeader title={callName(person)} subtitle={`${person.firstName !== callName(person) ? `${person.firstName} · ` : ""}${placeFromTz(person.tz)}`} />
       <div className="relative h-[380px] overflow-hidden rounded-hero bg-surface" style={{ boxShadow: "0 24px 50px -20px rgba(80,45,25,.55)" }}>
-        {photo && <Photo src={photo} alt={callName(person)} sizes="(max-width: 480px) 100vw, 440px" priority position="center 30%" />}
+        {photo ? (
+          <Photo src={photo} alt={callName(person)} sizes="(max-width: 480px) 100vw, 440px" priority position="center 30%" />
+        ) : (
+          <div className="absolute inset-0">
+            <Monogram name={callName(person)} size={380} />
+          </div>
+        )}
         <div className="glass absolute inset-x-2.5 bottom-2.5 flex items-center justify-between rounded-[20px] px-4 py-3">
           <div>
             <p className="m-0 text-[13px] text-white/80">It&rsquo;s {now || "…"} there</p>

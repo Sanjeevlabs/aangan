@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { requireSession } from "@/lib/auth";
-import { dbAddAgentRun, dbListCards, dbListMembers } from "@/lib/db";
+import { dbAddAgentRun, dbListCards, dbListMembers, dbListRelationships } from "@/lib/db";
+import { householdOf, households } from "@/lib/households";
 import { deleteDoc, getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
 import { needFromVoice, noteForParent } from "@/lib/care";
 import { HELPER_ROLES, NEED_KINDS, type Need } from "@/lib/kinds";
@@ -83,7 +84,10 @@ export async function POST(req: Request): Promise<Response> {
       const need = await loadNeed(body.needId);
       if (need instanceof Response) return need;
       const helper = await getDoc(auth.familyId, "helper", body.helperId);
-      if (!helper || helper.forMemberId !== need.forMemberId) return Response.json({ error: "unknown-helper" }, { status: 404 });
+      // A helper serves the whole home (Maa's grocer is Papa's grocer too).
+      const home = householdOf(need.forMemberId, households(members, await dbListRelationships(auth.familyId)));
+      const sameHome = (id: string) => id === need.forMemberId || Boolean(home?.members.some((m) => m.id === id));
+      if (!helper || !sameHome(helper.forMemberId)) return Response.json({ error: "unknown-helper" }, { status: 404 });
       const english = `${helper.name} will help${need.when ? ` (${need.when})` : ""}. ${me?.displayName ?? "Family"} arranged it.`;
       return Response.json({ need: await putDoc(auth.familyId, "need", { ...need, status: "claimed", claimedBy: need.claimedBy ?? auth.memberId, helperId: helper.id, noteForParent: await reassure(need, english) }) });
     }

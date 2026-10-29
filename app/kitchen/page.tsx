@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useShell } from "@/components/shell";
-import { Avatar, Button, EmptyLine, Icon, MuseMark, Photo, RoomHeader, SectionTitle } from "@/components/ui/kit";
+import { Avatar, Button, EmptyLine, Icon, Monogram, MuseMark, Photo, RoomHeader, SectionTitle } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
 import type { Attempt, Question, Recipe } from "@/lib/kinds";
 import { callName, memberPhoto } from "@/lib/people";
@@ -55,7 +55,7 @@ export default function KitchenPage() {
       {hero && (
         <Link href={`/kitchen/${hero.id}`} className="block text-white no-underline">
           <article className="relative h-[340px] overflow-hidden rounded-hero bg-[#3a2a1c]" style={{ boxShadow: "0 24px 50px -22px rgba(120,70,20,.6)" }}>
-            {(memberPhoto(heroCook) ?? null) && <Photo src={memberPhoto(heroCook) as string} alt={callName(heroCook)} sizes="440px" priority position="center 25%" />}
+            {memberPhoto(heroCook) ? <Photo src={memberPhoto(heroCook) as string} alt={callName(heroCook)} sizes="440px" priority position="center 25%" /> : <div className="absolute inset-0"><Monogram name={callName(heroCook)} size={340} /></div>}
             <div className="glass absolute inset-x-2.5 bottom-2.5 rounded-[22px] p-4">
               <p className="m-0 text-[13px] font-medium text-white/85">From {callName(heroCook)}&rsquo;s hands</p>
               <p className="m-0 mt-0.5 text-[24px] font-bold leading-tight">{hero.title}</p>

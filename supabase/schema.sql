@@ -348,7 +348,22 @@ on conflict (id) do nothing;
 insert into members (id, family_id, first_name, display_name, role, lang, display_lang, tz, birthday)
 values
   ('dadi', 'demo-family', 'Dadi', 'Dadi', 'elder', 'hi', 'hi-deva', 'Asia/Kolkata', '01-22'),
+  ('dada', 'demo-family', 'Mohan', 'Dada', 'elder', 'hi', 'hi-deva', 'Asia/Kolkata', '08-15'),
   ('arjun', 'demo-family', 'Arjun', 'Dad', 'adult', 'en', 'en', 'America/New_York', '07-30'),
   ('leo', 'demo-family', 'Leo', 'Leo', 'child', 'en', 'en', 'America/New_York', '11-09'),
   ('aria', 'demo-family', 'Aria', 'Aria', 'child', 'en', 'hi-latn', 'America/Chicago', '03-14')
+on conflict (id) do nothing;
+
+-- Demo portraits and the demo family graph (idempotent).
+update members set photo_ref = '/demo/portrait-dadi.webp' where id = 'dadi' and photo_ref is null;
+update members set photo_ref = '/demo/portrait-dad.webp' where id = 'arjun' and photo_ref is null;
+update members set photo_ref = '/demo/portrait-leo.webp' where id = 'leo' and photo_ref is null;
+update members set photo_ref = '/demo/portrait-aria.webp' where id = 'aria' and photo_ref is null;
+insert into relationships (id, family_id, member_id, relation_member_id, relation)
+values
+  ('rel-arjun-dadi', 'demo-family', 'arjun', 'dadi', 'mother'),
+  ('rel-dadi-dada', 'demo-family', 'dadi', 'dada', 'husband'),
+  ('rel-arjun-dada', 'demo-family', 'arjun', 'dada', 'father'),
+  ('rel-leo-arjun', 'demo-family', 'leo', 'arjun', 'father'),
+  ('rel-aria-arjun', 'demo-family', 'aria', 'arjun', 'father')
 on conflict (id) do nothing;

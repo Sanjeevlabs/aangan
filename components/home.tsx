@@ -12,7 +12,7 @@ import { CourtyardNow } from "./home-presence";
 import { HeardChip } from "./reactions";
 import { usePlayer } from "./player";
 import { useShell } from "./shell";
-import { Avatar, Icon, LiveDot, Photo, PlayButton, SectionTitle, Wave } from "./ui/kit";
+import { Avatar, Icon, LiveDot, Monogram, Photo, PlayButton, SectionTitle, Wave } from "./ui/kit";
 import { useViewer } from "./viewer";
 
 /* The hero is the latest voice from someone else: the reason to open the app today. */
@@ -56,7 +56,7 @@ function PersonAlbum({ member, latest }: { member: Member; latest: Card | undefi
     <li className="relative w-[148px] shrink-0" style={{ scrollSnapAlign: "start" }}>
       <Link href={`/people/${member.id}`} className="block text-ink no-underline">
         <div className="relative h-[148px] overflow-hidden rounded-cover bg-surface" style={{ boxShadow: tintShadow(latest ?? null, 0.35) }}>
-          {photo && <Photo src={photo} alt={callName(member)} sizes="300px" position="center 30%" />}
+          {photo ? <Photo src={photo} alt={callName(member)} sizes="300px" position="center 30%" /> : <Monogram name={callName(member)} size={148} />}
         </div>
         <p className="m-0 mt-2.5 text-[15px] font-semibold">{callName(member)}</p>
         <p className="m-0 text-[13px] text-ink-soft">{latest ? `${latest.type === "audio" ? "Voice" : "Photo"} · ${relativeDay(latest.takenAt)}` : "Nothing yet"}</p>
