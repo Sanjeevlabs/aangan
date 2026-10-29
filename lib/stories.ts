@@ -26,7 +26,7 @@ const words = (list: string) => new RegExp(`(?<![\\p{L}\\p{M}])(${list})(?![\\p{
 const THEME_WORDS: [(typeof STORY_THEMES)[number], RegExp][] = [
   ["lullaby", words("lori|lullaby|so ja|sleep|neend|नींद|सो जा|लोरी")],
   ["animals", words("elephant|monkey|tiger|lion|crow|parrot|cow|dog|cat|haathi|bandar|sher|kauwa|tota|हाथी|बंदर|शेर|कौआ|तोता|गाय")],
-  ["legends", words("king|raja|rani|queen|god|bhagwan|ganesh|krishna|hanuman|राजा|रानी|भगवान|गणेश|कृष्ण|हनुमान")],
+  ["legends", words("king|raja|rani|queen|god|goddess|prince|princess|राजा|रानी|भगवान|देवी|राजकुमार")],
   ["our-village", words("village|gaon|mela|fair|river|field|well|गाँव|मेला|मेले|नदी|खेत|कुआँ")],
   ["family", words("your dad|your papa|your grandfather|when your|tumhare papa|तुम्हारे पापा|तुम्हारे दादा|शादी|wedding")],
   ["funny", words("laugh|funny|silly|hasi|हँसी|मज़ा")],

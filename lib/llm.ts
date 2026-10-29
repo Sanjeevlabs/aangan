@@ -51,6 +51,7 @@ const FALLBACK_CAPTION: Caption = {
   language: "en",
   names: [],
   takenAt: null,
+  event: "everyday",
 };
 
 async function mockCaption(prompt: string): Promise<{ json: unknown; cost: number }> {
@@ -132,11 +133,13 @@ async function liveCaption(
 }
 
 const CAPTION_SYSTEM =
-  "Write a short family-memory caption as JSON: {caption, language, names, takenAt}. " +
+  "Write a short family-memory caption as JSON: {caption, language, names, takenAt, event}. " +
   "Describe ONLY what is visible in the attached image(s) plus the names listed below — " +
   "never invent people, places, or events beyond the pixels. " +
   "Caption is 10-280 chars. Names must only repeat names given in the prompt. " +
-  "takenAt is ISO datetime or null when unknown. Reply with JSON only.";
+  "takenAt is ISO datetime or null when unknown. " +
+  "event is what kind of moment it visibly is, one of: wedding, ritual, festival, birthday, gathering, trip, food, nature, school, everyday " +
+  "(wedding = a wedding ceremony or reception; ritual = a prayer or religious ceremony; festival = festive lights, decorations or celebration; use everyday when unsure). Reply with JSON only.";
 
 // Vision-grounded captions (01_api_fundamentals/07): the model sees the real
 // bytes. The live path REQUIRES images — without media there is no model

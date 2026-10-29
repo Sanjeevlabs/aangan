@@ -44,6 +44,7 @@ export function useShell(): ShellState {
 const ROOMS = [
   { href: "/care", icon: "care", title: "Care circle", note: "Shared tasks, local helpers, whose week" },
   { href: "/safe", icon: "shield", title: "Safe & sound", note: "Home safe, heading home, I need help" },
+  { href: "/around", icon: "village", title: "Around home", note: "The places around their home, with your memories" },
   { href: "/stories", icon: "moon", title: "Stories", note: "Bedtime stories in the voices that tell them" },
   { href: "/together", icon: "gather", title: "Together", note: "Games, projects and visits, as a family" },
   { href: "/kitchen", icon: "pot", title: "Kitchen", note: "Recipes in the voices that taught them" },

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { EVENT_KINDS } from "./kind-values";
 import { LANG_CODES } from "./languages";
 
 // Caption may only reference tagged members (enforced in lib/grounding.ts).
@@ -7,6 +8,8 @@ export const CaptionSchema = z.object({
   language: z.string().min(2).max(8),
   names: z.array(z.string()).default([]),
   takenAt: z.string().datetime().nullable(),
+  /** What kind of moment this is, from what's visible (sorts it into an album). */
+  event: z.enum(EVENT_KINDS).catch("everyday").default("everyday"),
 });
 
 export const TranscriptSchema = z.object({

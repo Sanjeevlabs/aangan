@@ -11,6 +11,9 @@ export const COURSES = ["breakfast", "main", "side", "snack", "sweet", "drink", 
 export const STORY_THEMES = ["animals", "legends", "our-village", "family", "funny", "lesson", "lullaby", "other"] as const;
 export const STORY_AGES = ["all", "under-5", "5-8", "9-12"] as const;
 export const PROJECT_KINDS = ["play", "make", "learn", "celebrate", "visit"] as const;
+/** What a photo is of, as Muse sees it (drives automatic albums). */
+export const EVENT_KINDS = ["wedding", "ritual", "festival", "birthday", "gathering", "trip", "food", "nature", "school", "everyday"] as const;
+export const PLACE_KINDS = ["home", "temple", "market", "school", "park", "tea-stall", "hospital", "station", "friend", "other"] as const;
 export const SAFETY_KINDS = ["home-safe", "heading", "journey", "out-late", "help"] as const;
 export const PET_SPECIES = ["dog", "cat", "bird", "fish", "rabbit", "other"] as const;
 export const HELPER_ROLES = ["groceries", "house help", "driver", "cook", "gas booking", "repairs", "plumber", "electrician", "neighbour", "caregiver", "doctor's clinic", "pet care", "other"] as const;

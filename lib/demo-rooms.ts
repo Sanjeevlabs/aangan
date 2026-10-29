@@ -32,6 +32,14 @@ function nextLocal(weekday: number, hour: number, tz: string, now: number): stri
 }
 
 export function seedDemoRooms(now = Date.now()): void {
+  // ---------- Albums: Muse sorted the courtyard morning into one ----------
+  seedDoc(FAM, "album", { id: "album-courtyard-2019", title: "A Sunday morning in the courtyard", event: "gathering", cardIds: ["demo-years-2", "demo-court-dadi", "demo-court-leo", "demo-court-aria"], startAt: "2019-10-27T08:00:00.000Z", endAt: "2019-10-27T08:38:00.000Z", coverId: "demo-years-2", madeBy: "muse", fixedBy: null, createdAt: "2019-10-27T09:00:00.000Z" });
+
+  // ---------- Around home (Dadi & Dada's neighbourhood) ----------
+  seedDoc(FAM, "place", { id: "place-temple", name: "The temple at the corner", kind: "temple", nearMemberId: "dadi", lat: null, lng: null, googlePlaceId: null, note: "Dadi walks here with Mrs. Kapoor most mornings, before the sun gets hot.", cardIds: ["demo-from-dadi-1"], addedBy: "arjun", createdAt: ago(60 * 24 * 9, now) });
+  seedDoc(FAM, "place", { id: "place-kirana", name: "Ramesh's kirana", kind: "market", nearMemberId: "dadi", lat: null, lng: null, googlePlaceId: null, note: "Everything for the house; he delivers before 11.", cardIds: [], addedBy: "arjun", createdAt: ago(60 * 24 * 8, now) });
+  seedDoc(FAM, "place", { id: "place-courtyard", name: "Home, the courtyard", kind: "home", nearMemberId: "dadi", lat: null, lng: null, googlePlaceId: null, note: "Tulsi in the corner, chai on the steps.", cardIds: ["demo-years-2", "demo-court-dadi", "demo-court-leo"], addedBy: "dadi", createdAt: ago(60 * 24 * 7, now) });
+
   // ---------- Stories: the kids' corner ----------
   seedDoc(FAM, "story", { id: "story-elephant", tellerId: "dadi", cardId: "demo-story-elephant", title: "The elephant and the tailor", theme: "animals", ages: "5-8", summary: "An elephant, a tailor and a needle; be kind to those who are kind to you.", lang: "hi", questionId: null, madeBy: "muse", createdAt: "2026-10-20T14:10:00.000Z" });
   seedDoc(FAM, "story", { id: "story-mela", tellerId: "dadi", cardId: "demo-story-mela", title: "When I got lost at the fair", theme: "our-village", ages: "all", summary: "Dadi, seven, lost at the Dussehra fair, found from a balloon seller's shoulders.", lang: "hi", questionId: null, madeBy: "muse", createdAt: "2026-10-12T15:30:00.000Z" });
