@@ -52,7 +52,13 @@ alter table members add column if not exists home_image_ref text;
 alter table members add column if not exists home_palette text[] default '{}';
 alter table members add column if not exists photo_ref text;
 alter table members add column if not exists email text;
-create unique index if not exists members_email_idx on members (lower(email)) where email is not null;
+-- Two courtyards, one door: the same person in another family's Aangan.
+-- Server-set only; sides are found by this id, never by a client claim.
+alter table members add column if not exists person_id text;
+create index if not exists members_person_idx on members (person_id) where person_id is not null;
+-- One account per family; the same email may hold a place on each side.
+drop index if exists members_email_idx;
+create unique index if not exists members_email_family_idx on members (lower(email), family_id) where email is not null;
 
 -- ------------------------------------------------------------ relationships
 -- Guided Bond adds, e.g. ('arjun','dadi','parent'). No culture in logic:

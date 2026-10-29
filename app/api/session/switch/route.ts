@@ -1,14 +1,15 @@
 import { z } from "zod";
-import { sessionCookieHeader, sessionFromRequest, signSession } from "@/lib/auth";
+import { isDemoFamily, sessionCookieHeader, sessionFromRequest, signSession } from "@/lib/auth";
 import { dbGetMember } from "@/lib/db";
 
 const SwitchSchema = z.object({ memberId: z.string().min(1).max(64) });
 
-// Viewer switcher: mint a fresh cookie for another member of the SAME family,
-// keeping the existing valid session as proof. No invite code needed twice.
+// Demo persona switcher: mint a cookie for another member of the SAME demo
+// family. Real families can't use it: it would let anyone act as anyone.
 export async function POST(req: Request): Promise<Response> {
   const session = sessionFromRequest(req);
   if (!session) return Response.json({ error: "unauthorized" }, { status: 401 });
+  if (!isDemoFamily(session.familyId)) return Response.json({ error: "demo-only" }, { status: 403 });
   let body: unknown;
   try {
     body = await req.json();

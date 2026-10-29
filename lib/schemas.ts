@@ -140,6 +140,11 @@ export const MemberSchema = z.object({
   photoRef: z.string().nullable().default(null),
   email: z.string().nullable().default(null),
   access: AccessSchema.default("member"),
+  /**
+   * The same person in another family's Aangan (a married couple and their
+   * children belong to both sides). Set by the server only, never by a client.
+   */
+  personId: z.string().max(64).nullable().default(null),
 });
 
 export const DisplayLangRequestSchema = z.object({

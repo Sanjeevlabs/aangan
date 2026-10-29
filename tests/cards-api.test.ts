@@ -49,7 +49,7 @@ describe("members API (mock store)", () => {
       family: { id: string };
     };
     expect(data.family.id).toBe("demo-family");
-    expect(data.members).toHaveLength(9); // Dadi, Dada, Dad, Mom, Leo, Aria, Bua, Fufa, Anaya
+    expect(data.members).toHaveLength(12); // Dadi, Dada, Dad, Mom, Leo, Aria, Bua, Fufa, Anaya, Chachu, Chachi, Kabir (never the Iyer side)
     expect(data.members.find((m) => m.id === "dadi")?.role).toBe("elder");
   });
 

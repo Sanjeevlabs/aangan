@@ -19,6 +19,7 @@ export const DEMO_MEMBERS: Member[] = [
   {
     id: "dadi",
     access: "member",
+    personId: null,
     photoRef: "/demo/portrait-dadi.webp",
     email: null,
     familyId: "demo-family",
@@ -35,6 +36,7 @@ export const DEMO_MEMBERS: Member[] = [
   {
     id: "dada",
     access: "member",
+    personId: null,
     photoRef: null,
     email: null,
     familyId: "demo-family",
@@ -51,6 +53,7 @@ export const DEMO_MEMBERS: Member[] = [
   {
     id: "arjun",
     access: "admin",
+    personId: "p-arjun",
     photoRef: "/demo/portrait-dad.webp",
     email: null,
     familyId: "demo-family",
@@ -67,6 +70,7 @@ export const DEMO_MEMBERS: Member[] = [
   {
     id: "leo",
     access: "member",
+    personId: "p-leo",
     photoRef: "/demo/portrait-leo.webp",
     email: null,
     familyId: "demo-family",
@@ -83,6 +87,7 @@ export const DEMO_MEMBERS: Member[] = [
   {
     id: "aria",
     access: "child",
+    personId: "p-aria",
     photoRef: "/demo/portrait-aria.webp",
     email: null,
     familyId: "demo-family",
@@ -99,6 +104,7 @@ export const DEMO_MEMBERS: Member[] = [
   {
     id: "priya",
     access: "member",
+    personId: "p-priya",
     photoRef: null,
     email: null,
     familyId: "demo-family",
@@ -115,6 +121,7 @@ export const DEMO_MEMBERS: Member[] = [
   {
     id: "kavya",
     access: "member",
+    personId: null,
     photoRef: null,
     email: null,
     familyId: "demo-family",
@@ -131,6 +138,7 @@ export const DEMO_MEMBERS: Member[] = [
   {
     id: "rahul",
     access: "member",
+    personId: null,
     photoRef: null,
     email: null,
     familyId: "demo-family",
@@ -147,6 +155,7 @@ export const DEMO_MEMBERS: Member[] = [
   {
     id: "anaya",
     access: "child",
+    personId: null,
     photoRef: null,
     email: null,
     familyId: "demo-family",
@@ -160,7 +169,95 @@ export const DEMO_MEMBERS: Member[] = [
     homeImageRef: null,
     homePalette: [],
   },
+  {
+    id: "rohan",
+    access: "member",
+    personId: null,
+    photoRef: null,
+    email: null,
+    familyId: "demo-family",
+    firstName: "Rohan",
+    displayName: "Chachu",
+    role: "adult",
+    lang: "en",
+    displayLang: "en",
+    tz: "Europe/London",
+    birthday: "03-14",
+    homeImageRef: null,
+    homePalette: [],
+  },
+  {
+    id: "sneha",
+    access: "member",
+    personId: null,
+    photoRef: null,
+    email: null,
+    familyId: "demo-family",
+    firstName: "Sneha",
+    displayName: "Chachi",
+    role: "adult",
+    lang: "en",
+    displayLang: "en",
+    tz: "Europe/London",
+    birthday: "08-30",
+    homeImageRef: null,
+    homePalette: [],
+  },
+  {
+    id: "kabir",
+    access: "child",
+    personId: null,
+    photoRef: null,
+    email: null,
+    familyId: "demo-family",
+    firstName: "Kabir",
+    displayName: "Kabir",
+    role: "child",
+    lang: "en",
+    displayLang: "en",
+    tz: "Europe/London",
+    birthday: "11-21",
+    homeImageRef: null,
+    homePalette: [],
+  },
 ];
+
+export const DEMO_IYER: DemoFamily = { id: "demo-iyer", name: "Iyer", defaultHomeImageRef: null };
+
+// Priya's side: her parents in Chennai, her brother's family in Pune. Priya,
+// Arjun and the children belong here too (same personId as on the Sharma side).
+const iyer = (id: string, firstName: string, displayName: string, role: Member["role"], access: Member["access"], tz: string, birthday: string, personId: string | null = null, photoRef: string | null = null, lang = "en", displayLang: Member["displayLang"] = "en"): Member => ({
+  id,
+  access,
+  personId,
+  photoRef,
+  email: null,
+  familyId: "demo-iyer",
+  firstName,
+  displayName,
+  role,
+  lang,
+  displayLang,
+  tz,
+  birthday,
+  homeImageRef: null,
+  homePalette: [],
+});
+
+export const DEMO_IYER_MEMBERS: Member[] = [
+  iyer("iyer-priya", "Priya", "Mom", "adult", "admin", "America/New_York", "05-02", "p-priya"),
+  iyer("iyer-arjun", "Arjun", "Dad", "adult", "member", "America/New_York", "07-30", "p-arjun", "/demo/portrait-dad.webp"),
+  iyer("iyer-leo", "Leo", "Leo", "child", "child", "America/New_York", "11-09", "p-leo", "/demo/portrait-leo.webp"),
+  iyer("iyer-aria", "Aria", "Aria", "child", "child", "America/New_York", "03-14", "p-aria", "/demo/portrait-aria.webp"),
+  iyer("iyer-nani", "Lakshmi", "Nani", "elder", "member", "Asia/Kolkata", "02-11", null, null, "ta", "ta"),
+  iyer("iyer-nana", "Venkat", "Nana", "elder", "member", "Asia/Kolkata", "09-05", null, null, "ta", "ta"),
+  iyer("iyer-karthik", "Karthik", "Mama", "adult", "member", "Asia/Kolkata", "01-27"),
+  iyer("iyer-meera", "Meera", "Mami", "adult", "member", "Asia/Kolkata", "06-08"),
+  iyer("iyer-diya", "Diya", "Diya", "child", "child", "Asia/Kolkata", "10-02"),
+];
+
+/** Demo Aangans: the synthetic families the demo invite code opens. */
+export const DEMO_FAMILY_IDS = ["demo-family", "demo-iyer"] as const;
 
 export const DEFAULT_VIEWER_ID = "leo";
 

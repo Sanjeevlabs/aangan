@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DEMO_FAMILY_ID, DEMO_INVITE_CODE, clearSessionCookieHeader, sessionCookieHeader, sessionFromRequest, signSession } from "@/lib/auth";
+import { DEMO_INVITE_CODE, clearSessionCookieHeader, isDemoFamily, sessionCookieHeader, sessionFromRequest, signSession } from "@/lib/auth";
 import { dbGetMember, dbListInvites } from "@/lib/db";
 
 const ExchangeSchema = z.object({
@@ -9,7 +9,8 @@ const ExchangeSchema = z.object({
 
 // Invite code -> httpOnly signed session cookie. The code must be a live,
 // unexpired family invite (Privacy page) for the member's family — or the
-// documented AANGAN-DEMO bootstrap code for the synthetic demo family.
+// documented AANGAN-DEMO bootstrap code for the synthetic demo families.
+// Members with their own account, and admins, must use the email code.
 export async function POST(req: Request): Promise<Response> {
   let body: unknown;
   try {
@@ -24,8 +25,13 @@ export async function POST(req: Request): Promise<Response> {
   if (!member) return Response.json({ error: "unknown-member" }, { status: 404 });
 
   let ok = false;
-  if (code === DEMO_INVITE_CODE && member.familyId === DEMO_FAMILY_ID) {
+  if (code === DEMO_INVITE_CODE && isDemoFamily(member.familyId)) {
     ok = true;
+  } else if (member.email || member.access === "admin") {
+    // An invite code lets someone take a place the family made for them. It
+    // never opens a person who has their own account, or an admin: they sign
+    // in with their email code.
+    return Response.json({ error: "sign-in-with-email" }, { status: 403 });
   } else {
     const now = Date.now();
     const invites = await dbListInvites();

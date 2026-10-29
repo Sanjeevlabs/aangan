@@ -19,6 +19,9 @@ export interface Session {
 // families use Privacy-generated expiring codes.
 export const DEMO_INVITE_CODE = "AANGAN-DEMO";
 export const DEMO_FAMILY_ID = "demo-family";
+/** Synthetic demo Aangans (both sides of the demo couple). */
+export const DEMO_FAMILY_IDS: readonly string[] = ["demo-family", "demo-iyer"];
+export const isDemoFamily = (familyId: string): boolean => DEMO_FAMILY_IDS.includes(familyId);
 
 function secret(): string | null {
   return process.env.SESSION_SECRET ?? null;

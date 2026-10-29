@@ -15,7 +15,7 @@ const listeners = new Set<(cards: Card[]) => void>();
 // Demo shelf content only ever joins the demo family's own cards.
 function merge(server: Card[], familyId: string | null): Card[] {
   const ids = new Set(server.map((c) => c.id));
-  const demo = familyId === "demo-family" ? DEMO_SHELF_CARDS.filter((c) => !ids.has(c.id)) : [];
+  const demo = familyId ? DEMO_SHELF_CARDS.filter((c) => c.familyId === familyId && !ids.has(c.id)) : [];
   return [...server, ...demo].sort((a, b) => b.takenAt.localeCompare(a.takenAt));
 }
 
