@@ -696,13 +696,13 @@ A wooden door button on the window. Tapping it plays a **mechanical key turning 
 Everything built since PR #1, arranged as a home, not a menu:
 | Room | Inside |
 |---|---|
-| **Memories** | Memory Lane, albums Muse sorts, photos anyone adds, voice notes, birthday wishes and reels |
+| **Memories** | Memory Lane, albums Muse sorts, photos anyone adds, voice notes, Occasions (birthday wishes, festival photos), reels |
 | **Library** | What parents pass on: recipes, stories, advice and blessings, and Ask (Muse writes the question) |
-| **Care** | Care board, local helpers, Safe & sound |
-| **Family** | The family tree (node view), both sides (wife's family), siblings and cousins, Occasions, Together (trimmed), Ludo |
+| **Care** | Care board, local helpers, local circle, Safe & sound, Around their home, Visits |
+| **Family** | The family tree (node view), both sides (wife's family), siblings and cousins, Sit together (plan), Invite |
 | **Sit together** | A live card on the courtyard: start a group video call inside Aangan |
 
-The courtyard shows: the side switch, the four rooms, **Sit together** (live), **a voice from home** (music card), **Muse's next step** (one suggestion: a question to ask, a birthday to record, a care task), the parent's **today's role**, **coming up**, **this day, years ago**.
+The courtyard shows: the side switch, **Today** (§29.8), the four rooms, **Sit together** (live), **a voice from home** (music card), the parent's **today's role**, **coming up**, **from the years**, everyone. Games and Together activities are retired; Muse's daily task replaces them. The Together route keeps visits only.
 
 ### 29.4 Muse as the bridge (agentic, Meta models)
 Muse writes the weekly question and story prompts, turns voices into recipe cards and notes, translates into 29 languages, sorts photos into albums, plans occasions (ritual agent: wishes, reminders, reel, delivered at 8 am their time), assigns parents a daily role, drafts care notes. Agents propose; people approve. All logged in *What Muse did*.
@@ -715,3 +715,23 @@ The constellation is replaced by a **node tree** (generations in rows, couples s
 
 ### 29.7 Restored / not yet built
 Restored: parents' today's role, this day years ago, coming up for everyone. Not yet built: legacy hall, store, family news digest, push notifications, SAM 3.1 stickers, synced playback.
+
+### 29.8 Today: one task, both homes (replaces games)
+Muse picks one prompt a day for the parents and their children (not grandchildren or in-laws' parents): the most wonderful day together, one thing you miss about each other, one thing you'd gently like them to do better, something they taught you, a moment you were proud, what to do on the next visit. A week before an occasion it asks both homes for a memory and this year's photos instead.
+- Answers are voice notes, so they land in Memories on their own.
+- **Done only when both sides answer.** The other side's answer is **sealed** (held back from the feed and the task) until you add yours: hearing them is the reward.
+- **Lamps**, not points: days in a row both homes showed up.
+- Muse choice is validated against the prompt list, cached, logged; a deterministic pick is the fallback.
+
+### 29.9 Local circle (both homes)
+For every home, a few people nearby to call first: a neighbour with a spare key, a friend two streets away, a warden, the clinic. A father in Amritsar sees who is near his son in Bengaluru; the son sees who is near his parents. Anyone keeps their own circle; listing someone for emergencies needs their consent (checkbox, enforced server-side). The local emergency number (112 / 911 / 999 / 119 / 000 by zone) is always one tap away. Not an emergency service, no location tracking.
+
+### 29.10 The window, technically
+- `/api/window`: the far home (son → parents; parent → their child's home), its city, the sky from **Open-Meteo** (server-side, city name only, cached 30 min; mock in MOCK mode), time of day, today's shared moments.
+- **Living window**: gentle motion layers over the chosen photo (rain, clouds, stars, steam, leaves, birds, lamp, breeze), only from what is true there (`groundedLayers`). Muse orders/trims them and writes one line from the facts; it can never add a layer outside the grounded set.
+- Each person chooses their window (any family photo, or their home) in Settings → Your window; Still or Living.
+- Call = a "come sit" knock opening `/call/[id]`, an in-app Jitsi room named by the random knock id. Note: meet.jit.si limits embedded calls to short sessions; production needs JaaS or a self-hosted Jitsi.
+
+### 29.11 Roadmap (after the hackathon)
+Commerce through Muse and MCP partners once families are active: groceries and quick commerce for the parents' home, food for the child far away, curated gifting (nameplates, home needs, trusted brands) for occasions. Partner APIs/MCPs need agreements before any logo appears. The care board and occasions already create these intents.
+

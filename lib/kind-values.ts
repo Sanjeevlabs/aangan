@@ -18,5 +18,5 @@ export const EVENT_KINDS = ["wedding", "ritual", "festival", "birthday", "gather
 export const PLACE_KINDS = ["home", "temple", "market", "school", "park", "tea-stall", "hospital", "station", "friend", "other"] as const;
 export const SAFETY_KINDS = ["home-safe", "heading", "journey", "out-late", "help"] as const;
 export const PET_SPECIES = ["dog", "cat", "bird", "fish", "rabbit", "other"] as const;
-export const HELPER_ROLES = ["groceries", "house help", "driver", "cook", "gas booking", "repairs", "plumber", "electrician", "neighbour", "caregiver", "doctor's clinic", "pet care", "other"] as const;
+export const HELPER_ROLES = ["groceries", "house help", "driver", "cook", "gas booking", "repairs", "plumber", "electrician", "neighbour", "caregiver", "doctor's clinic", "pet care", "friend", "warden", "landlord", "colleague", "relative nearby", "other"] as const;
 export const SITTING_REASONS = ["chai", "cook", "story", "festival", "birthday", "music", "just-sit"] as const;

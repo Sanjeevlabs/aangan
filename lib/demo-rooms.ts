@@ -4,6 +4,7 @@
 // Every person, place and phone number here is invented.
 import { seedDoc } from "./family-docs";
 import { hourIn } from "./zones";
+import { dateIn } from "./today";
 
 const FAM = "demo-family";
 
@@ -32,6 +33,19 @@ function nextLocal(weekday: number, hour: number, tz: string, now: number): stri
 }
 
 export function seedDemoRooms(now = Date.now()): void {
+  // ---------- Today: one task, both homes. Maa answered; Arjun hasn't yet ----------
+  const dayAgo = (n: number) => dateIn("Asia/Kolkata", new Date(now - n * 86_400_000));
+  const sides = { parents: ["dadi", "dada"], children: ["arjun", "kavya", "rohan"], madeBy: "muse" };
+  seedDoc(FAM, "today_task", { id: `today-${dayAgo(0)}`, date: dayAgo(0), promptId: "miss", forParents: "One thing you miss about Arjun, Kavya & Rohan", forChildren: "One thing you miss about Maa & Papa", ...sides, answers: [{ memberId: "dadi", cardId: "demo-today-maa", at: ago(95, now) }], completedAt: null, createdAt: ago(300, now) });
+  const past: [string, string, string][] = [
+    ["best-day", "demo-from-dadi-1", "demo-voice-3"],
+    ["learnt", "demo-dadi-advice-1", "demo-voice-1"],
+    ["smile", "demo-voice-2", "demo-voice-3"],
+    ["proud", "demo-dada-bless-1", "demo-voice-1"],
+  ];
+  past.forEach(([promptId, a, b], i) =>
+    seedDoc(FAM, "today_task", { id: `today-${dayAgo(i + 1)}`, date: dayAgo(i + 1), promptId, forParents: promptId, forChildren: promptId, ...sides, answers: [{ memberId: "dadi", cardId: a, at: ago((i + 1) * 1440, now) }, { memberId: "arjun", cardId: b, at: ago((i + 1) * 1440 - 120, now) }], completedAt: ago((i + 1) * 1440 - 120, now), createdAt: ago((i + 1) * 1440 + 60, now) }),
+  );
   // ---------- Albums: Muse sorted the courtyard morning into one ----------
   seedDoc(FAM, "album", { id: "album-courtyard-2019", title: "A Sunday morning in the courtyard", event: "gathering", cardIds: ["demo-years-2", "demo-court-dadi", "demo-court-leo", "demo-court-aria"], startAt: "2019-10-27T08:00:00.000Z", endAt: "2019-10-27T08:38:00.000Z", coverId: "demo-years-2", madeBy: "muse", fixedBy: null, createdAt: "2019-10-27T09:00:00.000Z" });
 
@@ -218,11 +232,18 @@ export function seedDemoRooms(now = Date.now()): void {
     { id: "helper-ramesh", name: "Ramesh", role: "groceries", phone: "+91 90000 00001", note: "Kirana at the corner. Delivers before 11." },
     { id: "helper-sunita", name: "Sunita didi", role: "house help", phone: "+91 90000 00002", note: "Mornings, Monday to Saturday." },
     { id: "helper-imran", name: "Imran bhai", role: "driver", phone: "+91 90000 00003", note: "Knows the way to the temple and the clinic." },
-    { id: "helper-kapoor", name: "Mrs. Kapoor", role: "neighbour", phone: "+91 90000 00004", note: "Next door. Walks with Maa most mornings." },
+    { id: "helper-kapoor", name: "Mrs. Kapoor", role: "neighbour", phone: "+91 90000 00004", note: "Next door. Walks with Maa most mornings. Has a spare key.", emergency: true, consent: true },
     { id: "helper-gas", name: "Gas agency", role: "gas booking", phone: "+91 90000 00005", note: "Booking ID is in the kitchen drawer." },
   ];
   village.forEach((h) => seedDoc(FAM, "helper", { ...h, forMemberId: "dadi", addedBy: "arjun", createdAt: ago(60 * 24 * 20, now) }));
-  seedDoc(FAM, "helper", { id: "helper-dr-clinic", name: "Sharma Clinic", role: "doctor's clinic", forMemberId: "dada", phone: "+91 90000 00006", note: "Papa's regular check-ups. Imran bhai drives.", addedBy: "arjun", createdAt: ago(60 * 24 * 20, now) });
+  seedDoc(FAM, "helper", { id: "helper-dr-clinic", name: "Sharma Clinic", role: "doctor's clinic", forMemberId: "dada", phone: "+91 90000 00006", note: "Papa's regular check-ups. Imran bhai drives.", emergency: true, consent: true, addedBy: "arjun", createdAt: ago(60 * 24 * 20, now) });
+  // ---------- Arjun's local circle in Bengaluru: so Maa & Papa needn't worry either ----------
+  const arjunCircle = [
+    { id: "circle-neha", name: "Neha", role: "friend", phone: "+91 90000 00011", note: "Two streets away in HSR Layout. Has our spare key." },
+    { id: "circle-desk", name: "Society security desk", role: "neighbour", phone: "+91 90000 00012", note: "Open all night. Gate 2." },
+    { id: "circle-rakesh", name: "Rakesh", role: "colleague", phone: "+91 90000 00013", note: "Same office, same team." },
+  ];
+  arjunCircle.forEach((h) => seedDoc(FAM, "helper", { ...h, forMemberId: "arjun", emergency: true, consent: true, addedBy: "arjun", createdAt: ago(60 * 24 * 9, now) }));
 
   // ---------- Pets ----------
   seedDoc(FAM, "pet", { id: "pet-bruno", name: "Bruno", species: "dog", livesWith: "dadi", photoRef: null, birthday: "02-14", note: "Waits at the gate for the milkman.", addedBy: "arjun", createdAt: ago(60 * 24 * 40, now) });

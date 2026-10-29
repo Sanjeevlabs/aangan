@@ -281,6 +281,10 @@ export const HelperSchema = z.object({
   /** When they're usually available: "Mon–Sat, 8–11 am". */
   hours: z.string().max(60).default(""),
   note: z.string().max(160).default(""),
+  /** In this home's local circle: the people to call first if something is wrong. */
+  emergency: z.boolean().default(false),
+  /** They agreed to be listed (asked by whoever added them). */
+  consent: z.boolean().default(false),
   addedBy: id,
   createdAt: iso,
 });
@@ -348,6 +352,43 @@ export const QuestionSchema = z.object({
   createdAt: iso,
 });
 
+// ---------- The window (LITE): what each person sees of the other home ----------
+export const WINDOW_LAYERS = ["steam", "rain", "leaves", "birds", "stars", "clouds", "lamp", "breeze"] as const;
+export const WindowViewSchema = z.object({
+  /** One per viewer: the son chooses what his window shows, the parents theirs. */
+  id,
+  memberId: id,
+  /** A family photo (card id) or a bundled demo image. Resolved server-side. */
+  cardId: z.string().nullable().default(null),
+  imageRef: z.string().max(300).nullable().default(null),
+  /** "still" = the photo as is; "living" = Muse composed gentle motion over it. */
+  style: z.enum(["still", "living"]).default("living"),
+  layers: z.array(z.enum(WINDOW_LAYERS)).max(4).default([]),
+  /** One quiet line Muse wrote from what really happened there today. */
+  line: z.string().max(140).default(""),
+  madeBy: z.enum(["family", "muse"]).default("family"),
+  updatedAt: iso,
+});
+
+// ---------- Today: one shared task for both homes, done only when both answer ----------
+export const TodayAnswerSchema = z.object({ memberId: id, cardId: z.string().min(1), at: iso });
+export const TodayTaskSchema = z.object({
+  id,
+  /** YYYY-MM-DD in the parents' zone: their day is the family's day. */
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  promptId: z.string().max(40),
+  /** The prompt each side sees, already personal ("one thing you miss about Arjun"). */
+  forParents: z.string().max(160),
+  forChildren: z.string().max(160),
+  /** The two homes this task joins (member ids). */
+  parents: z.array(id).max(6),
+  children: z.array(id).max(12),
+  answers: z.array(TodayAnswerSchema).max(20).default([]),
+  completedAt: iso.nullable().default(null),
+  madeBy: z.enum(["family", "muse"]).default("muse"),
+  createdAt: iso,
+});
+
 // ---------- Muse call log (what powered by Muse actually did) ----------
 export const MuseCallSchema = z.object({
   id,
@@ -381,6 +422,8 @@ export const DOC_SCHEMAS = {
   knock: KnockSchema,
   question: QuestionSchema,
   muse_call: MuseCallSchema,
+  window_view: WindowViewSchema,
+  today_task: TodayTaskSchema,
 } as const;
 
 export type DocKind = keyof typeof DOC_SCHEMAS;
@@ -410,3 +453,6 @@ export type Sitting = DocOf<"sitting">;
 export type Knock = DocOf<"knock">;
 export type Question = DocOf<"question">;
 export type MuseCall = DocOf<"muse_call">;
+export type WindowView = DocOf<"window_view">;
+export type WindowLayer = (typeof WINDOW_LAYERS)[number];
+export type TodayTask = DocOf<"today_task">;

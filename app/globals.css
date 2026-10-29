@@ -146,3 +146,126 @@ button {
     transition: none !important;
   }
 }
+
+/* ---------------------------------------------------------- the window */
+/* Gentle motion over the chosen photo. Everything here is decoration:
+   reduced-motion turns it off (rule above) and the photo stays. */
+.win-drift {
+  animation: win-drift 38s ease-in-out infinite alternate;
+  transform-origin: 50% 60%;
+}
+@keyframes win-drift {
+  from { transform: scale(1.04) translate3d(0, 0, 0); }
+  to { transform: scale(1.12) translate3d(-1.5%, -1%, 0); }
+}
+.win-rain i {
+  position: absolute;
+  top: -12%;
+  width: 1.4px;
+  height: 16%;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(220, 235, 255, 0.55));
+  animation: win-rain linear infinite;
+}
+@keyframes win-rain {
+  to { transform: translate3d(-18px, 130vh, 0); }
+}
+.win-stars i {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.9);
+  animation: win-twinkle 3.2s ease-in-out infinite;
+}
+@keyframes win-twinkle {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
+.win-cloud {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
+  filter: blur(26px);
+  animation: win-cloud linear infinite;
+}
+@keyframes win-cloud {
+  from { transform: translateX(-60%); }
+  to { transform: translateX(160%); }
+}
+.win-steam i {
+  position: absolute;
+  bottom: 18%;
+  width: 34px;
+  height: 90px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0));
+  filter: blur(6px);
+  animation: win-steam 5.5s ease-out infinite;
+}
+@keyframes win-steam {
+  0% { transform: translate3d(0, 0, 0) scale(0.6); opacity: 0; }
+  25% { opacity: 0.8; }
+  100% { transform: translate3d(14px, -170px, 0) scale(1.6); opacity: 0; }
+}
+.win-leaves i {
+  position: absolute;
+  top: -6%;
+  width: 10px;
+  height: 6px;
+  border-radius: 10px 0;
+  background: #8fae5a;
+  animation: win-leaf linear infinite;
+}
+@keyframes win-leaf {
+  0% { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: 0.9; }
+  50% { transform: translate3d(30px, 55vh, 0) rotate(160deg); }
+  100% { transform: translate3d(-10px, 110vh, 0) rotate(320deg); opacity: 0; }
+}
+.win-birds svg {
+  position: absolute;
+  animation: win-bird linear infinite;
+}
+@keyframes win-bird {
+  from { transform: translate3d(-40px, 0, 0); }
+  to { transform: translate3d(460px, -60px, 0); }
+}
+.win-lamp {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 196, 102, 0.75), rgba(255, 160, 60, 0.18) 55%, rgba(255, 140, 40, 0));
+  mix-blend-mode: screen;
+  animation: win-flicker 2.6s ease-in-out infinite;
+}
+@keyframes win-flicker {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  40% { opacity: 1; transform: scale(1.04); }
+  70% { opacity: 0.75; transform: scale(0.98); }
+}
+.win-breeze {
+  animation: win-breeze 9s ease-in-out infinite;
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0.12) 50%, rgba(255, 255, 255, 0) 70%);
+  background-size: 250% 100%;
+}
+@keyframes win-breeze {
+  from { background-position: 120% 0; }
+  to { background-position: -120% 0; }
+}
+.lite-ground {
+  background: #14100d;
+  color: #fff;
+}
+.glass-dark {
+  background: rgba(20, 16, 13, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 18px 40px -18px rgba(0, 0, 0, 0.6);
+  color: #fff;
+}
+@supports (backdrop-filter: blur(20px)) or (-webkit-backdrop-filter: blur(20px)) {
+  .glass-dark {
+    background: rgba(255, 255, 255, 0.1);
+    -webkit-backdrop-filter: blur(26px) saturate(1.6);
+    backdrop-filter: blur(26px) saturate(1.6);
+  }
+}

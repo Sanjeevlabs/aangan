@@ -1,0 +1,79 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import type { WindowLayer } from "@/lib/kinds";
+import { resolveMediaUrl } from "@/lib/media-session";
+import { cardCover } from "@/lib/people";
+import { useFamilyCards } from "@/lib/use-family";
+import { postJson, useJson } from "@/lib/use-json";
+import { cn } from "@/lib/utils";
+import type { DayPhase } from "@/lib/weather";
+import { ArchWindow } from "./window";
+import { Icon, MuseMark } from "./ui/kit";
+import { useViewer } from "./viewer";
+
+// Choose what your window shows: any family photo, still or living. Living =
+// Muse adds gentle motion from what's true there (their sky, their hour,
+// what they shared). Each person chooses their own.
+
+interface W {
+  imageRef: string;
+  phase: DayPhase;
+  layers: WindowLayer[];
+  far: { names: string } | null;
+  view: { cardId: string | null; style: "still" | "living" } | null;
+}
+
+export function WindowSettings() {
+  const { members } = useViewer();
+  const { cards } = useFamilyCards();
+  const { data, reload } = useJson<W>("/api/window");
+  const [busy, setBusy] = useState(false);
+  const photos = useMemo(() => (cards ?? []).filter((c) => c.type === "photo").slice(0, 12), [cards]);
+  const style = data?.view?.style ?? "living";
+  const chosen = data?.view?.cardId ?? null;
+  const choose = async (cardId: string | null, s = style) => {
+    setBusy(true);
+    await postJson("/api/window", { action: "choose", cardId, style: s });
+    if (s === "living") await postJson("/api/window", { action: "compose" });
+    await reload();
+    setBusy(false);
+  };
+  if (!data) return <div className="skeleton h-[220px] rounded-card" aria-busy="true" aria-label="Loading your window" />;
+  return (
+    <div>
+      <div className="flex gap-4">
+        <ArchWindow src={resolveMediaUrl(data.imageRef) ?? "/demo/courtyard.jpg"} layers={data.layers} phase={data.phase} living={style === "living"} className="h-[150px] w-[120px] shrink-0" />
+        <div className="min-w-0 flex-1">
+          <p className="m-0 text-[15px] text-ink-soft">What you see first when you open Aangan: a window to {data.far?.names ?? "the other home"}.</p>
+          <div className="mt-3 grid grid-cols-2 gap-1 rounded-full bg-surface p-1">
+            {(["living", "still"] as const).map((s) => (
+              <button key={s} type="button" aria-pressed={style === s} disabled={busy} onClick={() => void choose(chosen, s)} className={cn("press h-9 rounded-full text-[14px] font-semibold", style === s ? "bg-white text-ink shadow-sm" : "text-ink-soft")}>
+                {s === "living" ? "Living" : "Still"}
+              </button>
+            ))}
+          </div>
+          {style === "living" && <MuseMark className="mt-2">Muse adds their sky and hour</MuseMark>}
+        </div>
+      </div>
+      <p className="m-0 mb-2 mt-5 text-[13px] font-medium text-ink-soft">Choose a photo</p>
+      <ul className="m-0 grid list-none grid-cols-4 gap-2 p-0">
+        <li>
+          <button type="button" onClick={() => void choose(null)} disabled={busy} aria-pressed={chosen === null} className={cn("press grid aspect-square w-full place-items-center rounded-[14px] bg-surface text-[12px] font-semibold text-ink-soft", chosen === null && "ring-[3px] ring-marigold")}>
+            <span className="flex flex-col items-center gap-1">
+              <Icon name="village" size={18} /> Their home
+            </span>
+          </button>
+        </li>
+        {photos.map((c) => (
+          <li key={c.id}>
+            <button type="button" onClick={() => void choose(c.id)} disabled={busy} aria-pressed={chosen === c.id} aria-label={c.caption || "Family photo"} className={cn("press relative block aspect-square w-full overflow-hidden rounded-[14px] bg-surface", chosen === c.id && "ring-[3px] ring-marigold")}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={cardCover(c, members)} alt="" className="h-full w-full object-cover" />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}

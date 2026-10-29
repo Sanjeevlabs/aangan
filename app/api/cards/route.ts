@@ -5,13 +5,19 @@ import { captionCard, sha256Hex } from "@/lib/llm";
 import { serverLedger, serverStore } from "@/lib/llm-server";
 import { dbAddCard, dbListCards, dbListMembers } from "@/lib/db";
 import { eventFromText, fileCard, titleAlbum, type EventKind } from "@/lib/albums";
-import { putDoc } from "@/lib/family-docs";
+import { listDocs, putDoc } from "@/lib/family-docs";
 import { checkRateLimit, requireSession } from "@/lib/auth";
+import { sealedCardIds } from "@/lib/today";
+import { withDemoShelf } from "@/lib/demo";
 
 export async function GET(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
-  return Response.json({ familyId: auth.familyId, cards: await dbListCards(auth.familyId) });
+  const [stored, tasks] = await Promise.all([dbListCards(auth.familyId), listDocs(auth.familyId, "today_task")]);
+  const cards = withDemoShelf(stored, auth.familyId);
+  // Today's answers from the other home stay sealed until you add yours.
+  const sealed = sealedCardIds(tasks, auth.memberId);
+  return Response.json({ familyId: auth.familyId, cards: sealed.size ? cards.filter((c) => !sealed.has(c.id)) : cards });
 }
 
 const MultipartFieldsSchema = z.object({

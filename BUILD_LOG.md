@@ -268,3 +268,12 @@
 - **Pots**: the Family page opens with one pot per home, a stick per person with their face (painted silhouette without a photo), the parents' homes first; the constellation follows as "How we're related".
 - Home: "Coming up" only for a parent's birthday within 30 days. Tests: 207 passed.
 - Revision after feedback: the menu is one grouped list (For Dadi & Dada, What they've given, Family, Settings), every feature one tap away (lib/menu.ts); pots replaced by Home by home cards; Your circles restored. Tests: 208 passed.
+
+## 30 Oct 2026 · Stage 16: the window and the door
+- LITE window as first screen (both ways): far home, city, local time, Open-Meteo weather, living sky layers grounded in facts, Muse-composed line, latest voice, Today line, Talk / Call / Door.
+- Door: synthesised key + bolt + creak (WebAudio), wooden leaves swing into the family courtyard.
+- Family courtyard: Today card, four rooms (Memories, Library, Care, Family) as sheets, Sit together live card with in-app call, a voice from home music card, today's role, coming up (festival + birthdays), from the years.
+- Today: Muse picks a daily task for both homes; sealed answers; lamps streak; occasion photo asks. Replaces games and Together activities (Ludo unlinked; visits kept).
+- Local circle for every home with consent, emergency numbers by zone; linked from Safe & sound.
+- Node family tree replaces the constellation. Lucide icons. Demo family rework: son and parents at the centre, cities on members.
+- Tests: 220 (window, weather, today sealing/streak, circle consent, tree layout).

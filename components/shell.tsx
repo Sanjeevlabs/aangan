@@ -8,13 +8,12 @@ import { householdName, talkTarget } from "@/lib/households";
 import { callName, peopleByRecency } from "@/lib/people";
 import { useFamilyCards } from "@/lib/use-family";
 import { useLargeText } from "@/lib/use-large-text";
-import { menuFor } from "@/lib/menu";
-import { cn } from "@/lib/utils";
+import { roomsFor, type Room } from "@/lib/menu";
 import dynamic from "next/dynamic";
 import type { AddTab, ReplyContribution } from "./add-sheet";
 
 import { PlayerProvider, usePlayer } from "./player";
-import { Icon } from "./ui/kit";
+import { Icon, type IconName } from "./ui/kit";
 import { ViewerProvider, useViewer } from "./viewer";
 
 // The composer (mic, EXIF, media processing) loads only when first opened.
@@ -33,6 +32,8 @@ interface ShellState {
   bumpRefresh: () => void;
   chromeHidden: boolean;
   setChromeHidden: (v: boolean) => void;
+  /** Open a room's sheet ("all" = every room). */
+  openRoom: (room: Room["id"] | "all") => void;
 }
 
 const ShellContext = createContext<ShellState | null>(null);
@@ -44,7 +45,7 @@ export function useShell(): ShellState {
 }
 
 
-function RoomsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+function RoomsSheet({ room, onClose }: { room: Room["id"] | "all" | null; onClose: () => void }) {
   const { viewer, members } = useViewer();
   const parent = viewer.role === "elder";
   const names = members
@@ -52,7 +53,9 @@ function RoomsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
     .slice(0, 2)
     .map((m) => callName(m))
     .join(" & ");
-  const groups = menuFor(parent, names);
+  const all = roomsFor(parent, names);
+  const rooms = room === "all" ? all : all.filter((r) => r.id === room);
+  const open = room !== null;
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -62,10 +65,10 @@ function RoomsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Menu">
-          <m.button type="button" aria-label="Close" className="absolute inset-0 bg-black/25" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
+        <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label={room === "all" ? "Rooms" : rooms[0]?.title}>
+          <m.button type="button" aria-label="Close" className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
           <m.nav
-            className="relative w-full max-w-[480px] overflow-y-auto rounded-t-[32px] bg-[#f6f4f0] px-4 pt-3 shadow-frost"
+            className="frost relative w-full max-w-[480px] overflow-y-auto rounded-t-[32px] px-4 pt-3"
             style={{ maxHeight: "88vh", paddingBottom: "calc(16px + env(safe-area-inset-bottom))" }}
             initial={{ y: 60, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -73,15 +76,20 @@ function RoomsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
             transition={{ type: "spring", stiffness: 420, damping: 38 }}
           >
             <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-black/15" aria-hidden="true" />
-            {groups.map((g) => (
+            {rooms.map((g) => (
               <section key={g.id} aria-label={g.title} className="mb-4">
-                <h2 className="m-0 mb-1.5 px-3 text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-soft">{g.title}</h2>
-                <ul className="m-0 list-none overflow-hidden rounded-[22px] bg-white p-0">
+                <div className="mb-2 flex items-center gap-3 px-2">
+                  <span className="grid h-9 w-9 place-items-center rounded-[12px]" style={{ background: g.tone[0], color: g.tone[1] }}>
+                    <Icon name={g.icon as IconName} size={18} />
+                  </span>
+                  <h2 className="m-0 text-[19px]">{g.title}</h2>
+                </div>
+                <ul className="m-0 list-none overflow-hidden rounded-[22px] bg-white/90 p-0 ring-1 ring-black/[.05]">
                   {g.items.map((r, i) => (
                     <li key={r.href + r.title} className={i ? "border-t border-[var(--line)]" : ""}>
-                      <Link href={r.href} onClick={onClose} className="press flex items-center gap-3.5 px-3.5 py-2.5 text-ink no-underline hover:bg-black/[.03]">
-                        <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-[12px]", g.id === "parents" ? "bg-[#fff0cc] text-[#8a5a12]" : g.id === "given" ? "bg-[#fbe6dc] text-[#8a3f1d]" : "bg-[#eef0f4] text-[#3d4a63]")}>
-                          <Icon name={r.icon as Parameters<typeof Icon>[0]["name"]} size={20} />
+                      <Link href={r.href} onClick={onClose} className="press flex items-center gap-3.5 px-3.5 py-3 text-ink no-underline hover:bg-black/[.03]">
+                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px]" style={{ background: g.tone[0], color: g.tone[1] }}>
+                          <Icon name={r.icon as IconName} size={19} />
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block text-[16px] font-semibold leading-tight">{r.title}</span>
@@ -94,13 +102,15 @@ function RoomsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
                 </ul>
               </section>
             ))}
-            <Link href="/settings" onClick={onClose} className="press flex items-center gap-3.5 rounded-[22px] bg-white px-3.5 py-3 text-ink no-underline">
-              <span className="grid h-10 w-10 place-items-center rounded-[12px] bg-[#eef0f4]">
-                <Icon name="settings" size={20} />
-              </span>
-              <span className="flex-1 text-[16px] font-semibold">Settings</span>
-              <Icon name="chevron" size={16} className="text-ink-faint" />
-            </Link>
+            {room === "all" && (
+              <Link href="/settings" onClick={onClose} className="press flex items-center gap-3.5 rounded-[22px] bg-white/90 px-3.5 py-3 text-ink no-underline ring-1 ring-black/[.05]">
+                <span className="grid h-10 w-10 place-items-center rounded-[12px] bg-[#eef0f4]">
+                  <Icon name="settings" size={19} />
+                </span>
+                <span className="flex-1 text-[16px] font-semibold">Settings & your window</span>
+                <Icon name="chevron" size={16} className="text-ink-faint" />
+              </Link>
+            )}
           </m.nav>
         </div>
       )}
@@ -111,11 +121,10 @@ function RoomsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
 // The dock replaces a tab bar: one dominant action (answer someone by voice),
 // one for moments, one door to the rooms. Shown only in the courtyard.
 function Dock() {
-  const { openAdd, refreshKey, chromeHidden } = useShell();
+  const { openAdd, refreshKey, chromeHidden, openRoom } = useShell();
   const { viewer, members, relationships } = useViewer();
   const { cards } = useFamilyCards(refreshKey);
   const { current, open: playerOpen } = usePlayer();
-  const [rooms, setRooms] = useState(false);
   const pathname = usePathname();
 
   // On a person's page the dock talks to that person. Elsewhere it talks to
@@ -176,17 +185,16 @@ function Dock() {
               </button>
               <button
                 type="button"
-                onClick={() => setRooms(true)}
-                aria-label="Open menu"
+                onClick={() => openRoom("all")}
+                aria-label="Open rooms"
                 className="press grid h-14 w-14 place-items-center rounded-full"
               >
-                <Icon name="more" size={24} />
+                <Icon name="grid" size={23} />
               </button>
             </div>
           </m.div>
         )}
       </AnimatePresence>
-      <RoomsSheet open={rooms} onClose={() => setRooms(false)} />
     </>
   );
 }
@@ -205,6 +213,8 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   const [addressee, setAddressee] = useState<string[] | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [chromeHidden, setChromeHidden] = useState(false);
+  const [room, setRoom] = useState<Room["id"] | "all" | null>(null);
+  const openRoom = useCallback((r: Room["id"] | "all") => setRoom(r), []);
 
   const openAdd = useCallback((tab: AddTab = "photos", contribution: ReplyContribution | null = null, to: string | string[] | null = null) => {
     setAddTab(tab);
@@ -219,8 +229,8 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   const bumpRefresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   const value = useMemo<ShellState>(
-    () => ({ addOpen, addTab, replyTo, addressee, openAdd, closeAdd, refreshKey, bumpRefresh, chromeHidden, setChromeHidden }),
-    [addOpen, addTab, replyTo, addressee, openAdd, closeAdd, refreshKey, bumpRefresh, chromeHidden],
+    () => ({ addOpen, addTab, replyTo, addressee, openAdd, closeAdd, refreshKey, bumpRefresh, chromeHidden, setChromeHidden, openRoom }),
+    [addOpen, addTab, replyTo, addressee, openAdd, closeAdd, refreshKey, bumpRefresh, chromeHidden, openRoom],
   );
 
   return (
@@ -233,6 +243,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
           {children}
         </main>
         <Dock />
+        <RoomsSheet room={room} onClose={() => setRoom(null)} />
         {sheetLoaded && <AddSheet />}
       </PlayerProvider>
     </ShellContext.Provider>

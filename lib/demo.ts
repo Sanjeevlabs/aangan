@@ -113,6 +113,29 @@ const RAW = [
     ],
   },
   {
+    id: "demo-today-maa",
+    familyId: "demo-family",
+    type: "audio",
+    caption: "One thing I miss about Arjun",
+    summary: "",
+    lang: "en",
+    takenAt: "2026-10-30T03:10:00.000Z",
+    ritualSlug: null,
+    source: "today",
+    mediaRef: null,
+    authorId: "dadi",
+    coverRef: "/demo/family-dadi.webp",
+    peaks: lcgPeaks(77),
+    palette: ["#c96f4a", "#e8a87c", "#f4d8b4"],
+    transcript: "I miss you sitting on the kitchen step, eating straight from the kadhai before I could serve. Come home soon.",
+    transcriptLang: "en",
+    segments: [
+      { start: 0, end: 5, text: "I miss you sitting on the kitchen step," },
+      { start: 5, end: 9, text: "eating straight from the kadhai before I could serve." },
+      { start: 9, end: 11, text: "Come home soon." },
+    ],
+  },
+  {
     id: "demo-from-dadi-1",
     familyId: "demo-family",
     type: "audio",
@@ -420,4 +443,11 @@ export function demoShelf(id: "from-dadi" | "voices" | "years-ago"): Card[] {
   if (id === "voices")
     return DEMO_SHELF_CARDS.filter((c) => c.type === "audio" && c.id !== "demo-from-dadi-1");
   return DEMO_SHELF_CARDS.filter((c) => c.type === "photo");
+}
+
+/** The family's cards plus, for the demo family only, the synthetic shelf. Server and client safe. */
+export function withDemoShelf(cards: Card[], familyId: string): Card[] {
+  const ids = new Set(cards.map((c) => c.id));
+  const shelf = DEMO_SHELF_CARDS.filter((c) => c.familyId === familyId && !ids.has(c.id));
+  return [...cards, ...shelf].sort((a, b) => b.takenAt.localeCompare(a.takenAt));
 }
