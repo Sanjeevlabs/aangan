@@ -234,16 +234,16 @@ const KNOWN_HI_TO_EN: Array<[RegExp, string]> = [
   [/^हाथी और दर्ज़ी की कहानी$/, "The elephant and the tailor"],
   [/मैं सात साल की थी/, "When I got lost at the fair. I was seven, and the Dussehra fair had come to our village. Watching the swings, I let go of my mother's hand. People everywhere, and I started to cry. Then an old balloon seller lifted me onto his shoulders. From up there I saw my mother's red dupatta. Since that day I always say: look up high, and you'll find your way."],
   [/^जब मैं मेले में खो गई थी$/, "When I got lost at the fair"],
-  [/तुम्हारे पापा आठ साल के थे/, "Your papa and the mango tree. Your papa was eight, very naughty. He climbed the mango tree behind the courtyard to pick the highest mango. He got the mango, but forgot how to come down! We had to call the whole neighbourhood. Your Dada brought a ladder, and the first thing your papa did when he came down was give the mango to me. It was sweet, so sweet."],
+  [/तुम्हारे पापा आठ साल के थे/, "Your papa and the mango tree. Your papa was eight, very naughty. He climbed the mango tree behind the courtyard to pick the highest mango. He got the mango, but forgot how to come down! We had to call the whole neighbourhood. Your grandfather brought a ladder, and the first thing your papa did when he came down was give the mango to me. It was sweet, so sweet."],
   [/^तुम्हारे पापा और आम का पेड़$/, "Your papa and the mango tree"],
   [/हमारे गाँव के पास गंगा/, "How I learned to swim. The Ganga flowed near our village. My elder brother said: don't be afraid, the water will hold you, just keep moving your arms and legs. The first day I nearly went under; the second day I swam a little. On the seventh day I swam past my brother. The one who gets past the fear is the one who learns."],
-  [/^मैंने तैरना कैसे सीखा$/, "How Dada learned to swim"],
+  [/^मैंने तैरना कैसे सीखा$/, "How Papa learned to swim"],
   [/जन्मदिन का गीत/, "The family sang a birthday song together."],
   [/आँगन में धूप/, "Sunshine and tea in the courtyard."],
   [/सुबह की दुआ/, "A morning blessing for a good day."],
   [/तूर दाल धो लो/, "Wash one katori of toor dal, three times. Two katoris of water, a little turmeric, a little salt, and three whistles in the cooker. Heat the ghee, add jeera, and when it starts to crackle, the hing. Fry the onions slowly, don't rush. Then tomato, ginger, garlic. Mix in the dal, and a little more ghee on top."],
   [/दाल तड़का, जैसे मैं बनाती हूँ/, "Dal tadka, the way I make it."],
-  [/नया शब्द/, "Aria shared a new word."],
+  [/पार्क में धूप/, "Lovely sun in the park this morning. When are you coming home?"],
   [/पुराना दरवाज़ा|पुरानी/i, "An old doorway in winter light."],
 ];
 
@@ -251,7 +251,7 @@ const KNOWN_HI_TO_LATN: Array<[RegExp, string]> = [
   [/जन्मदिन का गीत/, "Parivaar ne milkar janmadin ka geet gaya."],
   [/आँगन में धूप/, "Aangan mein dhoop aur chai."],
   [/सुबह की दुआ/, "Subah ki dua — aaj ka din achha ho."],
-  [/नया शब्द/, "Aria ne naya shabd sunaya."],
+  [/पार्क में धूप/, "Aaj subah park mein badi achhi dhoop thi. Tum kab aa rahe ho?"],
   [/परिवार की एक प्यारी याद/, "Parivaar ki ek pyaari yaad."],
 ];
 
@@ -540,12 +540,12 @@ const MOCK_SUGGESTIONS: Record<string, string[]> = {
   en: [
     "What did your courtyard smell like in the morning?",
     "Which festival food should the children learn first?",
-    "What blessing do you want to record for Leo's exam?",
+    "What blessing do you want to record for Vihaan's exam?",
   ],
   "hi-latn": [
     "Subah aapka aangan kaisa mehakta tha?",
     "Bachchon ko sabse pehle kaun-sa tyohaar ka khana seekhna chahiye?",
-    "Leo ke exam ke liye kaun-sa aashirvaad record karna chahengi?",
+    "Vihaan ke exam ke liye kaun-sa aashirvaad record karna chahengi?",
   ],
   "hi-deva": [
     "सुबह आपका आँगन कैसा महकता था?",

@@ -16,10 +16,10 @@ const json = async <T>(r: Response | Promise<Response>) => (await (await r).json
 beforeEach(() => resetDemo());
 
 describe("parents first", () => {
-  it("tells Dadi what her gifts did this week, in words, from what really happened", async () => {
+  it("tells Maa what her gifts did this week, in words, from what really happened", async () => {
     const { gifts } = await json<{ gifts: Gift[] }>(giftsGet(req("/api/gifts", "dadi")));
     const lines = gifts.map((g) => `${g.byId} ${g.text}`);
-    expect(lines).toEqual(expect.arrayContaining(["arjun cooked your Dal tadka", "leo listened to your story, “The elephant and the tailor”", "arjun heard your advice on “How do I stay patient when Leo won't sleep”"]));
+    expect(lines).toEqual(expect.arrayContaining(["arjun cooked your Dal tadka", "priya listened to your story, “The elephant and the tailor”", "arjun heard your advice on “How do I stay patient when Vihaan won't sleep”"]));
     expect(gifts.every((g) => g.byId !== "dadi")).toBe(true);
   });
 

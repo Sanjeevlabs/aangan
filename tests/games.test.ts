@@ -81,8 +81,8 @@ describe("games API", () => {
     expect((await GET(new Request("http://test/api/games"))).status).toBe(401);
   });
 
-  it("seeds a game where it's Leo's move", async () => {
-    const list = await json<{ games: Game[] }>(GET(req("leo")));
-    expect(myTurn(list.games, "leo").map((g) => g.game)).toContain("ludo");
+  it("seeds a game where it's Arjun's move", async () => {
+    const list = await json<{ games: Game[] }>(GET(req("arjun")));
+    expect(myTurn(list.games, "arjun").map((g) => g.game)).toContain("ludo");
   });
 });

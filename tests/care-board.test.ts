@@ -23,7 +23,7 @@ describe("care board tickets", () => {
     const done = await json<{ need: T; next: T | null }>(carePost(req("/api/care", "arjun", { action: "status", needId: made.need.id, status: "done" })));
     expect(done.need.status).toBe("done");
     expect(done.next).toBeNull();
-    expect(done.need.history.map((h) => h.what)).toEqual(["Created", "Leo assigned it to Dad", "Started", "Done"]);
+    expect(done.need.history.map((h) => h.what)).toEqual(["Created", "Vihaan assigned it to Arjun", "Started", "Done"]);
   });
 
   it("can't be assigned to a child", async () => {

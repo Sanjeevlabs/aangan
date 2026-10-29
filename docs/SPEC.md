@@ -673,3 +673,45 @@ Spaces remain only as tabs inside a page. Pots were dropped (read as childish): 
 **Cuts.** Tic-tac-toe and Match the family (no giving in them). Ludo stays, one game, as the thing a grandchild asks to play with Dada, drawn as the classic board everyone recognises. Memories, Occasions and Around home move under Family / a person's page.
 
 **New:** Share my day for everyone ("at work", "school", "home", "cooked your dal", "thinking of you"), shown on the parent's Home. A gifts feed for the parent, built from plays, recipe attempts and answered asks.
+
+---
+
+## 29. The window, and the door (30 Oct) 🆕
+
+**The idea, in the founder's words:** a son and his parents (60+) live ~2,500 km apart. When he opens Aangan he should see a **window** into their home, and feel what they're doing on the other side. The app reduces physical distance. Grandchildren don't use it yet.
+
+**Why it works (evidence):** the *Digital Family Portrait* (Mynatt et al., CHI 2001) put an ambient picture of an elder's day in the adult child's home: simple signals ("he picked up the mail") gave peace of mind and started phone calls; qualitative, opt-in signals avoided surveillance; the parent saw their own portrait. Baldassar's work on families apart: shared everyday narratives *approximate co-presence*; ambient contact is "comforting and makes absence manageable". Calls and messages alone don't create intimacy; constant notifications feel intrusive.
+
+### 29.1 LITE: the window (first screen, both ways)
+- The son's window looks into **Maa and Papa's home**: a picture he chose (their verandah, a photo of home, or one Muse Image painted), tinted live to **their time of day and weather** (dawn, day, dusk, night; clouds, rain, stars), with their **city and local time**.
+- Inside the window, only what they chose to share: "Maa is having evening chai · 20 min ago", "Papa is back from his walk". A **lamp** glows when they've been around in the last few hours.
+- **Their latest voice note** as a music card; one button: **Talk to Maa and Papa**; a call button.
+- **The parent's window** looks into the son's home the same way ("Arjun reached home · raining in Bengaluru"), with big one-tap moments (Chai, Walk, Prayer, Thinking of you) and **Talk to Arjun**. No menu.
+- Never tracking: every signal is a tap someone chose to make.
+
+### 29.2 The door
+A wooden door button on the window. Tapping it plays a **mechanical key turning and a door opening** (synthesised in the browser, no sound files) while the two door panels swing open into **family mode**. Closing the door returns to LITE.
+
+### 29.3 Family mode: the courtyard
+Everything built since PR #1, arranged as a home, not a menu:
+| Room | Inside |
+|---|---|
+| **Memories** | Memory Lane, albums Muse sorts, photos anyone adds, voice notes, birthday wishes and reels |
+| **Library** | What parents pass on: recipes, stories, advice and blessings, and Ask (Muse writes the question) |
+| **Care** | Care board, local helpers, Safe & sound |
+| **Family** | The family tree (node view), both sides (wife's family), siblings and cousins, Occasions, Together (trimmed), Ludo |
+| **Sit together** | A live card on the courtyard: start a group video call inside Aangan |
+
+The courtyard shows: the side switch, the four rooms, **Sit together** (live), **a voice from home** (music card), **Muse's next step** (one suggestion: a question to ask, a birthday to record, a care task), the parent's **today's role**, **coming up**, **this day, years ago**.
+
+### 29.4 Muse as the bridge (agentic, Meta models)
+Muse writes the weekly question and story prompts, turns voices into recipe cards and notes, translates into 29 languages, sorts photos into albums, plans occasions (ritual agent: wishes, reminders, reel, delivered at 8 am their time), assigns parents a daily role, drafts care notes. Agents propose; people approve. All logged in *What Muse did*.
+
+### 29.5 Design
+Glass on chrome only (dock, sheets, player, captions); music cards for voices, photos and videos; Onest for UI, Literata italic for voices; Lucide outline icons; warm palette (marigold, terracotta, espresso).
+
+### 29.6 Family tree
+The constellation is replaced by a **node tree** (generations in rows, couples side by side, lines to children), the view genealogy apps call the most recognisable.
+
+### 29.7 Restored / not yet built
+Restored: parents' today's role, this day years ago, coming up for everyone. Not yet built: legacy hall, store, family news digest, push notifications, SAM 3.1 stickers, synced playback.

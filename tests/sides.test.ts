@@ -84,8 +84,7 @@ describe("two courtyards, one door", () => {
   it("puts in-laws and cousins in the wider circle", async () => {
     const c = circles(await dbListMembers("demo-family"), await dbListRelationships("demo-family"), "priya");
     const ids = (xs: { member: Member }[]) => xs.map((p) => p.member.id).sort();
-    expect(ids(c.home)).toEqual(["arjun", "leo"]); // Aria lives in Chicago: close, not home
-    expect(ids(c.close)).toContain("aria");
+    expect(ids(c.home)).toEqual(["aria", "arjun", "leo"]); // one Bengaluru home
     expect(ids(c.wider)).toEqual(expect.arrayContaining(["dadi", "dada", "kavya", "anaya", "kabir"]));
     expect(c.wider.find((p) => p.member.id === "kabir")?.label).toMatch(/nephew|son/i);
   });

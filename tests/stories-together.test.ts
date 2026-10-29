@@ -20,7 +20,7 @@ describe("stories", () => {
   it("seeds the kids' corner and labels themes without writing the story", async () => {
     const d = await json<{ stories: Story[]; requests: Question[] }>(storiesGet(req("/api/stories", "leo")));
     expect(d.stories.map((s) => s.tellerId)).toEqual(expect.arrayContaining(["dadi", "dada"]));
-    expect(d.requests.some((q) => q.askedBy === "leo" && q.toMemberId === "dada")).toBe(true);
+    expect(d.requests.some((q) => q.askedBy === "priya" && q.toMemberId === "dada")).toBe(true);
     expect(mockStoryLabel("Ek haathi roz nadi jaata tha.").theme).toBe("animals");
     expect(mockStoryLabel("सो जा, नींद आ जाएगी").theme).toBe("lullaby");
   });

@@ -132,6 +132,8 @@ export const MemberSchema = z.object({
   lang: z.string().default("en"),
   displayLang: DisplayLangSchema.default("en"),
   tz: z.string().default("UTC"),
+  /** The city they live in, as they'd say it ("Amritsar"). Shown on the window; never tracked. */
+  city: z.string().max(60).default(""),
   /** MM-DD, or "" when nobody has added it yet (no fake dates). */
   birthday: z.string().regex(/^(\d{2}-\d{2})?$/).default(""),
   homeImageRef: z.string().nullable().default(null),

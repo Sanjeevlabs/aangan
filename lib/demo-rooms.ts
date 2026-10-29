@@ -1,4 +1,4 @@
-// Synthetic content for the demo family's living rooms (Kitchen, Dadi's day,
+// Synthetic content for the demo family's living rooms (Kitchen, Maa's day,
 // care circle, Village, Sit together, the weekly question, Muse activity).
 // Times are relative to "now" so the demo always reads as today.
 // Every person, place and phone number here is invented.
@@ -38,20 +38,20 @@ export function seedDemoRooms(now = Date.now()): void {
   // ---------- Games across homes: one move each, whenever ----------
   const game = (g: Record<string, unknown>) => seedDoc(FAM, "game", { status: "playing", winner: null, createdAt: ago(60 * 26, now), updatedAt: ago(40, now), ...g });
   const blank = { tokens: [], dice: null, lastRoll: null };
-  game({ id: "game-ludo-dada-leo", game: "ludo", players: ["dada", "leo"], turn: 1, moves: 14, createdBy: "leo", state: { ...blank, tokens: [[9, -1], [33, 4]], lastRoll: 6 }, lastMove: { by: "dada", text: "brought a piece out", at: ago(40, now) } });
+  game({ id: "game-ludo-papa-arjun", game: "ludo", players: ["dada", "arjun"], turn: 1, moves: 14, createdBy: "arjun", state: { ...blank, tokens: [[9, -1], [33, 4]], lastRoll: 6 }, lastMove: { by: "dada", text: "brought a piece out", at: ago(40, now) } });
 
-  // ---------- Around home (Dadi & Dada's neighbourhood) ----------
-  seedDoc(FAM, "place", { id: "place-temple", name: "The temple at the corner", kind: "temple", nearMemberId: "dadi", lat: null, lng: null, googlePlaceId: null, note: "Dadi walks here with Mrs. Kapoor most mornings, before the sun gets hot.", cardIds: ["demo-from-dadi-1"], addedBy: "arjun", createdAt: ago(60 * 24 * 9, now) });
+  // ---------- Around home (Maa & Papa's neighbourhood) ----------
+  seedDoc(FAM, "place", { id: "place-temple", name: "The temple at the corner", kind: "temple", nearMemberId: "dadi", lat: null, lng: null, googlePlaceId: null, note: "Maa walks here with Mrs. Kapoor most mornings, before the sun gets hot.", cardIds: ["demo-from-dadi-1"], addedBy: "arjun", createdAt: ago(60 * 24 * 9, now) });
   seedDoc(FAM, "place", { id: "place-kirana", name: "Ramesh's kirana", kind: "market", nearMemberId: "dadi", lat: null, lng: null, googlePlaceId: null, note: "Everything for the house; he delivers before 11.", cardIds: [], addedBy: "arjun", createdAt: ago(60 * 24 * 8, now) });
   seedDoc(FAM, "place", { id: "place-courtyard", name: "Home, the courtyard", kind: "home", nearMemberId: "dadi", lat: null, lng: null, googlePlaceId: null, note: "Tulsi in the corner, chai on the steps.", cardIds: ["demo-years-2", "demo-court-dadi", "demo-court-leo"], addedBy: "dadi", createdAt: ago(60 * 24 * 7, now) });
 
   // ---------- Stories: the kids' corner ----------
   seedDoc(FAM, "story", { id: "story-elephant", tellerId: "dadi", cardId: "demo-story-elephant", title: "The elephant and the tailor", theme: "animals", ages: "5-8", summary: "An elephant, a tailor and a needle; be kind to those who are kind to you.", lang: "hi", questionId: null, madeBy: "muse", createdAt: "2026-10-20T14:10:00.000Z" });
-  seedDoc(FAM, "story", { id: "story-mela", tellerId: "dadi", cardId: "demo-story-mela", title: "When I got lost at the fair", theme: "our-village", ages: "all", summary: "Dadi, seven, lost at the Dussehra fair, found from a balloon seller's shoulders.", lang: "hi", questionId: null, madeBy: "muse", createdAt: "2026-10-12T15:30:00.000Z" });
+  seedDoc(FAM, "story", { id: "story-mela", tellerId: "dadi", cardId: "demo-story-mela", title: "When I got lost at the fair", theme: "our-village", ages: "all", summary: "Maa, seven, lost at the Dussehra fair, found from a balloon seller's shoulders.", lang: "hi", questionId: null, madeBy: "muse", createdAt: "2026-10-12T15:30:00.000Z" });
   seedDoc(FAM, "story", { id: "story-mango", tellerId: "dadi", cardId: "demo-story-mango", title: "Your papa and the mango tree", theme: "family", ages: "all", summary: "Papa at eight, stuck at the top of the mango tree behind the courtyard.", lang: "hi", questionId: null, madeBy: "muse", createdAt: "2026-10-05T13:00:00.000Z" });
-  seedDoc(FAM, "story", { id: "story-swim", tellerId: "dada", cardId: "demo-story-swim", title: "How Dada learned to swim", theme: "our-village", ages: "5-8", summary: "Dada learns to swim in the Ganga in seven days.", lang: "hi", questionId: null, madeBy: "muse", createdAt: "2026-10-16T12:20:00.000Z" });
-  // Leo asked Dada for one; it waits on Dada's courtyard.
-  seedDoc(FAM, "question", { id: "tellme-leo-dada", toMemberId: "dada", text: "Tell me a story about a tiger", lang: "en", askedBy: "leo", topic: "story", answeredCardId: null, madeBy: "family", createdAt: ago(60 * 20, now) });
+  seedDoc(FAM, "story", { id: "story-swim", tellerId: "dada", cardId: "demo-story-swim", title: "How Papa learned to swim", theme: "our-village", ages: "5-8", summary: "Papa learns to swim in the Ganga in seven days.", lang: "hi", questionId: null, madeBy: "muse", createdAt: "2026-10-16T12:20:00.000Z" });
+  // Vihaan asked Papa for one; it waits on Papa's courtyard.
+  seedDoc(FAM, "question", { id: "tellme-leo-dada", toMemberId: "dada", text: "Tell Vihaan a story about a tiger", lang: "en", askedBy: "priya", topic: "story", answeredCardId: null, madeBy: "family", createdAt: ago(60 * 20, now) });
 
   // ---------- Together: things the family is doing ----------
   seedDoc(FAM, "project", {
@@ -86,7 +86,7 @@ export function seedDemoRooms(now = Date.now()): void {
     tasks: [
       { id: "t-c1", text: "Each home adds one recipe", assignee: null, done: true },
       { id: "t-c2", text: "Elders record one by voice", assignee: "dadi", done: true },
-      { id: "t-c3", text: "Pick a cover photo", assignee: "leo", done: false },
+      { id: "t-c3", text: "Pick a cover photo", assignee: "priya", done: false },
     ],
     quiz: [],
     status: "active",
@@ -120,7 +120,7 @@ export function seedDemoRooms(now = Date.now()): void {
   R("recipe-dadi-paratha", "dadi", "Aloo paratha", "breakfast", 25, 20, "4 parathas", "Sunday breakfast, with white butter and too much pickle.", ["Boil and peel the potatoes", "Knead the atta and rest it 20 min"], "Golden spots on both sides; the filling reaches the edges.", [["potatoes", "three medium", "≈ 450 g"], ["atta", "two katoris", "≈ 2 cups"], ["green chilli", "one, chopped", ""], ["coriander", "a handful", ""], ["amchur", "a pinch", "≈ ½ tsp"], ["ghee", "for the tawa", ""]], [["Mash the potatoes with chilli, coriander, amchur and salt.", "No lumps, or it tears."], ["Stuff a ball of dough, seal it and roll gently.", ""], ["Cook on a hot tawa with ghee till spotted on both sides.", "Press the edges with the cloth."]], 24);
   R("recipe-arjun-palak", "arjun", "Palak paneer", "main", 15, 25, "3", "The first dish I learned to cook in New York, on a phone call with Maa.", ["Blanch the spinach 2 min, then into ice water", "Cube the paneer and soak in warm water"], "Bright green, never army green; paneer soft enough to cut with a spoon.", [["spinach", "", "2 bunches ≈ 400 g"], ["paneer", "", "200 g"], ["onion", "", "1 medium"], ["tomato", "", "1"], ["ginger, garlic", "", "1 tbsp paste"], ["cream", "", "2 tbsp"], ["garam masala", "", "½ tsp"]], [["Blend the blanched spinach smooth.", ""], ["Cook onion, ginger-garlic and tomato till the oil separates.", "Maa: wait for the oil, always."], ["Add the spinach, salt and garam masala; simmer 5 min.", "Not longer, it loses the colour."], ["Add paneer and cream, warm through.", ""]], 12);
   R("recipe-arjun-chai", "arjun", "Office-day masala chai", "drink", 2, 6, "2 cups", "What I make when it's 6 am here and evening in Kanpur, while we talk.", ["Crush 2 cardamom and a little ginger"], "The colour of a terracotta pot.", [["water", "", "1 cup"], ["milk", "", "1 cup"], ["tea leaves", "", "2 tsp"], ["ginger", "", "1 cm"], ["cardamom", "", "2 pods"], ["sugar", "", "to taste"]], [["Boil water with ginger and cardamom.", ""], ["Add tea, then milk; let it rise twice.", ""], ["Strain and sweeten.", ""]], 8);
-  R("recipe-priya-bread", "priya", "Banana walnut bread", "sweet", 15, 55, "1 loaf", "Leo's birthday breakfast every year.", ["Mash 3 very ripe bananas", "Toast the walnuts"], "A skewer comes out clean; the top cracks down the middle.", [["ripe bananas", "", "3"], ["flour", "", "1½ cups"], ["butter, melted", "", "⅓ cup"], ["brown sugar", "", "½ cup"], ["egg", "", "1"], ["baking soda", "", "1 tsp"], ["walnuts", "", "½ cup"]], [["Mix banana, butter, sugar and egg.", ""], ["Fold in flour, soda, a pinch of salt and walnuts.", "Don't over-mix."], ["Bake at 175 °C for about 55 minutes.", ""]], 40);
+  R("recipe-priya-bread", "priya", "Banana walnut bread", "sweet", 15, 55, "1 loaf", "Vihaan's birthday breakfast every year.", ["Mash 3 very ripe bananas", "Toast the walnuts"], "A skewer comes out clean; the top cracks down the middle.", [["ripe bananas", "", "3"], ["flour", "", "1½ cups"], ["butter, melted", "", "⅓ cup"], ["brown sugar", "", "½ cup"], ["egg", "", "1"], ["baking soda", "", "1 tsp"], ["walnuts", "", "½ cup"]], [["Mix banana, butter, sugar and egg.", ""], ["Fold in flour, soda, a pinch of salt and walnuts.", "Don't over-mix."], ["Bake at 175 °C for about 55 minutes.", ""]], 40);
   R("recipe-kavya-upma", "kavya", "Rava upma", "breakfast", 5, 15, "2", "Bangalore mornings before the office cab.", ["Dry-roast the rava till it smells nutty"], "Soft and fluffy, every grain separate.", [["rava", "", "1 cup"], ["water", "", "2½ cups"], ["mustard seeds, urad dal", "", "1 tsp each"], ["curry leaves", "", "a sprig"], ["green chilli", "", "1"], ["ghee", "", "1 tbsp"]], [["Temper mustard, dal, curry leaves and chilli in ghee.", ""], ["Add water and salt; bring to a boil.", ""], ["Rain in the rava, stirring, cover for 2 minutes.", "Stir fast or it lumps."]], 18);
 
   // ---------- Kitchen ----------
@@ -162,11 +162,11 @@ export function seedDemoRooms(now = Date.now()): void {
     createdAt: "2026-10-25T07:45:00.000Z",
   });
   seedDoc(FAM, "attempt", {
-    id: "cooked-leo-dal",
+    id: "cooked-priya-dal",
     recipeId: "recipe-dadi-dal",
-    memberId: "leo",
-    photoRef: "/demo/family-leo.webp",
-    note: "Too much salt. Dad still finished the bowl.",
+    memberId: "priya",
+    photoRef: null,
+    note: "Too much salt. Arjun still finished the bowl.",
     blessedBy: ["dadi"],
     createdAt: ago(60 * 26, now),
   });
@@ -180,7 +180,7 @@ export function seedDemoRooms(now = Date.now()): void {
     createdAt: ago(60 * 5, now),
   });
 
-  // ---------- Dadi's day (presence), on *her* clock ----------
+  // ---------- Maa's day (presence), on *her* clock ----------
   // Her everyday rhythm in India. Only moments already past in her day are
   // shared; before 6 AM there, the demo shows the day that just ended.
   const tz = "Asia/Kolkata";
@@ -202,7 +202,7 @@ export function seedDemoRooms(now = Date.now()): void {
     .filter(([, h]) => h <= localNow + shift)
     .forEach(([moment, h, note], i) => seedDoc(FAM, "presence", { id: `presence-dadi-${i}`, memberId: "dadi", moment, note, at: ago(Math.round((localNow + shift - h) * 60), now) }));
   const dadaDay: [string, number, string][] = [
-    ["walk", 7.5, "With Dadi, round the park"],
+    ["walk", 7.5, "With Maa, round the park"],
     ["market", 10.25, "Newspaper and milk"],
     ["garden", 16.5, "The tulsi needs water"],
     ["resting", 22, ""],
@@ -213,25 +213,25 @@ export function seedDemoRooms(now = Date.now()): void {
   seedDoc(FAM, "presence", { id: "presence-arjun-0", memberId: "arjun", moment: "thinking", note: "", at: ago(15, now) });
   seedDoc(FAM, "care_settings", { id: "dadi", memberId: "dadi", quietAlert: true, tellMemberId: "arjun", graceHours: 3, updatedAt: ago(60 * 24 * 6, now) });
 
-  // ---------- Dadi's Village ----------
+  // ---------- Maa's Village ----------
   const village = [
     { id: "helper-ramesh", name: "Ramesh", role: "groceries", phone: "+91 90000 00001", note: "Kirana at the corner. Delivers before 11." },
     { id: "helper-sunita", name: "Sunita didi", role: "house help", phone: "+91 90000 00002", note: "Mornings, Monday to Saturday." },
     { id: "helper-imran", name: "Imran bhai", role: "driver", phone: "+91 90000 00003", note: "Knows the way to the temple and the clinic." },
-    { id: "helper-kapoor", name: "Mrs. Kapoor", role: "neighbour", phone: "+91 90000 00004", note: "Next door. Walks with Dadi most mornings." },
+    { id: "helper-kapoor", name: "Mrs. Kapoor", role: "neighbour", phone: "+91 90000 00004", note: "Next door. Walks with Maa most mornings." },
     { id: "helper-gas", name: "Gas agency", role: "gas booking", phone: "+91 90000 00005", note: "Booking ID is in the kitchen drawer." },
   ];
   village.forEach((h) => seedDoc(FAM, "helper", { ...h, forMemberId: "dadi", addedBy: "arjun", createdAt: ago(60 * 24 * 20, now) }));
-  seedDoc(FAM, "helper", { id: "helper-dr-clinic", name: "Sharma Clinic", role: "doctor's clinic", forMemberId: "dada", phone: "+91 90000 00006", note: "Dada's regular check-ups. Imran bhai drives.", addedBy: "arjun", createdAt: ago(60 * 24 * 20, now) });
+  seedDoc(FAM, "helper", { id: "helper-dr-clinic", name: "Sharma Clinic", role: "doctor's clinic", forMemberId: "dada", phone: "+91 90000 00006", note: "Papa's regular check-ups. Imran bhai drives.", addedBy: "arjun", createdAt: ago(60 * 24 * 20, now) });
 
   // ---------- Pets ----------
   seedDoc(FAM, "pet", { id: "pet-bruno", name: "Bruno", species: "dog", livesWith: "dadi", photoRef: null, birthday: "02-14", note: "Waits at the gate for the milkman.", addedBy: "arjun", createdAt: ago(60 * 24 * 40, now) });
-  seedDoc(FAM, "pet", { id: "pet-mochi", name: "Mochi", species: "cat", livesWith: "arjun", photoRef: null, birthday: "", note: "Sleeps on Leo's homework.", addedBy: "leo", createdAt: ago(60 * 24 * 30, now) });
+  seedDoc(FAM, "pet", { id: "pet-mochi", name: "Mochi", species: "cat", livesWith: "arjun", photoRef: null, birthday: "", note: "Sleeps on Vihaan's homework.", addedBy: "arjun", createdAt: ago(60 * 24 * 30, now) });
 
-  // ---------- Safe & sound (Aria, at college in Chicago, chose Papa and Dadi) ----------
-  seedDoc(FAM, "safety_settings", { id: "aria", memberId: "aria", enabled: true, watchers: ["arjun", "dadi"], paused: false, updatedAt: ago(60 * 24 * 6, now) });
-  seedDoc(FAM, "safety_checkin", { id: "safe-aria-1", memberId: "aria", kind: "heading", note: "From the library", etaAt: ago(60 * 26 - 25, now), closedAt: ago(60 * 26 - 22, now), location: null, at: ago(60 * 26, now) });
-  seedDoc(FAM, "safety_checkin", { id: "safe-aria-2", memberId: "aria", kind: "home-safe", note: "", etaAt: null, closedAt: ago(140, now), location: null, at: ago(140, now) });
+  // ---------- Safe & sound (Anika, at college in Chicago, chose Papa and Maa) ----------
+  seedDoc(FAM, "safety_settings", { id: "dada", memberId: "dada", enabled: true, watchers: ["arjun", "dadi"], paused: false, updatedAt: ago(60 * 24 * 6, now) });
+  seedDoc(FAM, "safety_checkin", { id: "safe-papa-1", memberId: "dada", kind: "heading", note: "To the bank, back by noon", etaAt: ago(60 * 26 - 25, now), closedAt: ago(60 * 26 - 22, now), location: null, at: ago(60 * 26, now) });
+  seedDoc(FAM, "safety_checkin", { id: "safe-papa-2", memberId: "dada", kind: "home-safe", note: "", etaAt: null, closedAt: ago(140, now), location: null, at: ago(140, now) });
 
   // ---------- Care circle ----------
   seedDoc(FAM, "need", {
@@ -276,18 +276,18 @@ export function seedDemoRooms(now = Date.now()): void {
     doneAt: ago(60 * 24 * 3, now),
     createdAt: ago(60 * 24 * 5, now),
   });
-  seedDoc(FAM, "rota", { id: "dadi", forMemberId: "dadi", order: ["arjun", "leo"], startWeek: "2026-10-26", updatedAt: ago(60 * 24 * 3, now) });
+  seedDoc(FAM, "rota", { id: "dadi", forMemberId: "dadi", order: ["arjun", "kavya"], startWeek: "2026-10-26", updatedAt: ago(60 * 24 * 3, now) });
 
   // ---------- Sit together ----------
   seedDoc(FAM, "sitting", {
     id: "sit-dal",
     reason: "cook",
-    title: "Cook Dadi's dal together",
-    hostId: "leo",
+    title: "Cook Maa's dal together",
+    hostId: "arjun",
     startsAt: nextLocal(0, 19, "Asia/Kolkata", now),
-    invites: ["dadi", "arjun", "aria"],
+    invites: ["dadi", "dada", "arjun", "kavya"],
     recipeId: "recipe-dadi-dal",
-    note: "Dadi watches, we cook. Bring your own onions.",
+    note: "Maa watches, we cook. Bring your own onions.",
     keptCardId: null,
     createdAt: ago(60 * 30, now),
   });
@@ -308,10 +308,10 @@ export function seedDemoRooms(now = Date.now()): void {
     createdAt: ago(60 * 24 * 2, now),
   });
   seedDoc(FAM, "question", {
-    id: "q-leo-paratha",
+    id: "q-priya-paratha",
     toMemberId: "dadi",
     text: "How do you make your aloo paratha?",
-    askedBy: "leo",
+    askedBy: "priya",
     topic: "recipe",
     answeredCardId: null,
     madeBy: "family",
@@ -319,17 +319,17 @@ export function seedDemoRooms(now = Date.now()): void {
   });
 
   // ---------- Asks the family made, answered by voice ----------
-  seedDoc(FAM, "question", { id: "ask-arjun-patience", toMemberId: "dadi", text: "How do I stay patient when Leo won't sleep?", lang: "en", askedBy: "arjun", topic: "wisdom", answeredCardId: "demo-dadi-advice-1", madeBy: "family", createdAt: ago(60 * 24 * 6, now) });
-  seedDoc(FAM, "question", { id: "ask-aria-exam", toMemberId: "dada", text: "Will you bless me for my exam on Friday?", lang: "en", askedBy: "aria", topic: "blessing", answeredCardId: "demo-dada-bless-1", madeBy: "family", createdAt: ago(60 * 24 * 3, now) });
+  seedDoc(FAM, "question", { id: "ask-arjun-patience", toMemberId: "dadi", text: "How do I stay patient when Vihaan won't sleep?", lang: "en", askedBy: "arjun", topic: "wisdom", answeredCardId: "demo-dadi-advice-1", madeBy: "family", createdAt: ago(60 * 24 * 6, now) });
+  seedDoc(FAM, "question", { id: "ask-arjun-interview", toMemberId: "dada", text: "Will you bless me for my interview on Friday?", lang: "en", askedBy: "arjun", topic: "blessing", answeredCardId: "demo-dada-bless-1", madeBy: "family", createdAt: ago(60 * 24 * 3, now) });
 
   // ---------- What Muse did this week (sample activity for the demo) ----------
   const calls: [string, number, number, boolean][] = [
-    ["Wrote up Dadi's recipe from a voice note", 60 * 24 * 3, 2140, false],
-    ["Translated \"Dadi's dal tadka\" for a reader in English", 60 * 24 * 3 - 5, 980, false],
-    ["Asked Dadi this week's question", 60 * 24 * 2, 760, false],
-    ["Wrote a note for Dadi in Hindi: the gas booking", 60 * 20, 640, false],
+    ["Wrote up Maa's recipe from a voice note", 60 * 24 * 3, 2140, false],
+    ["Translated \"Maa's dal tadka\" for a reader in English", 60 * 24 * 3 - 5, 980, false],
+    ["Asked Maa this week's question", 60 * 24 * 2, 760, false],
+    ["Wrote a note for Maa in Hindi: the gas booking", 60 * 20, 640, false],
     ["Transcribed Arjun's voice note", 60 * 6, 1830, false],
-    ["Translated Dadi's blessing for Leo", 60 * 5, 0, true],
+    ["Translated Maa's blessing for Vihaan", 60 * 5, 0, true],
   ];
   calls.forEach(([purpose, mins, ms, cached], i) =>
     seedDoc(FAM, "muse_call", { id: `muse-demo-${i}`, purpose, model: purpose.startsWith("Transcribed") ? "muse-voice-transcribe-1.0" : "muse-spark-1.3", cached, ok: true, ms, cost: cached ? 0 : 0.01, at: ago(mins, now) }),
