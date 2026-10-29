@@ -7,8 +7,10 @@ import { Avatar, Button, EmptyLine, RoomHeader } from "@/components/ui/kit";
 import { callName, memberPhoto } from "@/lib/people";
 import { cn } from "@/lib/utils";
 import { useViewer } from "@/components/viewer";
+import { ZONES, placeFromTz } from "@/lib/zones";
 
 const RELATION_WORDS = ["mother", "father", "wife", "husband", "daughter", "son", "sister", "brother"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 interface TreeNode {
   member: Member;
@@ -107,6 +109,9 @@ function GuidedAdd({ onAdded }: { onAdded: () => void }) {
   const [anchorId, setAnchorId] = useState(viewer.id);
   const [name, setName] = useState("");
   const [relation, setRelation] = useState("mother");
+  const [tz, setTz] = useState<string>("");
+  const [month, setMonth] = useState("");
+  const [day, setDay] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [welcomed, setWelcomed] = useState<string | null>(null);
@@ -121,9 +126,15 @@ function GuidedAdd({ onAdded }: { onAdded: () => void }) {
       const res = await fetch("/api/relationships", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ memberId: anchorId, newMemberName: clean, newMemberRole: "adult", relation }),
+        body: JSON.stringify({
+          memberId: anchorId,
+          newMemberName: clean,
+          relation,
+          tz: tz || anchor?.tz || undefined,
+          birthday: month && day ? `${month}-${day}` : undefined,
+        }),
       });
-      if (!res.ok) throw new Error(res.status === 409 ? "duplicate" : "add-failed");
+      if (!res.ok) throw new Error(res.status === 409 ? "duplicate" : res.status === 401 ? "signed-out" : "add-failed");
       const data = (await res.json()) as { member: Member };
       // "Welcome to the family" moment: a Bond card lands in Memory Lane.
       await fetch("/api/cards", {
@@ -142,9 +153,12 @@ function GuidedAdd({ onAdded }: { onAdded: () => void }) {
       }).catch(() => undefined);
       setWelcomed(data.member.displayName);
       setName("");
+      setMonth("");
+      setDay("");
       onAdded();
     } catch (e) {
-      setError(e instanceof Error && e.message === "duplicate" ? `${clean} is already in the family.` : "Couldn't add them. Try again.");
+      const key = e instanceof Error ? e.message : "";
+      setError(key === "duplicate" ? `${clean} is already in the family.` : key === "signed-out" ? "Your session ended. Sign in again to add family." : "Couldn't add them. Check your connection and try again.");
     } finally {
       setBusy(false);
     }
@@ -201,6 +215,40 @@ function GuidedAdd({ onAdded }: { onAdded: () => void }) {
             {mm.id === viewer.id ? "You" : callName(mm)}
           </button>
         ))}
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <label className="col-span-2 block">
+          <span className="mb-1.5 block text-[13px] font-medium text-ink-soft">Where they live</span>
+          <select value={tz || anchor?.tz || ""} onChange={(e) => setTz(e.target.value)} className="h-[52px] w-full appearance-none rounded-full bg-surface px-5 text-[16px] outline-none focus:ring-2 focus:ring-marigold">
+            {Array.from(new Set([anchor?.tz, ...ZONES.map((z) => z.tz)].filter((z): z is string => Boolean(z) && z !== "UTC"))).map((z) => (
+              <option key={z} value={z}>
+                {placeFromTz(z)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1.5 block text-[13px] font-medium text-ink-soft">Birthday (optional)</span>
+          <select value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Birthday month" className="h-[52px] w-full appearance-none rounded-full bg-surface px-5 text-[16px] outline-none">
+            <option value="">Month</option>
+            {MONTHS.map((m, i) => (
+              <option key={m} value={String(i + 1).padStart(2, "0")}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1.5 block text-[13px] font-medium text-transparent">Day</span>
+          <select value={day} onChange={(e) => setDay(e.target.value)} aria-label="Birthday day" className="h-[52px] w-full appearance-none rounded-full bg-surface px-5 text-[16px] outline-none">
+            <option value="">Day</option>
+            {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, "0")).map((d) => (
+              <option key={d} value={d}>
+                {Number(d)}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
       {error && (
         <p className="m-0 mt-3 text-[14px] text-[#b42318]" role="alert">
@@ -263,7 +311,7 @@ function useKinship(targetIds: string[]): Record<string, string> {
 }
 
 export default function BondPage() {
-  const { viewer } = useViewer();
+  const { viewer, refreshMembers } = useViewer();
   const [members, setMembers] = useState<Member[] | null>(null);
   const [relationships, setRelationships] = useState<Relationship[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -290,7 +338,7 @@ export default function BondPage() {
 
   return (
     <div>
-      <RoomHeader title="Family tree" subtitle={members ? `${members.length} people · tap anyone to open their page` : undefined} />
+      <RoomHeader title="Family tree" subtitle={members ? `${members.length} people · tap anyone to see or edit them` : undefined} />
       {failed && <EmptyLine>Couldn&rsquo;t load the family. Try again in a moment.</EmptyLine>}
       {tree === null && !failed && <div className="skeleton h-[360px]" aria-busy="true" aria-label="Loading family" />}
       {tree && members && (
@@ -329,7 +377,12 @@ export default function BondPage() {
             </div>
             <style>{`.bond-node{animation:bond-branch .36s cubic-bezier(.32,.72,0,1) both}@keyframes bond-branch{from{transform:translate(-50%,8px);opacity:0}to{transform:translate(-50%,0);opacity:1}}`}</style>
           </section>
-          <GuidedAdd onAdded={() => void load()} />
+          <GuidedAdd
+            onAdded={() => {
+              void load();
+              void refreshMembers();
+            }}
+          />
         </>
       )}
     </div>

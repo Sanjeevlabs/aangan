@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Avatar, Button, Icon, Photo, RoomHeader } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
-import { SUPPORTED_LANGS, type SupportedLang } from "@/lib/i18n";
+import { type SupportedLang } from "@/lib/i18n";
+import { LANGUAGES, language } from "@/lib/languages";
+import { ZONES, placeFromTz } from "@/lib/zones";
 import { processHomeImage } from "@/lib/media-client";
 import { resolveMediaUrl } from "@/lib/media-session";
 import { memberPhoto } from "@/lib/people";
@@ -17,24 +19,65 @@ interface Invite {
   expiresAt: string;
 }
 
-const LANG_OPTION: Record<SupportedLang, { label: string; note: string }> = {
-  en: { label: "English", note: "Everything in English" },
-  "hi-latn": { label: "Hinglish", note: "Hindi in English letters" },
-  "hi-deva": { label: "हिंदी", note: "Hindi in Devanagari" },
-};
+/** Searchable picker: 29 languages would be a wall of radio buttons. */
+function LanguagePicker({ value, onPick }: { value: SupportedLang; onPick: (code: SupportedLang) => void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const current = language(value);
+  const query = q.trim().toLowerCase();
+  const list = LANGUAGES.filter((l) => !query || l.name.toLowerCase().includes(query) || l.native.toLowerCase().includes(query) || l.code.includes(query));
+  return (
+    <div>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="press flex w-full items-center justify-between rounded-[20px] bg-surface px-4 py-3.5 text-left"
+      >
+        <span>
+          <span className="block text-[17px] font-semibold">{current.native}</span>
+          <span className="block text-[14px] text-ink-soft">{current.name}</span>
+        </span>
+        <span className="text-[15px] font-medium text-ink-soft">{open ? "Done" : "Change"}</span>
+      </button>
+      {open && (
+        <div className="mt-2 rounded-[20px] bg-surface p-2">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search languages"
+            aria-label="Search languages"
+            className="h-11 w-full rounded-full bg-white px-4 text-[16px] outline-none focus:ring-2 focus:ring-marigold"
+          />
+          <ul role="radiogroup" aria-label="Language" className="m-0 mt-2 max-h-[320px] list-none overflow-y-auto p-0">
+            {list.map((l) => (
+              <li key={l.code}>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={l.code === value}
+                  onClick={() => {
+                    onPick(l.code);
+                    setOpen(false);
+                    setQ("");
+                  }}
+                  className={cn("press flex h-12 w-full items-center justify-between rounded-[14px] px-3 text-left", l.code === value && "bg-black text-white")}
+                >
+                  <span className="text-[16px] font-medium" dir={"rtl" in l && l.rtl ? "rtl" : undefined}>
+                    {l.native}
+                  </span>
+                  <span className={cn("text-[13px]", l.code === value ? "text-white/70" : "text-ink-soft")}>{l.name}</span>
+                </button>
+              </li>
+            ))}
+            {list.length === 0 && <li className="px-3 py-3 text-[15px] text-ink-soft">No match. Try the English name.</li>}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
 
-const ZONES = [
-  "Asia/Kolkata",
-  "Asia/Dubai",
-  "Asia/Singapore",
-  "Europe/London",
-  "Europe/Berlin",
-  "America/New_York",
-  "America/Chicago",
-  "America/Los_Angeles",
-  "America/Toronto",
-  "Australia/Sydney",
-];
 
 function Group({ title, id, children }: { title: string; id?: string; children: React.ReactNode }) {
   return (
@@ -190,32 +233,15 @@ export default function SettingsPage() {
         <input ref={portraitRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && void uploadImage(e.target.files[0], "portrait")} />
       </div>
 
-      <Group title="Language">
-        <div className="space-y-2" role="radiogroup" aria-label="Language">
-          {SUPPORTED_LANGS.map((code) => {
-            const on = displayLang === code;
-            return (
-              <button
-                key={code}
-                type="button"
-                role="radio"
-                aria-checked={on}
-                onClick={() => {
-                  void setDisplayLang(code);
-                  flash("Language updated");
-                }}
-                className={cn("press flex w-full items-center justify-between rounded-[20px] px-4 py-3.5 text-left", on ? "bg-black text-white" : "bg-surface")}
-              >
-                <span>
-                  <span className="block text-[17px] font-semibold">{LANG_OPTION[code].label}</span>
-                  <span className={cn("block text-[14px]", on ? "text-white/70" : "text-ink-soft")}>{LANG_OPTION[code].note}</span>
-                </span>
-                {on && <Icon name="check" />}
-              </button>
-            );
-          })}
-        </div>
-        <p className="m-0 mt-2 text-[13px] text-ink-faint">Voices from family are translated into your language. Names stay as the family says them.</p>
+      <Group title="Hear the family in">
+        <LanguagePicker
+          value={displayLang}
+          onPick={(code) => {
+            void setDisplayLang(code);
+            flash("Language updated");
+          }}
+        />
+        <p className="m-0 mt-2 text-[13px] text-ink-faint">Everything the family shares (voices, recipes, notes) is translated into your language by Muse. The app itself stays in English. Names stay as the family says them.</p>
       </Group>
 
       <Group title="Where you are">
@@ -229,9 +255,9 @@ export default function SettingsPage() {
             }}
             className="h-[52px] w-full appearance-none rounded-full bg-surface px-5 text-[16px] outline-none focus:ring-2 focus:ring-marigold"
           >
-            {Array.from(new Set([viewer.tz, ...ZONES])).map((z) => (
+            {Array.from(new Set([viewer.tz, ...ZONES.map((z) => z.tz)])).map((z) => (
               <option key={z} value={z}>
-                {z.replace(/_/g, " ").replace("/", " · ")}
+                {placeFromTz(z)}
               </option>
             ))}
           </select>

@@ -137,3 +137,10 @@
 - `/api/rituals` + `/api/ritual-scan` use the resolver instead of the static fixture (mock unchanged, still fixture-labelled).
 - Tests: `tests/fix5-grounding.test.ts` (5 tests: fixture fallback without key, year validation, cache dedup, stale roll-forward, resolver honors cache). No new env vars.
 - Verified: `npm run lint` ok, `npm run typecheck` ok, `npm run test:mock` 95 passed + 3 skipped, `npm run build` ok (39 routes). Live-model cost this fix: ~USD 0.04 (1 verify + parser debug probes).
+## 29 Oct 2026 · Stage 1: family tree fixes + 29 languages
+
+- Tree: adding a relative of *anyone* in your family now works (it was limited to yourself, returned 403); the anchor is checked against the session's family and new people land in that family (they used to land in the demo family). People can be edited (name, generation, where they live, birthday) and removed; a person with their own account manages themselves.
+- No fake data: new people get an empty birthday instead of 1 Jan, and the generation is inferred from the relation (a parent of an adult is an elder), editable afterwards.
+- Languages: one registry (`lib/languages.ts`) of 29 languages (Indian and world). The app stays English; voices, captions and notes are translated by Muse into each reader's language. Searchable language picker in Settings. The database constraint now accepts any registered code.
+- Mock mode no longer swaps unknown text for a placeholder phrase: it returns the family's own words.
+- Verified: lint ok, typecheck ok, tests 117 passed + 3 skipped, production build ok.

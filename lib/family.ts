@@ -135,7 +135,9 @@ export function dailyRoleFor(displayLang: string): string {
 }
 
 // Days from `now` until the next MM-DD birthday. Pure and data-driven.
+/** Days until the next birthday; Infinity when no birthday has been added. */
 export function daysUntilBirthday(mmdd: string, now = new Date()): number {
+  if (!/^\d{2}-\d{2}$/.test(mmdd)) return Number.POSITIVE_INFINITY;
   const [m, d] = mmdd.split("-").map(Number);
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   let next = new Date(Date.UTC(now.getUTCFullYear(), m - 1, d));

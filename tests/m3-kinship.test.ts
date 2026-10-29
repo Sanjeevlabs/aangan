@@ -147,6 +147,8 @@ describe("relationships + kinship API (mock store)", () => {
         "arjun",
       ),
     );
-    expect(crossAnchor.status).toBe(403);
+    // Any family member may add a relative of anyone in *their own* family
+    // (cross-family anchors are refused: see tests/tree.test.ts).
+    expect(crossAnchor.status).toBe(201);
   });
 });

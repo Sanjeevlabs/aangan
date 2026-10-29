@@ -1,5 +1,8 @@
 import type { TranscriptSegment } from "./schemas";
 import { containsDevanagari } from "./script";
+import { baseLang, toLangCode } from "./languages";
+
+const LEGACY_DISPLAY = new Set(["en", "hi-latn", "hi-deva"]);
 
 // Pure M2 voice helpers. No model calls, no browser APIs — unit-tested.
 
@@ -47,6 +50,10 @@ export function needsDisplayText(
   displayLang: string,
 ): boolean {
   if (!text) return false;
+  // Beyond English/Hindi: translate whenever the base languages differ.
+  const srcBase = baseLang(sourceLang);
+  if (srcBase !== "en" && srcBase !== "hi") return srcBase !== baseLang(displayLang) || toLangCode(sourceLang) !== toLangCode(displayLang);
+  if (!LEGACY_DISPLAY.has(displayLang)) return true;
   const hasDeva = containsDevanagari(text);
   if (displayLang === "en") return hasDeva;
   if (displayLang === "hi-deva") {

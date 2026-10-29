@@ -3,8 +3,10 @@
 // kinship-driven lines, and card content. Add locales here, never branch
 // logic on them.
 
-export const SUPPORTED_LANGS = ["en", "hi-latn", "hi-deva"] as const;
-export type SupportedLang = (typeof SUPPORTED_LANGS)[number];
+import { LANG_CODES, language, toLangCode, type LangCode } from "./languages";
+
+export const SUPPORTED_LANGS = LANG_CODES;
+export type SupportedLang = LangCode;
 // Legacy two-code alias (member.lang); hi maps to hi-deva.
 export type DisplayLang = SupportedLang;
 
@@ -13,15 +15,11 @@ export function normalizeLang(lang: string | null | undefined): SupportedLang {
 }
 
 export function normalizeDisplayLang(lang: string | null | undefined): SupportedLang {
-  if (lang === "hi-latn") return "hi-latn";
-  if (lang === "hi-deva" || lang === "hi") return "hi-deva";
-  return "en";
+  return toLangCode(lang);
 }
 
 export function displayLangLabel(code: SupportedLang): string {
-  if (code === "hi-latn") return "Hinglish";
-  if (code === "hi-deva") return "हिंदी";
-  return "English";
+  return language(code).native;
 }
 
 // Kinship name for the demo grandmother, per viewer display_lang.
@@ -103,7 +101,7 @@ interface Strings {
   common: { cancel: string; close: string; retry: string };
 }
 
-const STRINGS: Record<SupportedLang, Strings> = {
+const STRINGS: Partial<Record<SupportedLang, Strings>> & { en: Strings } = {
   en: {
     tabs: { home: "Home", lane: "Lane", add: "Add", rituals: "Rituals", gather: "Gather" },
     greeting: { morning: "Good morning", afternoon: "Good afternoon", evening: "Good evening" },
@@ -317,12 +315,13 @@ const STRINGS: Record<SupportedLang, Strings> = {
 };
 
 export function strings(lang: string | null | undefined): Strings {
-  return STRINGS[normalizeDisplayLang(lang)];
+  // Interface chrome ships in English (+ Hindi variants); content is translated by Muse.
+  return STRINGS[normalizeDisplayLang(lang)] ?? STRINGS.en;
 }
 
 // Static starter questions (data, not model output). Model-suggested prompts
 // arrive in M2 with the voice stack.
-export const ASK_STARTERS: Record<SupportedLang, string[]> = {
+export const ASK_STARTERS: Partial<Record<SupportedLang, string[]>> & { en: string[] } = {
   en: [
     "What did your courtyard look like as a child?",
     "Teach me one word I should never forget.",

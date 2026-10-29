@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LANG_CODES } from "./languages";
 
 // Caption may only reference tagged members (enforced in lib/grounding.ts).
 export const CaptionSchema = z.object({
@@ -110,7 +111,7 @@ export const CardSchema = z.object({
 
 export const MemberRoleSchema = z.enum(["elder", "adult", "child"]);
 
-export const DisplayLangSchema = z.enum(["en", "hi-latn", "hi-deva"]);
+export const DisplayLangSchema = z.enum(LANG_CODES);
 
 export const MemberSchema = z.object({
   id: z.string(),
@@ -121,7 +122,8 @@ export const MemberSchema = z.object({
   lang: z.string().default("en"),
   displayLang: DisplayLangSchema.default("en"),
   tz: z.string().default("UTC"),
-  birthday: z.string().regex(/^\d{2}-\d{2}$/),
+  /** MM-DD, or "" when nobody has added it yet (no fake dates). */
+  birthday: z.string().regex(/^(\d{2}-\d{2})?$/).default(""),
   homeImageRef: z.string().nullable().default(null),
   homePalette: z.array(z.string()).default([]),
   /** Portrait used for the person's album. */
@@ -168,11 +170,34 @@ export const RelationshipSchema = z.object({
   canonicalKind: RelationKindSchema,
 });
 
+export const TimeZoneSchema = z
+  .string()
+  .max(64)
+  .refine((tz) => {
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: tz });
+      return true;
+    } catch {
+      return false;
+    }
+  }, "unknown-time-zone");
+
 export const CreateRelationshipRequestSchema = z.object({
   memberId: z.string().min(1),
-  newMemberName: z.string().min(1).max(40),
-  newMemberRole: MemberRoleSchema.default("adult"),
+  newMemberName: z.string().trim().min(1).max(40),
+  /** Omitted → inferred from the relation (a parent of an adult is an elder). */
+  newMemberRole: MemberRoleSchema.optional(),
   relation: z.string().min(1).max(40),
+  tz: TimeZoneSchema.optional(),
+  birthday: z.string().regex(/^\d{2}-\d{2}$/).optional(),
+});
+
+/** Edit a person in the tree (name, role, where they live, birthday). */
+export const UpdateMemberRequestSchema = z.object({
+  displayName: z.string().trim().min(1).max(40).optional(),
+  role: MemberRoleSchema.optional(),
+  tz: TimeZoneSchema.optional(),
+  birthday: z.string().regex(/^(\d{2}-\d{2})?$/).optional(),
 });
 
 export type Caption = z.infer<typeof CaptionSchema>;

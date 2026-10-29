@@ -30,7 +30,7 @@ create table if not exists members (
   role text check (role in ('elder', 'adult', 'child')) default 'adult',
   language text default 'en',
   lang text default 'en',
-  display_lang text default 'en' check (display_lang in ('en', 'hi-latn', 'hi-deva')),
+  display_lang text default 'en' check (char_length(display_lang) between 2 and 12),
   tz text default 'UTC',
   birthday text,
   home_image_ref text,
@@ -40,7 +40,10 @@ create table if not exists members (
 alter table members add column if not exists first_name text not null default '';
 alter table members add column if not exists role text check (role in ('elder', 'adult', 'child')) default 'adult';
 alter table members add column if not exists lang text default 'en';
-alter table members add column if not exists display_lang text default 'en' check (display_lang in ('en', 'hi-latn', 'hi-deva'));
+alter table members add column if not exists display_lang text default 'en';
+-- Major-language support: codes come from lib/languages.ts (app-validated).
+alter table members drop constraint if exists members_display_lang_check;
+alter table members add constraint members_display_lang_check check (char_length(display_lang) between 2 and 12);
 alter table members add column if not exists tz text default 'UTC';
 alter table members add column if not exists birthday text;
 alter table members add column if not exists home_image_ref text;
