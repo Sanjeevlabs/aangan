@@ -16,6 +16,7 @@ import { PlayerProvider, usePlayer } from "./player";
 import { Avatar, Icon, type IconName } from "./ui/kit";
 import { ViewerProvider, useViewer } from "./viewer";
 import { PeoplePicker } from "./people-picker";
+import { DocumentLangOnly } from "@/lib/use-t";
 
 // The composer (mic, EXIF, media processing) loads only when first opened.
 const AddSheet = dynamic(() => import("./add-sheet").then((m) => m.AddSheet), { ssr: false });
@@ -271,6 +272,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
         >
           {children}
         </main>
+        {signedIn && <DocumentLangOnly />}
         <Dock />
         <RoomsSheet room={room} onClose={() => setRoom(null)} />
         {sheetLoaded && <AddSheet />}

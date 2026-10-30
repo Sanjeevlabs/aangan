@@ -1,0 +1,227 @@
+"use client";
+
+import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { eventTypeLabel, type EventType, type FamilyEvent } from "@/lib/events";
+import { eventAction } from "@/lib/gather-client";
+import type { UpcomingOccasion } from "@/lib/gather-prompts";
+import { addDays, whenLabel } from "@/lib/occasion-calendar";
+import { callName, memberPhoto } from "@/lib/people";
+import type { Member } from "@/lib/schemas";
+import { cn } from "@/lib/utils";
+import { Avatar, Button, Icon, type IconName } from "./ui/kit";
+
+const OTHER: { type: EventType; icon: IconName; placeholder: string }[] = [
+  { type: "anniversary", icon: "heart", placeholder: "Maa & Papa's anniversary" },
+  { type: "visit", icon: "village", placeholder: "Arjun is coming home" },
+  { type: "custom", icon: "sparkle", placeholder: "Papa's retirement" },
+];
+
+export interface PlanPreset {
+  occasion?: UpcomingOccasion;
+  type?: EventType;
+  title?: string;
+}
+
+type What = { kind: "occasion"; o: UpcomingOccasion } | { kind: "other"; type: EventType };
+
+function isoToday(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** "Plan an event": what, for whom, roughly when. Then Muse drafts it all. */
+export function PlanSheet({ open, onClose, occasions, members, viewer, preset, onCreated }: { open: boolean; onClose: () => void; occasions: UpcomingOccasion[]; members: Member[]; viewer: Member; preset?: PlanPreset; onCreated: (e: FamilyEvent) => void }) {
+  const [what, setWhat] = useState<What | null>(null);
+  const [title, setTitle] = useState("");
+  const [forId, setForId] = useState<string | null>(null);
+  const [date, setDate] = useState<string>(addDays(isoToday(), 7));
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const wishable = occasions.filter((o) => o.kind !== "national" || o.days <= 30).slice(0, 8);
+
+  useEffect(() => {
+    if (!open) return;
+    setFailed(false);
+    setBusy(false);
+    if (preset?.occasion) choose({ kind: "occasion", o: preset.occasion });
+    else if (preset?.type) {
+      setWhat({ kind: "other", type: preset.type });
+      setTitle(preset.title ?? "");
+      setForId(null);
+    } else {
+      setWhat(null);
+      setTitle("");
+      setForId(null);
+      setDate(addDays(isoToday(), 7));
+    }
+  }, [open, preset]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function choose(w: What) {
+    setWhat(w);
+    if (w.kind === "occasion") {
+      setForId(w.o.memberId);
+      setDate(w.o.date);
+      setTitle("");
+    } else {
+      setForId(null);
+    }
+  }
+
+  const type: EventType | null = what ? (what.kind === "occasion" ? what.o.type : what.type) : null;
+  const needsTitle = what?.kind === "other" && what.type === "custom";
+  const ready = Boolean(type) && (!needsTitle || title.trim().length >= 2) && Boolean(date);
+  const dateChips = [
+    { label: "This weekend", iso: nextWeekday(6) },
+    { label: "Next week", iso: addDays(isoToday(), 7) },
+    { label: "In 2 weeks", iso: addDays(isoToday(), 14) },
+  ];
+
+  const submit = async () => {
+    if (!type || !what) return;
+    setBusy(true);
+    setFailed(false);
+    const out = await eventAction({
+      action: "create",
+      type,
+      date,
+      occasionKey: what.kind === "occasion" ? what.o.slug : null,
+      forMemberId: forId,
+      ...(title.trim().length >= 2 ? { title: title.trim() } : {}),
+    });
+    setBusy(false);
+    if (out?.event) onCreated(out.event);
+    else setFailed(true);
+  };
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Plan an event">
+          <motion.button type="button" aria-label="Close" className="absolute inset-0 bg-black/30" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
+          <motion.div
+            className="relative max-h-[92vh] w-full max-w-[480px] overflow-y-auto rounded-t-[32px] px-5 pt-3 shadow-frost backdrop-blur-xl"
+            style={{ background: "rgba(246,243,238,.94)", paddingBottom: "calc(20px + env(safe-area-inset-bottom))" }}
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", stiffness: 340, damping: 36 }}
+          >
+            <span className="mx-auto mb-2 block h-1.5 w-10 rounded-full bg-black/15" aria-hidden="true" />
+            <div className="mb-3 flex items-center">
+              <h2 className="m-0 flex-1 text-[22px] font-normal">Plan an event</h2>
+              <button type="button" onClick={onClose} aria-label="Close" className="press -mr-2 grid h-11 w-11 place-items-center rounded-full text-ink-soft">
+                <Icon name="close" />
+              </button>
+            </div>
+
+            {busy ? (
+              <div aria-busy="true" aria-label="Drafting the plan" className="space-y-3 pb-4">
+                <p className="voice m-0 text-[17px] text-ink-soft">Drafting the plan, the tasks and the songs…</p>
+                <div className="skeleton h-16 rounded-[20px]" />
+                <div className="skeleton h-16 rounded-[20px]" />
+                <div className="skeleton h-16 rounded-[20px]" />
+              </div>
+            ) : (
+              <>
+                <Step n={1} label="What">
+                  <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5 pb-1">
+                    {wishable.map((o) => {
+                      const on = what?.kind === "occasion" && what.o.key === o.key;
+                      return (
+                        <button key={o.key} type="button" aria-pressed={on} onClick={() => choose({ kind: "occasion", o })} className={cn("press flex w-[136px] shrink-0 flex-col items-start rounded-[20px] p-3 text-left", on ? "bg-[#1c1b1a] text-white" : "bg-white")}>
+                          {o.memberId ? <Avatar src={memberPhoto(members.find((m) => m.id === o.memberId))} name={o.label} size={30} /> : <span className={cn("grid h-[30px] w-[30px] place-items-center rounded-full", on ? "bg-white/15" : "bg-black/[.05]")}><Icon name="lamp" size={16} /></span>}
+                          <span className="mt-2 line-clamp-2 text-[14px] font-semibold leading-tight">{o.label}</span>
+                          <span className={cn("mt-0.5 text-[12px]", on ? "text-white/60" : "text-ink-faint")}>{whenLabel(o.days, o.date)}</span>
+                        </button>
+                      );
+                    })}
+                    {OTHER.map((x) => {
+                      const on = what?.kind === "other" && what.type === x.type;
+                      return (
+                        <button key={x.type} type="button" aria-pressed={on} onClick={() => choose({ kind: "other", type: x.type })} className={cn("press flex w-[112px] shrink-0 flex-col items-start rounded-[20px] p-3 text-left", on ? "bg-[#1c1b1a] text-white" : "bg-white")}>
+                          <span className={cn("grid h-[30px] w-[30px] place-items-center rounded-full", on ? "bg-white/15" : "bg-black/[.05]")}><Icon name={x.icon} size={16} /></span>
+                          <span className="mt-2 text-[14px] font-semibold leading-tight">{eventTypeLabel(x.type)}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {what?.kind === "other" && (
+                    <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={80} placeholder={OTHER.find((x) => x.type === what.type)?.placeholder} aria-label="Name it" className="mt-2 h-[52px] w-full rounded-full bg-white px-5 text-[16px] outline-none focus:ring-2 focus:ring-black/20" />
+                  )}
+                </Step>
+
+                <Step n={2} label="For whom">
+                  <div className="no-scrollbar -mx-5 flex gap-1 overflow-x-auto px-5" role="radiogroup" aria-label="For whom">
+                    <button type="button" role="radio" aria-checked={forId === null} onClick={() => setForId(null)} className={cn("press flex w-[64px] shrink-0 flex-col items-center gap-1 rounded-[16px] p-1.5 text-[11px] font-semibold", forId === null ? "bg-[#1c1b1a] text-white" : "")}>
+                      <span className={cn("grid h-11 w-11 place-items-center rounded-full", forId === null ? "bg-white/15" : "bg-white")}><Icon name="gather" size={20} /></span>
+                      Everyone
+                    </button>
+                    {members.map((m) => (
+                      <button key={m.id} type="button" role="radio" aria-checked={forId === m.id} onClick={() => setForId(m.id)} className={cn("press flex w-[64px] shrink-0 flex-col items-center gap-1 rounded-[16px] p-1.5 text-[11px] font-semibold", forId === m.id ? "bg-[#1c1b1a] text-white" : "")}>
+                        <Avatar src={memberPhoto(m)} name={callName(m)} size={44} />
+                        <span className="w-full truncate text-center">{m.id === viewer.id ? "You" : callName(m)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </Step>
+
+                <Step n={3} label="Roughly when">
+                  <div className="flex flex-wrap gap-2">
+                    {what?.kind === "occasion" && (
+                      <Chip on={date === what.o.date} onClick={() => setDate(what.o.date)}>
+                        On the day
+                      </Chip>
+                    )}
+                    {dateChips.map((c) => (
+                      <Chip key={c.label} on={date === c.iso && !(what?.kind === "occasion" && what.o.date === c.iso)} onClick={() => setDate(c.iso)}>
+                        {c.label}
+                      </Chip>
+                    ))}
+                    <label className="relative">
+                      <span className="sr-only">Pick a date</span>
+                      <input type="date" value={date} min={isoToday()} onChange={(e) => e.target.value && setDate(e.target.value)} className="h-10 rounded-full bg-white px-4 text-[14px] font-semibold outline-none" />
+                    </label>
+                  </div>
+                </Step>
+
+                {failed && <p className="m-0 mt-3 text-[14px] text-[#b42318]" role="alert">Couldn&rsquo;t draft it just now. Try again.</p>}
+                <Button className="mt-6 w-full" disabled={!ready} onClick={() => void submit()}>
+                  <Icon name="sparkle" size={18} />
+                  Draft the plan
+                </Button>
+              </>
+            )}
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function Step({ n, label, children }: { n: number; label: string; children: React.ReactNode }) {
+  return (
+    <div className="mt-4 first:mt-0">
+      <p className="m-0 mb-2 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-faint">
+        <span className="tnum grid h-5 w-5 place-items-center rounded-full bg-black/[.06] text-[11px]">{n}</span>
+        {label}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" aria-pressed={on} onClick={onClick} className={cn("press h-10 rounded-full px-4 text-[14px] font-semibold", on ? "bg-[#1c1b1a] text-white" : "bg-white")}>
+      {children}
+    </button>
+  );
+}
+
+/** The next given weekday (0 Sun … 6 Sat), at least 2 days away. */
+function nextWeekday(day: number): string {
+  const now = new Date();
+  let d = (day - now.getUTCDay() + 7) % 7;
+  if (d < 2) d += 7;
+  return addDays(isoToday(), d);
+}

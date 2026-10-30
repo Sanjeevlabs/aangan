@@ -14,8 +14,8 @@ export interface EventsPayload {
   viewerId: string;
 }
 
-export function useEvents() {
-  return useJson<EventsPayload>("/api/gather/events");
+export function useEvents(enabled = true) {
+  return useJson<EventsPayload>(enabled ? "/api/gather/events" : null);
 }
 
 export async function eventAction(body: Record<string, unknown>): Promise<{ event?: FamilyEvent; locked?: boolean } | null> {

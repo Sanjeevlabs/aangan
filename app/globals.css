@@ -341,3 +341,5 @@ button {
   0%, 100% { opacity: 0.35; }
   50% { opacity: 1; }
 }
+/* Slanted Arabic and Urdu read poorly: keep the human-voice serif upright in right-to-left scripts. */
+[dir="rtl"] .voice, .voice:lang(ar), .voice:lang(ur), .voice:lang(fa), .voice:lang(he) { font-style: normal; }

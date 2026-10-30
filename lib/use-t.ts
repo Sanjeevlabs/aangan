@@ -66,6 +66,20 @@ export function useDocumentLang(): void {
   }, [lang]);
 }
 
+/**
+ * Signed-in screens: the page's language follows the viewer, but direction
+ * stays left-to-right until those screens are laid out for right-to-left too
+ * (the first-run screens set dir themselves with useDocumentLang).
+ */
+export function DocumentLangOnly(): null {
+  const lang = useUiLang();
+  useEffect(() => {
+    document.documentElement.lang = htmlLang(lang);
+    document.documentElement.dir = "ltr";
+  }, [lang]);
+  return null;
+}
+
 /** Mount once inside ViewerProvider (e.g. in Shell) so every screen gets lang/dir. */
 export function DocumentLang(): null {
   useDocumentLang();
