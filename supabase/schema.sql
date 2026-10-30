@@ -55,6 +55,8 @@ alter table members add column if not exists email text;
 -- Two courtyards, one door: the same person in another family's Aangan.
 -- Server-set only; sides are found by this id, never by a client claim.
 alter table members add column if not exists person_id text;
+-- The city a person lives in, as they say it (shown on the window, never tracked).
+alter table members add column if not exists city text default '';
 create index if not exists members_person_idx on members (person_id) where person_id is not null;
 -- One account per family; the same email may hold a place on each side.
 drop index if exists members_email_idx;

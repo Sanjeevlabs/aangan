@@ -6,9 +6,10 @@ import { Avatar, Button, EmptyLine, RoomHeader } from "@/components/ui/kit";
 import { callName, memberPhoto } from "@/lib/people";
 import { cn } from "@/lib/utils";
 import { useViewer } from "@/components/viewer";
-import { FamilyConstellation } from "@/components/constellation";
+import { FamilyTree } from "@/components/family-tree";
 import { PetsSection } from "@/components/pets";
-import { BothSides, FamilyCircles } from "@/components/sides";
+import { BothSides } from "@/components/sides";
+import { FamilyCircles, FamilyHomes } from "@/components/family-homes";
 import { can } from "@/lib/permissions";
 import { ZONES, placeFromTz } from "@/lib/zones";
 
@@ -185,7 +186,6 @@ export default function BondPage() {
   const [members, setMembers] = useState<Member[] | null>(null);
   const [relationships, setRelationships] = useState<Relationship[] | null>(null);
   const [failed, setFailed] = useState(false);
-  const [familyName, setFamilyName] = useState<string | undefined>(undefined);
   const [anchor, setAnchor] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -193,9 +193,8 @@ export default function BondPage() {
     try {
       const [mRes, rRes] = await Promise.all([fetch("/api/members", { cache: "no-store" }), fetch("/api/relationships", { cache: "no-store" })]);
       if (!mRes.ok || !rRes.ok) throw new Error("bond-fetch-failed");
-      const m = (await mRes.json()) as { members: Member[]; family?: { name?: string } };
+      const m = (await mRes.json()) as { members: Member[] };
       setMembers(m.members);
-      setFamilyName(m.family?.name || undefined);
       setRelationships(((await rRes.json()) as { relationships: Relationship[] }).relationships);
     } catch {
       setFailed(true);
@@ -209,17 +208,16 @@ export default function BondPage() {
 
   return (
     <div>
-      <RoomHeader title="Family" subtitle="Everyone, and how you're all connected" />
+      <RoomHeader title="Family tree" subtitle="Every generation, both sides, home by home" />
       {failed && <EmptyLine>Couldn&rsquo;t load the family. Try again in a moment.</EmptyLine>}
       {members === null && !failed && <div className="skeleton h-[420px] rounded-card" aria-busy="true" aria-label="Loading family" />}
       {members && (
         <>
-          <section aria-label="Family constellation">
-            <FamilyConstellation
+          <section aria-label="Family tree">
+            <FamilyTree
               members={members}
               relationships={relationships ?? []}
               viewerId={viewer.id}
-              familyName={familyName}
               onAdd={
                 can(viewer, "tree.add")
                   ? (id) => {
@@ -230,6 +228,9 @@ export default function BondPage() {
               }
             />
           </section>
+          <div className="mt-10">
+            <FamilyHomes members={members} relationships={relationships ?? []} />
+          </div>
           <FamilyCircles members={members} relationships={relationships ?? []} />
           <BothSides />
           <PetsSection />

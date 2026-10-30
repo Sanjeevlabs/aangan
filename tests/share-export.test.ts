@@ -37,7 +37,7 @@ describe("public recipe links", () => {
     const again = await json<{ token: string }>(sharePost(req("/api/share", "priya", { kind: "recipe", id: "recipe-dadi-gobi" })));
     expect(again.token).toBe(a.token);
     const s = await getShare(a.token);
-    expect(s?.snapshot).toMatchObject({ title: "Gobi ke pakode", from: "Dadi" });
+    expect(s?.snapshot).toMatchObject({ title: "Gobi ke pakode", from: "Maa" });
     expect(JSON.stringify(s?.snapshot)).not.toMatch(/voiceCardId|cookId|familyId|photo/);
     const list = await json<{ shares: { token: string }[] }>(shareGet(req("/api/share", "leo")));
     expect(list.shares.map((x) => x.token)).toContain(a.token);

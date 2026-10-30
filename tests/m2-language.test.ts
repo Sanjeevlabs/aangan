@@ -74,10 +74,10 @@ describe("display_lang (M2 language choice)", () => {
   it("role prompts and signal lines are localized per display_lang", () => {
     expect(containsDevanagari(dailyRoleFor("hi-deva"))).toBe(true);
     expect(containsDevanagari(dailyRoleFor("hi-latn"))).toBe(false);
-    expect(containsDevanagari(signalLineFor("leo", "hi-deva"))).toBe(true);
-    expect(containsDevanagari(signalLineFor("leo", "hi-latn"))).toBe(false);
-    expect(signalLineFor("leo", "hi-latn")).toContain("Dadi");
-    expect(signalLineFor("leo", "en")).toContain("Grandma");
+    expect(containsDevanagari(signalLineFor("arjun", "hi-deva"))).toBe(true);
+    expect(containsDevanagari(signalLineFor("arjun", "hi-latn"))).toBe(false);
+    expect(signalLineFor("arjun", "hi-latn")).toContain("Maa");
+    expect(signalLineFor("dadi", "en")).toContain("Arjun");
   });
 
   it("a hi-latn viewer never receives Devanagari", async () => {

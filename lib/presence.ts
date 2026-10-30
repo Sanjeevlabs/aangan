@@ -19,10 +19,24 @@ export const MOMENT_LABEL: Record<PresenceMoment, { label: string; line: string 
   visitors: { label: "Visitors", line: "has visitors" },
   thinking: { label: "Thinking of you", line: "is thinking of you" },
   here: { label: "In Aangan", line: "was in the courtyard" },
+  work: { label: "At work", line: "is at work" },
+  school: { label: "At school", line: "is at school" },
+  commute: { label: "On the way", line: "is on the way" },
+  home: { label: "Home", line: "is home" },
+  "cooked-yours": { label: "Cooked your recipe", line: "cooked your recipe today" },
 };
 
 /** Moments a parent can share in one tap (order = everyday order). */
 export const SHAREABLE: PresenceMoment[] = ["awake", "chai", "walk", "cooking", "prayer", "market", "resting", "visitors", "thinking"];
+
+/**
+ * Moments a son, daughter or grandchild shares *to* the parent: the ordinary
+ * day the parent misses most. Children see the school one, adults the work one.
+ */
+export function shareableFor(role: "elder" | "adult" | "child"): PresenceMoment[] {
+  if (role === "elder") return SHAREABLE;
+  return role === "child" ? ["school", "home", "thinking"] : ["work", "commute", "home", "cooked-yours", "thinking"];
+}
 
 function localDay(iso: string, tz: string): string {
   try {

@@ -164,6 +164,7 @@ export interface MemberPatch {
   role?: Member["role"];
   access?: Member["access"];
   tz?: string;
+  city?: string;
   birthday?: string;
   photoRef?: string | null;
   email?: string | null;
@@ -180,6 +181,7 @@ export function updateMemberProfile(memberId: string, patch: MemberPatch): Membe
   if (patch.email !== undefined) member.email = patch.email;
   if (patch.firstName !== undefined) member.firstName = patch.firstName;
   if (patch.tz !== undefined) member.tz = patch.tz;
+  if (patch.city !== undefined) member.city = patch.city;
   if (patch.photoRef !== undefined) member.photoRef = patch.photoRef;
   if (patch.personId !== undefined) member.personId = patch.personId;
   return { ...member };
@@ -213,6 +215,16 @@ export function seedDemo(): void {
 export function resetDemo(): void {
   members = [...DEMO_MEMBERS, ...DEMO_IYER_MEMBERS].map((m) => MemberSchema.parse(m));
   clearPlays();
+  // A few real-looking listens so a parent's "your gifts this week" isn't empty
+  // in the demo: each is someone hearing something Maa or Papa gave.
+  const h = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
+  for (const [id, cardId, memberId, at] of [
+    ["play-priya-elephant", "demo-story-elephant", "priya", h(14)],
+    ["play-arjun-advice", "demo-dadi-advice-1", "arjun", h(30)],
+    ["play-arjun-blessing", "demo-dada-bless-1", "arjun", h(50)],
+    ["play-priya-morning", "demo-from-dadi-1", "priya", h(3)],
+  ] as const)
+    addPlay({ id, familyId: "demo-family", cardId, memberId, playedAt: at });
   clearReactions();
   clearRelationships();
   kinshipCache.clear();
@@ -399,7 +411,7 @@ export function addRelationship(input: z.input<typeof RelationshipSchema>): Rela
 
 export function clearRelationships(): void {
   relationships = [];
-  // Seed the demo graph: Arjun's mother is Dadi.
+  // Seed the demo graph: Arjun's mother is Maa.
   addRelationship({
     id: "rel-arjun-dadi",
     familyId: "demo-family",
@@ -408,7 +420,7 @@ export function clearRelationships(): void {
     relation: "mother",
     canonicalKind: "parent",
   });
-  // Dadi and Dada share one home in India; Dada is Arjun's father.
+  // Maa and Papa share one home in India; Papa is Arjun's father.
   addRelationship({ id: "rel-dadi-dada", familyId: "demo-family", memberId: "dadi", relationMemberId: "dada", relation: "husband", canonicalKind: "spouse" });
   addRelationship({ id: "rel-arjun-dada", familyId: "demo-family", memberId: "arjun", relationMemberId: "dada", relation: "father", canonicalKind: "parent" });
   // Priya is Arjun's wife; Kavya (Bangalore) is his sister, married to Rahul,
@@ -441,7 +453,7 @@ export function clearRelationships(): void {
   rel("rel-i-karthik-meera", "iyer-karthik", "iyer-meera", "wife", "spouse");
   rel("rel-i-karthik-diya", "iyer-karthik", "iyer-diya", "daughter", "child");
   rel("rel-i-meera-diya", "iyer-meera", "iyer-diya", "daughter", "child");
-  // Leo and Aria are Arjun's children.
+  // Vihaan and Anika are Arjun's children.
   for (const kid of ["leo", "aria"]) {
     addRelationship({
       id: `rel-${kid}-arjun`,

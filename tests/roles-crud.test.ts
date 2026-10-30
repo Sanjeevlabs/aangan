@@ -77,14 +77,14 @@ describe("content ownership", () => {
     expect((await kitchenPost(req("/api/kitchen", "leo", { action: "edit", recipeId: "recipe-dadi-dal", title: "Leo's dal", ingredients: [{ item: "dal" }], steps: [{ text: "cook" }] }))).status).toBe(403);
     const edited = await json<{ recipe: { title: string; madeBy: string } }>(kitchenPost(req("/api/kitchen", "dadi", { action: "edit", recipeId: "recipe-dadi-dal", title: "Dadi's Sunday dal", ingredients: [{ item: "toor dal", said: "one katori" }], steps: [{ text: "Wash it three times." }] })));
     expect(edited.recipe).toMatchObject({ title: "Dadi's Sunday dal", madeBy: "family" });
-    expect((await kitchenPost(req("/api/kitchen", "dadi", { action: "delete-attempt", attemptId: "cooked-leo-dal" }))).status).toBe(403);
-    expect((await kitchenPost(req("/api/kitchen", "leo", { action: "delete-attempt", attemptId: "cooked-leo-dal" }))).status).toBe(200);
+    expect((await kitchenPost(req("/api/kitchen", "dadi", { action: "delete-attempt", attemptId: "cooked-priya-dal" }))).status).toBe(403);
+    expect((await kitchenPost(req("/api/kitchen", "priya", { action: "delete-attempt", attemptId: "cooked-priya-dal" }))).status).toBe(200);
     expect((await kitchenPost(req("/api/kitchen", "dadi", { action: "delete-recipe", recipeId: "recipe-dadi-dal" }))).status).toBe(200);
   });
 
   it("questions: the asker withdraws, the elder skips, others can't", async () => {
-    expect((await keeperPost(req("/api/keeper", "aria", { action: "remove", questionId: "q-leo-paratha" }))).status).toBe(403);
-    expect((await keeperPost(req("/api/keeper", "leo", { action: "remove", questionId: "q-leo-paratha" }))).status).toBe(200);
+    expect((await keeperPost(req("/api/keeper", "aria", { action: "remove", questionId: "q-priya-paratha" }))).status).toBe(403);
+    expect((await keeperPost(req("/api/keeper", "priya", { action: "remove", questionId: "q-priya-paratha" }))).status).toBe(200);
     expect((await keeperPost(req("/api/keeper", "dadi", { action: "remove", questionId: "q-dadi-week" }))).status).toBe(200);
   });
 
@@ -120,7 +120,7 @@ describe("sit together RSVPs", () => {
     const s = await json<{ sitting: { going: string[]; cantMake: string[] } }>(sitPost(req("/api/sit", "dadi", { action: "rsvp", sittingId: "sit-dal", answer: "cant" })));
     expect(s.sitting).toMatchObject({ going: [], cantMake: ["dadi"] });
     expect((await sitPost(req("/api/sit", "dadi", { action: "reschedule", sittingId: "sit-dal", startsAt: new Date(Date.now() + 86_400_000).toISOString() }))).status).toBe(403);
-    const moved = await json<{ sitting: { cantMake: string[] } }>(sitPost(req("/api/sit", "leo", { action: "reschedule", sittingId: "sit-dal", startsAt: new Date(Date.now() + 2 * 86_400_000).toISOString() })));
+    const moved = await json<{ sitting: { cantMake: string[] } }>(sitPost(req("/api/sit", "arjun", { action: "reschedule", sittingId: "sit-dal", startsAt: new Date(Date.now() + 2 * 86_400_000).toISOString() })));
     expect(moved.sitting.cantMake).toEqual([]);
   });
 });

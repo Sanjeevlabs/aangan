@@ -1,0 +1,117 @@
+"use client";
+
+import { useEffect } from "react";
+import type { TodayTask } from "@/lib/kinds";
+import { callName } from "@/lib/people";
+import { useJson } from "@/lib/use-json";
+import { cn } from "@/lib/utils";
+import { useShell } from "./shell";
+import { Icon } from "./ui/kit";
+import { useViewer } from "./viewer";
+
+type View = TodayTask & { side: "parents" | "children" | null; mine: boolean; theirs: boolean; sealed: number; sealedBy: string[] };
+export interface TodayData {
+  task: View | null;
+  streak: number;
+  recent: View[];
+  occasion: { slug: string; title: string; date: string; days: number; memberId: string | null } | null;
+}
+
+/** Today's task, refreshed when an answer is sent from the composer. */
+export function useToday(): { data: TodayData | null; reload: () => Promise<void> } {
+  const { data, reload } = useJson<TodayData>("/api/today");
+  useEffect(() => {
+    const on = () => void reload();
+    window.addEventListener("aangan:today", on);
+    return () => window.removeEventListener("aangan:today", on);
+  }, [reload]);
+  return { data, reload };
+}
+
+/** What the other side has done, in words: the pull to answer. */
+function statusLine(task: View, otherNames: string): string {
+  if (task.completedAt) return "Both homes answered. It's in Memories.";
+  if (task.mine && !task.theirs) return `Yours is in. Waiting for ${otherNames}.`;
+  if (!task.mine && task.theirs) return `${otherNames} answered. Add yours to hear it.`;
+  return "Whoever answers first, the other hears it after they answer.";
+}
+
+/** Lamps lit: days in a row both homes showed up. Not points. */
+export function Lamps({ n, tone = "light" }: { n: number; tone?: "light" | "dark" }) {
+  const lit = Math.min(n, 7);
+  return (
+    <span className="flex items-center gap-1" aria-label={`${n} days in a row, both homes`}>
+      {Array.from({ length: 7 }, (_, i) => (
+        <span
+          key={i}
+          className={cn("h-2 w-2 rounded-full", i < lit ? "bg-marigold shadow-[0_0_8px_rgba(245,165,36,.9)]" : tone === "dark" ? "bg-white/20" : "bg-black/10")}
+        />
+      ))}
+      {n > 7 && <span className="ml-1 text-[12px] font-semibold">{n}</span>}
+    </span>
+  );
+}
+
+export function TodayCard({ variant = "card" }: { variant?: "card" | "line" }) {
+  const { viewer, members } = useViewer();
+  const { openAdd } = useShell();
+  const { data } = useToday();
+  const task = data?.task;
+  if (!task || !task.side) return null;
+  const prompt = task.side === "parents" ? task.forParents : task.forChildren;
+  const otherIds = task.side === "parents" ? task.children : task.parents;
+  const answeredOthers = members.filter((m) => otherIds.includes(m.id) && (task.sealedBy.includes(m.id) || task.answers.some((a) => a.memberId === m.id)));
+  const otherNames = (answeredOthers.length ? answeredOthers : members.filter((m) => otherIds.includes(m.id)))
+    .slice(0, 2)
+    .map((m) => callName(m))
+    .join(" & ");
+  const answer = () => openAdd("voice", { kind: "today", taskId: task.id, prompt }, otherIds.filter((id) => id !== viewer.id));
+  const status = statusLine(task, otherNames || "the other home");
+
+  if (variant === "line")
+    return (
+      <button type="button" onClick={task.mine ? undefined : answer} className={cn("glass-dark press flex w-full items-center gap-3 rounded-[22px] px-4 py-3 text-left", task.mine && "cursor-default")}>
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-marigold text-black">
+          <Icon name={task.mine ? "check" : "mic"} size={18} strokeWidth={2.4} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[12px] font-semibold uppercase tracking-[0.08em] text-white/60">Today, both homes</span>
+          <span className="voice block truncate text-[17px] leading-snug">{prompt}</span>
+          <span className="block truncate text-[12.5px] text-white/70">{status}</span>
+        </span>
+      </button>
+    );
+
+  return (
+    <section aria-label="Today, for both homes" className="relative mt-5 overflow-hidden rounded-[28px] p-5 text-white" style={{ background: "radial-gradient(120% 140% at 0% 0%, #4a2a17 0%, #23150d 55%, #120b07 100%)" }}>
+      <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full" style={{ background: "radial-gradient(closest-side, rgba(245,165,36,.45), rgba(245,165,36,0))" }} aria-hidden="true" />
+      <div className="relative flex items-center justify-between">
+        <p className="m-0 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.1em] text-white/65">
+          <Icon name="sparkle" size={14} /> Today · both homes
+        </p>
+        <Lamps n={data?.streak ?? 0} tone="dark" />
+      </div>
+      <p className="voice relative m-0 mt-3 text-[24px] leading-[1.2]">{prompt}</p>
+      <p className="relative m-0 mt-2 text-[14px] text-white/75">{status}</p>
+      <div className="relative mt-4 flex items-center gap-2">
+        {!task.mine ? (
+          <button type="button" onClick={answer} className="press flex h-12 items-center gap-2 rounded-full bg-marigold pl-2 pr-5 text-[15px] font-semibold text-black">
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-black/10">
+              <Icon name="mic" size={18} strokeWidth={2.4} />
+            </span>
+            Answer by voice
+          </button>
+        ) : (
+          <span className="flex h-12 items-center gap-2 rounded-full bg-white/10 px-4 text-[14px] font-semibold">
+            <Icon name="check" size={16} /> You answered
+          </span>
+        )}
+        {task.sealed > 0 && (
+          <span className="flex h-12 items-center gap-2 rounded-full border border-white/15 px-4 text-[13px] text-white/80">
+            <Icon name="key" size={15} /> {task.sealed} sealed
+          </span>
+        )}
+      </div>
+    </section>
+  );
+}

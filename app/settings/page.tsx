@@ -17,6 +17,7 @@ import { useLargeText } from "@/lib/use-large-text";
 import { ACCESS_LABEL, can } from "@/lib/permissions";
 import { callName } from "@/lib/people";
 import { cn } from "@/lib/utils";
+import { WindowSettings } from "@/components/window-settings";
 
 interface Invite {
   code: string;
@@ -205,7 +206,7 @@ export default function SettingsPage() {
     window.setTimeout(() => setSaved(null), 2200);
   };
 
-  const saveProfile = async (patch: { firstName?: string; tz?: string; photoRef?: string }) => {
+  const saveProfile = async (patch: { firstName?: string; tz?: string; photoRef?: string; city?: string }) => {
     const res = await fetch("/api/members/profile", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(patch) });
     if (res.ok) {
       await refreshMembers();
@@ -328,6 +329,9 @@ export default function SettingsPage() {
 
       {tab === "you" && (
         <>
+      <Group title="Your window" id="window">
+        <WindowSettings />
+      </Group>
       <Group title="Hear the family in">
         <LanguagePicker
           value={displayLang}
@@ -336,7 +340,7 @@ export default function SettingsPage() {
             flash("Language updated");
           }}
         />
-        <p className="m-0 mt-2 text-[13px] text-ink-faint">Everything the family shares (voices, recipes, notes) is translated into your language by Muse. The app itself stays in English. Names stay as the family says them.</p>
+        <p className="m-0 mt-2 text-[13px] text-ink-faint">Everything the family shares (voices, recipes, notes) is translated into your language. The app itself stays in English. Names stay as the family says them.</p>
       </Group>
 
       <Group title="Reading">
@@ -360,6 +364,16 @@ export default function SettingsPage() {
               </option>
             ))}
           </select>
+        </label>
+        <label className="mt-4 block">
+          <span className="mb-1.5 block text-[13px] font-medium text-ink-soft">Your city, so the other home sees your sky and weather</span>
+          <input
+            defaultValue={viewer.city}
+            placeholder="Bengaluru"
+            maxLength={60}
+            onBlur={(e) => e.target.value.trim() !== viewer.city && void saveProfile({ city: e.target.value.trim() })}
+            className="h-[52px] w-full rounded-full bg-surface px-5 text-[16px] outline-none focus:ring-2 focus:ring-marigold"
+          />
         </label>
         <div className="relative mt-4 h-[160px] overflow-hidden rounded-card bg-surface">
           <Photo src={home} alt="Your home photo" sizes="440px" />

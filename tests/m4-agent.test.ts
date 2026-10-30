@@ -41,7 +41,7 @@ describe("planRitualScan (pure)", () => {
     expect(plan.ensureRuns).toEqual([{ slug: "birthday", occasionDate: "2026-11-09" }]);
     expect(plan.suggestions.length).toBeGreaterThan(0);
     // Blessings come from elders (dadi), wishes from the rest (minus Leo).
-    expect(plan.suggestions.some((s) => String(s.goal).includes("Dadi"))).toBe(true);
+    expect(plan.suggestions.some((s) => String(s.goal).includes("Maa"))).toBe(true);
     // Elder daily role for today.
     // Both grandparents get a daily role.
     expect(plan.roles.map((r) => r.memberId).sort()).toEqual(["dada", "dadi"]);

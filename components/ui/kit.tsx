@@ -1,5 +1,6 @@
 "use client";
 
+import * as L from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -8,192 +9,67 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------------------------------------- icons */
-// One stroke family, 24px grid, 2px stroke. No text glyphs anywhere.
-type IconName =
-  | "play"
-  | "pause"
-  | "mic"
-  | "camera"
-  | "more"
-  | "back"
-  | "down"
-  | "close"
-  | "heart"
-  | "laugh"
-  | "bless"
-  | "reply"
-  | "lane"
-  | "calendar"
-  | "gather"
-  | "tree"
-  | "settings"
-  | "plus"
-  | "check"
-  | "chevron"
-  | "send"
-  | "stop"
-  | "image"
-  | "pot"
-  | "care"
-  | "village"
-  | "sparkle"
-  | "door"
-  | "sun"
-  | "phone"
-  | "shield"
-  | "moon";
+// Lucide: one stroke family on a 24px grid, rounded joins. Names stay ours so
+// screens never import an icon set directly; play/pause/stop stay solid.
+const ICONS = {
+  play: L.Play,
+  pause: L.Pause,
+  stop: L.Square,
+  mic: L.Mic,
+  camera: L.Camera,
+  image: L.Image,
+  more: L.Ellipsis,
+  back: L.ChevronLeft,
+  down: L.ChevronDown,
+  chevron: L.ChevronRight,
+  close: L.X,
+  heart: L.Heart,
+  laugh: L.Laugh,
+  bless: L.HandHeart,
+  reply: L.Reply,
+  lane: L.GalleryVerticalEnd,
+  calendar: L.CalendarHeart,
+  gather: L.Users,
+  tree: L.Network,
+  settings: L.Settings,
+  plus: L.Plus,
+  check: L.Check,
+  send: L.Send,
+  pot: L.CookingPot,
+  care: L.HeartHandshake,
+  village: L.House,
+  sparkle: L.Sparkles,
+  door: L.DoorOpen,
+  doorClosed: L.DoorClosed,
+  key: L.KeyRound,
+  sun: L.Sun,
+  moon: L.Moon,
+  cloud: L.Cloud,
+  rain: L.CloudRain,
+  storm: L.CloudLightning,
+  fog: L.CloudFog,
+  snow: L.Snowflake,
+  phone: L.Phone,
+  video: L.Video,
+  shield: L.ShieldCheck,
+  book: L.BookOpen,
+  memories: L.Images,
+  lamp: L.Lamp,
+  music: L.Music2,
+  pin: L.MapPin,
+  wand: L.WandSparkles,
+  coffee: L.Coffee,
+  walk: L.Footprints,
+  grid: L.LayoutGrid,
+  flower: L.Flower2,
+} satisfies Record<string, L.LucideIcon>;
 
-const PATHS: Record<IconName, React.ReactNode> = {
-  play: <path d="M8 5.2v13.6a1 1 0 0 0 1.5.86l11-6.8a1 1 0 0 0 0-1.72l-11-6.8A1 1 0 0 0 8 5.2z" fill="currentColor" stroke="none" />,
-  pause: (
-    <>
-      <rect x="6.5" y="5" width="4" height="14" rx="1.2" fill="currentColor" stroke="none" />
-      <rect x="13.5" y="5" width="4" height="14" rx="1.2" fill="currentColor" stroke="none" />
-    </>
-  ),
-  stop: <rect x="7" y="7" width="10" height="10" rx="2.5" fill="currentColor" stroke="none" />,
-  mic: (
-    <>
-      <rect x="9" y="3" width="6" height="11" rx="3" />
-      <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-    </>
-  ),
-  camera: (
-    <>
-      <rect x="3" y="6" width="18" height="14" rx="4" />
-      <circle cx="12" cy="13" r="3.5" />
-      <path d="M8.5 6l1.5-2.5h4L15.5 6" />
-    </>
-  ),
-  image: (
-    <>
-      <rect x="3" y="4" width="18" height="16" rx="4" />
-      <circle cx="9" cy="10" r="1.8" />
-      <path d="M21 16l-5-5-9 9" />
-    </>
-  ),
-  more: (
-    <>
-      <circle cx="5.5" cy="12" r="1.5" fill="currentColor" stroke="none" />
-      <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
-      <circle cx="18.5" cy="12" r="1.5" fill="currentColor" stroke="none" />
-    </>
-  ),
-  back: <path d="M15 5l-7 7 7 7" />,
-  down: <path d="M6 9l6 6 6-6" />,
-  chevron: <path d="M9 6l6 6-6 6" />,
-  close: <path d="M6 6l12 12M18 6L6 18" />,
-  heart: <path d="M12 20s-7.5-4.6-9.2-9.3C1.6 7.3 3.9 4 7.3 4c2 0 3.6 1.1 4.7 2.7C13.1 5.1 14.7 4 16.7 4c3.4 0 5.7 3.3 4.5 6.7C19.5 15.4 12 20 12 20z" />,
-  laugh: (
-    <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M7.5 13.5a4.8 4.8 0 0 0 9 0z" fill="currentColor" stroke="none" />
-      <path d="M8 9.5l1.5 1M16 9.5l-1.5 1" />
-    </>
-  ),
-  bless: <path d="M12 4.5c-.9-1-2.4-.6-2.6.8L8.6 12l-3 3.2a2 2 0 0 0-.4 2.2L6.8 21M12 4.5c.9-1 2.4-.6 2.6.8l.8 6.7 3 3.2a2 2 0 0 1 .4 2.2L17.2 21M12 4.5V16M9.4 16.5 12 16l2.6.5" />,
-  reply: (
-    <>
-      <path d="M10 8L4 13l6 5" />
-      <path d="M4 13h10a6 6 0 0 1 6 6" />
-    </>
-  ),
-  lane: (
-    <>
-      <path d="M5 4v16" />
-      <rect x="9" y="4" width="11" height="7" rx="2.5" />
-      <rect x="9" y="13" width="8" height="7" rx="2.5" />
-    </>
-  ),
-  calendar: (
-    <>
-      <rect x="3.5" y="5" width="17" height="15.5" rx="4" />
-      <path d="M3.5 10h17M8 3v4M16 3v4" />
-    </>
-  ),
-  gather: (
-    <>
-      <circle cx="12" cy="8" r="3.2" />
-      <circle cx="5.5" cy="10" r="2.3" />
-      <circle cx="18.5" cy="10" r="2.3" />
-      <path d="M6 20c.5-3.3 3-5.5 6-5.5s5.5 2.2 6 5.5M1.8 18c.3-2 1.6-3.4 3.4-3.6M22.2 18c-.3-2-1.6-3.4-3.4-3.6" />
-    </>
-  ),
-  tree: (
-    <>
-      <circle cx="12" cy="5" r="2.5" />
-      <circle cx="6" cy="19" r="2.5" />
-      <circle cx="18" cy="19" r="2.5" />
-      <path d="M12 7.5V12M6 16.5V14h12v2.5" />
-    </>
-  ),
-  settings: (
-    <>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
-    </>
-  ),
-  plus: <path d="M12 5v14M5 12h14" />,
-  check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
-  send: <path d="M4 12l16-8-6 16-2.5-6.5z" />,
-  pot: (
-    <>
-      <path d="M4 10h16v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5v-5z" />
-      <path d="M2.5 10h19M9 6.5c0-1 .8-1.2.8-2.2M12.5 6.5c0-1 .8-1.2.8-2.2" />
-    </>
-  ),
-  care: (
-    <>
-      <path d="M12 20s-6.5-4-8.2-8.2C2.6 8.6 4.6 5.5 7.6 5.5c1.8 0 3.3 1 4.4 2.5 1.1-1.5 2.6-2.5 4.4-2.5 3 0 5 3.1 3.8 6.3C18.5 16 12 20 12 20z" />
-      <path d="M8.5 12.5h2l1-2 1.5 4 1-2h1.5" />
-    </>
-  ),
-  village: (
-    <>
-      <path d="M3 20V11l5-4 5 4v9M13 20v-6l4-3 4 3v6M2 20h20" />
-      <path d="M7 20v-4h2v4" />
-    </>
-  ),
-  sparkle: <path d="M12 3.5l1.7 5.1 5.3 1.9-5.3 1.9L12 17.5l-1.7-5.1L5 10.5l5.3-1.9L12 3.5zM18.5 15.5l.7 2 2 .8-2 .7-.7 2-.7-2-2-.7 2-.8.7-2z" />,
-  door: (
-    <>
-      <path d="M6 20V5.5A1.5 1.5 0 0 1 7.5 4h9A1.5 1.5 0 0 1 18 5.5V20M3.5 20h17" />
-      <path d="M14.5 12.5v.5" />
-    </>
-  ),
-  sun: (
-    <>
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" />
-    </>
-  ),
-  moon: <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.8 6.8 0 0 0 10.5 10.5z" />,
-  shield: (
-    <>
-      <path d="M12 3.5l7 2.8v5.2c0 4.4-3 7.7-7 9-4-1.3-7-4.6-7-9V6.3l7-2.8z" />
-      <path d="M8.8 12.2l2.2 2.2 4.2-4.4" />
-    </>
-  ),
-  phone: <path d="M6.5 3.5h3l1.5 4-2 1.3a11 11 0 0 0 6.2 6.2l1.3-2 4 1.5v3a2 2 0 0 1-2.2 2A16.5 16.5 0 0 1 4.5 5.7a2 2 0 0 1 2-2.2z" />,
-};
+export type IconName = keyof typeof ICONS;
+const SOLID = new Set<IconName>(["play", "pause", "stop"]);
 
 export function Icon({ name, size = 22, className, strokeWidth = 2 }: { name: IconName; size?: number; className?: string; strokeWidth?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={strokeWidth}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
-      {PATHS[name]}
-    </svg>
-  );
+  const C = ICONS[name];
+  return <C size={size} strokeWidth={strokeWidth} className={className} aria-hidden="true" fill={SOLID.has(name) ? "currentColor" : "none"} />;
 }
 
 /* ---------------------------------------------------------------- photo */
@@ -214,7 +90,7 @@ export function Photo({
   className?: string;
   position?: string;
 }) {
-  const optimisable = src.startsWith("/demo/");
+  const optimisable = src.startsWith("/demo/") && !src.endsWith(".svg");
   return (
     <Image
       src={src}
@@ -450,7 +326,12 @@ export function Button({
  * Provenance mark for anything Muse prepared. Small, honest, never a mascot:
  * the family's words stay theirs; Muse only wrote down, translated or asked.
  */
-export function MuseMark({ children = "powered by Muse", tone = "soft", className }: { children?: React.ReactNode; tone?: "soft" | "light"; className?: string }) {
+/**
+ * Muse is an invisible helper (SPEC §29.13): people see what it did, not its
+ * name. The mark renders only where Muse is the subject (What Muse did).
+ */
+export function MuseMark({ children = "powered by Muse", tone = "soft", className, show = false }: { children?: React.ReactNode; tone?: "soft" | "light"; className?: string; show?: boolean }) {
+  if (!show) return null;
   return (
     <span className={cn("inline-flex items-center gap-1 text-[12px] font-medium", tone === "light" ? "text-white/80" : "text-ink-faint", className)}>
       <Icon name="sparkle" size={13} strokeWidth={1.8} />

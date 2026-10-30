@@ -138,7 +138,7 @@ describe("care circle", () => {
     const need = await json<{ need: { id: string } }>(carePost(req("/api/care", "arjun", { action: "need", forMemberId: "dadi", title: "Fix the geyser", kind: "repair" })));
     const claimed = await json<{ need: { status: string; noteForParent: string } }>(carePost(req("/api/care", "arjun", { action: "claim", needId: need.need.id })));
     expect(claimed.need.status).toBe("claimed");
-    expect(claimed.need.noteForParent).toContain("Dad");
+    expect(claimed.need.noteForParent).toContain("Arjun");
     const assigned = await json<{ need: { helperId: string } }>(carePost(req("/api/care", "arjun", { action: "assign", needId: need.need.id, helperId: "helper-ramesh" })));
     expect(assigned.need.helperId).toBe("helper-ramesh");
     const done = await json<{ need: { status: string; doneAt: string } }>(carePost(req("/api/care", "arjun", { action: "done", needId: need.need.id })));

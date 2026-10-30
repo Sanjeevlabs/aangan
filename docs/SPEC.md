@@ -633,3 +633,118 @@ An independent read-only audit of every route under `app/api/**`, plus our own c
 **Baseten → Muse Spark Open (`meta-models/muse-spark-open-1026`), wired in now.** Set `BASETEN_API_KEY` in Vercel. Every Muse text or vision call (captions, recipe scribe, translations into 29 languages, quiz, story labels, album titles, care notes, the agent) retries on Baseten when the Meta API fails or is rate-limited; `MUSE_PROVIDER=baseten` makes it primary for the demo week so the Meta budget is kept for voice. Transcription stays on `muse-voice-transcribe` (our recordings are webm/opus; Baseten audio takes wav/mp3). Next: run `npm run eval:golden` against both hosts and record latency and pass rate in BUILD_LOG.
 
 **Modal → SAM 3.1 (Meta) on a serverless GPU** (Modal's managed Endpoints list text models, not SAM, so it runs as our own function). The one feature worth it: **cut-out** — on a tap, lift the person or the dish out of a photo for the plaque, the family poster and the print store (frame, cookbook cover). Segmentation only: no recognition, no identity, never automatic, never on children's photos without a parent tapping. One HTTPS function (`modal deploy`), image in → mask out, cached by image hash, scales to zero; costs are per GPU-second (check modal.com/pricing), cold start of tens of seconds, so the UI shows "cutting out…" and falls back to the uncut photo. Adds a second named Meta model to the demo.
+
+---
+
+## 28. Parents first: one hero, one promise 🆕
+
+**Promise (landing, welcome, Home):** *Aangan keeps your parents needed.* The hero is the parent or guardian far away. Everything else is a supporting character.
+
+**What the evidence says** (checked 29 Oct):
+| Finding | Source | What it means for us |
+|---|---|---|
+| Older adults who rarely or never felt useful to others had ~3× the odds of disability and death over 7 years, after adjusting for health, mood and social ties | Gruenewald et al. 2007, MacArthur Study (n=1,030) | Being *useful* is the outcome to design for, not being contacted |
+| Grandparents who only *received* help had the most depressive symptoms; those who gave, or gave and received, had the fewest | Moorman & Stokes 2013, Longitudinal Study of Generations | The app must let parents give, not only be looked after |
+| Parents' wellbeing depends on giving matching how rewarding they find it | Bangerter, Fingerman et al. 2014 | Show them their giving landed: who used it, who heard it |
+| Left-behind parents want to be included in everyday life, not only festivals and emergencies; they downplay problems so as not to burden children | NRI-parent care providers (observational) | The child's ordinary day must flow *to* the parent; asking for help must feel normal |
+| One control, the family does the work (KOMP); a weekly question by voice beats typing (Storyworth reviews) | product evidence | The parent's screen is a short queue of things only they can do, answered by voice |
+
+**Rule:** every screen answers one of three questions, or it goes.
+1. **Ask:** what can the family ask of the parent? (a recipe, a story, advice, a blessing)
+2. **Give:** how does the parent answer, and see that it mattered? ("Priya cooked your dal on Sunday", "Leo listened to your story last night": text, never counts)
+3. **Keep them able to give:** their day felt both ways, help at home, safe and sound.
+
+**Menu.**
+| For children and adults | For the parent |
+|---|---|
+| **Home**: their day, what they're waiting for, the latest voice | **Home**: what the family asked of you, what your gifts did this week, your children's day, share your day |
+| **Ask**: ask Dadi or Nana for a recipe, a story, advice or a blessing; what's waiting, what's answered | — |
+| **Library**: everything they've given (recipes, stories, advice) | **Library**: what you've given |
+| **Care**: help at their home, local helpers, safe and sound | **Care**: ask for help; your helpers |
+| **Family**: the family in pots, both sides, Together (visits, birthdays, one game), Memories, Occasions | **Family** |
+
+**28.1 Revision (29 Oct feedback): parents first, nothing hidden.** Four spaces read as "features cut". The menu is now one grouped list, every feature one tap away:
+- **For Dadi & Dada** (parents: *For you*): Ask them · Help at their home · Safe & sound · Plan a visit · Around their home
+- **What they've given**: Recipes · Stories · Advice & blessings
+- **Family**: Everyone (home by home, both sides, how we're related, circles) · Memories · Occasions · Together · Sit together
+- Settings
+Spaces remain only as tabs inside a page. Pots were dropped (read as childish): the Family page opens with **Home by home** cards (city, local time, portraits with kin labels, parents' homes first), then the constellation, **Your circles** and Both sides.
+
+**Cuts.** Tic-tac-toe and Match the family (no giving in them). Ludo stays, one game, as the thing a grandchild asks to play with Dada, drawn as the classic board everyone recognises. Memories, Occasions and Around home move under Family / a person's page.
+
+**New:** Share my day for everyone ("at work", "school", "home", "cooked your dal", "thinking of you"), shown on the parent's Home. A gifts feed for the parent, built from plays, recipe attempts and answered asks.
+
+---
+
+## 29. The window, and the door (30 Oct) 🆕
+
+**The idea, in the founder's words:** a son and his parents (60+) live ~2,500 km apart. When he opens Aangan he should see a **window** into their home, and feel what they're doing on the other side. The app reduces physical distance. Grandchildren don't use it yet.
+
+**Why it works (evidence):** the *Digital Family Portrait* (Mynatt et al., CHI 2001) put an ambient picture of an elder's day in the adult child's home: simple signals ("he picked up the mail") gave peace of mind and started phone calls; qualitative, opt-in signals avoided surveillance; the parent saw their own portrait. Baldassar's work on families apart: shared everyday narratives *approximate co-presence*; ambient contact is "comforting and makes absence manageable". Calls and messages alone don't create intimacy; constant notifications feel intrusive.
+
+### 29.1 LITE: the window (first screen, both ways)
+- The son's window looks into **Maa and Papa's home**: a picture he chose (their verandah, a photo of home, or one Muse Image painted), tinted live to **their time of day and weather** (dawn, day, dusk, night; clouds, rain, stars), with their **city and local time**.
+- Inside the window, only what they chose to share: "Maa is having evening chai · 20 min ago", "Papa is back from his walk". A **lamp** glows when they've been around in the last few hours.
+- **Their latest voice note** as a music card; one button: **Talk to Maa and Papa**; a call button.
+- **The parent's window** looks into the son's home the same way ("Arjun reached home · raining in Bengaluru"), with big one-tap moments (Chai, Walk, Prayer, Thinking of you) and **Talk to Arjun**. No menu.
+- Never tracking: every signal is a tap someone chose to make.
+
+### 29.2 The door
+A wooden door button on the window. Tapping it plays a **mechanical key turning and a door opening** (synthesised in the browser, no sound files) while the two door panels swing open into **family mode**. Closing the door returns to LITE.
+
+### 29.3 Family mode: the courtyard
+Everything built since PR #1, arranged as a home, not a menu:
+| Room | Inside |
+|---|---|
+| **Memories** | Memory Lane, albums Muse sorts, photos anyone adds, voice notes, Occasions (birthday wishes, festival photos), reels |
+| **Library** | What parents pass on: recipes, stories, advice and blessings, and Ask (Muse writes the question) |
+| **Care** | Care board, local helpers, local circle, Safe & sound, Around their home, Visits |
+| **Family** | The family tree (node view), both sides (wife's family), siblings and cousins, Sit together (plan), Invite |
+| **Sit together** | A live card on the courtyard: start a group video call inside Aangan |
+
+The courtyard shows: the side switch, **Today** (§29.8), the four rooms, **Sit together** (live), **a voice from home** (music card), the parent's **today's role**, **coming up**, **from the years**, everyone. Games and Together activities are retired; Muse's daily task replaces them. The Together route keeps visits only.
+
+### 29.4 Muse as the bridge (agentic, Meta models)
+Muse writes the weekly question and story prompts, turns voices into recipe cards and notes, translates into 29 languages, sorts photos into albums, plans occasions (ritual agent: wishes, reminders, reel, delivered at 8 am their time), assigns parents a daily role, drafts care notes. Agents propose; people approve. All logged in *What Muse did*.
+
+### 29.5 Design
+Glass on chrome only (dock, sheets, player, captions); music cards for voices, photos and videos; Onest for UI, Literata italic for voices; Lucide outline icons; warm palette (marigold, terracotta, espresso).
+
+### 29.6 Family tree
+The constellation is replaced by a **node tree** (generations in rows, couples side by side, lines to children), the view genealogy apps call the most recognisable.
+
+### 29.7 Restored / not yet built
+Restored: parents' today's role, this day years ago, coming up for everyone. Not yet built: legacy hall, store, family news digest, push notifications, SAM 3.1 stickers, synced playback.
+
+### 29.8 Today: one task, both homes (replaces games)
+Muse picks one prompt a day for the parents and their children (not grandchildren or in-laws' parents): the most wonderful day together, one thing you miss about each other, one thing you'd gently like them to do better, something they taught you, a moment you were proud, what to do on the next visit. A week before an occasion it asks both homes for a memory and this year's photos instead.
+- Answers are voice notes, so they land in Memories on their own.
+- **Done only when both sides answer.** The other side's answer is **sealed** (held back from the feed and the task) until you add yours: hearing them is the reward.
+- **Lamps**, not points: days in a row both homes showed up.
+- Muse choice is validated against the prompt list, cached, logged; a deterministic pick is the fallback.
+
+### 29.9 Trusted nearby (both homes)
+For every home, a few people nearby to call first: a neighbour with a spare key, a friend two streets away, a warden, the clinic. A father in Amritsar sees who is near his son in Bengaluru; the son sees who is near his parents. ("Circle" is reserved for a separate product.) Anyone keeps their own list; listing someone for emergencies needs their consent (checkbox, enforced server-side). The local emergency number (112 / 911 / 999 / 119 / 000 by zone) is always one tap away. Not an emergency service, no location tracking.
+
+### 29.10 The window, technically
+- `/api/window`: the far home (son → parents; parent → their child's home), its city, the sky from **Open-Meteo** (server-side, city name only, cached 30 min; mock in MOCK mode), time of day, today's shared moments.
+- **Living window**: gentle motion layers over the chosen photo (rain, clouds, stars, steam, leaves, birds, lamp, breeze), only from what is true there (`groundedLayers`). Muse orders/trims them and writes one line from the facts; it can never add a layer outside the grounded set.
+- Each person chooses their window (any family photo, or their home) in Settings → Your window; Still or Living.
+- Call = a "come sit" knock opening `/call/[id]`, an in-app Jitsi room named by the random knock id. Note: meet.jit.si limits embedded calls to short sessions; production needs JaaS or a self-hosted Jitsi.
+
+### 29.11 Roadmap (after the hackathon)
+Commerce through Muse and MCP partners once families are active: groceries and quick commerce for the parents' home, food for the child far away, curated gifting (nameplates, home needs, trusted brands) for occasions. Partner APIs/MCPs need agreements before any logo appears. The care board and occasions already create these intents.
+
+### 29.12 Revision (30 Oct): who, Kutumb, safe & sound at a glance
+- **No assumed roles.** Talk / Video call act on whoever lives in the other home: one parent, two, a guardian. One person → "Talk to Maa"; several → a picker (each person or everyone). Same picker on the Kutumb voice button, which marks who is waiting for a reply.
+- **Kutumb** is the family side behind the door (the app is Aangan; the family is the Kutumb). The door is a carved haveli door: teak, brass spikes, ring knockers, sandstone arch, marigold toran. Default window art is an Indian aangan (tulsi, charpai, rangoli) and a Bengaluru balcony.
+- **Safe & sound at a glance** on the window: a dot per person. Green = active within the viewer's threshold (default 4 h; 2/3/4/6/8 in Settings → Your window). Amber = quiet past it during their day → "Check in" (call / voice note / trusted nearby). Night → "asleep", never amber. Built from activity in Aangan (open/foreground heartbeat, voice, photo, moment, check-in); people who turn off "share visits" show "private". Phone-wide activity needs the native wrapper later (Android Usage Access); iOS can't.
+- **Next step** under the window: one rule-ranked action (quiet person → check in; unanswered voice → reply; the other side answered today's question → answer; a birthday within 3 days → record a wish), else "All good on both sides".
+- **Five tiles** in Kutumb: Memories (Memory Lane, Occasions, Year's reel), Kitchen (Recipes, Stories, Advice/tips/blessings), Care (Care board, Local helpers, Trusted nearby, Safe & sound, Around their home), Family (tree, both sides, homes, circles, pets, visits, invite), Get-together (plan a call with a reason). No separate menu: everything plus Settings opens from the profile photo. Ask was a duplicate and is gone from menus.
+
+### 29.13 Muse, the invisible helper
+Muse does the work (today's task, the window line and motion, recipe cards, album sorting, translation, story picks, care notes) and people see only the outcome. No "powered by Muse" on everyday screens; **What Muse did** in Settings keeps the full log (purpose, model, cost, cached) for transparency and judging.
+
+### 29.14 Stories to tell
+Each day the Stories room offers a well-known folk tale (our own three-beat outline + the lesson) for a grandparent, parent or guardian to retell in their own voice for the children; titles the family has already recorded are skipped. "A story only you know" (their own childhood) is in the rotation.
+

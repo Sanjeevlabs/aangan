@@ -150,7 +150,7 @@ export default function RecipePage() {
         {data.original.madeBy === "muse" && <MuseMark>written from {callName(cook)}&rsquo;s voice note</MuseMark>}
         {data.translated && (
           <button type="button" onClick={() => setShowOriginal((v) => !v)} className="text-[12px] font-medium text-ink-soft underline underline-offset-2">
-            {showOriginal ? `Show in ${language(displayLang).native}` : `Translated by Muse · show ${language(data.original.lang).native}`}
+            {showOriginal ? `Show in ${language(displayLang).native}` : `Translated · show ${language(data.original.lang).native}`}
           </button>
         )}
       </div>

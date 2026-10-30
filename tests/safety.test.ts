@@ -43,11 +43,11 @@ describe("safety state", () => {
 describe("safe & sound api", () => {
   it("only the people she chose see her check-ins", async () => {
     const arjun = await json<Data>(GET(req("arjun")));
-    expect(arjun.sharing).toContain("aria");
-    expect(arjun.checkins.some((c) => c.memberId === "aria")).toBe(true);
+    expect(arjun.sharing).toContain("dada");
+    expect(arjun.checkins.some((c) => c.memberId === "dada")).toBe(true);
     const leo = await json<Data>(GET(req("leo")));
-    expect(leo.sharing).not.toContain("aria");
-    expect(leo.checkins.some((c) => c.memberId === "aria")).toBe(false);
+    expect(leo.sharing).not.toContain("dada");
+    expect(leo.checkins.some((c) => c.memberId === "dada")).toBe(false);
   });
 
   it("pausing hides everything; turning on needs at least one person", async () => {

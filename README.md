@@ -8,15 +8,17 @@ Aangan is deliberately not Instagram/WhatsApp/Facebook: no stories, status, coun
 
 The app itself is in English. What the family shares (voices, recipes, questions, care notes) reaches each person in their own language: 29 languages, including Hindi, Hinglish, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi, Urdu, Spanish, Arabic, Chinese and more (`lib/languages.ts`).
 
-### Five spaces
+### One hero: the parent far away
 
-| Space | What it is for |
-|---|---|
-| **Home** | One "now" card (an open door, your move in a game, a bedtime story, a visit countdown, or the far home's day), then the latest voice as a plaque you could keep on a shelf |
-| **Memories** | Albums Muse sorts by event, the years, and **Stories**: bedtime stories in the voices that tell them |
-| **Kitchen** | A library of recipes, a shelf per cook; an elder teaches **by voice**, Muse writes the card in their own measures |
-| **Care** | Shared tasks for the parents' home, local helpers, and **Safe & sound** (status check-ins, no tracking) |
-| **Family** | The constellation, your circles (home · close · wider), **both sides**, Together (five activities + Ludo, tic-tac-toe, Match the family), Occasions, Sit together |
+**Aangan keeps your parents needed.** Older adults who rarely feel useful to others have about three times the odds of disability and death over seven years (Gruenewald et al., MacArthur Study, 2007); grandparents who only *receive* help have the most depressive symptoms, those who give have the fewest (Moorman & Stokes, 2013). So every screen either lets the family **ask** a parent for what only they have, lets the parent **give** and see that it landed, or keeps them **able to give**.
+
+| Space | For children and grandchildren | For the parent |
+|---|---|---|
+| **Home** | Their day, their door, the latest voice; share your day with them; ask strip | What the family asked of you · what you gave this week ("Priya cooked your dal") · your family today · share your day · ask for help |
+| **Ask** | A recipe, a story, their advice or a blessing; what's waiting, what's answered | — |
+| **Library** | Everything they've given: recipes, stories, advice & blessings | What you've given |
+| **Care** | Help at their home, local helpers, safe and sound | Ask for help; your helpers |
+| **Family** | Home by home (pots), how we're related, both sides, Together (visits, birthdays, Ludo), Occasions, Memories | Same |
 
 ### Two courtyards, one door
 

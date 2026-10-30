@@ -118,7 +118,7 @@ describe("relationships + kinship API (mock store)", () => {
     const dup = await relPOST(
       jsonRequest("http://test/api/relationships", {
         memberId: "arjun",
-        newMemberName: "Dadi",
+        newMemberName: "Maa",
         relation: "mother",
       }),
     );

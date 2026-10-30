@@ -104,7 +104,7 @@ export default function TracePage() {
           )}
         </div>
       )}
-      <MuseMark className="mt-8">Meta Muse models · structured output · validated before it reaches you</MuseMark>
+      <MuseMark show className="mt-8">Meta Muse models · structured output · validated before it reaches you</MuseMark>
     </div>
   );
 }

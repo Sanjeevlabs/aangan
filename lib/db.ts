@@ -104,6 +104,7 @@ function memberFromRow(r: Record<string, unknown>): Member {
     lang: r.lang ?? "en",
     displayLang: r.display_lang ?? "en",
     tz: r.tz ?? "UTC",
+    city: typeof r.city === "string" ? r.city : "",
     birthday: typeof r.birthday === "string" && /^\d{2}-\d{2}$/.test(r.birthday) ? r.birthday : "",
     homeImageRef: (r.home_image_ref as string | null) ?? null,
     homePalette: Array.isArray(r.home_palette) ? (r.home_palette as string[]) : [],
@@ -257,6 +258,7 @@ export async function dbAddMember(input: Omit<import("zod").input<typeof MemberS
     lang: member.lang,
     display_lang: member.displayLang,
     tz: member.tz,
+    city: member.city,
     birthday: member.birthday,
     email: member.email ? member.email.toLowerCase() : null,
     photo_ref: member.photoRef,
@@ -303,6 +305,7 @@ export async function dbUpdateMemberProfile(memberId: string, patch: MemberPatch
   if (patch.access !== undefined) row.access = patch.access;
   if (patch.birthday !== undefined) row.birthday = patch.birthday;
   if (patch.tz !== undefined) row.tz = patch.tz;
+  if (patch.city !== undefined) row.city = patch.city;
   if (patch.photoRef !== undefined) row.photo_ref = patch.photoRef;
   if (patch.email !== undefined) row.email = patch.email ? patch.email.toLowerCase() : null;
   if (patch.personId !== undefined) row.person_id = patch.personId;

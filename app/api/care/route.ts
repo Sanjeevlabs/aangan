@@ -64,8 +64,8 @@ const Body = z.discriminatedUnion("action", [
     recurring: z.enum(RECURRENCE).optional(),
   }),
   z.object({ action: z.literal("need-delete"), needId: z.string().min(1) }),
-  z.object({ action: z.literal("helper"), forMemberId: z.string().min(1), name: z.string().trim().min(1).max(60), role: z.enum(HELPER_ROLES).default("other"), phone: Phone, hours: z.string().trim().max(60).default(""), note: z.string().trim().max(160).default("") }),
-  z.object({ action: z.literal("helper-edit"), helperId: z.string().min(1), name: z.string().trim().min(1).max(60), role: z.enum(HELPER_ROLES), phone: Phone, hours: z.string().trim().max(60).default(""), note: z.string().trim().max(160).default("") }),
+  z.object({ action: z.literal("helper"), forMemberId: z.string().min(1), name: z.string().trim().min(1).max(60), role: z.enum(HELPER_ROLES).default("other"), phone: Phone, hours: z.string().trim().max(60).default(""), note: z.string().trim().max(160).default(""), emergency: z.boolean().default(false), consent: z.boolean().default(false) }),
+  z.object({ action: z.literal("helper-edit"), helperId: z.string().min(1), name: z.string().trim().min(1).max(60), role: z.enum(HELPER_ROLES), phone: Phone, hours: z.string().trim().max(60).default(""), note: z.string().trim().max(160).default(""), emergency: z.boolean().optional(), consent: z.boolean().optional() }),
   z.object({ action: z.literal("helper-remove"), helperId: z.string().min(1) }),
   z.object({ action: z.literal("duty-set"), forMemberId: z.string().min(1), kind: z.enum(NEED_KINDS), memberId: z.string().min(1) }),
   z.object({ action: z.literal("duty-clear"), forMemberId: z.string().min(1), kind: z.enum(NEED_KINDS) }),
@@ -110,7 +110,9 @@ export async function POST(req: Request): Promise<Response> {
   const me = person(auth.memberId);
   const now = new Date().toISOString();
 
-  if (!SELF_SERVICE.has(body.action) && !can(me, "care.manage")) return Response.json({ error: "not-allowed", action: "care.manage" }, { status: 403 });
+  // Your own trusted-nearby list (the people near *you*) is yours to keep.
+  const ownCircle = body.action === "helper" && body.forMemberId === auth.memberId;
+  if (!SELF_SERVICE.has(body.action) && !ownCircle && !can(me, "care.manage")) return Response.json({ error: "not-allowed", action: "care.manage" }, { status: 403 });
   const askingForSelf = "forMemberId" in body && body.forMemberId === auth.memberId;
   if ((body.action === "need" || body.action === "need-from-voice") && !askingForSelf && !can(me, "care.manage")) return Response.json({ error: "not-allowed", action: "care.manage" }, { status: 403 });
 
@@ -235,6 +237,8 @@ export async function POST(req: Request): Promise<Response> {
     }
     case "helper": {
       if (!person(body.forMemberId)) return Response.json({ error: "unknown-member" }, { status: 404 });
+      // Someone's number on a trusted-nearby list only with their say-so (DPDP consent).
+      if (body.emergency && !body.consent) return Response.json({ error: "needs-consent" }, { status: 400 });
       const { action: _a, ...rest } = body;
       void _a;
       return Response.json({ helper: await putDoc(auth.familyId, "helper", { id: newId("helper"), ...rest, addedBy: auth.memberId, createdAt: now }) }, { status: 201 });

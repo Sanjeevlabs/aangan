@@ -131,6 +131,9 @@ const MODEL_ROUTES = new Set([
   "/api/kinship",
   "/api/albums",
   "/api/care",
+  "/api/weather",
+  "/api/window",
+  "/api/today",
 ]);
 
 const buckets = new Map<string, number[]>();

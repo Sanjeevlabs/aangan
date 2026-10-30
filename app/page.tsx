@@ -1,41 +1,56 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Home } from "@/components/home";
+import { useCallback, useEffect, useState } from "react";
+import { Courtyard } from "@/components/courtyard";
+import { DoorTransition } from "@/components/door";
 import { useShell } from "@/components/shell";
 import { useViewer } from "@/components/viewer";
-import { Landing, Welcome } from "@/components/welcome";
+import { Landing } from "@/components/welcome";
+import { LiteWindow } from "@/components/window";
 import { resetFamilyCards } from "@/lib/use-family";
 
-const ENTERED_KEY = "aangan:entered";
+const DOOR_KEY = "aangan:door";
 
-// Signed out -> Landing. Signed in -> the Welcome greeting once per session,
-// then the courtyard.
+// Signed out -> Landing. Signed in -> LITE: the window into the other home.
+// The door opens the family courtyard; it stays open for the session.
 export default function Page() {
   const { setChromeHidden } = useShell();
   const { ready, signedIn } = useViewer();
-  const [entered, setEntered] = useState<boolean | null>(null);
+  const [open, setOpen] = useState<boolean | null>(null);
+  const [moving, setMoving] = useState<"opening" | "closing" | null>(null);
 
   useEffect(() => {
     try {
-      setEntered(sessionStorage.getItem(ENTERED_KEY) === "1");
+      setOpen(sessionStorage.getItem(DOOR_KEY) === "open");
     } catch {
-      setEntered(true);
+      setOpen(false);
     }
   }, []);
 
-  const gate = !ready || entered === null ? "checking" : !signedIn ? "landing" : entered ? "home" : "welcome";
+  const gate = !ready || open === null ? "checking" : !signedIn ? "landing" : open ? "family" : "lite";
 
   useEffect(() => {
-    setChromeHidden(gate !== "home");
+    setChromeHidden(gate !== "family");
   }, [gate, setChromeHidden]);
 
-  if (gate === "checking") return <div className="fixed inset-0 z-30 bg-white" aria-busy="true" aria-label="Opening Aangan" />;
+  const settle = useCallback(() => {
+    const next = moving === "opening";
+    try {
+      sessionStorage.setItem(DOOR_KEY, next ? "open" : "closed");
+    } catch {
+      /* private mode */
+    }
+    setOpen(next);
+    setMoving(null);
+    window.scrollTo(0, 0);
+  }, [moving]);
+
+  if (gate === "checking") return <div className="lite-ground fixed inset-0 z-30" aria-busy="true" aria-label="Opening Aangan" />;
   if (gate === "landing")
     return (
       <Landing
         onDemo={async () => {
-          const res = await fetch("/api/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ inviteCode: "AANGAN-DEMO", memberId: "leo" }) });
+          const res = await fetch("/api/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ inviteCode: "AANGAN-DEMO", memberId: "arjun" }) });
           if (res.ok) {
             resetFamilyCards();
             window.dispatchEvent(new Event("aangan:auth"));
@@ -43,18 +58,10 @@ export default function Page() {
         }}
       />
     );
-  if (gate === "welcome")
-    return (
-      <Welcome
-        onEnter={() => {
-          try {
-            sessionStorage.setItem(ENTERED_KEY, "1");
-          } catch {
-            /* private mode */
-          }
-          setEntered(true);
-        }}
-      />
-    );
-  return <Home />;
+  return (
+    <>
+      {gate === "lite" ? <LiteWindow onOpenDoor={() => setMoving("opening")} /> : <Courtyard onCloseDoor={() => setMoving("closing")} />}
+      <DoorTransition state={moving} onDone={settle} />
+    </>
+  );
 }

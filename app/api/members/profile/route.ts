@@ -17,6 +17,8 @@ const ProfileSchema = z.object({
     }, "unknown-time-zone")
     .optional(),
   photoRef: z.string().max(512).nullable().optional(),
+  /** The city, in their words: shown on the other side's window with its weather. */
+  city: z.string().trim().max(60).optional(),
 });
 
 // The session member edits only their own profile; no member id is accepted.

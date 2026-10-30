@@ -6,58 +6,26 @@ import { useState } from "react";
 import { KIND_LOOK, KindBadge, daysUntil } from "@/components/together-art";
 import { Avatar, Button, EmptyLine, Icon, MuseMark, RoomHeader, SectionTitle } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
-import { GAME_KINDS } from "@/lib/kind-values";
-import { GAME_LOOK, type GameKind } from "@/lib/games";
-import { GameArt } from "@/components/games";
-import type { Game, Project } from "@/lib/kinds";
+import type { Project } from "@/lib/kinds";
 import { callName, memberPhoto } from "@/lib/people";
 import type { TogetherTemplate } from "@/lib/together-templates";
-import { ago, postJson, useJson } from "@/lib/use-json";
-import { cn } from "@/lib/utils";
+import { postJson, useJson } from "@/lib/use-json";
 
-// Together: ready-made things to do as a family across homes. Pick one, and
-// it becomes a project with a task list everyone can add to and tick off.
+// Visits: who is coming home, with a task list and a countdown both homes
+// see. (Games and activity ideas were retired for Muse's daily task, §29.8.)
 
 export default function TogetherPage() {
   const { viewer, members } = useViewer();
-  const router = useRouter();
   const { data } = useJson<{ templates: TogetherTemplate[]; projects: Project[] }>("/api/together");
-  const games = useJson<{ games: Game[] }>("/api/games");
-  const [newGame, setNewGame] = useState<GameKind | null>(null);
   const [open, setOpen] = useState<TogetherTemplate | null>(null);
-  const [blank, setBlank] = useState("");
   const active = (data?.projects ?? []).filter((p) => p.status === "active");
   const done = (data?.projects ?? []).filter((p) => p.status === "done");
   const templates = data?.templates ?? [];
-  const playing = (games.data?.games ?? []).filter((g) => g.status === "playing" && g.players.includes(viewer.id)).sort((a, b) => Number(b.players[b.turn] === viewer.id) - Number(a.players[a.turn] === viewer.id) || b.updatedAt.localeCompare(a.updatedAt));
   const child = viewer.access === "child";
 
   return (
     <div>
-      <RoomHeader title="Together" subtitle="Play and plan as a family, wherever everyone is" />
-
-      <section aria-label="Games">
-        <h2 className="m-0 mb-3 text-[20px]">Play</h2>
-        <ul className="m-0 grid list-none grid-cols-3 gap-2 p-0">
-          {GAME_KINDS.map((g) => (
-            <li key={g}>
-              <button type="button" onClick={() => setNewGame(g)} className="press flex w-full flex-col items-center gap-2 rounded-card bg-surface px-2 py-4 text-center">
-                <GameArt kind={g} />
-                <span className="text-[14px] font-semibold leading-tight">{GAME_LOOK[g].title}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-        {playing.length > 0 && (
-          <ul className="m-0 mt-3 list-none space-y-2 p-0">
-            {playing.map((g) => (
-              <li key={g.id}>
-                <GameRow game={g} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <RoomHeader title="Visits" subtitle="Who's coming home, and the countdown both homes see" />
 
       {active.length > 0 && (
         <section aria-label="What the family is doing" className="mt-8">
@@ -72,10 +40,10 @@ export default function TogetherPage() {
         </section>
       )}
 
-      <SectionTitle>Do something together</SectionTitle>
+      <SectionTitle>Plan a visit</SectionTitle>
       {data === null && <div className="skeleton h-[300px] rounded-card" aria-busy="true" aria-label="Loading ideas" />}
       <ul className="m-0 grid list-none grid-cols-2 gap-2 p-0">
-        {templates.map((t) => {
+        {templates.filter((t) => t.kind === "visit").map((t) => {
           const k = KIND_LOOK[t.kind];
           return (
             <li key={t.id}>
@@ -93,21 +61,7 @@ export default function TogetherPage() {
         })}
       </ul>
 
-      {!child && (
-        <div className="mt-4 flex gap-2">
-          <input value={blank} onChange={(e) => setBlank(e.target.value.slice(0, 80))} placeholder="Or start your own: Paint Dadi's room…" className="h-[52px] min-w-0 flex-1 rounded-full bg-surface px-5 text-[15px] outline-none focus:ring-2 focus:ring-marigold" aria-label="Your own project" />
-          <Button
-            className="h-[52px] px-5"
-            disabled={blank.trim().length < 2}
-            onClick={async () => {
-              const out = await postJson<{ project: Project }>("/api/together", { action: "blank", title: blank.trim() });
-              if (out) router.push(`/together/${out.project.id}`);
-            }}
-          >
-            Start
-          </Button>
-        </div>
-      )}
+
 
       {done.length > 0 && (
         <section aria-label="Done together">
@@ -122,88 +76,7 @@ export default function TogetherPage() {
         </section>
       )}
       {data && data.templates.length === 0 && <EmptyLine>No ideas loaded.</EmptyLine>}
-      {newGame && <NewGameSheet kind={newGame} onClose={() => setNewGame(null)} />}
       {open && <TemplateSheet t={open} members={members} viewerId={viewer.id} canStart={!child} onClose={() => setOpen(null)} />}
-    </div>
-  );
-}
-
-function GameRow({ game }: { game: Game }) {
-  const { members, viewer } = useViewer();
-  const others = game.players.filter((p) => p !== viewer.id).map((p) => members.find((x) => x.id === p));
-  const mine = game.players[game.turn] === viewer.id;
-  const turnOf = members.find((x) => x.id === game.players[game.turn]);
-  return (
-    <Link href={`/together/play/${game.id}`} className={cn("press flex items-center gap-3 rounded-card p-3 text-ink no-underline", mine ? "bg-[#fff2d6]" : "bg-surface")}>
-      <GameArt kind={game.game} size={44} />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[16px] font-semibold">
-          {GAME_LOOK[game.game].title} with {others.map((o) => callName(o)).join(" & ")}
-        </span>
-        <span className="block truncate text-[13px] text-ink-soft">{mine ? "Your move" : `${callName(turnOf)}'s move`}{game.lastMove ? ` · ${ago(game.lastMove.at)}` : ""}</span>
-      </span>
-      <Icon name="chevron" size={18} className="text-ink-faint" />
-    </Link>
-  );
-}
-
-function NewGameSheet({ kind, onClose }: { kind: GameKind; onClose: () => void }) {
-  const { viewer, members } = useViewer();
-  const router = useRouter();
-  const [picked, setPicked] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
-  const look = GAME_LOOK[kind];
-  const [, max] = look.players;
-  const players = [viewer.id, ...picked];
-  const ok = players.length >= look.players[0] && players.length <= max;
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label={look.title}>
-      <button type="button" aria-label="Close" className="absolute inset-0 bg-black/25" onClick={onClose} />
-      <div className="relative max-h-[90vh] w-full max-w-[480px] overflow-y-auto rounded-t-[32px] bg-white px-5 pt-5 shadow-frost" style={{ paddingBottom: "calc(20px + env(safe-area-inset-bottom))" }}>
-        <div className="flex items-center gap-3">
-          <GameArt kind={kind} />
-          <div className="min-w-0 flex-1">
-            <p className="m-0 text-[21px] font-semibold leading-tight">{look.title}</p>
-            <p className="m-0 text-[14px] text-ink-soft">{look.note}</p>
-          </div>
-        </div>
-        <p className="m-0 mb-2 mt-5 text-[13px] font-medium text-ink-soft">{max === 2 ? "Play with" : `Play with up to ${max - 1}`}</p>
-        <ul className="m-0 grid list-none grid-cols-4 gap-2 p-0">
-          {members
-            .filter((x) => x.id !== viewer.id)
-            .map((x) => {
-              const on = picked.includes(x.id);
-              return (
-                <li key={x.id}>
-                  <button
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => setPicked((p) => (on ? p.filter((y) => y !== x.id) : max === 2 ? [x.id] : p.length < max - 1 ? [...p, x.id] : p))}
-                    className="press flex w-full flex-col items-center gap-1 rounded-[18px] py-2"
-                  >
-                    <span className={cn("rounded-full p-[3px]", on ? "bg-ink" : "bg-transparent")}>
-                      <Avatar src={memberPhoto(x)} name={callName(x)} size={52} ring />
-                    </span>
-                    <span className="max-w-full truncate text-[13px] font-medium">{callName(x)}</span>
-                  </button>
-                </li>
-              );
-            })}
-        </ul>
-        <Button
-          className="mt-5 w-full"
-          disabled={!ok || busy}
-          onClick={async () => {
-            setBusy(true);
-            const out = await postJson<{ game: Game }>("/api/games", { action: "new", game: kind, players });
-            setBusy(false);
-            if (out) router.push(`/together/play/${out.game.id}`);
-          }}
-        >
-          {busy ? "Setting up…" : ok ? "Start the game" : "Pick who to play with"}
-        </Button>
-        <p className="m-0 mt-2 text-center text-[13px] text-ink-faint">One move each, whenever you open Aangan. No need to be online together.</p>
-      </div>
     </div>
   );
 }

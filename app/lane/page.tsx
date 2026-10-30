@@ -86,7 +86,7 @@ export default function LanePage() {
           setSorting("busy");
           const out = await postJson<{ filed: number }>("/api/albums", { action: "resort" });
           await albumsQ.reload();
-          setSorting(out ? (out.filed ? `Muse sorted ${out.filed} older photo${out.filed > 1 ? "s" : ""}.` : "Everything is already sorted.") : "Couldn't sort right now.");
+          setSorting(out ? (out.filed ? `Sorted ${out.filed} older photo${out.filed > 1 ? "s" : ""}.` : "Everything is already sorted.") : "Couldn't sort right now.");
         }}
         className="mb-4 text-[13px] font-medium text-ink-soft underline underline-offset-2"
       >
