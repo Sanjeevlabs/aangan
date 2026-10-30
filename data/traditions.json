@@ -44,7 +44,11 @@
 
     { "key": "diwali", "match": "^(Diwali|Deepavali)", "title": "Diwali", "traditions": ["hindu", "jain", "sikh"], "ritual": "diwali" },
     { "key": "holi", "match": "^Holi\\b(?! ?ka)", "title": "Holi", "traditions": ["hindu"] },
-    { "key": "makar-sankranti", "match": "Makar Sankranti|^Pongal", "title": "Makar Sankranti & Pongal", "traditions": ["hindu"] },
+    { "key": "makar-sankranti", "match": "Makar Sankranti", "title": "Makar Sankranti", "traditions": ["hindu"] },
+    { "key": "pongal", "match": "^Pongal", "title": "Pongal", "traditions": ["hindu"] },
+    { "key": "ugadi-gudi-padwa", "match": "^(Ugadi|Gudi Padwa)", "title": "Ugadi & Gudi Padwa", "traditions": ["hindu"] },
+    { "key": "navratri", "match": "Navratri|Navaratri", "title": "Navratri begins", "traditions": ["hindu"] },
+    { "key": "chhath", "match": "Chhat(h)? Puja", "title": "Chhath Puja", "traditions": ["hindu"] },
     { "key": "maha-shivaratri", "match": "Shivaratri|Shivratri", "title": "Maha Shivaratri", "traditions": ["hindu"] },
     { "key": "ram-navami", "match": "Ram(a)? Navami", "title": "Ram Navami", "traditions": ["hindu"] },
     { "key": "raksha-bandhan", "match": "Raksha Bandhan|Rakhi", "title": "Raksha Bandhan", "traditions": ["hindu"] },
@@ -54,13 +58,13 @@
     { "key": "dussehra", "match": "^Dussehra|Vijaya ?Dashami", "title": "Dussehra", "traditions": ["hindu"] },
     { "key": "bhai-dooj", "match": "Bhai Du(j|ooj)|Bhau Beej", "title": "Bhai Dooj", "traditions": ["hindu"] },
 
-    { "key": "eid-ul-fitr", "match": "(Eid|Id)[- ]?(ul|al)[- ]?Fit", "title": "Eid al-Fitr", "traditions": ["muslim"] },
-    { "key": "eid-al-adha", "match": "(Eid|Id)[- ]?(ul|al|e)[- ]?(Adha|Zuha|Azha)|Bakr[ai]?[- ]?Id", "title": "Eid al-Adha", "traditions": ["muslim"] },
+    { "key": "eid-ul-fitr", "match": "^(?!.*tentative).*((Eid|Id)[- ]?(ul|al)[- ]?Fit|Ramz?a[nd]a?n? Id|Ramzan Eid)", "title": "Eid al-Fitr", "traditions": ["muslim"] },
+    { "key": "eid-al-adha", "match": "^(?!.*tentative).*((Eid|Id)[- ]?(ul|al|e)[- ]?(Adha|Zuha|Azha)|Bakr[ai]?[- ]?Id)", "title": "Eid al-Adha", "traditions": ["muslim"] },
     { "key": "muharram", "match": "Muharram|Ashura", "title": "Muharram", "traditions": ["muslim"] },
     { "key": "milad-un-nabi", "match": "Milad|Mawlid|Prophet Muhammad", "title": "Milad-un-Nabi", "traditions": ["muslim"] },
 
     { "key": "guru-nanak-jayanti", "match": "Guru Nanak", "title": "Guru Nanak Jayanti", "traditions": ["sikh"] },
-    { "key": "guru-gobind-singh-jayanti", "match": "Guru Gobind Singh", "title": "Guru Gobind Singh Jayanti", "traditions": ["sikh"] },
+    { "key": "guru-gobind-singh-jayanti", "match": "Guru Go[bv]ind Singh", "title": "Guru Gobind Singh Jayanti", "traditions": ["sikh"] },
     { "key": "vaisakhi", "match": "Vaisakhi|Baisakhi", "title": "Vaisakhi", "traditions": ["sikh", "hindu"] },
     { "key": "guru-tegh-bahadur", "match": "Guru Te(g|gh) Bahadur", "title": "Guru Tegh Bahadur Shaheedi Divas", "traditions": ["sikh"] },
 

@@ -23,7 +23,9 @@ export type RitualSettings = z.infer<typeof RitualSettingsSchema>;
 
 const KIND = "ritual_settings";
 const ID = "ritual-settings";
-const mem = new Map<string, RitualSettings>();
+// Kept on globalThis so a dev-server recompile doesn't drop mock-mode choices.
+const g = globalThis as typeof globalThis & { __aanganRitualSettings?: Map<string, RitualSettings> };
+const mem = (g.__aanganRitualSettings ??= new Map<string, RitualSettings>());
 
 function live(): boolean {
   return !isMockMode() && isDbLive();

@@ -2,6 +2,7 @@
 
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { resolveMediaUrl } from "@/lib/media-session";
 import { callName, memberPhoto } from "@/lib/people";
 import type { Card, Member, Wish } from "@/lib/schemas";
@@ -116,7 +117,11 @@ export function GarlandPlayer({
   const name = cur ? callName(cur.member) : "";
   const wishers = Array.from(new Map(beads.map((b) => [b.member.id, b.member] as const)).values());
 
-  return (
+  // Portalled to <body>: a transformed ancestor would otherwise trap position:fixed.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+  return createPortal(
     <AnimatePresence>
       {open && (
         <m.div
@@ -216,6 +221,7 @@ export function GarlandPlayer({
           </div>
         </m.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
