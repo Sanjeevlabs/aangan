@@ -10,18 +10,34 @@ import { timeIn } from "@/lib/zones";
 import { Avatar, Icon } from "./ui/kit";
 import { useViewer } from "./viewer";
 
+/** One person at a glance (GET /api/safety `members`): for the home screen's status dots. */
+export interface SafetyGlance {
+  memberId: string;
+  /** null = sharing, but no check-in yet. */
+  tone: SafetyState["tone"] | null;
+  label: string | null;
+  at: string | null;
+  etaAt: string | null;
+  /** Newest first, at most 5. */
+  recent: SafetyCheckin[];
+}
+
 export interface SafetyData {
   mine: SafetySettings | null;
   sharing: string[];
   checkins: SafetyCheckin[];
+  members?: SafetyGlance[];
 }
 
 export const TONE: Record<SafetyState["tone"], { bg: string; ink: string }> = {
   calm: { bg: "bg-surface", ink: "text-ink-soft" },
-  pending: { bg: "bg-[#eef4fb]", ink: "text-[#345f88]" },
-  overdue: { bg: "bg-[#fff1e0]", ink: "text-[#9a4a00]" },
-  help: { bg: "bg-[#fde8e6]", ink: "text-[#a32418]" },
+  pending: { bg: "bg-surface", ink: "text-ink-soft" },
+  overdue: { bg: "bg-surface", ink: "text-ink" },
+  help: { bg: "bg-surface", ink: "text-[#a32418]" },
 };
+
+/** Status colour lives only on the dot: green ok, amber waiting/late, red help. */
+export const DOT: Record<SafetyState["tone"], string> = { calm: "bg-[#2f9e5b]", pending: "bg-[#d99a1e]", overdue: "bg-[#d99a1e]", help: "bg-[#d92d20]" };
 
 function clock(iso: string, tz: string): string {
   return timeIn(tz, new Date(iso));
@@ -50,7 +66,7 @@ export function SafetyRow({ member, state, viewerTz, compact = false }: { member
           </p>
           <p className={cn("m-0 truncate text-[13px]", t.ink)}>{detail}</p>
         </div>
-        {state.tone === "calm" ? <Icon name="check" size={18} className="text-[#3d6b2a]" /> : <Icon name="shield" size={18} className={t.ink} />}
+        <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", DOT[state.tone])} aria-label={state.label} />
       </div>
       {(state.tone === "help" || state.tone === "overdue") && (
         <div className="mt-3 flex flex-wrap gap-2">
@@ -89,8 +105,8 @@ export function SafetyWatch() {
   return (
     <div className="space-y-2">
       {open && (
-        <div className="flex items-center gap-3 rounded-card bg-[#eef4fb] p-3.5">
-          <Icon name="shield" size={20} className="text-[#345f88]" />
+        <div className="flex items-center gap-3 rounded-card bg-surface p-3.5">
+          <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", DOT[open.tone])} aria-hidden="true" />
           <p className="m-0 min-w-0 flex-1 truncate text-[15px] font-semibold">{open.tone === "help" ? "Your family can see you asked for help" : "On your way. Tell them when you're in."}</p>
           <button
             type="button"

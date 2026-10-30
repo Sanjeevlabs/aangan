@@ -2,6 +2,7 @@ import { z } from "zod";
 import { checkRateLimit, requireSession } from "@/lib/auth";
 import { dbAddAgentRun, dbGetMember, dbListCards, dbListMembers } from "@/lib/db";
 import { deleteDoc, getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
+import { AdviceCategoryId, adviceCategory } from "@/lib/advice";
 import { can } from "@/lib/permissions";
 import { askWeeklyQuestions } from "@/lib/keeper";
 
@@ -9,7 +10,8 @@ import { askWeeklyQuestions } from "@/lib/keeper";
 const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("weekly") }),
   z.object({ action: z.literal("answer"), questionId: z.string().min(1), cardId: z.string().min(1) }),
-  z.object({ action: z.literal("ask"), toMemberId: z.string().min(1), text: z.string().trim().min(6).max(200), topic: z.enum(["wisdom", "blessing", "story"]).default("wisdom") }),
+  // Advice & blessings: an optional shelf (data/advice-categories.json), validated against the data.
+  z.object({ action: z.literal("ask"), toMemberId: z.string().min(1), text: z.string().trim().min(6).max(200), topic: z.enum(["wisdom", "blessing", "story"]).default("wisdom"), category: AdviceCategoryId.optional() }),
   // The person who asked withdraws it; the elder may skip any question.
   z.object({ action: z.literal("remove"), questionId: z.string().min(1) }),
 ]);
@@ -17,7 +19,12 @@ const Body = z.discriminatedUnion("action", [
 export async function GET(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
-  return Response.json({ questions: await listDocs(auth.familyId, "question") });
+  // Every advice/blessing question carries its shelf: stored if present, else the deterministic fallback.
+  const questions = (await listDocs(auth.familyId, "question")).map((q) => {
+    const stored = (q as { category?: string | null }).category;
+    return q.topic === "wisdom" || q.topic === "blessing" ? { ...q, category: adviceCategory({ text: q.text, topic: q.topic, category: stored }) } : q;
+  });
+  return Response.json({ questions });
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -69,6 +76,8 @@ export async function POST(req: Request): Promise<Response> {
     lang: "en",
     askedBy: auth.memberId,
     topic: body.topic,
+    // Kept once QuestionSchema carries `category`; until then the shelf is re-derived on read.
+    ...(body.topic === "story" ? {} : { category: adviceCategory({ text: body.text, topic: body.topic, category: body.category }) }),
     answeredCardId: null,
     madeBy: "family",
     createdAt: new Date().toISOString(),

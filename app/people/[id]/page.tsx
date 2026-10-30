@@ -107,16 +107,6 @@ export default function PersonPage() {
           </div>
         </section>
       )}
-      {home && (
-        <Link href={`/around?home=${encodeURIComponent(home.id)}`} className="mt-8 flex items-center gap-3 rounded-card bg-surface px-4 py-3.5 text-ink no-underline">
-          <Icon name="village" />
-          <span className="min-w-0 flex-1">
-            <span className="block text-[16px] font-semibold">Around {callName(person)}&rsquo;s home</span>
-            <span className="block truncate text-[13px] text-ink-soft">The places near {placeFromTz(home.tz)}, with the family&rsquo;s memories</span>
-          </span>
-          <Icon name="chevron" size={18} className="text-ink-faint" />
-        </Link>
-      )}
       <PersonDetails person={person} onChanged={() => undefined} />
     </div>
   );

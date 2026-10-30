@@ -95,12 +95,14 @@ describe("content ownership", () => {
   });
 });
 
-describe("care duties and edits", () => {
-  it("a need goes straight to whoever handles that kind for the home", async () => {
-    await carePost(req("/api/care", "arjun", { action: "duty-set", forMemberId: "dada", kind: "groceries", memberId: "arjun" }));
-    const made = await json<{ need: { status: string; claimedBy: string; noteForParent: string } }>(carePost(req("/api/care", "dadi", { action: "need", forMemberId: "dadi", title: "Milk and atta", kind: "groceries" })));
-    expect(made.need).toMatchObject({ status: "claimed", claimedBy: "arjun" });
-    expect(made.need.noteForParent).toContain("groceries");
+describe("care tasks and edits", () => {
+  it("a parent's new task lands unassigned; a sibling picks it up (duties are retired)", async () => {
+    expect((await carePost(req("/api/care", "arjun", { action: "duty-set", forMemberId: "dada", kind: "groceries", memberId: "arjun" }))).status).toBe(400);
+    const made = await json<{ need: { id: string; status: string; claimedBy: string | null } }>(carePost(req("/api/care", "dadi", { action: "need", forMemberId: "dadi", title: "Milk and atta", kind: "groceries" })));
+    expect(made.need).toMatchObject({ status: "open", claimedBy: null });
+    const picked = await json<{ need: { status: string; claimedBy: string; noteForParent: string } }>(carePost(req("/api/care", "arjun", { action: "claim", needId: made.need.id })));
+    expect(picked.need).toMatchObject({ status: "claimed", claimedBy: "arjun" });
+    expect(picked.need.noteForParent.length).toBeGreaterThan(0);
   });
 
   it("the parent edits or withdraws their own need; a child can't manage care", async () => {

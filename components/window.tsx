@@ -4,6 +4,7 @@ import { m } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Knock, PresenceMoment, SafetyCheckin, WindowLayer } from "@/lib/kinds";
+import { whatsappInvite } from "@/lib/invite-link";
 import { resolveMediaUrl } from "@/lib/media-session";
 import { callName, memberPhoto } from "@/lib/people";
 import { MOMENT_LABEL, shareableFor } from "@/lib/presence";
@@ -536,9 +537,7 @@ function WaitingCard({ names }: { names: string }) {
     }
     setBusy(false);
     if (!code) return void (window.location.href = "/settings#invite");
-    const link = `${window.location.origin}/join?code=${encodeURIComponent(code)}`;
-    const text = `Your window to us is ready on Aangan. Open ${link} and enter code ${code}.`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+    window.open(whatsappInvite(window.location.origin, code), "_blank", "noopener");
   };
   return (
     <section className="lite-glass rounded-[26px] p-5" aria-label="Waiting for them to join">

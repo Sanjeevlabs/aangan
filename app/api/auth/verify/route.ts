@@ -1,20 +1,40 @@
 import { z } from "zod";
 import { sessionCookieHeader, signSession } from "@/lib/auth";
-import { dbAddMember, dbCreateFamily, dbFindMemberByEmail, dbListInvites, dbListSides, dbUpdateMemberProfile } from "@/lib/db";
+import { dbAddMember, dbCreateFamily, dbFindMemberByEmail, dbGetMember, dbListInvites, dbListMembers, dbListSides, dbUpdateMemberProfile } from "@/lib/db";
+import type { Member } from "@/lib/schemas";
 import { allowAuthAttempt, verifyCode } from "@/lib/otp";
 
 const Name = z.string().trim().min(1).max(40);
+const City = z.string().trim().max(60);
 const VerifySchema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
   code: z.string().trim().regex(/^\d{6}$/),
   tz: z.string().max(64).default("UTC"),
   birthday: z.string().regex(/^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/).optional(),
+  /** Where they live, in their words: the other home sees its sky. */
+  city: City.optional(),
   intent: z.discriminatedUnion("type", [
     z.object({ type: z.literal("signin") }),
     z.object({ type: z.literal("create"), familyName: Name, firstName: Name, callName: Name.optional() }),
-    z.object({ type: z.literal("join"), inviteCode: z.string().trim().min(4).max(64), firstName: Name, callName: Name.optional() }),
+    // claimMemberId: "I'm Maa" — take the place the family already made for you.
+    z.object({ type: z.literal("join"), inviteCode: z.string().trim().min(4).max(64), firstName: Name, callName: Name.optional(), claimMemberId: z.string().min(1).max(80).optional() }),
   ]),
 });
+
+/** A place the family made for someone who hasn't joined yet (no account, not a child, not an admin). */
+async function claimable(memberId: string | undefined, familyId: string): Promise<Member | undefined> {
+  if (!memberId) return undefined;
+  const m = await dbGetMember(memberId);
+  return m && m.familyId === familyId && !m.email && m.access === "member" && m.role !== "child" ? m : undefined;
+}
+
+/** "Welcome, Maa. Arjun's window is open." — shown once on the joiner's window. */
+async function welcomeLine(familyId: string, me: Member): Promise<string> {
+  const others = (await dbListMembers(familyId)).filter((m) => m.id !== me.id && m.email);
+  const host = others.find((m) => m.access === "admin") ?? others[0];
+  const you = me.displayName || me.firstName;
+  return host ? `Welcome, ${you}. ${host.firstName}'s window is open.` : `Welcome, ${you}. Your window is open.`;
+}
 
 function validTz(tz: string): string {
   try {
@@ -44,6 +64,7 @@ export async function POST(req: Request): Promise<Response> {
   const existing = await dbFindMemberByEmail(email);
   let familyId: string;
   let memberId: string;
+  let welcome: string | undefined;
 
   if (intent.type === "signin") {
     if (!existing) return Response.json({ error: "no-family" }, { status: 404 });
@@ -60,11 +81,15 @@ export async function POST(req: Request): Promise<Response> {
     if (there) {
       familyId = there.familyId;
       memberId = there.id;
+      welcome = await welcomeLine(familyId, there);
     } else {
       if (sides.length >= 4) return Response.json({ error: "too-many-sides" }, { status: 409 });
       const personId = existing.personId ?? `p-${crypto.randomUUID().slice(0, 16)}`;
       if (!existing.personId) await dbUpdateMemberProfile(existing.id, { personId });
-      const member = await dbAddMember({
+      const place = await claimable(intent.claimMemberId, invite.familyId);
+      const member = place
+        ? ((await dbUpdateMemberProfile(place.id, { email, personId, tz: existing.tz, ...(existing.birthday && !place.birthday ? { birthday: existing.birthday } : {}), ...(existing.city && !place.city ? { city: existing.city } : {}) })) ?? place)
+        : await dbAddMember({
         familyId: invite.familyId,
         firstName: intent.firstName,
         displayName: intent.callName || intent.firstName,
@@ -73,12 +98,14 @@ export async function POST(req: Request): Promise<Response> {
         displayLang: existing.displayLang,
         tz: existing.tz,
         birthday: existing.birthday,
+        city: existing.city,
         email,
         access: "member",
         personId,
       });
       familyId = invite.familyId;
       memberId = member.id;
+      welcome = await welcomeLine(familyId, member);
     }
   } else {
     if (existing) return Response.json({ error: "already-member" }, { status: 409 });
@@ -90,23 +117,29 @@ export async function POST(req: Request): Promise<Response> {
       if (!invite) return Response.json({ error: "invalid-invite" }, { status: 403 });
       familyId = invite.familyId;
     }
-    const member = await dbAddMember({
-      familyId,
-      firstName: intent.firstName,
-      displayName: intent.callName || intent.firstName,
-      role: "adult",
-      lang: "en",
-      displayLang: "en",
-      tz: validTz(parsed.data.tz),
-      birthday: parsed.data.birthday ?? "",
-      email,
-      // Whoever starts the family looks after it; people who join are members.
-      access: intent.type === "create" ? "admin" : "member",
-    });
+    const tz = validTz(parsed.data.tz);
+    const place = intent.type === "join" ? await claimable(intent.claimMemberId, familyId) : undefined;
+    const member = place
+      ? ((await dbUpdateMemberProfile(place.id, { email, tz, ...(parsed.data.birthday ? { birthday: parsed.data.birthday } : {}), ...(parsed.data.city ? { city: parsed.data.city } : {}) })) ?? place)
+      : await dbAddMember({
+          familyId,
+          firstName: intent.firstName,
+          displayName: intent.callName || intent.firstName,
+          role: "adult",
+          lang: "en",
+          displayLang: "en",
+          tz,
+          city: parsed.data.city ?? "",
+          birthday: parsed.data.birthday ?? "",
+          email,
+          // Whoever starts the family looks after it; people who join are members.
+          access: intent.type === "create" ? "admin" : "member",
+        });
     memberId = member.id;
+    if (intent.type === "join") welcome = await welcomeLine(familyId, member);
   }
 
   const signed = signSession({ familyId, memberId });
   if (!signed) return Response.json({ error: "session-unavailable" }, { status: 500 });
-  return Response.json({ familyId, memberId }, { headers: { "set-cookie": sessionCookieHeader(signed) } });
+  return Response.json({ familyId, memberId, ...(welcome ? { welcome } : {}) }, { headers: { "set-cookie": sessionCookieHeader(signed) } });
 }

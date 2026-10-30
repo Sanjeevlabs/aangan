@@ -87,7 +87,7 @@ function GuidedAdd({ onAdded, anchor: preset }: { onAdded: () => void; anchor?: 
         <span className="font-semibold text-ink">Uncles, aunts and cousins:</span> add them through a parent. &ldquo;Chachu is <em>Papa&rsquo;s brother</em>&rdquo;, &ldquo;Mausi is <em>Maa&rsquo;s sister</em>&rdquo;, then their children as their son or daughter. Aangan works out &ldquo;your uncle&rdquo; or &ldquo;your cousin&rdquo; for everyone.
       </p>
       {welcomed && (
-        <div className="bond-bloom mb-4 rounded-[22px] bg-[#fff6e6] px-4 py-3" role="status">
+        <div className="bond-bloom mb-4 rounded-[22px] bg-surface px-4 py-3" role="status">
           <p className="m-0 text-[17px] font-semibold">Welcome to the family, {welcomed}</p>
           <p className="m-0 text-[14px] text-ink-soft">A welcome card is waiting in Memory Lane.</p>
         </div>
@@ -100,7 +100,7 @@ function GuidedAdd({ onAdded, anchor: preset }: { onAdded: () => void; anchor?: 
           maxLength={40}
           onChange={(e) => setName(e.target.value)}
           placeholder="Meera"
-          className="h-[52px] w-full rounded-full bg-surface px-5 text-[16px] outline-none placeholder:text-ink-faint focus:ring-2 focus:ring-marigold"
+          className="h-[52px] w-full rounded-full bg-surface px-5 text-[16px] outline-none placeholder:text-ink-faint focus:ring-2 focus:ring-black/15"
         />
       </label>
       <p className="m-0 mb-1.5 mt-4 text-[13px] font-medium text-ink-soft">They are the</p>
@@ -137,7 +137,7 @@ function GuidedAdd({ onAdded, anchor: preset }: { onAdded: () => void; anchor?: 
       <div className="mt-4 grid grid-cols-2 gap-2">
         <label className="col-span-2 block">
           <span className="mb-1.5 block text-[13px] font-medium text-ink-soft">Where they live</span>
-          <select value={tz || anchor?.tz || ""} onChange={(e) => setTz(e.target.value)} className="h-[52px] w-full appearance-none rounded-full bg-surface px-5 text-[16px] outline-none focus:ring-2 focus:ring-marigold">
+          <select value={tz || anchor?.tz || ""} onChange={(e) => setTz(e.target.value)} className="h-[52px] w-full appearance-none rounded-full bg-surface px-5 text-[16px] outline-none focus:ring-2 focus:ring-black/15">
             {Array.from(new Set([anchor?.tz, ...ZONES.map((z) => z.tz)].filter((z): z is string => Boolean(z) && z !== "UTC"))).map((z) => (
               <option key={z} value={z}>
                 {placeFromTz(z)}
@@ -228,11 +228,11 @@ export default function BondPage() {
               }
             />
           </section>
+          <BothSides />
           <div className="mt-10">
             <FamilyHomes members={members} relationships={relationships ?? []} />
           </div>
           <FamilyCircles members={members} relationships={relationships ?? []} />
-          <BothSides />
           <PetsSection />
           {can(viewer, "tree.add") ? (
           <GuidedAdd

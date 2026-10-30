@@ -68,6 +68,12 @@ const ICONS = {
   lockOpen: L.LockKeyholeOpen,
   share: L.Share2,
   whatsapp: L.MessageCircle,
+  pickUp: L.HandHelping,
+  edit: L.Pencil,
+  trash: L.Trash2,
+  up: L.ChevronUp,
+  assign: L.UserPlus,
+  contacts: L.Contact,
 } satisfies Record<string, L.LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

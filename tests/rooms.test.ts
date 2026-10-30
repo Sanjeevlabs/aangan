@@ -151,14 +151,14 @@ describe("care circle", () => {
     expect(mockNeed("I'm not feeling well today").title).toBe("Someone to visit and check on me");
   });
 
-  it("only helpers in that parent's Village can be sent; take-week puts you first", async () => {
+  it("only helpers in that parent's Village can be sent; the retired rota is gone", async () => {
     await putDoc("demo-family", "helper", { id: "h-other", name: "Other", role: "driver", forMemberId: "arjun", addedBy: "leo", createdAt: new Date().toISOString() });
     const need = await json<{ need: { id: string } }>(carePost(req("/api/care", "leo", { action: "need", forMemberId: "dadi", title: "Ride to the station" })));
     expect((await carePost(req("/api/care", "leo", { action: "assign", needId: need.need.id, helperId: "h-other" }))).status).toBe(404);
-    const rota = await json<{ rota: { order: string[] } }>(carePost(req("/api/care", "leo", { action: "take-week", forMemberId: "dadi" })));
-    expect(rota.rota.order[0]).toBe("leo");
-    const all = await json<{ helpers: unknown[]; rotas: unknown[] }>(careGet(req("/api/care")));
-    expect(all.rotas).toHaveLength(1);
+    expect((await carePost(req("/api/care", "leo", { action: "take-week", forMemberId: "dadi" }))).status).toBe(400);
+    const all = await json<{ helpers: unknown[]; rotas?: unknown }>(careGet(req("/api/care")));
+    expect(all.helpers.length).toBeGreaterThan(0);
+    expect(all.rotas).toBeUndefined();
   });
 });
 

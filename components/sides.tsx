@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { whatsappInvite } from "@/lib/invite-link";
 import { callName, memberPhoto } from "@/lib/people";
 import type { Member, Relationship } from "@/lib/schemas";
 import { resetFamilyCards } from "@/lib/use-family";
@@ -17,11 +18,15 @@ export interface Side {
   memberId: string;
   name: string;
   people: number;
+  /** Who started that family (their call name), null when it was you. */
+  addedBy?: string | null;
+  /** Things others shared there this week. */
+  fresh?: number;
 }
 
 export function useSides() {
-  const { data, reload } = useJson<{ current: string; sides: Side[] }>("/api/sides");
-  return { sides: data?.sides ?? [], current: data?.current ?? null, reload };
+  const { data, failed, reload } = useJson<{ current: string; sides: Side[] }>("/api/sides");
+  return { sides: data?.sides ?? [], current: data?.current ?? null, loading: data === null && !failed, failed, reload };
 }
 
 async function openSide(familyId: string): Promise<void> {
@@ -70,43 +75,75 @@ function myHome(viewerId: string, members: Member[], rels: Relationship[]): Memb
   return members.filter((m) => ids.has(m.id));
 }
 
+/**
+ * "You're in N families": each family that added you, who added you, what's
+ * new there, and a switch. Never the other families' trees.
+ * Join another family = /join with its code and the same email.
+ */
 export function BothSides() {
   const { viewer, members, relationships } = useViewer();
-  const { sides, current } = useSides();
+  const { sides, current, loading, failed, reload } = useSides();
   const [adding, setAdding] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
   const grownUp = viewer.access !== "child" && viewer.role !== "child";
-  if (sides.length === 0) return null;
+  const demo = viewer.familyId.startsWith("demo-");
+  const n = sides.length;
   return (
-    <section aria-label="Both sides of the family" className="mt-10">
-      <h2 className="m-0 text-[20px]">Both sides</h2>
-      <p className="m-0 mb-3 mt-1 text-[14px] text-ink-soft">Each side of the family keeps its own Aangan. Your home belongs to both.</p>
-      <ul className="m-0 list-none space-y-2 p-0">
-        {sides.map((s) => (
-          <li key={s.familyId}>
-            <button
-              type="button"
-              onClick={() => s.familyId !== current && void openSide(s.familyId)}
-              className={cn("press flex w-full items-center gap-3 rounded-card px-4 py-3.5 text-left", s.familyId === current ? "bg-[#fff2d6]" : "bg-surface")}
-            >
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white text-[17px] font-bold">{s.name.slice(0, 1)}</span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[16px] font-semibold">{s.name} Aangan</span>
-                <span className="block text-[13px] text-ink-soft">
-                  {s.people} people{s.familyId === current ? " · you're here" : ""}
-                </span>
-              </span>
-              {s.familyId !== current && <Icon name="chevron" size={18} className="text-ink-faint" />}
+    <section aria-label="Your families" className="mt-10">
+      <div className="flex items-baseline justify-between">
+        <h2 className="m-0 text-[20px]">{n > 1 ? `You're in ${n} families` : "Your family"}</h2>
+        {grownUp && !demo && n < 4 && (
+          <div className="flex gap-1">
+            <a href="/join" aria-label="Join another family with a code" className="press grid h-10 w-10 place-items-center rounded-full bg-surface text-ink no-underline">
+              <Icon name="key" size={18} />
+            </a>
+            <button type="button" aria-label="Start a family for your side" onClick={() => setAdding(true)} className="press grid h-10 w-10 place-items-center rounded-full bg-surface">
+              <Icon name="plus" size={18} />
             </button>
-          </li>
-        ))}
-      </ul>
-      {grownUp && viewer.familyId.startsWith("demo-") && <p className="m-0 mt-3 text-[13px] text-ink-faint">In your own family, you can add your side here.</p>}
-      {grownUp && !viewer.familyId.startsWith("demo-") && sides.length < 4 && (
-        <button type="button" onClick={() => setAdding(true)} className="press mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-full border border-dashed border-black/15 text-[15px] font-semibold">
-          <Icon name="plus" size={18} />
-          {sides.length === 1 ? "Add your family's side" : "Add another side"}
+          </div>
+        )}
+      </div>
+      <p className="m-0 mb-3 mt-1 text-[14px] text-ink-soft">{n > 1 ? "Each family keeps its own tree. Switch to see theirs." : "Married into another family? Join theirs with their code and the same email."}</p>
+      {loading && <div className="skeleton h-[84px] rounded-card" aria-busy="true" aria-label="Loading families" />}
+      {failed && (
+        <button type="button" onClick={() => void reload()} className="press h-11 w-full rounded-full bg-surface text-[14px] text-ink-soft">
+          Couldn&rsquo;t load your families. Tap to retry.
         </button>
       )}
+      {n > 0 && (
+        <ul className="no-scrollbar -mx-5 m-0 flex list-none snap-x gap-2 overflow-x-auto px-5 p-0">
+          {sides.map((s) => {
+            const here = s.familyId === current;
+            return (
+              <li key={s.familyId} className="w-[64%] max-w-[240px] shrink-0 snap-start">
+                <button
+                  type="button"
+                  disabled={here || busy !== null}
+                  aria-label={here ? `${s.name}, you're here` : `Switch to ${s.name}`}
+                  onClick={() => {
+                    setBusy(s.familyId);
+                    void openSide(s.familyId);
+                  }}
+                  className={cn("press flex w-full items-center gap-3 rounded-card p-3 text-left", here ? "bg-ink text-white" : "bg-surface")}
+                >
+                  <span className={cn("relative grid h-11 w-11 shrink-0 place-items-center rounded-full text-[17px] font-bold", here ? "bg-white/15" : "bg-white")}>
+                    {s.name.slice(0, 1)}
+                    {!here && (s.fresh ?? 0) > 0 && <span className="tnum absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-ink px-1 text-[11px] font-semibold text-white">{s.fresh}</span>}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[15px] font-semibold">{s.name}</span>
+                    <span className={cn("block truncate text-[12.5px]", here ? "text-white/70" : "text-ink-soft")}>
+                      {busy === s.familyId ? "Opening…" : here ? "You're here" : s.addedBy ? `Added by ${s.addedBy}` : `${s.people} people`}
+                    </span>
+                  </span>
+                  {!here && <Icon name="chevron" size={16} className="text-ink-faint" />}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {grownUp && demo && <p className="m-0 mt-2 text-[13px] text-ink-faint">In your own family, you can join or start another family here.</p>}
       {adding && <AddSideSheet home={myHome(viewer.id, members, relationships)} onClose={() => setAdding(false)} />}
     </section>
   );
@@ -127,20 +164,10 @@ function AddSideSheet({ home, onClose }: { home: Member[]; onClose: () => void }
             <p className="m-0 text-[21px] font-semibold">The {name.trim()} Aangan is ready</p>
             <p className="m-0 mt-1 text-[15px] text-ink-soft">Send this code to your parents, brothers and sisters. It works for 7 days.</p>
             <p className="tnum m-0 mt-4 rounded-[22px] bg-surface py-4 text-center text-[28px] font-bold tracking-[0.12em]">{made.invite.code}</p>
-            <Button
-              className="mt-4 w-full"
-              onClick={async () => {
-                const text = `Join our family on Aangan. Your code: ${made.invite.code}`;
-                try {
-                  if (navigator.share) await navigator.share({ title: "Aangan", text, url: window.location.origin });
-                  else await navigator.clipboard.writeText(`${text}\n${window.location.origin}`);
-                } catch {
-                  /* dismissed */
-                }
-              }}
-            >
-              Share the code
-            </Button>
+            <a href={whatsappInvite(window.location.origin, made.invite.code)} target="_blank" rel="noopener noreferrer" className="press mt-4 flex h-[52px] w-full items-center justify-center gap-2 rounded-full bg-black text-[16px] font-semibold text-white no-underline">
+              <Icon name="whatsapp" size={20} />
+              Send on WhatsApp
+            </a>
             <Button variant="secondary" className="mt-2 w-full" onClick={() => window.location.assign("/")}>
               Open the {name.trim()} Aangan
             </Button>
@@ -151,7 +178,7 @@ function AddSideSheet({ home, onClose }: { home: Member[]; onClose: () => void }
             <p className="m-0 mt-1 text-[15px] text-ink-soft">A separate Aangan for your parents&rsquo; family. Nothing from this side shows there unless you share it.</p>
             <label className="mt-4 block">
               <span className="mb-1.5 block text-[13px] font-medium text-ink-soft">Family name</span>
-              <input value={name} onChange={(e) => setName(e.target.value.slice(0, 40))} placeholder="Your parents' family name" className="h-[52px] w-full rounded-full bg-surface px-5 text-[16px] outline-none focus:ring-2 focus:ring-marigold" />
+              <input value={name} onChange={(e) => setName(e.target.value.slice(0, 40))} placeholder="Your parents' family name" className="h-[52px] w-full rounded-full bg-surface px-5 text-[16px] outline-none focus:ring-2 focus:ring-black/15" />
             </label>
             {home.length > 0 && (
               <>

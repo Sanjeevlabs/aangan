@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { greetingForHour } from "@/lib/i18n";
 import { resolveMediaUrl } from "@/lib/media-session";
-import { Button, Photo } from "./ui/kit";
+import { Button, Icon, Photo } from "./ui/kit";
 import { useViewer } from "./viewer";
 
 const COURTYARD = "/demo/courtyard.jpg";
@@ -24,22 +24,22 @@ export function EntryFrame({ image = COURTYARD, children }: { image?: string; ch
   );
 }
 
-/** Signed out: say what Aangan is, and offer the three ways in. */
+/** Signed out: one promise, and the four ways in. */
 export function Landing({ onDemo }: { onDemo: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   return (
     <EntryFrame>
-      <h1 className="m-0 text-[30px] leading-[1.1] text-white">Keep your parents needed.</h1>
-      <p className="m-0 mt-2 text-[16px] leading-snug text-white/80">Ask them for what only they can give: a recipe, a story, their advice, a blessing. They answer by voice, from wherever they are.</p>
-      <div className="mt-6 space-y-2.5">
+      <h1 className="m-0 text-[30px] leading-[1.1] text-white">A window into your parents&rsquo; home, and theirs into yours.</h1>
+      <div className="mt-6 grid grid-cols-2 gap-2.5">
         <Link href="/create" className="press flex h-[52px] items-center justify-center rounded-full bg-white text-[16px] font-semibold text-black no-underline">
-          Start your family&rsquo;s Aangan
+          Create
         </Link>
-        <Link href="/join" className="press flex h-[52px] items-center justify-center rounded-full bg-white/20 text-[16px] font-semibold text-white no-underline">
-          I have an invite code
+        <Link href="/join" className="press flex h-[52px] items-center justify-center gap-2 rounded-full bg-white/15 text-[16px] font-semibold text-white no-underline">
+          <Icon name="key" size={18} />
+          Join with code
         </Link>
       </div>
-      <div className="mt-4 flex items-center justify-between px-1 text-[15px]">
+      <div className="mt-3 flex items-center justify-between px-1 text-[15px]">
         <Link href="/signin" className="flex h-11 items-center font-medium text-white no-underline">
           Sign in
         </Link>
@@ -51,9 +51,10 @@ export function Landing({ onDemo }: { onDemo: () => Promise<void> }) {
             await onDemo();
             setBusy(false);
           }}
-          className="flex h-11 items-center font-medium text-white/80"
+          className="flex h-11 items-center gap-1 font-medium text-white/80"
         >
-          {busy ? "Opening…" : "Explore a demo family"}
+          {busy ? "Opening…" : "Try the demo"}
+          {!busy && <Icon name="chevron" size={16} />}
         </button>
       </div>
     </EntryFrame>

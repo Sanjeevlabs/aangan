@@ -7,7 +7,7 @@ import {
   strings,
 } from "@/lib/i18n";
 import { containsDevanagari, memoryStore, transcribeVoice, translateText } from "@/lib/llm";
-import { dailyRoleFor, signalLineFor } from "@/lib/family";
+import { signalLineFor } from "@/lib/family";
 
 const HAS_DEVANAGARI = /[\u0900-\u097F]/;
 
@@ -71,9 +71,7 @@ describe("display_lang (M2 language choice)", () => {
     expect(grandmaName("hi-deva")).toBe("दादी");
   });
 
-  it("role prompts and signal lines are localized per display_lang", () => {
-    expect(containsDevanagari(dailyRoleFor("hi-deva"))).toBe(true);
-    expect(containsDevanagari(dailyRoleFor("hi-latn"))).toBe(false);
+  it("signal lines are localized per display_lang", () => {
     expect(containsDevanagari(signalLineFor("arjun", "hi-deva"))).toBe(true);
     expect(containsDevanagari(signalLineFor("arjun", "hi-latn"))).toBe(false);
     expect(signalLineFor("arjun", "hi-latn")).toContain("Maa");

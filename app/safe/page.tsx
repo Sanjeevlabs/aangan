@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { SafetyRow, type SafetyData } from "@/components/safety";
+import { DOT, SafetyRow, type SafetyData } from "@/components/safety";
 import { Avatar, Button, EmptyLine, Icon, RoomHeader, SectionTitle } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
 import { callName, memberPhoto } from "@/lib/people";
@@ -59,8 +59,8 @@ export default function SafePage() {
           {data.mine?.enabled && <Setup others={others} current={data.mine} onSaved={reload} editing />}
 
           <SectionTitle>In an emergency</SectionTitle>
-          <a href={`tel:${sos.number}`} className="press flex items-center gap-3 rounded-card bg-[#fde8e6] p-4 text-ink no-underline">
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white text-[18px] font-bold text-[#a32418]">{sos.number}</span>
+          <a href={`tel:${sos.number}`} className="press flex items-center gap-3 rounded-card bg-surface p-4 text-ink no-underline">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-black text-[17px] font-bold text-white">{sos.number}</span>
             <span className="min-w-0">
               <span className="block text-[16px] font-semibold">Call {sos.number}</span>
               <span className="block text-[13px] text-ink-soft">Emergency number for {sos.country}, from your time zone ({placeFromTz(viewer.tz)}). Call them first, then your family.</span>
@@ -112,8 +112,9 @@ function CheckIn({ data, onChange }: { data: SafetyData; onChange: () => Promise
   return (
     <div className="space-y-3">
       {open && (
-        <div className={cn("rounded-card p-4", open.tone === "help" ? "bg-[#fde8e6]" : "bg-[#eef4fb]")}>
-          <p className="m-0 text-[15px] font-semibold">
+        <div className="rounded-card bg-surface p-4">
+          <p className="m-0 flex items-center gap-2 text-[15px] font-semibold">
+            <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", DOT[open.tone])} aria-hidden="true" />
             {open.label} · {ago(open.at)}
           </p>
           <p className="m-0 mt-0.5 text-[13px] text-ink-soft">{names} can see this.</p>
@@ -132,7 +133,7 @@ function CheckIn({ data, onChange }: { data: SafetyData; onChange: () => Promise
           </Button>
         </div>
       )}
-      {msg && <p className="m-0 rounded-card bg-[#e8f3e1] px-4 py-3 text-[14px] text-[#3d6b2a]" role="status">{msg}</p>}
+      {msg && <p className="m-0 rounded-card bg-surface px-4 py-3 text-[14px] text-ink" role="status">{msg}</p>}
 
       <div className="grid grid-cols-2 gap-2">
         <Big label="Home safe" sub="Tell them you're in" onClick={() => send({ kind: "home-safe" }, `${names} know you're home.`)} disabled={busy} />
@@ -163,7 +164,7 @@ function CheckIn({ data, onChange }: { data: SafetyData; onChange: () => Promise
       )}
 
       {mode === "help" ? (
-        <div className="rounded-card bg-[#fde8e6] p-4">
+        <div className="frost rounded-card p-4">
           <p className="m-0 text-[16px] font-semibold">Tell {names} you need help?</p>
           <input value={note} onChange={(e) => setNote(e.target.value.slice(0, 120))} placeholder="What's happening? (optional)" className="mt-3 h-12 w-full rounded-2xl bg-white px-4 text-[16px] outline-none" aria-label="What's happening" />
           <label className="mt-3 flex items-center gap-2 text-[14px]">
@@ -171,20 +172,20 @@ function CheckIn({ data, onChange }: { data: SafetyData; onChange: () => Promise
             Send where I am, once (deleted after 24 h)
           </label>
           <div className="mt-3 flex gap-2">
-            <Button className="flex-1 !bg-[#a32418]" disabled={busy} onClick={help}>
+            <Button className="flex-1" disabled={busy} onClick={help}>
               Send now
             </Button>
             <Button variant="quiet" onClick={() => setMode(null)}>
               Cancel
             </Button>
           </div>
-          <a href="/nearby" className="mt-3 flex items-center gap-2 text-[14px] font-semibold text-[#a32418] no-underline">
-            <Icon name="gather" size={16} /> People near you to call · trusted nearby
+          <a href="/nearby" className="mt-3 flex items-center gap-2 text-[14px] font-semibold text-ink no-underline">
+            <Icon name="phone" size={16} /> Your top 5 nearby to call · Trusted nearby
           </a>
         </div>
       ) : (
-        <button type="button" onClick={() => setMode("help")} className="press flex h-[52px] w-full items-center justify-center gap-2 rounded-full bg-[#fde8e6] text-[16px] font-semibold text-[#a32418]">
-          <Icon name="shield" size={18} />I need help
+        <button type="button" onClick={() => setMode("help")} className="press flex h-[52px] w-full items-center justify-center gap-2 rounded-full bg-surface text-[16px] font-semibold text-ink">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#d92d20]" aria-hidden="true" />I need help
         </button>
       )}
     </div>

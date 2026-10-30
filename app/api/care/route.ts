@@ -4,28 +4,17 @@ import { needFromVoice, noteForParent } from "@/lib/care";
 import { dbAddAgentRun, dbListCards, dbListMembers, dbListRelationships } from "@/lib/db";
 import { deleteDoc, getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
 import { householdOf, households } from "@/lib/households";
-import { HELPER_ROLES, NEED_KINDS, NEED_STATUSES, PRIORITIES, RECURRENCE, type Need } from "@/lib/kinds";
+import { HELPER_ROLES, NEED_KINDS, NEED_STATUSES, PRIORITIES, RECURRENCE, type Helper, type Need } from "@/lib/kinds";
+import { isDialable, MAX_NEARBY, normalizePhone, rankNearby } from "@/lib/nearby";
 import { can } from "@/lib/permissions";
 import type { Member } from "@/lib/schemas";
 
-// Care board: tickets for each home (open → assigned → in progress → done,
-// or cancelled), the home's local helpers (trusted people nearby), whose week it
-// is, and who handles what. Every change is written to the ticket's
-// timeline. Tasks only: no medical, legal or financial advice anywhere.
-
-const NEED_LABEL_EN: Record<(typeof NEED_KINDS)[number], string> = {
-  groceries: "groceries",
-  house: "the house",
-  ride: "rides",
-  repair: "repairs",
-  gas: "the gas booking",
-  bills: "the bills",
-  health: "health visits",
-  errand: "errands",
-  visit: "visits",
-  pets: "the pets",
-  other: "this",
-};
+// Care board: tasks for each home (open → assigned → in progress → done,
+// or cancelled) and the home's local helpers. A helper marked `emergency` is
+// on that home's Trusted nearby list: at most five, ranked, each with their
+// consent. Every task change is written to its timeline. Tasks only: no
+// medical, legal or financial advice anywhere. (The old rota / "who handles
+// what" setup is retired; its stored docs are left untouched.)
 
 const When = z.string().trim().max(60).default("");
 const DueAt = z.string().datetime().nullable().optional();
@@ -67,27 +56,27 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("helper"), forMemberId: z.string().min(1), name: z.string().trim().min(1).max(60), role: z.enum(HELPER_ROLES).default("other"), phone: Phone, hours: z.string().trim().max(60).default(""), note: z.string().trim().max(160).default(""), emergency: z.boolean().default(false), consent: z.boolean().default(false) }),
   z.object({ action: z.literal("helper-edit"), helperId: z.string().min(1), name: z.string().trim().min(1).max(60), role: z.enum(HELPER_ROLES), phone: Phone, hours: z.string().trim().max(60).default(""), note: z.string().trim().max(160).default(""), emergency: z.boolean().optional(), consent: z.boolean().optional() }),
   z.object({ action: z.literal("helper-remove"), helperId: z.string().min(1) }),
-  z.object({ action: z.literal("duty-set"), forMemberId: z.string().min(1), kind: z.enum(NEED_KINDS), memberId: z.string().min(1) }),
-  z.object({ action: z.literal("duty-clear"), forMemberId: z.string().min(1), kind: z.enum(NEED_KINDS) }),
-  z.object({ action: z.literal("take-week"), forMemberId: z.string().min(1) }),
-  z.object({ action: z.literal("leave-rota"), forMemberId: z.string().min(1) }),
+  // Trusted nearby rank: swap with the one above (-1) or below (+1) in that home.
+  z.object({ action: z.literal("nearby-move"), helperId: z.string().min(1), dir: z.union([z.literal(-1), z.literal(1)]) }),
 ]);
 
-// Anyone may ask for themselves and edit or withdraw their own tickets;
-// running care (assigning, local helpers, the rota, duties) needs care.manage.
+// Anyone may ask for themselves and edit or withdraw their own tasks;
+// running care (assigning, local helpers) needs care.manage. Your own
+// trusted-nearby people (the ones near *you*) are always yours to keep.
 const SELF_SERVICE = new Set(["need", "need-from-voice", "need-edit", "need-delete"]);
+const NEARBY_SELF = new Set(["helper", "helper-edit", "helper-remove", "nearby-move"]);
+
+/** Trusted nearby for a home, ranked #1 first. */
+function rankedNearby(helpers: Helper[], homeIds: Set<string>): Helper[] {
+  return rankNearby(helpers.filter((h) => h.emergency && homeIds.has(h.forMemberId)));
+}
 
 export async function GET(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
-  const [needs, helpers, rotas, duties] = await Promise.all([listDocs(auth.familyId, "need"), listDocs(auth.familyId, "helper"), listDocs(auth.familyId, "rota"), listDocs(auth.familyId, "duty")]);
-  return Response.json({ needs, helpers, rotas, duties });
-}
-
-function mondayOf(d: Date): string {
-  const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7));
-  return x.toISOString().slice(0, 10);
+  const [needs, helpers] = await Promise.all([listDocs(auth.familyId, "need"), listDocs(auth.familyId, "helper")]);
+  // Oldest first, so the trusted-nearby rank (#1 = earliest) reads straight off the list.
+  return Response.json({ needs, helpers: rankNearby(helpers) });
 }
 
 function nextDue(from: string | null, recurring: Need["recurring"]): string | null {
@@ -111,8 +100,12 @@ export async function POST(req: Request): Promise<Response> {
   const now = new Date().toISOString();
 
   // Your own trusted-nearby list (the people near *you*) is yours to keep.
-  const ownCircle = body.action === "helper" && body.forMemberId === auth.memberId;
-  if (!SELF_SERVICE.has(body.action) && !ownCircle && !can(me, "care.manage")) return Response.json({ error: "not-allowed", action: "care.manage" }, { status: 403 });
+  let ownNearby = false;
+  if (NEARBY_SELF.has(body.action)) {
+    if (body.action === "helper") ownNearby = body.forMemberId === auth.memberId;
+    else if ("helperId" in body) ownNearby = (await getDoc(auth.familyId, "helper", body.helperId))?.forMemberId === auth.memberId;
+  }
+  if (!SELF_SERVICE.has(body.action) && !ownNearby && !can(me, "care.manage")) return Response.json({ error: "not-allowed", action: "care.manage" }, { status: 403 });
   const askingForSelf = "forMemberId" in body && body.forMemberId === auth.memberId;
   if ((body.action === "need" || body.action === "need-from-voice") && !askingForSelf && !can(me, "care.manage")) return Response.json({ error: "not-allowed", action: "care.manage" }, { status: 403 });
 
@@ -128,16 +121,13 @@ export async function POST(req: Request): Promise<Response> {
     const home = householdOf(memberId, households(members, await dbListRelationships(auth.familyId)));
     return new Set([memberId, ...(home?.members.map((m) => m.id) ?? [])]);
   };
-
-  // Who handles this kind of need for this home? Then it goes straight to them.
-  const routeToDuty = async (need: Need): Promise<Need> => {
-    if (need.claimedBy) return need;
-    const homeIds = await homeIdsOf(need.forMemberId);
-    const duty = (await listDocs(auth.familyId, "duty")).find((d) => homeIds.has(d.forMemberId) && d.kind === need.kind);
-    const who = duty && person(duty.memberId);
-    if (!who) return need;
-    const noteForParent = await reassure(need, `${who.displayName} looks after ${NEED_LABEL_EN[need.kind]} for you. They're on it.`);
-    return save(need, `Assigned to ${who.displayName} (handles ${NEED_LABEL_EN[need.kind]})`, { status: "claimed", claimedBy: who.id, noteForParent });
+  /** Trusted nearby rules: dialable number, their consent, at most five per home. */
+  const nearbyProblem = async (forMemberId: string, phone: string, consent: boolean, exceptId?: string): Promise<Response | null> => {
+    if (!consent) return Response.json({ error: "needs-consent" }, { status: 400 });
+    if (!isDialable(phone)) return Response.json({ error: "invalid-phone" }, { status: 400 });
+    const listed = rankedNearby(await listDocs(auth.familyId, "helper"), await homeIdsOf(forMemberId)).filter((h) => h.id !== exceptId);
+    if (listed.length >= MAX_NEARBY) return Response.json({ error: "nearby-full", max: MAX_NEARBY }, { status: 409 });
+    return null;
   };
 
   switch (body.action) {
@@ -160,7 +150,7 @@ export async function POST(req: Request): Promise<Response> {
         history: [{ at: now, by: auth.memberId, what: assignee ? `Created and assigned to ${assignee.displayName}` : "Created" }],
         createdAt: now,
       });
-      return Response.json({ need: await routeToDuty(need) }, { status: 201 });
+      return Response.json({ need }, { status: 201 });
     }
     case "need-from-voice": {
       const parent = person(body.forMemberId);
@@ -169,7 +159,7 @@ export async function POST(req: Request): Promise<Response> {
       const draft = await needFromVoice(auth.familyId, parent.displayName, card.transcript || card.caption, card.transcriptLang || card.lang);
       const need = await putDoc(auth.familyId, "need", { id: newId("need"), forMemberId: parent.id, askedBy: auth.memberId, ...draft, status: "open", history: [{ at: now, by: auth.memberId, what: "Asked by voice (written down by Muse)" }], createdAt: now });
       await dbAddAgentRun({ goal: `Care: turned ${parent.displayName}'s voice into a task`, tools: ["muse-voice-transcribe", "muse-spark", "create_need"], familyId: auth.familyId });
-      return Response.json({ need: await routeToDuty(need) }, { status: 201 });
+      return Response.json({ need }, { status: 201 });
     }
     case "claim":
     case "assign-to": {
@@ -238,10 +228,14 @@ export async function POST(req: Request): Promise<Response> {
     case "helper": {
       if (!person(body.forMemberId)) return Response.json({ error: "unknown-member" }, { status: 404 });
       // Someone's number on a trusted-nearby list only with their say-so (DPDP consent).
-      if (body.emergency && !body.consent) return Response.json({ error: "needs-consent" }, { status: 400 });
+      if (body.emergency) {
+        const problem = await nearbyProblem(body.forMemberId, body.phone, body.consent);
+        if (problem) return problem;
+      }
       const { action: _a, ...rest } = body;
       void _a;
-      return Response.json({ helper: await putDoc(auth.familyId, "helper", { id: newId("helper"), ...rest, addedBy: auth.memberId, createdAt: now }) }, { status: 201 });
+      const phone = body.emergency ? normalizePhone(body.phone) : body.phone;
+      return Response.json({ helper: await putDoc(auth.familyId, "helper", { id: newId("helper"), ...rest, phone, addedBy: auth.memberId, createdAt: now }) }, { status: 201 });
     }
     case "helper-edit": {
       const helper = await getDoc(auth.familyId, "helper", body.helperId);
@@ -249,7 +243,13 @@ export async function POST(req: Request): Promise<Response> {
       const { action: _a, helperId: _h, ...fields } = body;
       void _a;
       void _h;
-      return Response.json({ helper: await putDoc(auth.familyId, "helper", { ...helper, ...fields }) });
+      const emergency = fields.emergency ?? helper.emergency;
+      const consent = fields.consent ?? helper.consent;
+      if (emergency) {
+        const problem = await nearbyProblem(helper.forMemberId, fields.phone, consent, helper.id);
+        if (problem) return problem;
+      }
+      return Response.json({ helper: await putDoc(auth.familyId, "helper", { ...helper, ...fields, emergency, consent, phone: emergency ? normalizePhone(fields.phone) : fields.phone }) });
     }
     case "helper-remove": {
       const helper = await getDoc(auth.familyId, "helper", body.helperId);
@@ -257,33 +257,24 @@ export async function POST(req: Request): Promise<Response> {
       await deleteDoc(auth.familyId, "helper", helper.id);
       return Response.json({ removed: helper.id });
     }
-    case "duty-set":
-    case "duty-clear": {
-      if (!person(body.forMemberId)) return Response.json({ error: "unknown-member" }, { status: 404 });
-      const id = `${body.forMemberId}:${body.kind}`;
-      if (body.action === "duty-clear") {
-        await deleteDoc(auth.familyId, "duty", id);
-        return Response.json({ cleared: id });
+    case "nearby-move": {
+      const helper = await getDoc(auth.familyId, "helper", body.helperId);
+      if (!helper?.emergency) return Response.json({ error: "unknown-helper" }, { status: 404 });
+      const ranked = rankedNearby(await listDocs(auth.familyId, "helper"), await homeIdsOf(helper.forMemberId));
+      const i = ranked.findIndex((h) => h.id === helper.id);
+      const other = ranked[i + body.dir];
+      if (!other) return Response.json({ nearby: ranked });
+      // Rank is the order of createdAt. Swap the two, then re-stamp the home's list
+      // 1 ms apart from the earliest, so ties (people seeded together) can't scramble it.
+      const order = [...ranked];
+      [order[i], order[i + body.dir]] = [order[i + body.dir], order[i]];
+      const base = Date.parse(ranked[0].createdAt);
+      for (let k = 0; k < order.length; k++) {
+        const h = order[k];
+        const stamp = new Date(base + k).toISOString();
+        if (h.createdAt !== stamp) await putDoc(auth.familyId, "helper", { ...h, createdAt: stamp });
       }
-      const who = person(body.memberId);
-      if (!who || who.access === "child") return Response.json({ error: "unknown-member" }, { status: 404 });
-      return Response.json({ duty: await putDoc(auth.familyId, "duty", { id, forMemberId: body.forMemberId, kind: body.kind, memberId: who.id, updatedAt: now }) });
-    }
-    case "take-week": {
-      if (!person(body.forMemberId)) return Response.json({ error: "unknown-member" }, { status: 404 });
-      const rota = await getDoc(auth.familyId, "rota", body.forMemberId);
-      const order = [auth.memberId, ...(rota?.order ?? []).filter((id) => id !== auth.memberId)];
-      return Response.json({ rota: await putDoc(auth.familyId, "rota", { id: body.forMemberId, forMemberId: body.forMemberId, order, startWeek: mondayOf(new Date()), updatedAt: now }) });
-    }
-    case "leave-rota": {
-      const rota = await getDoc(auth.familyId, "rota", body.forMemberId);
-      if (!rota) return Response.json({ error: "unknown-rota" }, { status: 404 });
-      const order = rota.order.filter((id) => id !== auth.memberId);
-      if (order.length === 0) {
-        await deleteDoc(auth.familyId, "rota", rota.id);
-        return Response.json({ rota: null });
-      }
-      return Response.json({ rota: await putDoc(auth.familyId, "rota", { ...rota, order, updatedAt: now }) });
+      return Response.json({ nearby: rankedNearby(await listDocs(auth.familyId, "helper"), await homeIdsOf(helper.forMemberId)) });
     }
   }
 }
