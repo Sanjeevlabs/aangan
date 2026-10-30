@@ -92,6 +92,41 @@ function LargeTextToggle() {
   );
 }
 
+/**
+ * Privacy (SPEC §30.2): the lamp-glow ring and "active 2 h ago" in Kutumb,
+ * and the status on the window. Stored as care_settings.shareVisits; the
+ * other care settings are kept as they are.
+ */
+function LampToggle({ onMessage }: { onMessage: (m: string) => void }) {
+  const { viewer } = useViewer();
+  const { data, reload } = useJson<{ settings: { memberId: string; quietAlert: boolean; tellMemberId: string | null; graceHours: number; shareVisits: boolean }[] }>("/api/presence");
+  const mine = data?.settings.find((s) => s.memberId === viewer.id);
+  const on = mine?.shareVisits ?? true;
+  const [busy, setBusy] = useState(false);
+  const set = async (next: boolean) => {
+    setBusy(true);
+    const res = await fetch("/api/presence", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ quietAlert: mine?.quietAlert ?? false, tellMemberId: mine?.tellMemberId ?? null, graceHours: mine?.graceHours ?? 3, shareVisits: next }),
+    }).catch(() => null);
+    setBusy(false);
+    if (res?.ok) {
+      await reload();
+      onMessage(next ? "Your lamp shows to family again." : "Your lamp and activity are private now.");
+    } else onMessage("Couldn't save that. Try again.");
+  };
+  return (
+    <label className="mt-4 flex items-center justify-between gap-3 rounded-[22px] bg-surface px-4 py-4">
+      <span>
+        <span className="block text-[16px] font-medium">Show my lamp and activity to family</span>
+        <span className="block text-[13px] text-ink-soft">When it&rsquo;s off, nobody sees when you were last in Aangan.</span>
+      </span>
+      <input type="checkbox" className="h-6 w-6 shrink-0 accent-black" checked={on} disabled={data === null || busy} onChange={(e) => void set(e.target.checked)} />
+    </label>
+  );
+}
+
 /** Searchable picker: 29 languages would be a wall of radio buttons. */
 function LanguagePicker({ value, onPick }: { value: SupportedLang; onPick: (code: SupportedLang) => void }) {
   const [open, setOpen] = useState(false);
@@ -440,6 +475,7 @@ export default function SettingsPage() {
           <li>Voices are never cloned. No face recognition, and no tagging of children.</li>
           <li>Demo mode: Meta&rsquo;s AI models process content to caption, transcribe and translate.</li>
         </ul>
+        <LampToggle onMessage={flash} />
         {viewer.access !== "child" && (
           <div className="mt-4 overflow-hidden rounded-[22px] bg-surface">
             <a href="/api/export" download className="press flex w-full items-center justify-between px-4 py-4 text-left text-[16px] font-medium text-ink no-underline">
@@ -480,6 +516,7 @@ export default function SettingsPage() {
         </div>
       </Group>
 
+      {process.env.NODE_ENV !== "production" && (
       <Group title="Muse">
         <Link href="/trace" className="press flex items-center justify-between rounded-[22px] bg-surface px-4 py-4 text-[16px] font-medium text-ink no-underline">
           <span>
@@ -489,6 +526,7 @@ export default function SettingsPage() {
           <Icon name="chevron" size={18} className="text-ink-faint" />
         </Link>
       </Group>
+      )}
         </>
       )}
 

@@ -5,7 +5,6 @@ import { useState } from "react";
 import type { CareSettings, Knock, Need, Pet, Presence, PresenceMoment, Project, Question } from "@/lib/kinds";
 import { callName, memberPhoto } from "@/lib/people";
 import { MOMENT_LABEL, latestFor, quietDay, shareableFor, todayFor } from "@/lib/presence";
-import type { Gift } from "@/lib/gifts";
 import type { Member } from "@/lib/schemas";
 import { useDisplayText } from "@/lib/use-display-text";
 import { ago, postJson, useJson } from "@/lib/use-json";
@@ -43,7 +42,6 @@ export function CourtyardNow() {
       <div className="mt-5 space-y-3">
         <SafetyWatch />
         <MyQuestions />
-        <GiftsThisWeek />
         <MyNeeds />
       </div>
     );
@@ -226,35 +224,6 @@ function HomeNow({ home, presence, settings, viewerId, pets = [] }: { home: Hous
         </div>
       )}
     </div>
-  );
-}
-
-/** For parents: proof their giving landed. Words, never counts. */
-export function GiftsThisWeek() {
-  const { members } = useViewer();
-  const { data } = useJson<{ gifts: Gift[] }>("/api/gifts");
-  const gifts = data?.gifts ?? [];
-  if (gifts.length === 0) return null;
-  return (
-    <section aria-label="Your gifts this week" className="rounded-card bg-surface p-4">
-      <p className="m-0 text-[17px] font-semibold">What you gave this week</p>
-      <ul className="m-0 mt-2 list-none space-y-2.5 p-0">
-        {gifts.map((g) => {
-          const by = members.find((m) => m.id === g.byId);
-          return (
-            <li key={g.id}>
-              <Link href={g.href} className="flex items-center gap-3 text-ink no-underline">
-                <Avatar src={memberPhoto(by)} name={callName(by)} size={36} />
-                <span className="min-w-0 flex-1 text-[15px] leading-snug">
-                  <span className="font-semibold">{callName(by)}</span> {g.text}
-                  <span className="text-ink-faint"> · {ago(g.at)}</span>
-                </span>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
   );
 }
 

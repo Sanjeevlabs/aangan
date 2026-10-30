@@ -77,6 +77,19 @@ export default function PersonPage() {
         </div>
       </div>
 
+      {person.role === "elder" && (
+        <Link href={`/book?member=${encodeURIComponent(person.id)}`} className="press mt-4 flex items-center gap-3 rounded-[22px] bg-surface px-4 py-3.5 text-ink no-underline">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-ink text-white">
+            <Icon name="book" size={18} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="voice block text-[18px] leading-tight">The book of {callName(person)}</span>
+            <span className="block text-[13px] text-ink-soft">Their answers, in their own voice</span>
+          </span>
+          <Icon name="chevron" size={18} className="text-ink-faint" />
+        </Link>
+      )}
+
       <section aria-label="Voices" className="mt-8">
         <h2 className="m-0 mb-1 text-[20px]">Voice notes</h2>
         {cards === null ? (

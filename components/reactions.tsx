@@ -7,7 +7,7 @@ import type { Member, Play, Reaction } from "@/lib/schemas";
 import { cn } from "@/lib/utils";
 import { useShell } from "./shell";
 import { useViewer } from "./viewer";
-import { heardLine, reactionLine } from "@/lib/voice";
+import { heardLine } from "@/lib/voice";
 
 // What the family calls this person (Dadi, Dad, Maa). Same word in every UI language.
 function kinshipName(member: Member | undefined, _displayLang: string): string {
@@ -61,15 +61,25 @@ export function HeardChip({ cardId }: { cardId: string }) {
 
 const KINDS = ["love", "laugh", "bless"] as const;
 
-// Exactly three reactions as text buttons, never counts. One per member per
-// card — tapping replaces the member's prior kind. Long-press on Bless
-// replies by voice.
+/** Send a blessing on a card (the "bless" reaction). True when it landed. */
+export async function sendBlessing(cardId: string, memberId: string): Promise<boolean> {
+  try {
+    const res = await fetch("/api/reactions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cardId, memberId, kind: "bless" }) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// Exactly three reactions as text buttons. No counts and no list of who
+// reacted (SPEC §30.5): a reaction is a gesture to the sender, not a tally.
+// One per member per card; tapping replaces the member's prior kind.
+// Long-press on Bless replies by voice.
 export function ReactionBar({ cardId, tone = "light", onReply }: { cardId: string; compact?: boolean; tone?: "light" | "glass"; onReply?: () => void }) {
   const { viewer, displayLang } = useViewer();
   const { openAdd } = useShell();
   const t = strings(displayLang);
   const [reactions, setReactions] = useState<Reaction[] | null>(null);
-  const [members, setMembers] = useState<Member[]>([]);
   const pressTimer = useRef<number | null>(null);
 
   const load = useCallback(async () => {
@@ -89,7 +99,6 @@ export function ReactionBar({ cardId, tone = "light", onReply }: { cardId: strin
   useEffect(() => {
     setReactions(null);
     void load();
-    void fetchMembers().then(setMembers);
   }, [load]);
 
   const react = async (kind: (typeof KINDS)[number]) => {
@@ -125,7 +134,6 @@ export function ReactionBar({ cardId, tone = "light", onReply }: { cardId: strin
     kind === "love" ? t.reactions.love : kind === "laugh" ? t.reactions.laugh : t.reactions.bless;
 
   const mine = reactions?.find((r) => r.memberId === viewer.id)?.kind;
-  const others = (reactions ?? []).filter((r) => r.memberId !== viewer.id);
   const glass = tone === "glass";
   const icon = { love: "heart", laugh: "laugh", bless: "bless" } as const;
 
@@ -169,13 +177,6 @@ export function ReactionBar({ cardId, tone = "light", onReply }: { cardId: strin
           </button>
         )}
       </div>
-      {others.length > 0 && (
-        <p className={cn("m-0 mt-3 text-center text-[13px]", glass ? "text-white/70" : "text-ink-soft")}>
-          {others
-            .map((r) => reactionLine(kinshipName(members.find((m) => m.id === r.memberId), displayLang), r.kind, displayLang))
-            .join(" · ")}
-        </p>
-      )}
     </div>
   );
 }

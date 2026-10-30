@@ -4,29 +4,38 @@ import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { OccasionMonth } from "@/components/occasion-calendar";
 import { OccasionCelebration } from "@/components/occasion-celebration";
-import { FestivalsSheet } from "@/components/occasion-festivals";
+import { TraditionsSheet, type TraditionChoice } from "@/components/occasion-festivals";
+import { PhotoWishButton } from "@/components/occasion-wish";
 import { useShell } from "@/components/shell";
 import { Avatar, Icon, Photo, RoomHeader } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
-import { addDays, daysBetween, localTodayIso, occasionsInRange, whenLabel, type CalOccasion, type OccasionConfig } from "@/lib/occasion-calendar";
+import { addDays, daysBetween, localTodayIso, occasionsInRange, visibleHolidays, whenLabel, type CalHoliday, type CalOccasion, type OccasionChoices } from "@/lib/occasion-calendar";
 import { callName, memberPhoto } from "@/lib/people";
 import type { Member, RitualRun, Wish } from "@/lib/schemas";
 import { useFamilyCards } from "@/lib/use-family";
 import { useJson } from "@/lib/use-json";
 
 // Occasions: today's celebration (if any), the next few days as swipe
-// cards, and a month calendar for everything else. Birthdays always; a
-// festival only when the family keeps it (one family-level list).
+// cards, and a month calendar for everything else. Birthdays and national
+// days always; festivals of the traditions the family celebrates (one
+// family-level choice), plus any switched on or off by hand.
 
 interface Data {
-  configs: OccasionConfig[];
-  movable: Record<string, string>;
+  holidays: CalHoliday[];
+  holidaySource: "google" | "fallback";
+  countryName: string;
+  traditionChoices: TraditionChoice[];
+  traditions: string[];
+  kept: string[];
+  skipped: string[];
   members: Member[];
   runs: RitualRun[];
   wishes: Wish[];
-  kept: string[];
   canEditKept: boolean;
 }
+
+/** How many days ahead the family is asked for wishes. */
+const ASK_DAYS = 7;
 
 const SOON_DAYS = 10;
 
@@ -35,14 +44,15 @@ export default function OccasionsPage() {
   const { openAdd, refreshKey } = useShell();
   const { cards } = useFamilyCards(refreshKey);
   const { data, failed, reload } = useJson<Data>(`/api/rituals?k=${refreshKey}`);
-  const [kept, setKept] = useState<string[] | null>(null);
+  const [saved, setSaved] = useState<OccasionChoices | null>(null);
   const [festivalsOpen, setFestivalsOpen] = useState(false);
   const today = localTodayIso();
-  const keptNow = kept ?? data?.kept ?? [];
+  const choices = useMemo<OccasionChoices>(() => saved ?? { traditions: data?.traditions ?? [], kept: data?.kept ?? [], skipped: data?.skipped ?? [] }, [saved, data]);
+  const shownHolidays = useMemo(() => (data ? visibleHolidays(data.holidays, choices) : []), [data, choices]);
 
   const occasionsFor = useCallback(
-    (start: string, end: string): CalOccasion[] => (data ? occasionsInRange(data.members, data.configs, data.movable, keptNow, start, end) : []),
-    [data, keptNow],
+    (start: string, end: string): CalOccasion[] => (data ? occasionsInRange(data.members, shownHolidays, start, end) : []),
+    [data, shownHolidays],
   );
   const soon = useMemo(() => occasionsFor(today, addDays(today, SOON_DAYS)), [occasionsFor, today]);
   const todays = soon.filter((o) => o.date === today);
@@ -65,15 +75,22 @@ export default function OccasionsPage() {
     const run = runOf(o);
     return run ? (data?.wishes ?? []).filter((w) => w.ritualRunId === run.id) : [];
   };
+  // Muse's ask, a week out: every grown-up records a wish (voice or photo).
+  const ask =
+    viewer.role === "child"
+      ? null
+      : (soon.find((o) => o.kind !== "national" && o.date !== today && daysBetween(today, o.date) <= ASK_DAYS && o.memberId !== viewer.id && runOf(o) && !wishedBy(o).some((w) => w.memberId === viewer.id)) ?? null);
+  const askRun = ask ? runOf(ask) : null;
+  const sourceLine = data ? (data.holidaySource === "google" ? `Festival dates from Google\u2019s public holiday calendar for ${data.countryName}.` : `Festival dates from Aangan\u2019s own list for ${data.countryName}.`) : "";
 
   return (
     <div>
       <RoomHeader
         title="Occasions"
-        subtitle="Birthdays and the festivals you keep"
+        subtitle="Birthdays, national days and your festivals"
         action={
           data ? (
-            <button type="button" onClick={() => setFestivalsOpen(true)} aria-label="Festivals we keep" className="press grid h-11 w-11 place-items-center rounded-full bg-surface">
+            <button type="button" onClick={() => setFestivalsOpen(true)} aria-label="Traditions your family celebrates" className="press grid h-11 w-11 place-items-center rounded-full bg-surface">
               <Icon name="settings" size={20} />
             </button>
           ) : undefined
@@ -95,8 +112,22 @@ export default function OccasionsPage() {
       ) : (
         <div className="space-y-5">
           {todays.map((o) => (
-            <OccasionCelebration key={o.id} title={titleOf(o)} person={memberOf(o)} members={data.members} viewer={viewer} run={runOf(o)} wishes={wishedBy(o)} cards={cards ?? []} onWish={() => wish(o)} />
+            <OccasionCelebration key={o.id} title={titleOf(o)} person={memberOf(o)} members={data.members} viewer={viewer} run={runOf(o)} wishes={wishedBy(o)} cards={cards ?? []} lampHour={o.kind === "festival" ? o.lampHour : null} onWish={() => wish(o)} onWished={() => void reload()} />
           ))}
+
+          {ask && askRun && (
+            <section aria-label="Wish ahead" className="flex items-center gap-3 rounded-card bg-surface px-4 py-3">
+              {memberOf(ask) ? <Avatar src={memberPhoto(memberOf(ask))} name={callName(memberOf(ask) as Member)} size={44} /> : <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white text-ink"><Icon name="flower" size={20} /></span>}
+              <span className="min-w-0 flex-1">
+                <span className="block text-[15px] font-semibold leading-snug">Record a {viewer.role === "elder" ? "blessing" : "wish"} for {titleOf(ask)}</span>
+                <span className="block text-[13px] text-ink-soft">{whenLabel(daysBetween(today, ask.date), ask.date)} · it plays with everyone&rsquo;s on the day</span>
+              </span>
+              <button type="button" onClick={() => wish(ask)} aria-label={`Record a voice wish for ${titleOf(ask)}`} className="press grid h-11 w-11 shrink-0 place-items-center rounded-full bg-ink text-white">
+                <Icon name="mic" size={18} />
+              </button>
+              <PhotoWishButton run={askRun} viewer={viewer} forName={memberOf(ask) ? callName(memberOf(ask) as Member) : ask.title} onDone={() => void reload()} className="h-11 w-11 bg-white text-ink" />
+            </section>
+          )}
 
           <section aria-label="Coming up">
             <h2 className="m-0 mb-2 text-[18px]">Coming up</h2>
@@ -120,6 +151,7 @@ export default function OccasionsPage() {
                   const n = wishedBy(o).length;
                   const iWished = wishedBy(o).some((w) => w.memberId === viewer.id);
                   const mine = m?.id === viewer.id;
+                  const national = o.kind === "national";
                   return (
                     <article key={o.id} className="relative h-[180px] w-[78%] max-w-[300px] shrink-0 snap-start overflow-hidden rounded-hero bg-[#1c1c1e] text-white">
                       {m ? <Photo src={memberPhoto(m) ?? "/demo/family-group.webp"} alt="" sizes="300px" position="center 30%" /> : <Photo src="/demo/family-group.webp" alt="" sizes="300px" />}
@@ -128,7 +160,12 @@ export default function OccasionsPage() {
                         <p className="m-0 text-[12.5px] font-semibold uppercase tracking-[0.06em] text-white/75">{whenLabel(days, o.date)}</p>
                         <p className="m-0 text-[19px] font-bold leading-tight">{titleOf(o)}</p>
                         <div className="mt-2 flex items-center gap-2">
-                          {!mine && !iWished ? (
+                          {national ? (
+                            <span className="flex h-10 items-center gap-1.5 text-[13px] text-white/80">
+                              <Icon name="calendar" size={16} />
+                              National day
+                            </span>
+                          ) : !mine && !iWished ? (
                             <button type="button" onClick={() => wish(o)} className="press flex h-10 items-center gap-1.5 rounded-full bg-white px-3.5 text-[14px] font-semibold text-black">
                               <Icon name="mic" size={16} />
                               Record a wish
@@ -167,14 +204,14 @@ export default function OccasionsPage() {
                         <Avatar src={memberPhoto(m)} name={callName(m)} size={40} />
                       ) : (
                         <span className="grid h-10 w-10 place-items-center rounded-full bg-white text-ink">
-                          <Icon name="calendar" size={18} />
+                          <Icon name={o.kind === "festival" ? "flower" : "calendar"} size={18} />
                         </span>
                       )}
                       <span className="min-w-0 flex-1">
                         <span className="block text-[15px] font-semibold">{titleOf(o)}</span>
                         <span className="block text-[13px] text-ink-soft">{days < 0 ? "Passed" : whenLabel(days, iso)}</span>
                       </span>
-                      {days >= 0 && m?.id !== viewer.id && (
+                      {days >= 0 && o.kind !== "national" && m?.id !== viewer.id && (
                         <button type="button" onClick={() => wish(o)} aria-label={`Record a wish for ${titleOf(o)}`} className="press grid h-10 w-10 place-items-center rounded-full bg-ink text-white">
                           <Icon name="mic" size={18} />
                         </button>
@@ -186,17 +223,32 @@ export default function OccasionsPage() {
             )}
           />
 
-          {keptNow.length === 0 && data.configs.some((c) => c.slug !== "birthday") && (
+          {choices.traditions.length === 0 && choices.kept.length === 0 && data.canEditKept && (
             <button type="button" onClick={() => setFestivalsOpen(true)} className="press flex w-full items-center gap-3 rounded-card bg-surface px-4 py-3 text-left">
-              <Icon name="calendar" size={20} className="text-ink-soft" />
-              <span className="min-w-0 flex-1 text-[14px] text-ink-soft">Showing birthdays only. Add the festivals your family keeps.</span>
+              <Icon name="flower" size={20} className="text-ink-soft" />
+              <span className="min-w-0 flex-1 text-[14px] text-ink-soft">Showing birthdays and national days. Which traditions does your family celebrate?</span>
               <Icon name="chevron" size={18} className="text-ink-faint" />
             </button>
           )}
         </div>
       )}
 
-      {data && <FestivalsSheet open={festivalsOpen} configs={data.configs} kept={keptNow} canEdit={data.canEditKept} onClose={() => setFestivalsOpen(false)} onSaved={(k) => { setKept(k); void reload(); }} />}
+      {data && (
+        <TraditionsSheet
+          open={festivalsOpen}
+          choices={data.traditionChoices}
+          holidays={data.holidays}
+          value={choices}
+          today={today}
+          sourceLine={sourceLine}
+          canEdit={data.canEditKept}
+          onClose={() => setFestivalsOpen(false)}
+          onSaved={(v) => {
+            setSaved(v);
+            void reload();
+          }}
+        />
+      )}
     </div>
   );
 }

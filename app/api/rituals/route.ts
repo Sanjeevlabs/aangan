@@ -1,40 +1,25 @@
 import { z } from "zod";
 import { checkRateLimit, requireSession } from "@/lib/auth";
-import { dbEnsureRitualRun, dbGetMember, dbGetMovableDate, dbListMembers, dbListRitualRuns, dbListWishes, dbSetMovableDate } from "@/lib/db";
-import { serverLedger, serverStore } from "@/lib/llm-server";
-import { resolveMovableDates } from "@/lib/movable-dates";
-import { getRitualSettings, setKeptFestivals } from "@/lib/occasion-settings";
-import { fixtureDates, ritualConfigs } from "@/lib/occasions-server";
+import { dbEnsureRitualRun, dbGetMember, dbListMembers, dbListRitualRuns, dbListWishes } from "@/lib/db";
+import { countryName, traditionChoices, TRADITIONS_DATA } from "@/lib/holidays";
+import { setRitualSettings } from "@/lib/occasion-settings";
+import { familyHolidays, ritualConfigs } from "@/lib/occasions-server";
 import { addDays, occasionsInRange } from "@/lib/occasion-calendar";
 
-// Occasions data: every config in rituals/*.json (never hard-coded in
-// logic), member birthdays, the festivals THIS family keeps, and movable
-// dates (resolved live per year via search grounding, cached; fixture only
-// as fallback) for the kept festivals only. Nothing about anyone's faith is
-// stored: "festivals we keep" is one family-level list of config slugs.
+// Occasions data: member birthdays, national days, and the festivals of the
+// traditions this family celebrates (Google's public holiday calendar for
+// the family's country, mapped by data/traditions.json; bundled fallback).
+// The traditions choice is one family-level list, used only for the calendar.
 export async function GET(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
-  const configs = ritualConfigs();
-  const [settings, members, me] = await Promise.all([getRitualSettings(auth.familyId), dbListMembers(auth.familyId), dbGetMember(auth.memberId)]);
-  const known = new Set(configs.map((c) => c.slug));
-  const kept = settings.kept.filter((s) => known.has(s) && s !== "birthday");
-  const fixture = fixtureDates();
-  const { dates: movable, grounded } = await resolveMovableDates(
-    configs.filter((c) => kept.includes(c.slug)).map((c) => ({ slug: c.slug, title: c.title })),
-    new Date(),
-    {
-      store: serverStore,
-      ledger: serverLedger,
-      getPersistent: (slug, year) => dbGetMovableDate(slug, year),
-      setPersistent: (slug, year, date, sources) => dbSetMovableDate(slug, year, date, sources),
-      fixture: (slug) => fixture[slug] ?? null,
-    },
-  );
-  // Open a run (idempotent) for each occasion in the next 10 days, so a wish
-  // recorded early lands on the right day's reel.
+  const [members, me] = await Promise.all([dbListMembers(auth.familyId), dbGetMember(auth.memberId)]);
+  const fam = await familyHolidays(auth.familyId, members);
+  // Open a run (idempotent) for each wishable occasion in the next 10 days,
+  // so a wish recorded early lands on the right day's garland.
   const today = new Date().toISOString().slice(0, 10);
-  for (const o of occasionsInRange(members, configs, movable, kept, today, addDays(today, 10))) {
+  const festivals = fam.visible.filter((h) => h.kind === "festival");
+  for (const o of occasionsInRange(members, festivals, today, addDays(today, 10))) {
     await dbEnsureRitualRun(o.slug, o.date, auth.familyId).catch(() => undefined);
   }
   const runs = await dbListRitualRuns(auth.familyId);
@@ -42,33 +27,54 @@ export async function GET(req: Request): Promise<Response> {
   const cutoff = new Date(Date.now() - 21 * 86_400_000).toISOString().slice(0, 10);
   const recentRuns = new Set(runs.filter((r) => r.occasionDate >= cutoff).map((r) => r.id));
   const wishes = recentRuns.size ? (await dbListWishes(undefined, auth.familyId)).filter((w) => w.ritualRunId && recentRuns.has(w.ritualRunId)) : [];
+  const canEdit = Boolean(me && me.familyId === auth.familyId && me.access !== "child");
   return Response.json({
-    configs,
-    movable,
-    movableFixture: !grounded,
+    configs: ritualConfigs(),
+    holidays: fam.all,
+    holidaySource: fam.source,
+    country: fam.country,
+    countryName: countryName(fam.country),
+    traditionChoices: traditionChoices(),
+    traditions: fam.settings.traditions,
+    kept: fam.settings.kept,
+    skipped: fam.settings.skipped,
     members,
     runs,
     wishes,
-    kept,
-    canEditKept: Boolean(me && me.familyId === auth.familyId && me.access !== "child"),
+    canEditKept: canEdit,
   });
 }
 
-const SetKept = z.object({ action: z.literal("kept"), kept: z.array(z.string().min(1).max(60)).max(40) });
+const Keys = z.array(z.string().min(1).max(60)).max(40);
+const SetKept = z.object({ action: z.literal("kept"), kept: Keys, skipped: Keys.optional() });
+const SetTraditions = z.object({ action: z.literal("traditions"), traditions: z.array(z.string().min(1).max(30)).max(12), kept: Keys.optional(), skipped: Keys.optional() });
+const Body = z.discriminatedUnion("action", [SetKept, SetTraditions]);
 
-// Change "festivals we keep". Admins and members only (not child accounts).
+// Change the family's traditions and per-festival overrides. Admins and
+// members only (not child accounts).
 export async function POST(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   if (!checkRateLimit(auth, "/api/rituals")) return Response.json({ error: "rate-limited" }, { status: 429 });
-  const parsed = SetKept.safeParse(await req.json().catch(() => null));
+  const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "invalid-request" }, { status: 400 });
   const me = await dbGetMember(auth.memberId);
   if (!me || me.familyId !== auth.familyId) return Response.json({ error: "unknown-member" }, { status: 404 });
   if (me.access === "child") return Response.json({ error: "not-allowed" }, { status: 403 });
-  const known = new Set(ritualConfigs().map((c) => c.slug).filter((s) => s !== "birthday"));
-  const unknown = parsed.data.kept.filter((s) => !known.has(s));
+  const body = parsed.data;
+  // Override keys: any holiday key from data/traditions.json or a ritual config slug (not birthdays).
+  const known = new Set([...TRADITIONS_DATA.patterns.map((p) => p.key), ...ritualConfigs().map((c) => c.slug)].filter((s) => s !== "birthday"));
+  const unknown = [...(body.kept ?? []), ...(body.skipped ?? [])].filter((s) => !known.has(s));
   if (unknown.length) return Response.json({ error: "unknown-festival", unknown }, { status: 400 });
-  const settings = await setKeptFestivals(auth.familyId, parsed.data.kept, auth.memberId);
-  return Response.json({ kept: settings.kept });
+  let traditions: string[] | undefined;
+  if (body.action === "traditions") {
+    const choices = traditionChoices();
+    const bad = body.traditions.filter((t) => !choices.some((c) => c.id === t));
+    if (bad.length) return Response.json({ error: "unknown-tradition", unknown: bad }, { status: 400 });
+    // An exclusive choice ("none") stands alone.
+    const exclusive = body.traditions.find((t) => choices.find((c) => c.id === t)?.exclusive);
+    traditions = exclusive ? [exclusive] : body.traditions;
+  }
+  const settings = await setRitualSettings(auth.familyId, { traditions, kept: body.kept, skipped: body.skipped }, auth.memberId);
+  return Response.json({ traditions: settings.traditions, kept: settings.kept, skipped: settings.skipped });
 }

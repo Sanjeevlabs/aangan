@@ -36,22 +36,6 @@ function statusLine(task: View, otherNames: string): string {
   return "Whoever answers first, the other hears it after they answer.";
 }
 
-/** Lamps lit: days in a row both homes showed up. Not points. */
-export function Lamps({ n, tone = "light" }: { n: number; tone?: "light" | "dark" }) {
-  const lit = Math.min(n, 7);
-  return (
-    <span className="flex items-center gap-1" aria-label={`${n} days in a row, both homes`}>
-      {Array.from({ length: 7 }, (_, i) => (
-        <span
-          key={i}
-          className={cn("h-2 w-2 rounded-full", i < lit ? "bg-white shadow-[0_0_8px_rgba(255,255,255,.9)]" : tone === "dark" ? "bg-white/20" : "bg-black/10")}
-        />
-      ))}
-      {n > 7 && <span className="ml-1 text-[12px] font-semibold">{n}</span>}
-    </span>
-  );
-}
-
 export function TodayCard({ variant = "card" }: { variant?: "card" | "line" }) {
   const { viewer, members } = useViewer();
   const { openAdd } = useShell();
@@ -84,12 +68,9 @@ export function TodayCard({ variant = "card" }: { variant?: "card" | "line" }) {
 
   return (
     <section aria-label="Today, for both homes" className="relative mt-5 overflow-hidden rounded-[28px] p-5 text-white" style={{ background: "#1c1b1a" }}>
-            <div className="relative flex items-center justify-between">
-        <p className="m-0 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.1em] text-white/65">
-          <Icon name="sparkle" size={14} /> Today · both homes
-        </p>
-        <Lamps n={data?.streak ?? 0} tone="dark" />
-      </div>
+      <p className="relative m-0 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.1em] text-white/65">
+        <Icon name="sparkle" size={14} /> Today · both homes
+      </p>
       <p className="voice relative m-0 mt-3 text-[24px] leading-[1.2]">{prompt}</p>
       <p className="relative m-0 mt-2 text-[14px] text-white/75">{status}</p>
       <div className="relative mt-4 flex items-center gap-2">

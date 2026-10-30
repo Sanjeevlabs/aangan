@@ -1,0 +1,79 @@
+{
+  "note": "Data, never logic. Traditions a family can choose (Occasions settings), the public holiday calendar per country, time zone -> country, and festival-name patterns -> tradition. A holiday whose name matches no pattern is not shown. Patterns are case-insensitive regular expressions tried in order; the first match wins. `ritual` links a rituals/*.json config (its steps and lampHour); `lampHour` is the local hour every home lights its lamp (festivals only, default 19).",
+  "traditions": [
+    { "id": "hindu", "label": "Hindu" },
+    { "id": "muslim", "label": "Muslim" },
+    { "id": "sikh", "label": "Sikh" },
+    { "id": "christian", "label": "Christian" },
+    { "id": "jain", "label": "Jain" },
+    { "id": "buddhist", "label": "Buddhist" },
+    { "id": "parsi", "label": "Parsi" },
+    { "id": "none", "label": "None", "exclusive": true }
+  ],
+  "defaultCountry": "IN",
+  "calendars": {
+    "IN": { "name": "India", "ics": "https://calendar.google.com/calendar/ical/en.indian%23holiday%40group.v.calendar.google.com/public/basic.ics" },
+    "GB": { "name": "the UK", "ics": "https://calendar.google.com/calendar/ical/en.uk%23holiday%40group.v.calendar.google.com/public/basic.ics" },
+    "US": { "name": "the US", "ics": "https://calendar.google.com/calendar/ical/en.usa%23holiday%40group.v.calendar.google.com/public/basic.ics" },
+    "CA": { "name": "Canada", "ics": "https://calendar.google.com/calendar/ical/en.canadian%23holiday%40group.v.calendar.google.com/public/basic.ics" },
+    "AU": { "name": "Australia", "ics": "https://calendar.google.com/calendar/ical/en.australian%23holiday%40group.v.calendar.google.com/public/basic.ics" },
+    "AE": { "name": "the UAE", "ics": "https://calendar.google.com/calendar/ical/en.ae%23holiday%40group.v.calendar.google.com/public/basic.ics" },
+    "SG": { "name": "Singapore", "ics": "https://calendar.google.com/calendar/ical/en.singapore%23holiday%40group.v.calendar.google.com/public/basic.ics" }
+  },
+  "zones": [
+    { "match": "^Asia/(Kolkata|Calcutta)$", "country": "IN" },
+    { "match": "^Europe/(London|Belfast)$", "country": "GB" },
+    { "match": "^America/(Toronto|Vancouver|Edmonton|Winnipeg|Halifax|St_Johns|Regina|Montreal)$", "country": "CA" },
+    { "match": "^(America/(New_York|Chicago|Denver|Los_Angeles|Phoenix|Anchorage|Detroit|Boise|Indiana/.*|Kentucky/.*)|Pacific/Honolulu|US/.*)$", "country": "US" },
+    { "match": "^Australia/", "country": "AU" },
+    { "match": "^Asia/Dubai$", "country": "AE" },
+    { "match": "^Asia/Singapore$", "country": "SG" }
+  ],
+  "patterns": [
+    { "key": "republic-day", "match": "^Republic Day", "title": "Republic Day", "national": "IN" },
+    { "key": "independence-day-in", "match": "^Independence Day", "title": "Independence Day", "national": "IN" },
+    { "key": "gandhi-jayanti", "match": "Gandhi Jayanti|Mahatma Gandhi", "title": "Gandhi Jayanti", "national": "IN" },
+    { "key": "independence-day-us", "match": "^Independence Day", "title": "Independence Day", "national": "US" },
+    { "key": "thanksgiving-us", "match": "^Thanksgiving", "title": "Thanksgiving", "national": "US" },
+    { "key": "canada-day", "match": "^Canada Day", "title": "Canada Day", "national": "CA" },
+    { "key": "thanksgiving-ca", "match": "^Thanksgiving", "title": "Thanksgiving", "national": "CA" },
+    { "key": "australia-day", "match": "^Australia Day", "title": "Australia Day", "national": "AU" },
+    { "key": "anzac-day", "match": "^Anzac Day", "title": "Anzac Day", "national": "AU" },
+    { "key": "national-day-ae", "match": "National Day", "title": "National Day", "national": "AE" },
+    { "key": "national-day-sg", "match": "^National Day", "title": "National Day", "national": "SG" },
+
+    { "key": "diwali", "match": "^(Diwali|Deepavali)", "title": "Diwali", "traditions": ["hindu", "jain", "sikh"], "ritual": "diwali" },
+    { "key": "holi", "match": "^Holi\\b(?! ?ka)", "title": "Holi", "traditions": ["hindu"] },
+    { "key": "makar-sankranti", "match": "Makar Sankranti|^Pongal", "title": "Makar Sankranti & Pongal", "traditions": ["hindu"] },
+    { "key": "maha-shivaratri", "match": "Shivaratri|Shivratri", "title": "Maha Shivaratri", "traditions": ["hindu"] },
+    { "key": "ram-navami", "match": "Ram(a)? Navami", "title": "Ram Navami", "traditions": ["hindu"] },
+    { "key": "raksha-bandhan", "match": "Raksha Bandhan|Rakhi", "title": "Raksha Bandhan", "traditions": ["hindu"] },
+    { "key": "janmashtami", "match": "Janmashtami", "title": "Janmashtami", "traditions": ["hindu"] },
+    { "key": "ganesh-chaturthi", "match": "Ganesh Chaturthi|Vinayaka? Chaturthi", "title": "Ganesh Chaturthi", "traditions": ["hindu"] },
+    { "key": "onam", "match": "Onam", "title": "Onam", "traditions": ["hindu"] },
+    { "key": "dussehra", "match": "^Dussehra|Vijaya ?Dashami", "title": "Dussehra", "traditions": ["hindu"] },
+    { "key": "bhai-dooj", "match": "Bhai Du(j|ooj)|Bhau Beej", "title": "Bhai Dooj", "traditions": ["hindu"] },
+
+    { "key": "eid-ul-fitr", "match": "(Eid|Id)[- ]?(ul|al)[- ]?Fit", "title": "Eid al-Fitr", "traditions": ["muslim"] },
+    { "key": "eid-al-adha", "match": "(Eid|Id)[- ]?(ul|al|e)[- ]?(Adha|Zuha|Azha)|Bakr[ai]?[- ]?Id", "title": "Eid al-Adha", "traditions": ["muslim"] },
+    { "key": "muharram", "match": "Muharram|Ashura", "title": "Muharram", "traditions": ["muslim"] },
+    { "key": "milad-un-nabi", "match": "Milad|Mawlid|Prophet Muhammad", "title": "Milad-un-Nabi", "traditions": ["muslim"] },
+
+    { "key": "guru-nanak-jayanti", "match": "Guru Nanak", "title": "Guru Nanak Jayanti", "traditions": ["sikh"] },
+    { "key": "guru-gobind-singh-jayanti", "match": "Guru Gobind Singh", "title": "Guru Gobind Singh Jayanti", "traditions": ["sikh"] },
+    { "key": "vaisakhi", "match": "Vaisakhi|Baisakhi", "title": "Vaisakhi", "traditions": ["sikh", "hindu"] },
+    { "key": "guru-tegh-bahadur", "match": "Guru Te(g|gh) Bahadur", "title": "Guru Tegh Bahadur Shaheedi Divas", "traditions": ["sikh"] },
+
+    { "key": "christmas", "match": "^Christmas( Day)?$", "title": "Christmas", "traditions": ["christian"] },
+    { "key": "good-friday", "match": "^Good Friday", "title": "Good Friday", "traditions": ["christian"] },
+    { "key": "easter", "match": "^Easter( Sunday)?$", "title": "Easter", "traditions": ["christian"] },
+
+    { "key": "mahavir-jayanti", "match": "Mahavir", "title": "Mahavir Jayanti", "traditions": ["jain"] },
+    { "key": "paryushan", "match": "Paryushan|Samvatsari", "title": "Paryushan", "traditions": ["jain"] },
+
+    { "key": "buddha-purnima", "match": "Buddha Purnima|Buddha Jayanti|Vesak", "title": "Buddha Purnima", "traditions": ["buddhist"] },
+
+    { "key": "parsi-new-year", "match": "Parsi New Year|Pateti", "title": "Parsi New Year", "traditions": ["parsi"] },
+    { "key": "navroz", "match": "Navroz|Nowruz|Jamshedi", "title": "Jamshedi Navroz", "traditions": ["parsi"] }
+  ]
+}

@@ -1,7 +1,13 @@
-import { RitualConfigSchema, type RitualConfig } from "./schemas";
+import { z } from "zod";
+import { RitualConfigSchema as BaseRitualConfigSchema } from "./schemas";
 
 // Ritual engine: loads ANY festival config. No festival or culture is named
 // in this module; all specifics live in the JSON configs.
+// `lampHour`: the local hour every home lights its lamp on the day
+// (festivals; unset = the default, 19:00).
+export const RitualConfigSchema = BaseRitualConfigSchema.extend({ lampHour: z.number().int().min(0).max(23).optional() });
+export type RitualConfig = z.infer<typeof RitualConfigSchema>;
+
 export function loadRitualConfig(json: unknown): RitualConfig {
   return RitualConfigSchema.parse(json);
 }

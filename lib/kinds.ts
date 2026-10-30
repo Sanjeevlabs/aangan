@@ -354,6 +354,8 @@ export const QuestionSchema = z.object({
   createdAt: iso,
 });
 
+export const WALLS = ["jodhpur", "jaipur", "chettinad", "goa", "kerala", "lime"] as const;
+
 // ---------- The window (LITE): what each person sees of the other home ----------
 export const WINDOW_LAYERS = ["steam", "rain", "leaves", "birds", "stars", "clouds", "lamp", "breeze"] as const;
 export const WindowViewSchema = z.object({
@@ -371,7 +373,33 @@ export const WindowViewSchema = z.object({
   madeBy: z.enum(["family", "muse"]).default("family"),
   /** Safe & sound: how long someone may be quiet (in their daytime) before their dot turns amber. */
   quietAfterHours: z.number().int().min(2).max(12).default(4),
+  /** Who's at your window: at most two people (default: the parents on the other side). */
+  people: z.array(id).max(2).default([]),
+  /** The colour of the wall around the window (SPEC §30.1). */
+  wall: z.enum(WALLS).default("jodhpur"),
   updatedAt: iso,
+});
+
+// ---------- The light in the window (SPEC §30.1, §30.4): one per home ----------
+export const LampSchema = z.object({
+  /** The household id (lib/households.ts). */
+  id,
+  litAt: iso.nullable().default(null),
+  litBy: z.string().nullable().default(null),
+  /** Hold the lamp: a slow heartbeat sent to this home, played on their next open. */
+  beats: z.array(z.object({ from: id, at: iso })).max(20).default([]),
+  /** Per member: the last heartbeat they've felt. */
+  felt: z.record(z.string(), iso).default({}),
+  updatedAt: iso,
+});
+
+// ---------- Chitthi: a voice note that arrives at their morning (SPEC §30.4) ----------
+export const ChitthiSchema = z.object({
+  /** The card id. Hidden from everyone but its author until deliverAt. */
+  id,
+  deliverAt: iso,
+  authorId: id,
+  createdAt: iso,
 });
 
 // ---------- Today: one shared task for both homes, done only when both answer ----------
@@ -428,6 +456,8 @@ export const DOC_SCHEMAS = {
   muse_call: MuseCallSchema,
   window_view: WindowViewSchema,
   today_task: TodayTaskSchema,
+  lamp: LampSchema,
+  chitthi: ChitthiSchema,
 } as const;
 
 export type DocKind = keyof typeof DOC_SCHEMAS;
@@ -458,5 +488,8 @@ export type Knock = DocOf<"knock">;
 export type Question = DocOf<"question">;
 export type MuseCall = DocOf<"muse_call">;
 export type WindowView = DocOf<"window_view">;
+export type Lamp = DocOf<"lamp">;
+export type Chitthi = DocOf<"chitthi">;
+export type Wall = (typeof WALLS)[number];
 export type WindowLayer = (typeof WINDOW_LAYERS)[number];
 export type TodayTask = DocOf<"today_task">;

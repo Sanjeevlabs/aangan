@@ -1,36 +1,44 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { GET, POST } from "@/app/api/rituals/route";
 import { laneGroups, monthChip, rangeLabel } from "@/lib/lane-groups";
-import { addDays, monthGrid, occasionsInRange } from "@/lib/occasion-calendar";
+import { addDays, holidayVisible, hourLabel, monthGrid, occasionsInRange, visibleHolidays } from "@/lib/occasion-calendar";
+import { resetHolidayCache } from "@/lib/holidays";
 import { resetRitualSettings } from "@/lib/occasion-settings";
-import { festivalChoices, nextOccasion } from "@/lib/occasions-server";
+import { nextOccasion } from "@/lib/occasions-server";
 import { DEMO_MEMBERS } from "@/lib/family";
 import { CardSchema, MemberSchema } from "@/lib/schemas";
 import { resetDemo } from "@/lib/store";
 import { authedGet, authedJson } from "./auth-helper";
 
 const members = DEMO_MEMBERS.map((m) => MemberSchema.parse(m));
-const CONFIGS = [
-  { slug: "birthday", title: "Birthday — family guide" },
-  { slug: "fest-a", title: "Fest A — family guide" },
-  { slug: "fest-b", title: "Fest B" },
-];
-const MOVABLE = { "fest-a": "2026-11-08", "fest-b": "2026-11-05" };
+const H = (key: string, date: string, traditions: string[], kind: "festival" | "national" = "festival") => ({ key, date, title: key.toUpperCase(), kind, traditions, ritual: null, lampHour: kind === "festival" ? 19 : null });
+const HOLIDAYS = [H("fest-a", "2026-11-08", ["t1"]), H("fest-b", "2026-11-05", ["t2"]), H("nat", "2026-11-20", [], "national")];
+const none = { traditions: [], kept: [], skipped: [] };
 
 describe("occasion calendar (pure)", () => {
-  it("shows birthdays always and only the festivals the family keeps", () => {
+  it("shows birthdays and national days always, festivals by tradition", () => {
     const people = [{ id: "p1", birthday: "11-03" }, { id: "p2", birthday: "" }];
-    const none = occasionsInRange(people, CONFIGS, MOVABLE, [], "2026-11-01", "2026-11-30");
-    expect(none.map((o) => o.id)).toEqual(["birthday:p1:2026-11-03"]);
-    const kept = occasionsInRange(people, CONFIGS, MOVABLE, ["fest-a"], "2026-11-01", "2026-11-30");
-    expect(kept.map((o) => [o.slug, o.date, o.title])).toEqual([
-      ["birthday", "2026-11-03", ""],
-      ["fest-a", "2026-11-08", "Fest A"],
+    const plain = occasionsInRange(people, visibleHolidays(HOLIDAYS, none), "2026-11-01", "2026-11-30");
+    expect(plain.map((o) => o.id)).toEqual(["birthday:p1:2026-11-03", "nat:2026-11-20"]);
+    const t1 = occasionsInRange(people, visibleHolidays(HOLIDAYS, { ...none, traditions: ["t1"] }), "2026-11-01", "2026-11-30");
+    expect(t1.map((o) => [o.slug, o.date, o.kind, o.lampHour])).toEqual([
+      ["birthday", "2026-11-03", "birthday", null],
+      ["fest-a", "2026-11-08", "festival", 19],
+      ["nat", "2026-11-20", "national", null],
     ]);
   });
 
+  it("manual overrides win: kept on, skipped off", () => {
+    expect(holidayVisible(HOLIDAYS[1], { traditions: ["t1"], kept: ["fest-b"], skipped: [] })).toBe(true);
+    expect(holidayVisible(HOLIDAYS[0], { traditions: ["t1"], kept: [], skipped: ["fest-a"] })).toBe(false);
+    expect(holidayVisible(HOLIDAYS[2], { traditions: [], kept: [], skipped: ["nat"] })).toBe(false);
+    expect(holidayVisible({ ...HOLIDAYS[1], ritual: "cfg" }, { traditions: [], kept: ["cfg"], skipped: [] })).toBe(true);
+    expect(hourLabel(19)).toBe("7 PM");
+    expect(hourLabel(0)).toBe("12 AM");
+  });
+
   it("wraps birthdays across a year boundary and keeps 29 Feb on 28 Feb", () => {
-    const list = occasionsInRange([{ id: "a", birthday: "01-02" }, { id: "b", birthday: "02-29" }], [], {}, [], "2026-12-20", "2027-03-01");
+    const list = occasionsInRange([{ id: "a", birthday: "01-02" }, { id: "b", birthday: "02-29" }], [], "2026-12-20", "2027-03-01");
     expect(list.map((o) => o.date)).toEqual(["2027-01-02", "2027-02-28"]);
   });
 
@@ -43,51 +51,62 @@ describe("occasion calendar (pure)", () => {
   });
 });
 
-describe("nextOccasion respects kept festivals", () => {
-  it("ignores festivals not kept, includes them when kept", () => {
-    const slug = festivalChoices()[0]?.slug;
-    expect(slug).toBeTruthy();
+describe("nextOccasion", () => {
+  it("includes given festivals, never national days", () => {
     const now = new Date("2026-11-06T00:00:00Z");
-    const without = nextOccasion([], now, 30, []);
-    expect(without).toBeNull();
-    const withIt = nextOccasion([], now, 30, [slug as string]);
-    expect(withIt?.slug).toBe(slug);
+    expect(nextOccasion([], now, 30, [])).toBeNull();
+    expect(nextOccasion([], now, 30, [HOLIDAYS[2]])).toBeNull();
+    expect(nextOccasion([], now, 30, [HOLIDAYS[0]])?.slug).toBe("fest-a");
   });
 
-  it("still finds birthdays with nothing kept", () => {
+  it("still finds birthdays with nothing chosen", () => {
     const occ = nextOccasion(members, new Date("2026-11-08T00:00:00Z"), 7);
     expect(occ?.slug).toBe("birthday");
   });
 });
 
-describe("/api/rituals festivals we keep", () => {
+describe("/api/rituals traditions", () => {
   beforeEach(() => {
     resetDemo();
     resetRitualSettings();
+    resetHolidayCache();
   });
 
-  it("defaults to none kept and hides festival dates", async () => {
+  type Body = { traditions: string[]; kept: string[]; skipped: string[]; holidays: { key: string; kind: string; traditions: string[]; lampHour: number | null }[]; holidaySource: string; country: string; canEditKept: boolean; traditionChoices: { id: string }[] };
+
+  it("defaults to no traditions, serves the bundled calendar in mock mode", async () => {
     const res = await GET(authedGet("http://test/api/rituals", "arjun"));
-    const body = (await res.json()) as { kept: string[]; movable: Record<string, string>; canEditKept: boolean; configs: { slug: string }[] };
-    expect(body.kept).toEqual([]);
-    expect(body.movable).toEqual({});
+    const body = (await res.json()) as Body;
+    expect(body.traditions).toEqual([]);
     expect(body.canEditKept).toBe(true);
-    expect(body.configs.length).toBeGreaterThan(1);
+    expect(body.country).toBe("IN");
+    expect(body.holidaySource).toBe("fallback");
+    expect(body.traditionChoices.map((t) => t.id)).toHaveLength(8);
+    expect(body.holidays.some((h) => h.kind === "national")).toBe(true);
+    const fest = body.holidays.find((h) => h.kind === "festival");
+    expect(fest?.lampHour).toBe(19);
   });
 
-  it("lets a member save the list; it then resolves those dates", async () => {
-    const slug = festivalChoices()[0].slug;
-    const saved = await POST(authedJson("http://test/api/rituals", { action: "kept", kept: [slug] }, "dadi"));
+  it("lets a grown-up choose traditions and overrides; 'none' stands alone", async () => {
+    const saved = await POST(authedJson("http://test/api/rituals", { action: "traditions", traditions: ["sikh", "jain"], kept: ["easter"] }, "dadi"));
     expect(saved.status).toBe(200);
-    const body = (await (await GET(authedGet("http://test/api/rituals", "dadi"))).json()) as { kept: string[]; movable: Record<string, string> };
-    expect(body.kept).toEqual([slug]);
-    expect(Object.keys(body.movable)).toContain(slug);
+    const body = (await (await GET(authedGet("http://test/api/rituals", "dadi"))).json()) as Body;
+    expect(body.traditions).toEqual(["sikh", "jain"]);
+    expect(body.kept).toEqual(["easter"]);
+    const out = (await (await POST(authedJson("http://test/api/rituals", { action: "traditions", traditions: ["hindu", "none"] }, "arjun"))).json()) as Body;
+    expect(out.traditions).toEqual(["none"]);
+    expect(out.kept).toEqual(["easter"]);
   });
 
-  it("refuses child accounts and unknown slugs", async () => {
-    expect((await POST(authedJson("http://test/api/rituals", { action: "kept", kept: [] }, "aria"))).status).toBe(403);
+  it("keeps the legacy kept action working", async () => {
+    expect((await POST(authedJson("http://test/api/rituals", { action: "kept", kept: ["diwali"] }, "arjun"))).status).toBe(200);
+  });
+
+  it("refuses child accounts, unknown festivals and traditions", async () => {
+    expect((await POST(authedJson("http://test/api/rituals", { action: "traditions", traditions: [] }, "aria"))).status).toBe(403);
     expect((await POST(authedJson("http://test/api/rituals", { action: "kept", kept: ["not-a-config"] }, "arjun"))).status).toBe(400);
     expect((await POST(authedJson("http://test/api/rituals", { action: "kept", kept: ["birthday"] }, "arjun"))).status).toBe(400);
+    expect((await POST(authedJson("http://test/api/rituals", { action: "traditions", traditions: ["martian"] }, "arjun"))).status).toBe(400);
   });
 });
 

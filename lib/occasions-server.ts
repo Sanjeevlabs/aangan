@@ -1,11 +1,13 @@
 // Occasions, server side: ritual configs from rituals/*.json (data, never
-// logic), member birthdays, and only the festivals this family chose to
-// keep. Birthdays always count. Server only.
+// logic), member birthdays, national days, and the festivals of the
+// traditions this family celebrates (lib/holidays.ts). Birthdays always
+// count. Server only.
 import { readFileSync, readdirSync } from "fs";
 import { join } from "path";
 import { daysUntilBirthday } from "./family";
-import { cleanTitle, type OccasionConfig } from "./occasion-calendar";
-import { keptFestivals } from "./occasion-settings";
+import { countryForZones, holidaysFor, DEFAULT_LAMP_HOUR, type HolidayItem, type HolidayDeps, type HolidaySource } from "./holidays";
+import { cleanTitle, visibleHolidays, type CalHoliday, type OccasionConfig } from "./occasion-calendar";
+import { getRitualSettings, type RitualSettings } from "./occasion-settings";
 import { loadRitualConfig } from "./rituals";
 import type { Member } from "./schemas";
 
@@ -17,16 +19,12 @@ export interface Occasion {
   memberId: string | null;
 }
 
-export function fixtureDates(): Record<string, string> {
-  try {
-    return (JSON.parse(readFileSync(join(process.cwd(), "data", "movable-dates.json"), "utf8")) as { dates?: Record<string, string> }).dates ?? {};
-  } catch {
-    return {};
-  }
+export interface ServerRitualConfig extends OccasionConfig {
+  lampHour?: number;
 }
 
 /** Every valid config in rituals/*.json; a bad file is skipped, not fatal. */
-export function ritualConfigs(): OccasionConfig[] {
+export function ritualConfigs(): ServerRitualConfig[] {
   const dir = join(process.cwd(), "rituals");
   let names: string[] = [];
   try {
@@ -34,11 +32,11 @@ export function ritualConfigs(): OccasionConfig[] {
   } catch {
     return [];
   }
-  const out: OccasionConfig[] = [];
+  const out: ServerRitualConfig[] = [];
   for (const n of names) {
     try {
       const c = loadRitualConfig(JSON.parse(readFileSync(join(dir, n), "utf8")));
-      out.push({ slug: c.slug, title: c.title, cultureNotes: c.cultureNotes, steps: c.steps });
+      out.push({ slug: c.slug, title: c.title, cultureNotes: c.cultureNotes, steps: c.steps, ...(c.lampHour !== undefined ? { lampHour: c.lampHour } : {}) });
     } catch {
       console.error("[occasions] skipped invalid ritual config", n);
     }
@@ -46,28 +44,44 @@ export function ritualConfigs(): OccasionConfig[] {
   return out;
 }
 
-/** Festivals a family can choose from (every config except birthdays). */
-export function festivalChoices(): { slug: string; title: string; note: string }[] {
-  return ritualConfigs()
-    .filter((c) => c.slug !== "birthday")
-    .map((c) => ({ slug: c.slug, title: cleanTitle(c.title), note: c.cultureNotes }));
+/** A linked ritual config's lampHour wins over the pattern's. */
+export function withRitualLampHours(items: HolidayItem[], configs: ServerRitualConfig[]): HolidayItem[] {
+  return items.map((h) => {
+    if (h.kind !== "festival") return h;
+    const c = h.ritual ? configs.find((x) => x.slug === h.ritual) : undefined;
+    return { ...h, lampHour: c?.lampHour ?? h.lampHour ?? DEFAULT_LAMP_HOUR };
+  });
+}
+
+export interface FamilyHolidays {
+  country: string;
+  source: HolidaySource;
+  settings: RitualSettings;
+  /** Every mapped holiday for the country (the settings sheet lists these). */
+  all: HolidayItem[];
+  /** Only what this family's calendar shows. */
+  visible: HolidayItem[];
+}
+
+export async function familyHolidays(familyId: string, members: Pick<Member, "tz">[], deps: HolidayDeps = {}): Promise<FamilyHolidays> {
+  const country = countryForZones(members.map((m) => m.tz));
+  const [settings, feed] = await Promise.all([getRitualSettings(familyId), holidaysFor(country, deps)]);
+  const all = withRitualLampHours(feed.items, ritualConfigs());
+  return { country, source: feed.source, settings, all, visible: visibleHolidays(all, settings) };
 }
 
 /**
- * The next occasion inside `within` days. Festivals appear only when their
- * slug is in `kept` (the family's own choice); default none = birthdays only.
+ * The next occasion to wish for inside `within` days: birthdays, plus the
+ * given festivals (already filtered to the family's choice). National days
+ * sit on the calendar but nobody is asked for a wish.
  */
-export function nextOccasion(members: Member[], now = new Date(), within = 30, kept: string[] = []): Occasion | null {
+export function nextOccasion(members: Member[], now = new Date(), within = 30, holidays: CalHoliday[] = []): Occasion | null {
   const start = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   const out: Occasion[] = [];
-  const dates = fixtureDates();
-  const keep = new Set(kept);
-  for (const f of festivalChoices()) {
-    if (!keep.has(f.slug)) continue;
-    const d = dates[f.slug];
-    if (!d) continue;
-    const days = Math.round((Date.parse(`${d}T00:00:00Z`) - start) / 86_400_000);
-    if (days >= 0) out.push({ slug: f.slug, title: f.title, date: d, days, memberId: null });
+  for (const h of holidays) {
+    if (h.kind !== "festival") continue;
+    const days = Math.round((Date.parse(`${h.date}T00:00:00Z`) - start) / 86_400_000);
+    if (days >= 0) out.push({ slug: h.key, title: cleanTitle(h.title), date: h.date, days, memberId: null });
   }
   for (const m of members) {
     const days = daysUntilBirthday(m.birthday, now);
@@ -78,7 +92,8 @@ export function nextOccasion(members: Member[], now = new Date(), within = 30, k
   return out.filter((o) => o.days <= within).sort((a, b) => a.days - b.days)[0] ?? null;
 }
 
-/** nextOccasion with the family's kept festivals looked up. */
+/** nextOccasion with the family's own calendar looked up. */
 export async function nextOccasionFor(familyId: string, members: Member[], now = new Date(), within = 30): Promise<Occasion | null> {
-  return nextOccasion(members, now, within, await keptFestivals(familyId));
+  const { visible } = await familyHolidays(familyId, members).catch(() => ({ visible: [] as HolidayItem[] }));
+  return nextOccasion(members, now, within, visible);
 }
