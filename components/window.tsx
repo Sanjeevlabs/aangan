@@ -1,20 +1,20 @@
 "use client";
 
 import { m } from "framer-motion";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import type { Knock, PresenceMoment, WindowLayer } from "@/lib/kinds";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Knock, PresenceMoment, SafetyCheckin, WindowLayer } from "@/lib/kinds";
 import { resolveMediaUrl } from "@/lib/media-session";
-import { callName, cardCover, memberPhoto } from "@/lib/people";
+import { callName, memberPhoto } from "@/lib/people";
 import { MOMENT_LABEL, shareableFor } from "@/lib/presence";
-import type { Card } from "@/lib/schemas";
+import { stateOf, type SafetyState } from "@/lib/safety";
+import { scenesFor } from "@/lib/scenes";
+import type { Card, Member } from "@/lib/schemas";
+import { ALIVE_LOOK, type Alive } from "@/lib/status";
 import { ago, postJson, useJson } from "@/lib/use-json";
 import { useFamilyCards } from "@/lib/use-family";
 import { cn } from "@/lib/utils";
 import { PHASE_TINT, type DayPhase, type Weather } from "@/lib/weather";
-import { ALIVE_LOOK, type Alive } from "@/lib/status";
-import type { Member } from "@/lib/schemas";
 import { timeIn } from "@/lib/zones";
 import { PeoplePicker } from "./people-picker";
 import { usePlayer } from "./player";
@@ -24,10 +24,11 @@ import { useToday } from "./today";
 import { Avatar, Icon, type IconName } from "./ui/kit";
 import { useViewer } from "./viewer";
 
-// LITE (SPEC §29.1): the first screen is a window into the other home. Their
-// sky and hour over a photo you chose, what they shared today, their latest
-// voice, whether they're OK (safe & sound at a glance), and three things to
-// do: talk, video call, or open Kutumb (the whole family) behind the door.
+// LITE (SPEC §29.1, revised 30 Oct): the whole screen is the window. A real
+// landscape that matches their sky right now (or a family photo you chose),
+// changing slowly like a lock screen. On it, only what matters at a glance:
+// are they OK, what's waiting on you, their latest voice, what you're doing.
+// Actions are icons. Kutumb opens by sliding the key.
 
 interface WindowData {
   imageRef: string;
@@ -39,7 +40,11 @@ interface WindowData {
   moments: { memberId: string; label: string; at: string }[];
   view: { style: "still" | "living"; cardId: string | null; madeBy: "family" | "muse" } | null;
   people: { id: string; lastActive: string | null; state: Alive }[];
+  chosen?: boolean;
+  joined?: boolean;
 }
+
+export const WELCOME_KEY = "aangan:welcome";
 
 /** "Active 20 min ago", "Quiet for 7 h", "Asleep". */
 function statusText(p: { lastActive: string | null; state: Alive }): string {
@@ -52,16 +57,32 @@ function statusText(p: { lastActive: string | null; state: Alive }): string {
 }
 
 const SKY_ICON: Record<Weather["kind"], IconName> = { clear: "sun", clouds: "cloud", fog: "fog", rain: "rain", storm: "storm", snow: "snow" };
+/** Short words under the icons (the full line is what the other home reads). */
+const SHORT: Partial<Record<PresenceMoment, string>> = { commute: "On my way", "cooked-yours": "Cooked", thinking: "Miss you", work: "Work", awake: "Up" };
+const MOMENT_ICON: Partial<Record<PresenceMoment, IconName>> = {
+  awake: "sun",
+  chai: "coffee",
+  walk: "walk",
+  cooking: "pot",
+  prayer: "flower",
+  resting: "moon",
+  thinking: "heart",
+  work: "briefcase",
+  commute: "car",
+  home: "village",
+  school: "school",
+  "cooked-yours": "pot",
+};
 
 /* ------------------------------------------------------------ the motion */
 // Deterministic positions (no Math.random in render: server and client agree).
 const spread = (n: number, seed: number) => Array.from({ length: n }, (_, i) => ((i * 61 + seed * 17) % 100) / 100);
 
-export function SkyLayers({ layers, phase }: { layers: WindowLayer[]; phase: DayPhase }) {
-  const tint = PHASE_TINT[phase];
+export function SkyLayers({ layers, phase, tint = true }: { layers: WindowLayer[]; phase: DayPhase; tint?: boolean }) {
+  const t = PHASE_TINT[phase];
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-      <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, ${tint.top}, ${tint.bottom} 70%)` }} />
+      {tint && <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, ${t.top}, ${t.bottom} 70%)` }} />}
       {layers.includes("stars") && (
         <div className="win-stars absolute inset-x-0 top-0 h-1/2">
           {spread(22, 3).map((x, i) => (
@@ -82,13 +103,6 @@ export function SkyLayers({ layers, phase }: { layers: WindowLayer[]; phase: Day
           ))}
         </div>
       )}
-      {layers.includes("steam") && (
-        <div className="win-steam absolute inset-0">
-          {[0, 1, 2].map((i) => (
-            <i key={i} style={{ left: `${44 + i * 5}%`, animationDelay: `${i * 1.8}s` }} />
-          ))}
-        </div>
-      )}
       {layers.includes("leaves") && (
         <div className="win-leaves absolute inset-0">
           {spread(6, 2).map((x, i) => (
@@ -105,22 +119,114 @@ export function SkyLayers({ layers, phase }: { layers: WindowLayer[]; phase: Day
           ))}
         </div>
       )}
-      {layers.includes("lamp") && <div className="win-lamp" style={{ left: "-12%", bottom: "-8%", width: "70%", height: "60%" }} />}
       {layers.includes("breeze") && <div className="win-breeze absolute inset-0" />}
     </div>
   );
 }
 
-/** The arched window: their photo, their light, the motion. */
+/** A small arched preview of a window (Settings). */
 export function ArchWindow({ src, layers, phase, living, children, className }: { src: string; layers: WindowLayer[]; phase: DayPhase; living: boolean; children?: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("relative overflow-hidden", className)} style={{ borderRadius: "999px 999px 34px 34px", boxShadow: "0 40px 80px -30px rgba(0,0,0,.75), inset 0 0 0 1px rgba(255,255,255,.18)" }}>
+    <div className={cn("relative overflow-hidden", className)} style={{ borderRadius: "999px 999px 28px 28px", boxShadow: "0 30px 60px -30px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.18)" }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={src} alt="" className={cn("absolute inset-0 h-full w-full object-cover", living && "win-drift")} />
       <SkyLayers layers={living ? layers : []} phase={phase} />
-      {/* The frame: a carved lip around the opening */}
-      <div className="pointer-events-none absolute inset-0" style={{ borderRadius: "inherit", boxShadow: "inset 0 0 0 10px rgba(30,20,14,.35), inset 0 0 0 11px rgba(255,255,255,.12), inset 0 -60px 80px -30px rgba(0,0,0,.55)" }} />
       {children}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- slideshow */
+/** Crossfading photos, one every ~14 s, each drifting slowly. Skips any that fail to load. */
+function Slideshow({ srcs, still }: { srcs: string[]; still: boolean }) {
+  const [i, setI] = useState(0);
+  const [failed, setFailed] = useState<Set<string>>(new Set());
+  const list = srcs.filter((s) => !failed.has(s));
+  const key = srcs.join("|");
+  useEffect(() => setI(0), [key]);
+  useEffect(() => {
+    if (still || list.length < 2) return;
+    const t = window.setInterval(() => setI((n) => n + 1), 14_000);
+    return () => window.clearInterval(t);
+  }, [still, list.length]);
+  const cur = list.length ? list[i % list.length] : null;
+  const next = list.length > 1 ? list[(i + 1) % list.length] : null;
+  return (
+    <div className="absolute inset-0" aria-hidden="true">
+      {list.map((src) => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={src}
+          src={src}
+          alt=""
+          loading={src === cur || src === next ? "eager" : "lazy"}
+          onError={() => setFailed((f) => new Set(f).add(src))}
+          className={cn("absolute inset-0 h-full w-full object-cover transition-opacity duration-[1800ms] ease-out", src === cur ? "opacity-100" : "opacity-0", !still && src === cur && "win-drift")}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------- slide to open */
+/** Slide the key to open Kutumb (or press Enter on the key). */
+function SlideToOpen({ onOpen }: { onOpen: () => void }) {
+  const track = useRef<HTMLDivElement>(null);
+  const start = useRef<number | null>(null);
+  const [x, setX] = useState(0);
+  const [done, setDone] = useState(false);
+  const KNOB = 52;
+  const max = () => Math.max(1, (track.current?.clientWidth ?? 200) - KNOB - 8);
+  const finish = useCallback(() => {
+    setDone(true);
+    setX(max());
+    try {
+      navigator.vibrate?.(12);
+    } catch {
+      /* no haptics */
+    }
+    window.setTimeout(onOpen, 160);
+    window.setTimeout(() => {
+      setDone(false);
+      setX(0);
+    }, 2400);
+  }, [onOpen]);
+  const p = Math.min(1, x / max());
+  return (
+    <div ref={track} className="lite-glass relative h-[60px] min-w-0 flex-1 select-none overflow-hidden rounded-full" style={{ touchAction: "none" }}>
+      <span className="pointer-events-none absolute inset-0 flex items-center justify-center pl-12 text-[15px] font-medium tracking-[0.22em] text-white" style={{ opacity: 1 - p * 1.6 }}>
+        <span className="lite-shimmer uppercase">Kutumb</span>
+        <Icon name="chevron" size={15} className="ml-1 opacity-70" />
+        <Icon name="chevron" size={15} className="-ml-2 opacity-40" />
+      </span>
+      <span className="pointer-events-none absolute inset-y-0 left-0 rounded-full bg-white/20" style={{ width: x + KNOB + 8 }} aria-hidden="true" />
+      <button
+        type="button"
+        aria-label="Slide to open Kutumb, the whole family"
+        onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), finish())}
+        onPointerDown={(e) => {
+          if (done) return;
+          start.current = e.clientX - x;
+          (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        }}
+        onPointerMove={(e) => start.current !== null && setX(Math.min(max(), Math.max(0, e.clientX - start.current)))}
+        onPointerUp={() => {
+          if (start.current === null) return;
+          start.current = null;
+          if (x / max() > 0.8) finish();
+          else setX(0);
+        }}
+        onPointerCancel={() => {
+          start.current = null;
+          setX(0);
+        }}
+        className="absolute left-1 top-1 grid place-items-center rounded-full bg-white text-black shadow-[0_6px_18px_rgba(0,0,0,.35)]"
+        style={{ width: KNOB, height: KNOB, transform: `translateX(${x}px)`, transition: start.current === null ? "transform 260ms cubic-bezier(.2,.9,.3,1.2)" : "none" }}
+      >
+        <m.span animate={done ? { rotate: 90 } : { rotate: 0 }} transition={{ duration: 0.2 }}>
+          <Icon name={done ? "lockOpen" : "key"} size={22} strokeWidth={2} />
+        </m.span>
+      </button>
     </div>
   );
 }
@@ -129,15 +235,16 @@ export function ArchWindow({ src, layers, phase, living, children, className }: 
 export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
   const router = useRouter();
   const { viewer, members } = useViewer();
-  const { openAdd, refreshKey } = useShell();
-  const { play } = usePlayer();
+  const { openAdd, openRoom, refreshKey } = useShell();
   const win = useJson<WindowData>("/api/window");
   const sit = useJson<{ knocks: Knock[] }>("/api/sit");
+  const safety = useJson<{ checkins: SafetyCheckin[] }>("/api/safety");
   const { cards } = useFamilyCards(refreshKey);
   const [clock, setClock] = useState<string>("");
   const [calling, setCalling] = useState(false);
   const [picking, setPicking] = useState(false);
   const [worry, setWorry] = useState<Member | null>(null);
+  const [welcome, setWelcome] = useState<string | null>(null);
   const data = win.data;
   const farIds = useMemo(() => new Set(data?.far?.ids ?? []), [data?.far?.ids]);
   const farPeople = members.filter((mm) => farIds.has(mm.id));
@@ -145,13 +252,26 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
   const grownUps = farPeople.filter((p) => p.role !== "child");
   const talkTo = grownUps.length ? grownUps : farPeople;
   const statusOf = (id: string) => data?.people.find((p) => p.id === id);
-  const elder = viewer.role === "elder";
+  const waiting = Boolean(data && (!data.far || data.joined === false));
+
   const talk = (ids?: string[]) => {
     if (!ids && talkTo.length > 1) return setPicking(true);
     setPicking(false);
     setWorry(null);
     openAdd("voice", null, ids ?? talkTo.map((p) => p.id));
   };
+
+  useEffect(() => {
+    try {
+      const w = sessionStorage.getItem(WELCOME_KEY);
+      if (w) {
+        setWelcome(w);
+        sessionStorage.removeItem(WELCOME_KEY);
+      }
+    } catch {
+      /* private mode */
+    }
+  }, []);
 
   useEffect(() => {
     if (!data?.far) return;
@@ -161,7 +281,7 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
     return () => clearInterval(t);
   }, [data?.far]);
 
-  // Muse brings the window to life once per visit (cached and grounded server-side).
+  // Muse writes the one quiet line once per visit (cached and grounded server-side).
   useEffect(() => {
     if (!data || data.view?.style === "still" || data.view?.madeBy === "muse") return;
     void postJson("/api/window", { action: "compose" }).then((r) => r && void win.reload());
@@ -169,9 +289,20 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
   }, [Boolean(data)]);
 
   const latestVoice: Card | undefined = (cards ?? []).find((c) => c.type === "audio" && c.authorId && farIds.has(c.authorId));
-  const voiceAuthor = members.find((mm) => mm.id === latestVoice?.authorId);
   const knock = (sit.data?.knocks ?? []).find((k) => farIds.has(k.memberId));
-  const src = resolveMediaUrl(data?.imageRef) ?? "/demo/aangan-home.svg";
+  const srcs = useMemo(() => {
+    if (!data) return [];
+    const own = data.chosen ? resolveMediaUrl(data.imageRef) : null;
+    return own ? [own] : scenesFor(data.phase, data.weather?.kind ?? null);
+  }, [data]);
+
+  // Safe & sound: the latest check-in of each person on the other side who shares with you.
+  const checks = useMemo(() => {
+    const all = safety.data?.checkins ?? [];
+    return talkTo
+      .map((p) => ({ p, s: stateOf(all, p.id) }))
+      .filter((x): x is { p: Member; s: SafetyState } => Boolean(x.s) && (x.s!.tone !== "calm" || Date.now() - Date.parse(x.s!.at) < 24 * 3_600_000));
+  }, [safety.data, talkTo]);
 
   const call = async () => {
     if (knock) return router.push(`/call/${knock.id}`);
@@ -182,160 +313,71 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
   };
 
   return (
-    <div className="lite-ground fixed inset-0 z-30 overflow-y-auto">
-      {/* Ambient ground: the window's own photo, blurred, so the screen is the room. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt="" aria-hidden="true" className="pointer-events-none fixed inset-0 h-full w-full scale-125 object-cover opacity-60 blur-[48px]" />
-      <div className="pointer-events-none fixed inset-0" style={{ background: "linear-gradient(to bottom, rgba(16,12,10,.35), rgba(16,12,10,.82) 70%)" }} aria-hidden="true" />
+    <div className="fixed inset-0 z-30 overflow-hidden bg-[#0d0c0b] text-white">
+      {data && <Slideshow srcs={srcs} still={data.view?.style === "still"} />}
+      {data && data.view?.style !== "still" && <SkyLayers layers={data.layers.filter((l) => l === "rain" || l === "breeze")} phase={data.phase} tint={false} />}
+      {/* Legibility: a soft dark veil top and bottom, the view stays clear in the middle. */}
+      <div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,.5) 0%, rgba(0,0,0,.08) 26%, rgba(0,0,0,.05) 42%, rgba(0,0,0,.6) 72%, rgba(0,0,0,.82) 100%)" }} aria-hidden="true" />
 
-      <div className="relative mx-auto flex min-h-full w-full max-w-[480px] flex-col px-5" style={{ paddingTop: "calc(18px + env(safe-area-inset-top))", paddingBottom: "calc(24px + env(safe-area-inset-bottom))" }}>
+      <div className="relative mx-auto flex h-[100dvh] w-full max-w-[480px] flex-col px-5" style={{ paddingTop: "calc(16px + env(safe-area-inset-top))", paddingBottom: "calc(18px + env(safe-area-inset-bottom))" }}>
+        {/* Who, where, their hour, their sky */}
         <header className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="m-0 text-[11.5px] font-semibold uppercase tracking-[0.16em] text-white/60">Your window to</p>
-            <h1 className="m-0 mt-1 truncate text-[27px] leading-[1.1] text-white">{data?.far ? `${data.far.names}` : " "}</h1>
+          <div className="min-w-0 [text-shadow:0_1px_12px_rgba(0,0,0,.35)]">
+            <h1 className="m-0 truncate text-[30px] font-light leading-[1.1] tracking-[-0.01em]">{data?.far?.names || (data ? "Your window" : " ")}</h1>
             {data?.far && (
-              <p className="m-0 mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[14px] text-white/80">
-                <span className="flex items-center gap-1">
-                  <Icon name="pin" size={14} /> {data.far.city || "Their home"}
+              <p className="m-0 mt-1.5 flex flex-wrap items-center gap-x-2 text-[14px] text-white/85">
+                <span>{data.far.city || "Their home"}</span>
+                <span className="tnum" suppressHydrationWarning>
+                  {clock}
                 </span>
-                <span aria-hidden="true">·</span>
-                <span suppressHydrationWarning>{clock}</span>
                 {data.weather && (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <span className="flex items-center gap-1">
-                      <Icon name={SKY_ICON[data.weather.kind]} size={15} /> {data.weather.tempC}° {data.weather.label.toLowerCase()}
-                    </span>
-                  </>
+                  <span className="flex items-center gap-1">
+                    <Icon name={SKY_ICON[data.weather.kind]} size={15} /> {data.weather.tempC}°
+                  </span>
                 )}
               </p>
             )}
           </div>
-          <Link href="/settings#window" aria-label="Choose your window" className="press shrink-0 rounded-full">
-            <Avatar src={memberPhoto(viewer)} name={viewer.firstName} size={40} ring />
-          </Link>
+          <button type="button" onClick={() => openRoom("all")} aria-label="Everything, and your settings" className="press shrink-0 rounded-full ring-1 ring-white/40">
+            <Avatar src={memberPhoto(viewer)} name={viewer.firstName} size={40} />
+          </button>
         </header>
+        {welcome && <p className="voice m-0 mt-3 text-[17px] text-white/90">{welcome}</p>}
 
-        {/* The window */}
-        {data ? (
-          <ArchWindow src={src} layers={data.layers} phase={data.phase} living={data.view?.style !== "still"} className="mt-5 aspect-[1/1] w-full">
-            {/* Safe & sound at a glance: each person, green when active, amber when quiet past your threshold (Settings) in their daytime. */}
-            <ul className="absolute inset-x-3 bottom-3 m-0 flex list-none flex-wrap gap-2 p-0" aria-label="Are they OK">
-              {talkTo.slice(0, 3).map((p) => {
-                const st = statusOf(p.id);
-                const look = ALIVE_LOOK[st?.state ?? "unknown"];
-                const quiet = st?.state === "quiet";
-                return (
-                  <li key={p.id}>
-                    <button
-                      type="button"
-                      onClick={() => (quiet ? setWorry(p) : talk([p.id]))}
-                      className={cn("glass-dark press flex items-center gap-2 rounded-full py-1 pl-1 pr-3.5 text-left", quiet && "!border-[#f5a524]/70")}
-                      aria-label={`${callName(p)}: ${st ? statusText(st) : look.word}`}
-                    >
-                      <span className="relative">
-                        <Avatar src={memberPhoto(p)} name={callName(p)} size={30} />
-                        <span className={cn("absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-black/40", st?.state === "active" && "animate-pulse")} style={{ background: look.dot }} />
-                      </span>
-                      <span className="leading-tight">
-                        <span className="block text-[13.5px] font-semibold">{callName(p)}</span>
-                        <span className="block text-[11.5px] text-white/75" suppressHydrationWarning>
-                          {st ? statusText(st) : "…"}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </ArchWindow>
+        <div className="min-h-[12px] flex-1" />
+
+        {!data ? (
+          <div className="lite-glass h-[150px] animate-pulse rounded-[26px]" aria-busy="true" aria-label="Opening the window" />
+        ) : waiting ? (
+          <WaitingCard names={data.far?.names ?? ""} />
         ) : (
-          <div className="skeleton mt-5 aspect-[1/1.12] w-full" style={{ borderRadius: "999px 999px 34px 34px", opacity: 0.15 }} aria-busy="true" aria-label="Opening the window" />
+          <div className="space-y-2.5">
+            {data.line && <p className="voice m-0 px-1 pb-1 text-[16.5px] leading-snug text-white/90 [text-shadow:0_1px_10px_rgba(0,0,0,.4)]">{data.line}</p>}
+            <SafeGlance people={talkTo} statusOf={statusOf} checks={checks} onWorry={setWorry} onTalk={(id) => talk([id])} />
+            <NextStep people={talkTo} statusOf={statusOf} latestVoice={latestVoice} viewerId={viewer.id} cards={cards ?? []} onWorry={setWorry} onReply={(id) => talk([id])} onWish={(id) => openAdd("voice", null, [id])} knock={knock} />
+            {latestVoice && <VoiceRow card={latestVoice} />}
+            <Moments />
+          </div>
         )}
 
-        {data?.line && <p className="voice m-0 mt-4 px-1 text-center text-[17px] leading-snug text-white/90">{data.line}</p>}
-
-        <div className="mt-4 space-y-2.5">
-          <NextStep
-            people={talkTo}
-            statusOf={statusOf}
-            latestVoice={latestVoice}
-            viewerId={viewer.id}
-            cards={cards ?? []}
-            onWorry={setWorry}
-            onReply={(id) => talk([id])}
-            onWish={(id) => openAdd("voice", null, [id])}
-          />
-          {knock && (
-            <Link href={`/call/${knock.id}`} className="glass-dark press flex items-center gap-3 rounded-[22px] px-4 py-3 text-white no-underline">
-              <span className="relative grid h-10 w-10 place-items-center rounded-full bg-[#2f9e5b]">
-                <Icon name="video" size={18} />
-                <span className="absolute -right-0.5 -top-0.5 h-3 w-3 animate-ping rounded-full bg-[#7be3a6]" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[15.5px] font-semibold">{callName(members.find((mm) => mm.id === knock.memberId))} is on a video call</span>
-                <span className="block text-[13px] text-white/70">Join them</span>
-              </span>
-              <Icon name="chevron" size={18} />
-            </Link>
-          )}
-
-          {latestVoice && (
-            <button type="button" onClick={() => play(latestVoice)} className="glass-dark press flex w-full items-center gap-3 rounded-[22px] p-2 pr-4 text-left" aria-label={`Play ${callName(voiceAuthor)}'s latest voice note`}>
-              <span className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[16px]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={cardCover(latestVoice, members)} alt="" className="h-full w-full object-cover" />
-                <span className="absolute inset-0 grid place-items-center bg-black/25">
-                  <Icon name="play" size={18} />
-                </span>
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[12px] font-semibold uppercase tracking-[0.08em] text-white/60">A voice from home · {ago(latestVoice.takenAt)}</span>
-                <span className="voice block truncate text-[16.5px]">{latestVoice.caption || `${callName(voiceAuthor)}'s voice note`}</span>
-                <span className="mt-1 block opacity-80 [&_span>span]:!bg-white/70">
-                  <VoiceCode peaks={latestVoice.peaks} bars={30} className="h-4" />
-                </span>
-              </span>
-            </button>
-          )}
-
-
-          {elder && <ShareMoment />}
-        </div>
-
-        <div className="flex-1" />
-
-        {/* Talk · Video call · Kutumb */}
-        <nav className="sticky z-10 -mx-5 mt-6 space-y-2.5 px-5 pb-1 pt-3" style={{ bottom: "calc(10px + env(safe-area-inset-bottom))", background: "linear-gradient(to bottom, rgba(20,16,13,0), rgba(20,16,13,.92) 28%)" }} aria-label="Window actions">
-          <div className="grid grid-cols-2 gap-2.5">
-            <button type="button" onClick={() => talk()} className="press flex h-[60px] items-center justify-center gap-2.5 rounded-[22px] bg-white text-[16.5px] font-semibold text-black">
-              <span className="grid h-9 w-9 place-items-center rounded-full bg-marigold">
-                <Icon name="mic" size={19} strokeWidth={2.2} />
-              </span>
-              <span className="truncate">{talkTo.length === 1 ? `Talk to ${callName(talkTo[0])}` : "Talk"}</span>
-            </button>
-            <button type="button" onClick={() => void call()} disabled={calling} className="press flex h-[60px] items-center justify-center gap-2.5 rounded-[22px] text-[16.5px] font-semibold text-white" style={{ background: "linear-gradient(180deg,#2fae66,#1f8a4f)" }}>
-              <span className="grid h-9 w-9 place-items-center rounded-full bg-white/20">
-                <Icon name="video" size={19} strokeWidth={2.2} />
-              </span>
-              {knock ? "Join call" : calling ? "Opening…" : "Video call"}
-            </button>
-          </div>
-          <button type="button" onClick={onOpenDoor} aria-label="Open Kutumb, the whole family" className="press flex h-[60px] w-full items-center gap-3 rounded-[22px] px-4 text-left text-black" style={{ background: "linear-gradient(180deg,#f7c164,#e0962a)", boxShadow: "inset 0 1px 0 rgba(255,240,200,.7)" }}>
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-black/10">
-              <Icon name="key" size={19} strokeWidth={2.2} />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[17px] font-bold leading-tight">Kutumb</span>
-              <span className="block truncate text-[12.5px] text-black/65">The whole family: memories, kitchen, care, everyone</span>
-            </span>
-            <Icon name="chevron" size={18} />
+        {/* Actions: voice note · video · slide the key */}
+        <nav className="mt-4 flex items-center gap-2.5" aria-label="Window actions">
+          <button type="button" onClick={() => talk()} disabled={waiting || !talkTo.length} aria-label={talkTo.length === 1 ? `Voice note to ${callName(talkTo[0])}` : "Voice note"} className="lite-glass press grid h-[60px] w-[60px] shrink-0 place-items-center rounded-full disabled:opacity-40">
+            <Icon name="mic" size={24} strokeWidth={1.8} />
           </button>
+          {!waiting && (
+            <button type="button" onClick={() => void call()} disabled={calling} aria-label={knock ? "Join the video call" : "Video call"} className={cn("lite-glass press relative grid h-[60px] w-[60px] shrink-0 place-items-center rounded-full", calling && "opacity-60")}>
+              <Icon name="video" size={24} strokeWidth={1.8} />
+              {knock && <span className="absolute right-3 top-3 h-2.5 w-2.5 animate-ping rounded-full bg-[#3ccf7a]" />}
+            </button>
+          )}
+          <SlideToOpen onOpen={onOpenDoor} />
         </nav>
       </div>
+
       <PeoplePicker
         open={picking}
-        title="Talk to"
+        title="Voice note to"
         people={talkTo}
         status={(p) => {
           const st = statusOf(p.id);
@@ -349,6 +391,170 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
   );
 }
 
+/* -------------------------------------------------------- safe & sound */
+/** Each person: a light that breathes when they've been around, amber when quiet; the latest check-in. */
+function SafeGlance({
+  people,
+  statusOf,
+  checks,
+  onWorry,
+  onTalk,
+}: {
+  people: Member[];
+  statusOf: (id: string) => { lastActive: string | null; state: Alive } | undefined;
+  checks: { p: Member; s: SafetyState }[];
+  onWorry: (m: Member) => void;
+  onTalk: (id: string) => void;
+}) {
+  if (!people.length) return null;
+  return (
+    <section aria-label="Safe and sound" className="lite-glass rounded-[24px] p-1.5">
+      <ul className="no-scrollbar m-0 flex list-none gap-1 overflow-x-auto p-0">
+        {people.map((p) => {
+          const st = statusOf(p.id);
+          const state = st?.state ?? "unknown";
+          const quiet = state === "quiet";
+          return (
+            <li key={p.id} className="min-w-0 flex-1">
+              <button type="button" onClick={() => (quiet ? onWorry(p) : onTalk(p.id))} className="press flex w-full min-w-[150px] items-center gap-2.5 rounded-[18px] p-1.5 pr-3 text-left hover:bg-white/10" aria-label={`${callName(p)}: ${st ? statusText(st) : ALIVE_LOOK[state].word}`}>
+                <span className="relative shrink-0">
+                  <Avatar src={memberPhoto(p)} name={callName(p)} size={40} />
+                  <span className={cn("absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full ring-2 ring-black/30", state === "active" && "alive-breathe")} style={{ background: ALIVE_LOOK[state].dot, color: ALIVE_LOOK[state].dot }} />
+                </span>
+                <span className="min-w-0 leading-tight">
+                  <span className="block truncate text-[15px] font-semibold">{callName(p)}</span>
+                  <span className={cn("block truncate text-[12.5px]", quiet ? "text-[#ffd18a]" : "text-white/75")} suppressHydrationWarning>
+                    {st ? statusText(st) : "…"}
+                  </span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {checks.length > 0 && (
+        <ul className="m-0 mt-1 list-none space-y-1 border-t border-white/15 p-0 pt-1.5">
+          {checks.map(({ p, s }) => {
+            const alarm = s.tone === "overdue" || s.tone === "help";
+            return (
+              <li key={p.id}>
+                <a href="/safe" className={cn("flex items-center gap-2 rounded-[14px] px-2.5 py-1.5 text-[13px] text-white no-underline", alarm && "bg-[#e5484d]/85")}>
+                  <Icon name="shield" size={15} />
+                  <span className="min-w-0 flex-1 truncate">
+                    <b className="font-semibold">{callName(p)}</b> · {s.label}
+                    {s.tone === "pending" && "etaAt" in s ? ` · by ${timeIn(p.tz, new Date(s.etaAt))}` : ""}
+                  </span>
+                  <span className="shrink-0 text-white/70" suppressHydrationWarning>
+                    {ago(s.at)}
+                  </span>
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------ the voice */
+function VoiceRow({ card }: { card: Card }) {
+  const { members } = useViewer();
+  const { play, current, isPlaying, toggle } = usePlayer();
+  const author = members.find((mm) => mm.id === card.authorId);
+  const playing = current?.id === card.id && isPlaying;
+  return (
+    <button type="button" onClick={() => (current?.id === card.id ? toggle() : play(card))} className="lite-glass press flex w-full items-center gap-3 rounded-[22px] p-2 pr-4 text-left" aria-label={`${playing ? "Pause" : "Play"} ${callName(author)}'s voice note`}>
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white text-black">
+        <Icon name={playing ? "pause" : "play"} size={17} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="voice block truncate text-[15.5px]">{card.caption || `${callName(author)}'s voice`}</span>
+        <span className="mt-1 flex items-center gap-2 text-[11.5px] text-white/65">
+          <span className="min-w-0 flex-1 [&_span>span]:!bg-white/70">
+            <VoiceCode peaks={card.peaks} bars={28} className="h-3.5" />
+          </span>
+          <span className="shrink-0" suppressHydrationWarning>
+            {callName(author)} · {ago(card.takenAt)}
+          </span>
+        </span>
+      </span>
+    </button>
+  );
+}
+
+/* ------------------------------------------------------------- moments */
+/** Tell them what you're doing: one tap, both ways (parents and children alike). */
+function Moments() {
+  const { viewer } = useViewer();
+  const [sent, setSent] = useState<PresenceMoment | null>(null);
+  const picks = shareableFor(viewer.role)
+    .filter((mo) => MOMENT_ICON[mo])
+    .slice(0, 5);
+  return (
+    <div className="flex items-start justify-between gap-1 px-0.5 pt-1" role="group" aria-label="Tell them what you're doing">
+      {picks.map((mo) => (
+        <m.button
+          key={mo}
+          type="button"
+          whileTap={{ scale: 0.92 }}
+          aria-pressed={sent === mo}
+          aria-label={`Tell them: ${MOMENT_LABEL[mo].label}`}
+          onClick={async () => {
+            setSent(mo);
+            await postJson("/api/presence", { moment: mo });
+          }}
+          className="flex w-[64px] flex-col items-center gap-1"
+        >
+          <span className={cn("grid h-[46px] w-[46px] place-items-center rounded-full transition-colors", sent === mo ? "bg-white text-black" : "lite-glass")}>
+            <Icon name={sent === mo ? "check" : (MOMENT_ICON[mo] as IconName)} size={20} strokeWidth={1.8} />
+          </span>
+          <span className="max-w-full truncate text-[11px] text-white/80">{SHORT[mo] ?? MOMENT_LABEL[mo].label}</span>
+        </m.button>
+      ))}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------- empty window */
+/** Nobody from the other side has joined yet: the window waits, the invite is one tap. */
+function WaitingCard({ names }: { names: string }) {
+  const [busy, setBusy] = useState(false);
+  const send = async () => {
+    setBusy(true);
+    let code: string | null = null;
+    try {
+      const res = await fetch("/api/invites", { cache: "no-store" });
+      const d = (await res.json()) as { invites?: { code: string; expiresAt: string }[] };
+      code = (d.invites ?? []).find((i) => Date.parse(i.expiresAt) > Date.now())?.code ?? null;
+      if (!code) {
+        const made = await postJson<{ invite?: { code: string } }>("/api/invites", {});
+        code = made?.invite?.code ?? null;
+      }
+    } catch {
+      code = null;
+    }
+    setBusy(false);
+    if (!code) return void (window.location.href = "/settings#invite");
+    const link = `${window.location.origin}/join?code=${encodeURIComponent(code)}`;
+    const text = `Your window to us is ready on Aangan. Open ${link} and enter code ${code}.`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+  };
+  return (
+    <section className="lite-glass rounded-[26px] p-5" aria-label="Waiting for them to join">
+      <p className="m-0 flex items-center gap-2 text-[12px] uppercase tracking-[0.16em] text-white/70">
+        <span className="h-2 w-2 animate-pulse rounded-full bg-white/80" /> Waiting
+      </p>
+      <p className="m-0 mt-2 text-[21px] font-light leading-snug">{names ? `${names} hasn't opened the window yet` : "Add the people on the other side"}</p>
+      <p className="m-0 mt-1 text-[14px] text-white/70">When they join, you'll see their day here and they'll see yours.</p>
+      <button type="button" onClick={() => void send()} disabled={busy} className="press mt-4 flex h-12 items-center gap-2 rounded-full bg-white px-5 text-[15px] font-semibold text-black">
+        <Icon name="send" size={17} /> {busy ? "Opening…" : "Send the invite again"}
+      </button>
+    </section>
+  );
+}
+
+/* --------------------------------------------------------- worry sheet */
 /** Amber: quiet for a while in their daytime. One tap to check in. */
 function WorrySheet({ person, status, onTalk, onCall, onClose }: { person: Member | null; status?: { lastActive: string | null; state: Alive }; onTalk: () => void; onCall: () => void; onClose: () => void }) {
   if (!person) return null;
@@ -366,58 +572,27 @@ function WorrySheet({ person, status, onTalk, onCall, onClose }: { person: Membe
             <p className="m-0 text-[14px] text-ink-soft">{status ? statusText(status) : ""} in Aangan, during their day. Probably nothing. A call settles it.</p>
           </div>
         </div>
-        <div className="mt-5 grid grid-cols-2 gap-2.5">
-          <button type="button" onClick={onCall} className="press flex h-14 items-center justify-center gap-2 rounded-[20px] text-[16px] font-semibold text-white" style={{ background: "linear-gradient(180deg,#2fae66,#1f8a4f)" }}>
-            <Icon name="video" size={19} /> Call now
+        <div className="mt-5 flex items-center justify-center gap-4">
+          <button type="button" onClick={onCall} aria-label="Video call" className="press grid h-16 w-16 place-items-center rounded-full bg-black text-white">
+            <Icon name="video" size={24} />
           </button>
-          <button type="button" onClick={onTalk} className="press flex h-14 items-center justify-center gap-2 rounded-[20px] bg-black text-[16px] font-semibold text-white">
-            <Icon name="mic" size={19} /> Voice note
+          <button type="button" onClick={onTalk} aria-label="Voice note" className="press grid h-16 w-16 place-items-center rounded-full bg-black/[.06] text-ink">
+            <Icon name="mic" size={24} />
           </button>
+          <a href="/nearby" aria-label="Trusted nearby: who to call near them" className="press grid h-16 w-16 place-items-center rounded-full bg-black/[.06] text-ink no-underline">
+            <Icon name="gather" size={24} />
+          </a>
         </div>
-        <a href="/nearby" className="mt-3 flex h-11 items-center justify-center gap-2 text-[14px] font-semibold text-ink-soft no-underline">
-          <Icon name="gather" size={16} /> People near them · trusted nearby
-        </a>
       </m.div>
     </div>
   );
 }
 
-
-/** Parents tell the other side what they're doing, in one big tap. */
-function ShareMoment() {
-  const { viewer } = useViewer();
-  const [sent, setSent] = useState<PresenceMoment | null>(null);
-  const icon: Partial<Record<PresenceMoment, IconName>> = { awake: "sun", chai: "coffee", walk: "walk", cooking: "pot", prayer: "flower", resting: "moon", thinking: "heart" };
-  const picks = shareableFor(viewer.role).filter((mo) => icon[mo]).slice(0, 4);
-  return (
-    <div>
-      <p className="m-0 mb-2 mt-1 px-1 text-[12px] font-semibold uppercase tracking-[0.08em] text-white/60">Tell them what you're doing</p>
-      <div className="grid grid-cols-4 gap-2">
-        {picks.map((mo) => (
-          <m.button
-            key={mo}
-            type="button"
-            whileTap={{ scale: 0.95 }}
-            onClick={async () => {
-              setSent(mo);
-              await postJson("/api/presence", { moment: mo });
-            }}
-            className={cn("glass-dark flex h-[78px] flex-col items-center justify-center gap-1.5 rounded-[20px] text-[14px] font-semibold", sent === mo && "!bg-marigold !text-black")}
-          >
-            <Icon name={sent === mo ? "check" : (icon[mo] as IconName)} size={22} />
-            {MOMENT_LABEL[mo].label}
-          </m.button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /**
- * The one thing worth doing now (SPEC §29.12), so the first screen is an
- * overview with a purpose: a quiet parent beats an unanswered voice, which
- * beats today's question, which beats a birthday soon. Rules, not a model:
- * it must be instant and predictable.
+ * The one thing worth doing now: a quiet parent beats a live call, which
+ * beats an unanswered voice, which beats today's question, which beats a
+ * birthday soon. Rules, not a model: instant and predictable. Nothing when
+ * nothing is waiting (the screen stays calm).
  */
 function NextStep({
   people,
@@ -428,6 +603,7 @@ function NextStep({
   onWorry,
   onReply,
   onWish,
+  knock,
 }: {
   people: Member[];
   statusOf: (id: string) => { lastActive: string | null; state: Alive } | undefined;
@@ -437,64 +613,53 @@ function NextStep({
   onWorry: (m: Member) => void;
   onReply: (id: string) => void;
   onWish: (id: string) => void;
+  knock: Knock | undefined;
 }) {
+  const router = useRouter();
   const { members } = useViewer();
   const { openAdd } = useShell();
   const { data: today } = useToday();
   const quiet = people.find((p) => statusOf(p.id)?.state === "quiet");
   const myLastVoice = cards.find((c) => c.type === "audio" && c.authorId === viewerId);
-  const unanswered = latestVoice && (!myLastVoice || Date.parse(latestVoice.takenAt) > Date.parse(myLastVoice.takenAt)) ? members.find((m) => m.id === latestVoice.authorId) : undefined;
+  const unanswered = latestVoice && (!myLastVoice || Date.parse(latestVoice.takenAt) > Date.parse(myLastVoice.takenAt)) ? members.find((mm) => mm.id === latestVoice.authorId) : undefined;
   const task = today?.task;
   const prompt = task?.side === "parents" ? task.forParents : task?.forChildren;
   const otherIds = task ? (task.side === "parents" ? task.children : task.parents) : [];
-  const answeredBy = members.find((m) => task?.sealedBy.includes(m.id));
+  const answeredBy = members.find((mm) => task?.sealedBy.includes(mm.id));
   const occ = today?.occasion;
-  const occPerson = occ?.memberId ? members.find((m) => m.id === occ.memberId) : undefined;
+  const occPerson = occ?.memberId ? members.find((mm) => mm.id === occ.memberId) : undefined;
+  const host = knock ? members.find((mm) => mm.id === knock.memberId) : undefined;
 
-  let step: { icon: IconName; tone: string; title: string; line: string; cta: string; go: () => void } | null = null;
+  let step: { icon: IconName; title: string; line: string; go: () => void; label: string } | null = null;
   if (quiet) {
     const st = statusOf(quiet.id);
-    step = { icon: "phone", tone: "#f5a524", title: `${callName(quiet)} has been quiet`, line: st ? statusText(st) : "", cta: "Check in", go: () => onWorry(quiet) };
+    step = { icon: "phone", title: `Check on ${callName(quiet)}`, line: st ? statusText(st) : "", go: () => onWorry(quiet), label: `Check on ${callName(quiet)}` };
+  } else if (knock) {
+    step = { icon: "video", title: `${callName(host)} is on a video call`, line: "Tap to join", go: () => router.push(`/call/${knock.id}`), label: "Join the call" };
   } else if (unanswered) {
-    step = { icon: "reply", tone: "#e8402a", title: `${callName(unanswered)} sent you a voice note`, line: "You haven't replied yet", cta: "Reply", go: () => onReply(unanswered.id) };
+    step = { icon: "reply", title: `Reply to ${callName(unanswered)}`, line: "Their voice note is waiting", go: () => onReply(unanswered.id), label: `Reply to ${callName(unanswered)}` };
   } else if (task?.side && !task.mine && prompt) {
     step = {
       icon: "mic",
-      tone: "#f5a524",
       title: answeredBy ? `${callName(answeredBy)} answered today's question` : "Today, for both homes",
       line: answeredBy ? `Answer to hear it: ${prompt}` : prompt,
-      cta: "Answer",
       go: () => openAdd("voice", { kind: "today", taskId: task.id, prompt }, otherIds.filter((id) => id !== viewerId)),
+      label: "Answer today's question",
     };
   } else if (occ && occ.days <= 3 && occPerson && occPerson.id !== viewerId) {
-    step = { icon: "calendar", tone: "#b8572b", title: occ.days === 0 ? `${occ.title} is today` : `${occ.title} in ${occ.days} day${occ.days > 1 ? "s" : ""}`, line: "Record a wish before the day", cta: "Wish", go: () => onWish(occPerson.id) };
+    step = { icon: "calendar", title: occ.days === 0 ? `${occ.title} is today` : `${occ.title} in ${occ.days} day${occ.days > 1 ? "s" : ""}`, line: "Record a wish", go: () => onWish(occPerson.id), label: "Record a wish" };
   }
-  if (!step) {
-    const done = task?.mine;
-    return (
-      <div className="glass-dark flex items-center gap-3 rounded-[22px] px-4 py-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#2fae66]/90">
-          <Icon name="check" size={18} strokeWidth={2.4} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[15px] font-semibold">All good on both sides</span>
-          <span className="block truncate text-[12.5px] text-white/70">{done ? "You've answered today's question" : "Nothing waiting on you"}</span>
-        </span>
-      </div>
-    );
-  }
+  if (!step) return null;
   return (
-    <button type="button" onClick={step.go} className="glass-dark press flex w-full items-center gap-3 rounded-[22px] px-4 py-3 text-left" style={{ borderColor: `${step.tone}99` }}>
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-black" style={{ background: step.tone }}>
-        <Icon name={step.icon} size={18} strokeWidth={2.4} />
+    <button type="button" onClick={step.go} aria-label={step.label} className="lite-glass press flex w-full items-center gap-3 rounded-[22px] p-2 pr-3 text-left">
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white text-black">
+        <Icon name={step.icon} size={18} strokeWidth={2.2} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[11.5px] font-semibold uppercase tracking-[0.1em] text-white/60">Next</span>
-        <span className="block truncate text-[15.5px] font-semibold">{step.title}</span>
+        <span className="block truncate text-[15px] font-semibold">{step.title}</span>
         <span className="block truncate text-[12.5px] text-white/70">{step.line}</span>
       </span>
-      <span className="shrink-0 rounded-full bg-white px-3.5 py-2 text-[13.5px] font-semibold text-black">{step.cta}</span>
+      <Icon name="chevron" size={18} className="shrink-0 text-white/70" />
     </button>
   );
 }
-

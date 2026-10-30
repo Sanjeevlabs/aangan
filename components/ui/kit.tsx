@@ -62,6 +62,12 @@ const ICONS = {
   walk: L.Footprints,
   grid: L.LayoutGrid,
   flower: L.Flower2,
+  briefcase: L.BriefcaseBusiness,
+  car: L.Car,
+  school: L.GraduationCap,
+  lockOpen: L.LockKeyholeOpen,
+  share: L.Share2,
+  whatsapp: L.MessageCircle,
 } satisfies Record<string, L.LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

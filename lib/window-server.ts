@@ -27,6 +27,10 @@ export interface WindowState {
   people: { id: string; lastActive: string | null; state: Alive }[];
   /** This viewer's amber threshold, in hours. */
   quietAfterHours: number;
+  /** A family photo was chosen for this window (else: the scene slideshow). */
+  chosen: boolean;
+  /** Someone on the other side has signed in (has an account). Emails never leave the server. */
+  joined: boolean;
 }
 
 const DEFAULT_IMAGE = { elders: "/demo/aangan-home.svg", children: "/demo/home-city.svg" };
@@ -92,6 +96,9 @@ export async function windowState(familyId: string, viewerId: string, now = new 
     moments: today.slice(0, 4).map((p) => ({ memberId: p.memberId, label: MOMENT_LABEL[p.moment].line, at: p.at })),
     people,
     quietAfterHours: view?.quietAfterHours ?? 4,
+    chosen: Boolean(view?.cardId && view.imageRef),
+    // Signed in, or has done anything in Aangan (the demo family has no emails).
+    joined: (home?.members ?? []).some((m) => m.role !== "child" && (Boolean(m.email) || lastSeen(m.id) !== null)),
   };
 }
 

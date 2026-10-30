@@ -2,7 +2,7 @@
 
 import { AnimatePresence, LazyMotion, domAnimation, m } from "framer-motion";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { talkTarget } from "@/lib/households";
 import { callName, memberPhoto, peopleByRecency } from "@/lib/people";
@@ -47,16 +47,15 @@ export function useShell(): ShellState {
 
 
 function RoomsSheet({ room, onClose }: { room: Room["id"] | "all" | null; onClose: () => void }) {
-  const { viewer, members } = useViewer();
-  const parent = viewer.role === "elder";
-  const names = members
-    .filter((m) => m.role === "elder" && m.id !== viewer.id)
-    .slice(0, 2)
-    .map((m) => callName(m))
-    .join(" & ");
-  const all = roomsFor(parent, names);
-  const rooms = room === "all" ? all : all.filter((r) => r.id === room);
+  const { viewer } = useViewer();
+  const router = useRouter();
+  const all = roomsFor(viewer.role === "elder");
   const open = room !== null;
+  // One room open at a time; tapping a room shows what's inside it.
+  const [expanded, setExpanded] = useState<Room["id"] | null>(null);
+  useEffect(() => {
+    if (room) setExpanded(room === "all" ? null : room);
+  }, [room]);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -66,7 +65,7 @@ function RoomsSheet({ room, onClose }: { room: Room["id"] | "all" | null; onClos
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label={room === "all" ? "Rooms" : rooms[0]?.title}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Rooms">
           <m.button type="button" aria-label="Close" className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
           <m.nav
             className="frost relative w-full max-w-[480px] overflow-y-auto rounded-t-[32px] px-4 pt-3"
@@ -77,42 +76,60 @@ function RoomsSheet({ room, onClose }: { room: Room["id"] | "all" | null; onClos
             transition={{ type: "spring", stiffness: 420, damping: 38 }}
           >
             <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-black/15" aria-hidden="true" />
-            {room === "all" && (
-              <Link href="/settings" onClick={onClose} className="press mb-4 flex items-center gap-3 rounded-[22px] bg-white/90 px-3.5 py-3 text-ink no-underline ring-1 ring-black/[.05]">
-                <Avatar src={memberPhoto(viewer)} name={viewer.firstName} size={44} />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[17px] font-semibold leading-tight">{viewer.firstName}</span>
-                  <span className="block text-[13px] text-ink-soft">Settings, your window, language, privacy</span>
-                </span>
-                <Icon name="settings" size={20} className="text-ink-soft" />
-              </Link>
-            )}
-            {rooms.map((g) => (
-              <section key={g.id} aria-label={g.title} className="mb-4">
-                <div className="mb-2 flex items-center gap-3 px-2">
-                  <span className="grid h-9 w-9 place-items-center rounded-[12px]" style={{ background: g.tone[0], color: g.tone[1] }}>
-                    <Icon name={g.icon as IconName} size={18} />
-                  </span>
-                  <h2 className="m-0 text-[19px]">{g.title}</h2>
-                </div>
-                <ul className="m-0 list-none overflow-hidden rounded-[22px] bg-white/90 p-0 ring-1 ring-black/[.05]">
-                  {g.items.map((r, i) => (
-                    <li key={r.href + r.title} className={i ? "border-t border-[var(--line)]" : ""}>
-                      <Link href={r.href} onClick={onClose} className="press flex items-center gap-3.5 px-3.5 py-3 text-ink no-underline hover:bg-black/[.03]">
-                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px]" style={{ background: g.tone[0], color: g.tone[1] }}>
-                          <Icon name={r.icon as IconName} size={19} />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-[16px] font-semibold leading-tight">{r.title}</span>
-                          <span className="block truncate text-[13px] text-ink-soft">{r.note}</span>
-                        </span>
-                        <Icon name="chevron" size={16} className="text-ink-faint" />
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))}
+            <Link href="/settings" onClick={onClose} className="press mb-3 flex items-center gap-3 rounded-[20px] px-2 py-2 text-ink no-underline">
+              <Avatar src={memberPhoto(viewer)} name={viewer.firstName} size={40} />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[16px] font-semibold leading-tight">{viewer.firstName}</span>
+                <span className="block text-[12.5px] text-ink-soft">Settings · your window · privacy</span>
+              </span>
+              <Icon name="settings" size={19} className="text-ink-soft" />
+            </Link>
+            <ul className="m-0 list-none space-y-1.5 p-0">
+              {all.map((g) => {
+                const isOpen = expanded === g.id;
+                return (
+                  <li key={g.id} className="overflow-hidden rounded-[20px] bg-white/80 ring-1 ring-black/[.05]">
+                    <button
+                      type="button"
+                      aria-expanded={g.href ? undefined : isOpen}
+                      onClick={() => {
+                        if (g.href) {
+                          onClose();
+                          router.push(g.href);
+                        } else setExpanded(isOpen ? null : g.id);
+                      }}
+                      className="press flex w-full items-center gap-3.5 px-3.5 py-3 text-left text-ink"
+                    >
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-black/[.05]">
+                        <Icon name={g.icon as IconName} size={19} strokeWidth={1.8} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[16.5px] font-semibold leading-tight">{g.title}</span>
+                        <span className="block truncate text-[12.5px] text-ink-soft">{g.note}</span>
+                      </span>
+                      <Icon name={g.href ? "chevron" : "down"} size={17} className={`text-ink-faint transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    <AnimatePresence initial={false}>
+                      {isOpen && !g.href && (
+                        <m.ul className="m-0 list-none border-t border-[var(--line)] p-0" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}>
+                          {g.items.map((r) => (
+                            <li key={r.href + r.title}>
+                              <Link href={r.href} onClick={onClose} className="press flex items-center gap-3 py-2.5 pl-[68px] pr-3.5 text-ink no-underline hover:bg-black/[.03]">
+                                <span className="min-w-0 flex-1">
+                                  <span className="block text-[15px] font-medium leading-tight">{r.title}</span>
+                                  <span className="block truncate text-[12px] text-ink-soft">{r.note}</span>
+                                </span>
+                                <Icon name="chevron" size={15} className="text-ink-faint" />
+                              </Link>
+                            </li>
+                          ))}
+                        </m.ul>
+                      )}
+                    </AnimatePresence>
+                  </li>
+                );
+              })}
+            </ul>
           </m.nav>
         </div>
       )}
@@ -120,10 +137,10 @@ function RoomsSheet({ room, onClose }: { room: Room["id"] | "all" | null; onClos
   );
 }
 
-// The dock: a voice note (to anyone; it says who is waiting for your reply)
-// and a photo. The rooms live on the Kutumb page and behind your profile photo.
+// The dock: a voice note (to anyone; it says who is waiting for your reply),
+// a photo, and ⋯ for the rooms (Memories, Kitchen, Care, Family, Get-together).
 function Dock() {
-  const { openAdd, refreshKey, chromeHidden } = useShell();
+  const { openAdd, openRoom, refreshKey, chromeHidden } = useShell();
   const { viewer, members, relationships } = useViewer();
   const { cards } = useFamilyCards(refreshKey);
   const { current, open: playerOpen } = usePlayer();
@@ -158,25 +175,24 @@ function Dock() {
           >
             <div className="frost glass-pill flex items-center gap-1 p-1.5">
               {others.length ? (
-                <button type="button" onClick={voice} className="press relative flex h-14 items-center gap-2.5 whitespace-nowrap rounded-full bg-black pl-2 pr-6 text-[16px] font-semibold text-white">
-                  <span className="grid h-10 w-10 place-items-center rounded-full bg-marigold text-black">
-                    <Icon name="mic" size={20} strokeWidth={2.2} />
-                  </span>
-                  {pagePerson && pagePerson.id !== viewer.id ? `Voice note to ${callName(pagePerson)}` : "Voice note"}
+                <button type="button" onClick={voice} aria-label={pagePerson && pagePerson.id !== viewer.id ? `Voice note to ${callName(pagePerson)}` : "Voice note"} className="press relative grid h-14 w-14 place-items-center rounded-full bg-black text-white">
+                  <Icon name="mic" size={23} strokeWidth={1.9} />
                   {waiting.size > 0 && !pagePerson && (
-                    <span className="absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full bg-[#e8402a] px-1.5 text-[12px] font-bold" aria-label={`${waiting.size} waiting for your reply`}>
+                    <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-[#e5484d] px-1 text-[11px] font-bold" aria-label={`${waiting.size} waiting for your reply`}>
                       {waiting.size}
                     </span>
                   )}
                 </button>
               ) : (
-                <Link href="/settings#invite" className="press flex h-14 items-center gap-2.5 whitespace-nowrap rounded-full bg-black pl-5 pr-6 text-[16px] font-semibold text-white no-underline">
-                  <Icon name="plus" size={20} />
-                  Invite family
+                <Link href="/settings#invite" aria-label="Invite family" className="press grid h-14 w-14 place-items-center rounded-full bg-black text-white no-underline">
+                  <Icon name="plus" size={23} />
                 </Link>
               )}
-              <button type="button" onClick={() => openAdd("photos")} aria-label="Share a photo or video" className="press grid h-14 w-14 place-items-center rounded-full">
-                <Icon name="camera" size={24} />
+              <button type="button" onClick={() => openAdd("photos")} aria-label="Share a photo or video" className="press grid h-14 w-14 place-items-center rounded-full text-ink">
+                <Icon name="camera" size={23} strokeWidth={1.9} />
+              </button>
+              <button type="button" onClick={() => openRoom("all")} aria-label="Rooms: memories, kitchen, care, family, get-together" className="press grid h-14 w-14 place-items-center rounded-full text-ink">
+                <Icon name="more" size={24} strokeWidth={2} />
               </button>
             </div>
           </m.div>
