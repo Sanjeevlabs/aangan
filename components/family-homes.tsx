@@ -21,7 +21,7 @@ function HomeCard({ home, labels, viewerId }: { home: Household; labels: Map<str
   return (
     <li className={home.elders ? "rounded-card bg-[#fff6e6] p-4" : "rounded-card bg-surface p-4"}>
       <div className="flex items-baseline justify-between gap-3">
-        <p className="m-0 min-w-0 truncate text-[16px] font-semibold">{householdName(home, (m) => (m.id === viewerId ? "You" : callName(m)))}</p>
+        <p className="m-0 min-w-0 truncate text-[16px] font-semibold">{home.members.some((m) => m.id === viewerId) ? "Your home" : householdName(home, (m) => callName(m))}</p>
         <p className="m-0 flex shrink-0 items-center gap-1 text-[13px] text-ink-soft">
           <Icon name={night ? "moon" : "sun"} size={13} />
           {timeIn(home.tz)} · {placeFromTz(home.tz)}

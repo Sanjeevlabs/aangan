@@ -21,6 +21,7 @@ const Choose = z.object({
   style: z.enum(["still", "living"]).default("living"),
 });
 const Compose = z.object({ action: z.literal("compose") });
+const Quiet = z.object({ action: z.literal("quiet"), hours: z.number().int().min(2).max(12) });
 
 export async function POST(req: Request): Promise<Response> {
   const auth = await requireSession(req);
@@ -43,6 +44,16 @@ export async function POST(req: Request): Promise<Response> {
       style: choose.data.style,
       madeBy: "family",
       updatedAt: now,
+    });
+    return Response.json({ view });
+  }
+
+  const quiet = Quiet.safeParse(body);
+  if (quiet.success) {
+    const view = await putDoc(auth.familyId, "window_view", {
+      ...(mine ?? { id: auth.memberId, memberId: auth.memberId, cardId: null, imageRef: null, style: "living" }),
+      quietAfterHours: quiet.data.hours,
+      updatedAt: mine?.updatedAt ?? now,
     });
     return Response.json({ view });
   }

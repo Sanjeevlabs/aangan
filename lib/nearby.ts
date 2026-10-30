@@ -1,4 +1,4 @@
-// The local circle (SPEC §29.9). Pure helpers.
+// Trusted nearby (SPEC §29.9). Pure helpers.
 
 /** The public emergency number where that home is. Defaults to 112. */
 export function emergencyNumber(tz: string): string {

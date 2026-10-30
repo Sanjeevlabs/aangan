@@ -8,16 +8,16 @@ import { HELPER_ROLES, type Helper } from "@/lib/kinds";
 import { callName, memberPhoto } from "@/lib/people";
 import { postJson, useJson } from "@/lib/use-json";
 import { placeFromTz } from "@/lib/zones";
-import { emergencyNumber } from "@/lib/circle";
+import { emergencyNumber } from "@/lib/nearby";
 
-// The local circle (SPEC §29.9): for every home, the few people nearby to call
+// Trusted nearby (SPEC §29.9): for every home, the few people nearby to call
 // first if something is wrong. Both ways: a father in Amritsar sees who is
 // near his son in Bengaluru, and the son sees who is near his parents. Not an
 // emergency service: the local emergency number is always one tap away.
 
 const tel = (phone: string) => `tel:${phone.replace(/[^\d+]/g, "")}`;
 
-export default function CirclePage() {
+export default function NearbyPage() {
   const { viewer, members, relationships } = useViewer();
   const { data, reload } = useJson<{ helpers: Helper[] }>("/api/care");
   const homes = households(members, relationships)
@@ -26,14 +26,14 @@ export default function CirclePage() {
     .sort((a, b) => Number(b.members.some((m) => m.id === viewer.id)) - Number(a.members.some((m) => m.id === viewer.id)) || Number(b.elders) - Number(a.elders));
   return (
     <div>
-      <RoomHeader title="Local circle" subtitle="For every home, the people nearby to call first" />
+      <RoomHeader title="Trusted nearby" subtitle="For every home, the people nearby to call first" />
       {data === null && <div className="skeleton h-[300px] rounded-card" aria-busy="true" aria-label="Loading" />}
-      {data && homes.map((h) => <HomeCircle key={h.id} home={h} helpers={(data.helpers ?? []).filter((x) => x.emergency && h.members.some((m) => m.id === x.forMemberId))} onChange={reload} />)}
+      {data && homes.map((h) => <HomeNearby key={h.id} home={h} helpers={(data.helpers ?? []).filter((x) => x.emergency && h.members.some((m) => m.id === x.forMemberId))} onChange={reload} />)}
     </div>
   );
 }
 
-function HomeCircle({ home, helpers, onChange }: { home: Household; helpers: Helper[]; onChange: () => void }) {
+function HomeNearby({ home, helpers, onChange }: { home: Household; helpers: Helper[]; onChange: () => void }) {
   const { viewer } = useViewer();
   const mine = home.members.some((m) => m.id === viewer.id);
   const [adding, setAdding] = useState(false);
@@ -86,7 +86,7 @@ function HomeCircle({ home, helpers, onChange }: { home: Household; helpers: Hel
       )}
       {(mine || viewer.access !== "child") &&
         (adding ? (
-          <AddToCircle forMemberId={mine ? viewer.id : home.members[0].id} onDone={() => { setAdding(false); onChange(); }} />
+          <AddNearby forMemberId={mine ? viewer.id : home.members[0].id} onDone={() => { setAdding(false); onChange(); }} />
         ) : (
           <button type="button" onClick={() => setAdding(true)} className="press mt-2 flex h-11 items-center gap-2 px-1 text-[15px] font-semibold text-accent">
             <Icon name="plus" size={17} /> Add someone nearby
@@ -96,7 +96,7 @@ function HomeCircle({ home, helpers, onChange }: { home: Household; helpers: Hel
   );
 }
 
-function AddToCircle({ forMemberId, onDone }: { forMemberId: string; onDone: () => void }) {
+function AddNearby({ forMemberId, onDone }: { forMemberId: string; onDone: () => void }) {
   const [name, setName] = useState("");
   const [role, setRole] = useState<Helper["role"]>("friend");
   const [phone, setPhone] = useState("");
@@ -120,7 +120,7 @@ function AddToCircle({ forMemberId, onDone }: { forMemberId: string; onDone: () 
       <input className={input} placeholder="Where, and anything useful (has a spare key…)" value={note} onChange={(e) => setNote(e.target.value.slice(0, 160))} aria-label="Note" />
       <label className="flex items-start gap-2.5 px-1 py-1 text-[14px] text-ink-soft">
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-1 h-4 w-4 accent-[#b76a00]" />
-        They know they&rsquo;re in our circle and are happy for the family to call them.
+        They know they&rsquo;re on our list and are happy for the family to call them.
       </label>
       {error && <p className="m-0 px-1 text-[13px] text-[#a3271b]">{error}</p>}
       <div className="flex gap-2">
@@ -132,7 +132,7 @@ function AddToCircle({ forMemberId, onDone }: { forMemberId: string; onDone: () 
             onDone();
           }}
         >
-          Add to circle
+          Add to trusted nearby
         </Button>
         <Button variant="secondary" onClick={onDone}>
           Cancel

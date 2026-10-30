@@ -237,11 +237,11 @@ export function seedDemoRooms(now = Date.now()): void {
   ];
   village.forEach((h) => seedDoc(FAM, "helper", { ...h, forMemberId: "dadi", addedBy: "arjun", createdAt: ago(60 * 24 * 20, now) }));
   seedDoc(FAM, "helper", { id: "helper-dr-clinic", name: "Sharma Clinic", role: "doctor's clinic", forMemberId: "dada", phone: "+91 90000 00006", note: "Papa's regular check-ups. Imran bhai drives.", emergency: true, consent: true, addedBy: "arjun", createdAt: ago(60 * 24 * 20, now) });
-  // ---------- Arjun's local circle in Bengaluru: so Maa & Papa needn't worry either ----------
+  // ---------- Arjun's trusted nearby in Bengaluru: so Maa & Papa needn't worry either ----------
   const arjunCircle = [
-    { id: "circle-neha", name: "Neha", role: "friend", phone: "+91 90000 00011", note: "Two streets away in HSR Layout. Has our spare key." },
-    { id: "circle-desk", name: "Society security desk", role: "neighbour", phone: "+91 90000 00012", note: "Open all night. Gate 2." },
-    { id: "circle-rakesh", name: "Rakesh", role: "colleague", phone: "+91 90000 00013", note: "Same office, same team." },
+    { id: "nearby-neha", name: "Neha", role: "friend", phone: "+91 90000 00011", note: "Two streets away in HSR Layout. Has our spare key." },
+    { id: "nearby-desk", name: "Society security desk", role: "neighbour", phone: "+91 90000 00012", note: "Open all night. Gate 2." },
+    { id: "nearby-rakesh", name: "Rakesh", role: "colleague", phone: "+91 90000 00013", note: "Same office, same team." },
   ];
   arjunCircle.forEach((h) => seedDoc(FAM, "helper", { ...h, forMemberId: "arjun", emergency: true, consent: true, addedBy: "arjun", createdAt: ago(60 * 24 * 9, now) }));
 

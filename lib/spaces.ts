@@ -18,7 +18,7 @@ const SHORT: Record<string, string> = {
   "/stories": "Stories",
   "/advice": "Advice",
   "/care": "Care board",
-  "/circle": "Local circle",
+  "/nearby": "Trusted nearby",
   "/safe": "Safe & sound",
   "/around": "Around",
   "/together": "Visits",

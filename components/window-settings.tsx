@@ -9,7 +9,8 @@ import { postJson, useJson } from "@/lib/use-json";
 import { cn } from "@/lib/utils";
 import type { DayPhase } from "@/lib/weather";
 import { ArchWindow } from "./window";
-import { Icon, MuseMark } from "./ui/kit";
+import { Icon } from "./ui/kit";
+import { QUIET_CHOICES } from "@/lib/status";
 import { useViewer } from "./viewer";
 
 // Choose what your window shows: any family photo, still or living. Living =
@@ -22,6 +23,7 @@ interface W {
   layers: WindowLayer[];
   far: { names: string } | null;
   view: { cardId: string | null; style: "still" | "living" } | null;
+  quietAfterHours: number;
 }
 
 export function WindowSettings() {
@@ -43,7 +45,7 @@ export function WindowSettings() {
   return (
     <div>
       <div className="flex gap-4">
-        <ArchWindow src={resolveMediaUrl(data.imageRef) ?? "/demo/courtyard.jpg"} layers={data.layers} phase={data.phase} living={style === "living"} className="h-[150px] w-[120px] shrink-0" />
+        <ArchWindow src={resolveMediaUrl(data.imageRef) ?? "/demo/aangan-home.svg"} layers={data.layers} phase={data.phase} living={style === "living"} className="h-[150px] w-[120px] shrink-0" />
         <div className="min-w-0 flex-1">
           <p className="m-0 text-[15px] text-ink-soft">What you see first when you open Aangan: a window to {data.far?.names ?? "the other home"}.</p>
           <div className="mt-3 grid grid-cols-2 gap-1 rounded-full bg-surface p-1">
@@ -53,9 +55,31 @@ export function WindowSettings() {
               </button>
             ))}
           </div>
-          {style === "living" && <MuseMark className="mt-2">Muse adds their sky and hour</MuseMark>}
+          {style === "living" && <p className="m-0 mt-2 text-[12.5px] text-ink-faint">Their sky and hour, live</p>}
         </div>
       </div>
+      <p className="m-0 mb-2 mt-5 text-[13px] font-medium text-ink-soft">Turn their dot amber when they&rsquo;ve been quiet for</p>
+      <div className="flex gap-1.5" role="radiogroup" aria-label="Amber after">
+        {QUIET_CHOICES.map((h) => (
+          <button
+            key={h}
+            type="button"
+            role="radio"
+            aria-checked={data.quietAfterHours === h}
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              await postJson("/api/window", { action: "quiet", hours: h });
+              await reload();
+              setBusy(false);
+            }}
+            className={cn("press h-10 flex-1 rounded-full text-[14px] font-semibold", data.quietAfterHours === h ? "bg-ink text-white" : "bg-surface text-ink-soft")}
+          >
+            {h} h
+          </button>
+        ))}
+      </div>
+      <p className="m-0 mt-1.5 text-[12px] text-ink-faint">Only during their day. At night it shows &ldquo;asleep&rdquo;. Based on activity in Aangan.</p>
       <p className="m-0 mb-2 mt-5 text-[13px] font-medium text-ink-soft">Choose a photo</p>
       <ul className="m-0 grid list-none grid-cols-4 gap-2 p-0">
         <li>

@@ -105,8 +105,8 @@ describe("the node tree", () => {
   });
 });
 
-describe("local circle, both homes", () => {
-  it("lets you keep your own circle, and needs their consent to list them for emergencies", async () => {
+describe("trusted nearby, both homes", () => {
+  it("lets you keep your own list, and needs their consent to list them for emergencies", async () => {
     const { POST: carePost, GET: careGet } = await import("@/app/api/care/route");
     const add = (body: Record<string, unknown>, who = "priya") => carePost(req("/api/care", who, { action: "helper", name: "Asha", role: "friend", phone: "+91 90000 00099", ...body }));
     expect((await add({ forMemberId: "priya", emergency: true, consent: false })).status).toBe(400);
@@ -115,5 +115,24 @@ describe("local circle, both homes", () => {
     expect((await add({ forMemberId: "kavya", emergency: true, consent: true }, "aria")).status).toBe(403);
     const { helpers } = await json<{ helpers: { forMemberId: string; emergency: boolean }[] }>(careGet(req("/api/care", "dadi")));
     expect(helpers.filter((h) => h.forMemberId === "arjun" && h.emergency).length).toBe(3);
+  });
+});
+
+describe("safe & sound at a glance", () => {
+  it("green when active, amber after 6 quiet hours in their day, asleep at their night", async () => {
+    const { aliveState } = await import("@/lib/status");
+    const noonIST = new Date("2026-10-30T06:30:00.000Z"); // 12:00 in Kolkata
+    const nightIST = new Date("2026-10-30T20:30:00.000Z"); // 02:00 in Kolkata
+    const tz = "Asia/Kolkata";
+    expect(aliveState(new Date(noonIST.getTime() - 2 * 3_600_000).toISOString(), tz, { shares: true, now: noonIST })).toBe("active");
+    expect(aliveState(new Date(noonIST.getTime() - 7 * 3_600_000).toISOString(), tz, { shares: true, now: noonIST })).toBe("quiet");
+    expect(aliveState(new Date(nightIST.getTime() - 9 * 3_600_000).toISOString(), tz, { shares: true, now: nightIST })).toBe("asleep");
+    expect(aliveState(null, tz, { shares: false, now: noonIST })).toBe("private");
+  });
+
+  it("the window carries a status for each grown-up on the other side", async () => {
+    const son = await json<{ people: { id: string; state: string }[] }>(windowGet(req("/api/window", "arjun")));
+    expect(son.people.map((p) => p.id).sort()).toEqual(["dada", "dadi"]);
+    expect(son.people.every((p) => ["active", "quiet", "asleep", "unknown", "private"].includes(p.state))).toBe(true);
   });
 });

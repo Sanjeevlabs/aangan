@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import type { SafetyCheckin, SafetySettings } from "@/lib/kinds";
 import { callName, memberPhoto } from "@/lib/people";
 import { emergencyFor, mapsLink, stateOf, type SafetyState } from "@/lib/safety";
@@ -70,8 +69,8 @@ export function SafetyRow({ member, state, viewerTz, compact = false }: { member
 }
 
 /**
- * Courtyard block. Shows the people who chose you, calm unless a promise was
- * missed; and, if you're on your way, one tap to say you're home.
+ * Kutumb block: only alerts (a missed arrival, a call for help) and your own
+ * open trip. Everyday "home safe" shows as the green dot on the window.
  */
 export function SafetyWatch() {
   const { viewer, members } = useViewer();
@@ -82,10 +81,11 @@ export function SafetyWatch() {
     .filter((r): r is { member: Member; state: SafetyState } => Boolean(r.member && r.state));
   const mine = data.mine?.enabled ? stateOf(data.checkins, viewer.id) : null;
   const open = mine && (mine.tone === "pending" || mine.tone === "overdue" || mine.tone === "help") ? mine : null;
-  if (!rows.length && !open) return null;
+  // Calm "home safe" lines live on the window's status dots now; here only
+  // what needs someone: a missed arrival, a call for help, your own trip.
+  if (!rows.some((r) => r.state.tone !== "calm") && !open) return null;
   // Alerts first; calm rows only as a single quiet line.
   const loud = rows.filter((r) => r.state.tone !== "calm");
-  const calm = rows.filter((r) => r.state.tone === "calm");
   return (
     <div className="space-y-2">
       {open && (
@@ -107,15 +107,6 @@ export function SafetyWatch() {
       {loud.map((r) => (
         <SafetyRow key={r.member.id} member={r.member} state={r.state} viewerTz={viewer.tz} />
       ))}
-      {calm.length > 0 && (
-        <Link href="/safe" className="flex items-center gap-3 rounded-card bg-surface px-4 py-3 text-ink no-underline">
-          <Icon name="shield" size={18} className="text-[#3d6b2a]" />
-          <span className="min-w-0 flex-1 truncate text-[14px]">
-            {calm.map((r) => `${callName(r.member)}: ${r.state.label.toLowerCase()} ${ago(r.state.at)}`).join(" · ")}
-          </span>
-          <Icon name="chevron" size={16} className="text-ink-faint" />
-        </Link>
-      )}
     </div>
   );
 }

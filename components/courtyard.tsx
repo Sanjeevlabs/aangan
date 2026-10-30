@@ -22,42 +22,29 @@ import { TodayCard, useToday } from "./today";
 import { Avatar, Icon, Monogram, Photo, SectionTitle, type IconName } from "./ui/kit";
 import { useViewer } from "./viewer";
 
-// Family mode (SPEC §29.3): behind the door. One courtyard, four rooms, one
+// Kutumb (SPEC §29.3): behind the door. One courtyard, five rooms, one
 // live thing (Sit together) and one thing to do today. Clean on purpose.
 
 /* ---------------------------------------------------------------- rooms */
 function RoomTiles() {
-  const { viewer, members } = useViewer();
+  const router = useRouter();
+  const { viewer } = useViewer();
   const { openRoom } = useShell();
-  const names = members
-    .filter((m) => m.role === "elder" && m.id !== viewer.id)
-    .slice(0, 2)
-    .map((m) => callName(m))
-    .join(" & ");
-  const rooms = roomsFor(viewer.role === "elder", names);
+  const rooms = roomsFor(viewer.role === "elder");
   return (
-    <section aria-label="Rooms" className="mt-5 grid grid-cols-2 gap-3">
+    <nav aria-label="Rooms" className="mt-5 grid grid-cols-5 gap-2">
       {rooms.map((r) => (
-        <button
-          key={r.id}
-          type="button"
-          onClick={() => openRoom(r.id)}
-          className="press relative flex h-[132px] flex-col justify-between overflow-hidden rounded-[26px] p-4 text-left"
-          style={{ background: `linear-gradient(150deg, ${r.tone[0]} 0%, #ffffff 115%)`, boxShadow: `0 18px 36px -24px ${r.tone[1]}`, color: r.tone[1] }}
-        >
-          <span className="pointer-events-none absolute -bottom-6 -right-4 opacity-[.13]" aria-hidden="true">
-            <Icon name={r.icon as IconName} size={110} strokeWidth={1.5} />
+        <button key={r.id} type="button" onClick={() => (r.href ? router.push(r.href) : openRoom(r.id))} className="press flex flex-col items-center gap-1.5 text-center">
+          <span
+            className="grid aspect-square w-full max-w-[66px] place-items-center rounded-[20px]"
+            style={{ background: `linear-gradient(150deg, ${r.tone[0]}, #ffffff 140%)`, color: r.tone[1], boxShadow: `0 12px 24px -18px ${r.tone[1]}, inset 0 1px 0 #fff` }}
+          >
+            <Icon name={r.icon as IconName} size={26} strokeWidth={1.9} />
           </span>
-          <span className="grid h-11 w-11 place-items-center rounded-[14px] bg-white/80 shadow-[inset_0_1px_0_#fff]">
-            <Icon name={r.icon as IconName} size={22} />
-          </span>
-          <span>
-            <span className="block text-[18px] font-bold leading-tight tracking-[-0.01em] text-ink">{r.title}</span>
-            <span className="block truncate text-[13px] text-ink-soft">{r.note}</span>
-          </span>
+          <span className="text-[12.5px] font-semibold leading-tight text-ink">{r.title}</span>
         </button>
       ))}
-    </section>
+    </nav>
   );
 }
 
@@ -103,7 +90,7 @@ function SitTogetherLive() {
         </Link>
       </div>
       <p className="m-0 mt-2 text-[22px] font-bold leading-tight tracking-[-0.01em]">
-        {knock ? `${host?.id === viewer.id ? "You are" : `${callName(host)} is`} in the courtyard` : awake.length > 1 ? `${awake.length} of you are awake now` : "Everyone's asleep somewhere"}
+        {knock ? `${host?.id === viewer.id ? "You are" : `${callName(host)} is`} on a video call` : awake.length > 1 ? `${awake.length} of you are awake now` : "Everyone's asleep somewhere"}
       </p>
       <p className="m-0 mt-1 text-[14px] text-white/70">{knock ? `Until ${now ? timeIn(viewer.tz, new Date(knock.until)) : ""} · join with video` : next ? `Next: ${next.title} · ${relativeDay(next.startsAt)}` : "Turn the camera on and leave it on. Like sitting in one room."}</p>
       <div className="mt-4 flex items-center justify-between gap-3">
@@ -207,7 +194,7 @@ function ComingUp() {
         <Photo src={photo} alt="" sizes="440px" position="center 35%" />
         <div className="glass absolute inset-x-2.5 bottom-2.5 rounded-[18px] p-3.5 pl-4">
           <p className="m-0 text-[17px] font-semibold">{occ.title}</p>
-          <p className="m-0 text-[13px] text-white/85">{when} · Muse will ask both homes for photos a week before</p>
+          <p className="m-0 text-[13px] text-white/85">{when} · both homes get asked for photos a week before</p>
           <div className="mt-2.5 flex gap-2">
             <button type="button" onClick={() => openAdd("photos")} className="press flex h-10 items-center gap-1.5 rounded-full bg-white px-4 text-[14px] font-semibold text-black">
               <Icon name="camera" size={16} /> Add photos
@@ -259,7 +246,7 @@ function PersonAlbum({ member, latest }: { member: Member; latest: Card | undefi
 /* ----------------------------------------------------------------- page */
 export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
   const { viewer, members } = useViewer();
-  const { refreshKey } = useShell();
+  const { refreshKey, openRoom } = useShell();
   const { cards } = useFamilyCards(refreshKey);
   const elder = viewer.role === "elder";
 
@@ -278,25 +265,25 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
       <header className="pt-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="m-0 text-[11.5px] font-semibold uppercase tracking-[0.16em] text-ink-soft">The family courtyard</p>
+            <p className="m-0 text-[11.5px] font-semibold uppercase tracking-[0.16em] text-ink-soft">Kutumb · the whole family</p>
             <h1 className="m-0 mt-1 text-[30px] leading-[1.05]">{viewer.firstName}&rsquo;s Aangan</h1>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <button type="button" onClick={onCloseDoor} aria-label="Close the door, back to the window" className="press grid h-11 w-11 place-items-center rounded-full bg-surface text-ink">
+            <button type="button" onClick={onCloseDoor} aria-label="Back to the window" className="press grid h-11 w-11 place-items-center rounded-full bg-surface text-ink">
               <Icon name="doorClosed" size={20} />
             </button>
-            <Link href="/settings" aria-label="Your account and settings" className="press rounded-full">
+            <button type="button" onClick={() => openRoom("all")} aria-label="Everything, and your settings" className="press rounded-full">
               <Avatar src={memberPhoto(viewer)} name={viewer.firstName} size={44} ring />
-            </Link>
+            </button>
           </div>
         </div>
         <SideSwitch />
       </header>
 
+      <RoomTiles />
       <TodayCard />
       <CourtyardNow />
       {elder && <TodaysRole />}
-      <RoomTiles />
       <SitTogetherLive />
 
       {cards === null ? <div className="skeleton mt-5 h-[380px] rounded-[30px]" aria-busy="true" aria-label="Loading" /> : voice ? <VoiceFromHome card={voice} /> : null}

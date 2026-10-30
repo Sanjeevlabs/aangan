@@ -723,8 +723,8 @@ Muse picks one prompt a day for the parents and their children (not grandchildre
 - **Lamps**, not points: days in a row both homes showed up.
 - Muse choice is validated against the prompt list, cached, logged; a deterministic pick is the fallback.
 
-### 29.9 Local circle (both homes)
-For every home, a few people nearby to call first: a neighbour with a spare key, a friend two streets away, a warden, the clinic. A father in Amritsar sees who is near his son in Bengaluru; the son sees who is near his parents. Anyone keeps their own circle; listing someone for emergencies needs their consent (checkbox, enforced server-side). The local emergency number (112 / 911 / 999 / 119 / 000 by zone) is always one tap away. Not an emergency service, no location tracking.
+### 29.9 Trusted nearby (both homes)
+For every home, a few people nearby to call first: a neighbour with a spare key, a friend two streets away, a warden, the clinic. A father in Amritsar sees who is near his son in Bengaluru; the son sees who is near his parents. ("Circle" is reserved for a separate product.) Anyone keeps their own list; listing someone for emergencies needs their consent (checkbox, enforced server-side). The local emergency number (112 / 911 / 999 / 119 / 000 by zone) is always one tap away. Not an emergency service, no location tracking.
 
 ### 29.10 The window, technically
 - `/api/window`: the far home (son → parents; parent → their child's home), its city, the sky from **Open-Meteo** (server-side, city name only, cached 30 min; mock in MOCK mode), time of day, today's shared moments.
@@ -734,4 +734,17 @@ For every home, a few people nearby to call first: a neighbour with a spare key,
 
 ### 29.11 Roadmap (after the hackathon)
 Commerce through Muse and MCP partners once families are active: groceries and quick commerce for the parents' home, food for the child far away, curated gifting (nameplates, home needs, trusted brands) for occasions. Partner APIs/MCPs need agreements before any logo appears. The care board and occasions already create these intents.
+
+### 29.12 Revision (30 Oct): who, Kutumb, safe & sound at a glance
+- **No assumed roles.** Talk / Video call act on whoever lives in the other home: one parent, two, a guardian. One person → "Talk to Maa"; several → a picker (each person or everyone). Same picker on the Kutumb voice button, which marks who is waiting for a reply.
+- **Kutumb** is the family side behind the door (the app is Aangan; the family is the Kutumb). The door is a carved haveli door: teak, brass spikes, ring knockers, sandstone arch, marigold toran. Default window art is an Indian aangan (tulsi, charpai, rangoli) and a Bengaluru balcony.
+- **Safe & sound at a glance** on the window: a dot per person. Green = active within the viewer's threshold (default 4 h; 2/3/4/6/8 in Settings → Your window). Amber = quiet past it during their day → "Check in" (call / voice note / trusted nearby). Night → "asleep", never amber. Built from activity in Aangan (open/foreground heartbeat, voice, photo, moment, check-in); people who turn off "share visits" show "private". Phone-wide activity needs the native wrapper later (Android Usage Access); iOS can't.
+- **Next step** under the window: one rule-ranked action (quiet person → check in; unanswered voice → reply; the other side answered today's question → answer; a birthday within 3 days → record a wish), else "All good on both sides".
+- **Five tiles** in Kutumb: Memories (Memory Lane, Occasions, Year's reel), Kitchen (Recipes, Stories, Advice/tips/blessings), Care (Care board, Local helpers, Trusted nearby, Safe & sound, Around their home), Family (tree, both sides, homes, circles, pets, visits, invite), Get-together (plan a call with a reason). No separate menu: everything plus Settings opens from the profile photo. Ask was a duplicate and is gone from menus.
+
+### 29.13 Muse, the invisible helper
+Muse does the work (today's task, the window line and motion, recipe cards, album sorting, translation, story picks, care notes) and people see only the outcome. No "powered by Muse" on everyday screens; **What Muse did** in Settings keeps the full log (purpose, model, cost, cached) for transparency and judging.
+
+### 29.14 Stories to tell
+Each day the Stories room offers a well-known folk tale (our own three-beat outline + the lesson) for a grandparent, parent or guardian to retell in their own voice for the children; titles the family has already recorded are skipped. "A story only you know" (their own childhood) is in the rotation.
 

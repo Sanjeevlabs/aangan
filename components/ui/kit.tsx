@@ -326,7 +326,12 @@ export function Button({
  * Provenance mark for anything Muse prepared. Small, honest, never a mascot:
  * the family's words stay theirs; Muse only wrote down, translated or asked.
  */
-export function MuseMark({ children = "powered by Muse", tone = "soft", className }: { children?: React.ReactNode; tone?: "soft" | "light"; className?: string }) {
+/**
+ * Muse is an invisible helper (SPEC §29.13): people see what it did, not its
+ * name. The mark renders only where Muse is the subject (What Muse did).
+ */
+export function MuseMark({ children = "powered by Muse", tone = "soft", className, show = false }: { children?: React.ReactNode; tone?: "soft" | "light"; className?: string; show?: boolean }) {
+  if (!show) return null;
   return (
     <span className={cn("inline-flex items-center gap-1 text-[12px] font-medium", tone === "light" ? "text-white/80" : "text-ink-faint", className)}>
       <Icon name="sparkle" size={13} strokeWidth={1.8} />

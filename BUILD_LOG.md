@@ -277,3 +277,9 @@
 - Local circle for every home with consent, emergency numbers by zone; linked from Safe & sound.
 - Node family tree replaces the constellation. Lucide icons. Demo family rework: son and parents at the centre, cities on members.
 - Tests: 220 (window, weather, today sealing/streak, circle consent, tree layout).
+
+## 30 Oct 2026 · Stage 16 revision
+- Talk/Video call for whoever is in the other home (picker, no assumed roles); Kutumb replaces "Door"; haveli door; Indian default window art.
+- Safe & sound dots on the window (green / amber after a chosen 2–8 h in their day / asleep at night) + a Next step line.
+- Kutumb: five tiles, sheets per room, profile photo opens everything + settings; dock voice button with picker; confusing rows removed.
+- Muse made invisible on everyday screens; story ideas to retell; "Trusted nearby" (was local circle).

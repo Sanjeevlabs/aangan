@@ -87,7 +87,7 @@ export function TodayCard({ variant = "card" }: { variant?: "card" | "line" }) {
       <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full" style={{ background: "radial-gradient(closest-side, rgba(245,165,36,.45), rgba(245,165,36,0))" }} aria-hidden="true" />
       <div className="relative flex items-center justify-between">
         <p className="m-0 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.1em] text-white/65">
-          <Icon name="sparkle" size={14} /> Today · Muse asked both homes
+          <Icon name="sparkle" size={14} /> Today · both homes
         </p>
         <Lamps n={data?.streak ?? 0} tone="dark" />
       </div>

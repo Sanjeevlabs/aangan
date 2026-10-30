@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { CareSettings, Knock, Need, Pet, Presence, PresenceMoment, Project, Question } from "@/lib/kinds";
 import { callName, memberPhoto } from "@/lib/people";
 import { MOMENT_LABEL, latestFor, quietDay, shareableFor, todayFor } from "@/lib/presence";
@@ -24,19 +24,6 @@ interface PresenceData {
   settings: CareSettings[];
 }
 
-/** Opening Aangan counts as being in the courtyard (if the person allows it). */
-function useVisit(): void {
-  useEffect(() => {
-    try {
-      if (sessionStorage.getItem("aangan:visit")) return;
-      sessionStorage.setItem("aangan:visit", "1");
-    } catch {
-      /* private mode: still fine to post once */
-    }
-    void postJson("/api/presence", { moment: "here" });
-  }, []);
-}
-
 /**
  * The top of the courtyard. For children abroad: each parent's day, felt the
  * moment they open the app. For parents: share your day in one tap, answer
@@ -45,24 +32,18 @@ function useVisit(): void {
 export function CourtyardNow() {
   const { viewer, members } = useViewer();
   const pres = useJson<PresenceData>("/api/presence");
-  const sit = useJson<{ knocks: Knock[] }>("/api/sit");
-  useVisit();
   const { relationships } = useViewer();
   const farHomes = households(members, relationships).filter((h) => h.elders && !h.members.some((m) => m.id === viewer.id));
   const pets = useJson<{ pets: Pet[] }>("/api/pets");
   const stories = useJson<{ stories: StoryLite[] }>(viewer.role === "child" ? "/api/stories" : null);
   const visit = useNextVisit();
-  const knocks = (sit.data?.knocks ?? []).filter((k) => k.memberId !== viewer.id);
 
   if (viewer.role === "elder")
     return (
       <div className="mt-5 space-y-3">
-        {knocks[0] && <KnockBanner knock={knocks[0]} member={members.find((m) => m.id === knocks[0].memberId)} />}
         <SafetyWatch />
         <MyQuestions />
         <GiftsThisWeek />
-        <ChildrenToday presence={pres.data?.presence ?? null} />
-        <ShareMyDay presence={pres.data?.presence ?? []} onShared={() => void pres.reload()} />
         <MyNeeds />
       </div>
     );
@@ -71,10 +52,9 @@ export function CourtyardNow() {
   // visit, a visit beats the far home's day. Safety alerts always show.
   const home = farHomes[0];
   const story = stories.data?.stories[0];
-  const now = knocks[0] ? (
-    <KnockBanner knock={knocks[0]} member={members.find((m) => m.id === knocks[0].memberId)} />
-
-  ) : story ? (
+  // A live call shows on the Sit together card; the children's day and
+  // one-tap moments live on the window.
+  const now = story ? (
     <StoryDoor story={story} />
   ) : visit ? (
     <VisitCountdown visit={visit} />
@@ -132,14 +112,22 @@ function VisitCountdown({ visit }: { visit: Project }) {
   const days = Math.max(0, Math.ceil((Date.parse(visit.dueAt) - now) / 86_400_000));
   const who = members.find((m) => m.id === visit.visitorId);
   const coming = visit.visitorId === viewer.id;
-  const hosts = visit.hostIds.map((id) => members.find((m) => m.id === id)).filter(Boolean).map((m) => callName(m)).join(" & ");
+  const hostPeople = visit.hostIds.map((id) => members.find((m) => m.id === id)).filter((m): m is Member => Boolean(m));
+  const hosts = hostPeople.map((m) => callName(m)).join(" & ");
+  const city = hostPeople.find((m) => m.city)?.city;
   const left = visit.tasks.filter((t) => !t.done && t.assignee === viewer.id).length;
   return (
     <Link href={`/together/${visit.id}`} className="flex items-center gap-4 rounded-card bg-[#fff2d6] px-4 py-3.5 text-ink no-underline">
       <span className="text-[40px] font-bold leading-none text-[#8a5a12]">{days || "Today"}</span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[15px] font-semibold">{days ? `day${days > 1 ? "s" : ""} till ${coming ? `you're home with ${hosts}` : `${callName(who)} is home`}` : coming ? "You're going home today" : `${callName(who)} comes home today`}</span>
-        <span className="block truncate text-[13px] text-[#8a5a12]">{left ? `${left} thing${left > 1 ? "s" : ""} on your list` : visit.title}</span>
+        <span className="block text-[15px] font-semibold">
+          {coming ? (days ? `day${days > 1 ? "s" : ""} to your visit${city ? ` to ${city}` : ""}` : `You travel${city ? ` to ${city}` : ""} today`) : days ? `day${days > 1 ? "s" : ""} until ${callName(who)} arrives` : `${callName(who)} arrives today`}
+        </span>
+        <span className="block truncate text-[13px] text-[#8a5a12]">
+          {visit.title}
+          {coming && hosts ? ` · staying with ${hosts}` : ""}
+          {left ? ` · ${left} thing${left > 1 ? "s" : ""} on your list` : ""}
+        </span>
       </span>
       <Icon name="chevron" size={18} className="text-ink-faint" />
     </Link>
@@ -270,35 +258,6 @@ function GiftsThisWeek() {
   );
 }
 
-/** For parents: their children's ordinary day, the thing they miss most. */
-function ChildrenToday({ presence }: { presence: Presence[] | null }) {
-  const { viewer, members, relationships } = useViewer();
-  const homes = households(members, relationships).filter((h) => !h.elders && !h.members.some((m) => m.id === viewer.id));
-  if (presence === null || homes.length === 0) return null;
-  const rows = homes.flatMap((h) => h.members.map((m) => ({ m, home: h, last: latestFor(m.id, presence.filter((p) => p.moment !== "here" && Date.now() - Date.parse(p.at) < 24 * 3_600_000)) })));
-  const shared = rows.filter((r) => r.last);
-  if (shared.length === 0) return null;
-  return (
-    <section aria-label="Your children today" className="rounded-card bg-surface p-4">
-      <p className="m-0 text-[17px] font-semibold">Your family today</p>
-      <ul className="m-0 mt-2 list-none space-y-2 p-0">
-        {shared.map(({ m, home, last }) => (
-          <li key={m.id} className="flex items-center gap-3">
-            <Avatar src={memberPhoto(m)} name={callName(m)} size={36} />
-            <span className="min-w-0 flex-1 text-[15px] leading-snug">
-              <span className="font-semibold">{callName(m)}</span> {last ? MOMENT_LABEL[last.moment].line : ""}
-              {last?.note ? <span className="voice text-ink-soft"> · {last.note}</span> : null}
-              <span className="block text-[13px] text-ink-faint">
-                {last ? ago(last.at) : ""} · {timeIn(home.tz)} in {placeFromTz(home.tz)}
-              </span>
-            </span>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
 /** For children and grandchildren: let the parents feel *your* day, one tap. */
 export function ShareYourDay() {
   const { viewer, members } = useViewer();
@@ -321,46 +280,6 @@ export function ShareYourDay() {
         {shareableFor(viewer.role).map((mo) => (
           <button key={mo} type="button" onClick={() => void share(mo)} className={cn("press h-10 shrink-0 rounded-full px-4 text-[14px] font-semibold", sent === mo ? "bg-marigold text-black" : "bg-surface")}>
             {MOMENT_LABEL[mo].label}
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/** For parents: let the family feel your day, one tap at a time. */
-function ShareMyDay({ presence, onShared }: { presence: Presence[]; onShared: () => void }) {
-  const { viewer } = useViewer();
-  const [sent, setSent] = useState<PresenceMoment | null>(null);
-  const today = todayFor(viewer.id, presence, viewer.tz).filter((p) => p.moment !== "here");
-  const share = async (moment: PresenceMoment) => {
-    setSent(moment);
-    await postJson("/api/presence", { moment });
-    onShared();
-    setTimeout(() => setSent(null), 2200);
-  };
-  return (
-    <section aria-label="Share your day" className="rounded-card bg-surface p-4">
-      <p className="m-0 text-[17px] font-semibold">{sent ? `Your family will see: ${MOMENT_LABEL[sent].label}` : "Let the family feel your day"}</p>
-      <p className="m-0 mt-0.5 text-[13px] text-ink-soft">
-        {today.length ? `Shared today: ${today.map((p) => MOMENT_LABEL[p.moment].label).join(", ")}` : "One tap. They'll see it when they open Aangan."}
-        {today.length > 0 && (
-          <button
-            type="button"
-            className="ml-2 font-semibold text-ink underline underline-offset-2"
-            onClick={async () => {
-              await postJson("/api/presence", { presenceId: today[today.length - 1].id }, "DELETE");
-              onShared();
-            }}
-          >
-            Undo last
-          </button>
-        )}
-      </p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {shareableFor("elder").map((m) => (
-          <button key={m} type="button" onClick={() => void share(m)} className={cn("press h-11 rounded-full px-4 text-[15px] font-semibold", sent === m ? "bg-marigold text-black" : "bg-white")}>
-            {MOMENT_LABEL[m].label}
           </button>
         ))}
       </div>

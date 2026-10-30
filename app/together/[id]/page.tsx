@@ -161,7 +161,7 @@ export default function ProjectPage() {
                 setBusy(false);
               }}
             >
-              {busy ? "Muse is writing…" : "Write the questions"}
+              {busy ? "Writing…" : "Write the questions"}
             </Button>
           ) : (
             <Quiz items={p.quiz} />

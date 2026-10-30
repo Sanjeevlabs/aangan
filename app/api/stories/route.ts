@@ -5,6 +5,7 @@ import { deleteDoc, getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
 import { STORY_AGES, STORY_THEMES } from "@/lib/kinds";
 import { canChange } from "@/lib/permissions";
 import { labelStory } from "@/lib/stories";
+import { ideaFor } from "@/lib/story-ideas";
 
 // Stories, the kids' corner.
 // GET  → stories + open story requests
@@ -24,7 +25,9 @@ export async function GET(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const [stories, questions] = await Promise.all([listDocs(auth.familyId, "story"), listDocs(auth.familyId, "question")]);
-  return Response.json({ stories, requests: questions.filter((q) => q.topic === "story" && q.askedBy && !q.answeredCardId) });
+  // A known tale to retell in your own voice, quietly picked for the day.
+  const idea = ideaFor(new Date().toISOString().slice(0, 10), stories.map((s) => s.title));
+  return Response.json({ stories, requests: questions.filter((q) => q.topic === "story" && q.askedBy && !q.answeredCardId), idea });
 }
 
 export async function POST(req: Request): Promise<Response> {

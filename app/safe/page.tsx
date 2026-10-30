@@ -178,8 +178,8 @@ function CheckIn({ data, onChange }: { data: SafetyData; onChange: () => Promise
               Cancel
             </Button>
           </div>
-          <a href="/circle" className="mt-3 flex items-center gap-2 text-[14px] font-semibold text-[#a32418] no-underline">
-            <Icon name="gather" size={16} /> People near you to call · your local circle
+          <a href="/nearby" className="mt-3 flex items-center gap-2 text-[14px] font-semibold text-[#a32418] no-underline">
+            <Icon name="gather" size={16} /> People near you to call · trusted nearby
           </a>
         </div>
       ) : (

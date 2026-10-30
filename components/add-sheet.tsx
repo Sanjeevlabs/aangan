@@ -37,7 +37,7 @@ const PURPOSE: Record<"recipe" | "answer" | "need" | "story" | "today", { title:
   },
   recipe: {
     title: "Teach a recipe",
-    hint: "Talk while you cook, the way you'd teach at the stove. Say the amounts your way. Muse writes it into a recipe card for the family.",
+    hint: "Talk while you cook, the way you'd teach at the stove. Say the amounts your way. It becomes a recipe card for the family.",
     cta: "Save to the Kitchen",
   },
   today: { title: "Today, for both homes", hint: "Say it the way you would across the table. When you send yours, you'll hear theirs.", cta: "Send my answer" },

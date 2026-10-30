@@ -16,6 +16,7 @@ import type { Card, Member } from "@/lib/schemas";
 import { useFamilyCards } from "@/lib/use-family";
 import { postJson, useJson } from "@/lib/use-json";
 import { cn } from "@/lib/utils";
+import type { StoryIdea } from "@/lib/story-ideas";
 
 // Stories: the kids' corner. Grandparents tell, children listen (at bedtime
 // too), and ask for the next one. Muse only labels a story; it never writes one.
@@ -23,6 +24,7 @@ import { cn } from "@/lib/utils";
 interface StoriesData {
   stories: Story[];
   requests: Question[];
+  idea?: StoryIdea;
 }
 
 const STARTERS = ["The day you got lost at the mela", "What Papa was like at my age", "An animal that lived near your home", "A story your grandmother told you", "The naughtiest thing you ever did", "A lullaby you sang to your children"];
@@ -65,7 +67,7 @@ function Stories() {
 
   return (
     <div>
-      <RoomHeader title="Stories" subtitle="Told by the family's storytellers, for the little ones" />
+      <RoomHeader title="Stories" subtitle="Told in the voices of the family, kept for the children" />
 
       <button type="button" onClick={() => setBedtime(true)} disabled={!stories.length} className="press relative block h-[148px] w-full overflow-hidden rounded-hero text-left text-white disabled:opacity-50" style={{ background: "linear-gradient(160deg,#141c3a,#2d3a6b 70%,#4a3f7a)" }}>
         <svg viewBox="0 0 360 148" className="absolute inset-0 h-full w-full" aria-hidden="true">
@@ -116,6 +118,21 @@ function Stories() {
         </button>
       </div>
       {asking && <AskStory onDone={() => { setAsking(false); void reload(); }} />}
+      {canTell && data?.idea && (
+        <section aria-label="A story to tell tonight" className="mt-4 rounded-card p-4 text-white" style={{ background: "linear-gradient(160deg,#2d2a5a,#4a3f7a)" }}>
+          <p className="m-0 text-[12px] font-semibold uppercase tracking-[0.1em] text-white/65">Tell this one, in your own words</p>
+          <p className="m-0 mt-1 text-[20px] font-semibold leading-tight">{data.idea.title}</p>
+          <ol className="m-0 mt-2.5 space-y-1 pl-5 text-[14.5px] text-white/85">
+            {data.idea.beats.map((b) => (
+              <li key={b}>{b}</li>
+            ))}
+          </ol>
+          <p className="voice m-0 mt-2 text-[15px] text-white/75">{data.idea.lesson}</p>
+          <button type="button" onClick={() => openAdd("voice", { kind: "story", prompt: data.idea!.title })} className="press mt-3 flex h-11 items-center gap-2 rounded-full bg-white px-4 text-[14.5px] font-semibold text-black">
+            <Icon name="mic" size={17} /> Record it for the children
+          </button>
+        </section>
+      )}
       {canTell && viewer.role === "elder" && (
         <div className="mt-3">
           <p className="m-0 mb-2 text-[13px] text-ink-soft">Not sure what to tell? Try one of these:</p>

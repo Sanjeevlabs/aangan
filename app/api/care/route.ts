@@ -110,7 +110,7 @@ export async function POST(req: Request): Promise<Response> {
   const me = person(auth.memberId);
   const now = new Date().toISOString();
 
-  // Your own local circle (the people near *you*) is yours to keep.
+  // Your own trusted-nearby list (the people near *you*) is yours to keep.
   const ownCircle = body.action === "helper" && body.forMemberId === auth.memberId;
   if (!SELF_SERVICE.has(body.action) && !ownCircle && !can(me, "care.manage")) return Response.json({ error: "not-allowed", action: "care.manage" }, { status: 403 });
   const askingForSelf = "forMemberId" in body && body.forMemberId === auth.memberId;
@@ -237,7 +237,7 @@ export async function POST(req: Request): Promise<Response> {
     }
     case "helper": {
       if (!person(body.forMemberId)) return Response.json({ error: "unknown-member" }, { status: 404 });
-      // Someone's number in an emergency circle only with their say-so (DPDP consent).
+      // Someone's number on a trusted-nearby list only with their say-so (DPDP consent).
       if (body.emergency && !body.consent) return Response.json({ error: "needs-consent" }, { status: 400 });
       const { action: _a, ...rest } = body;
       void _a;

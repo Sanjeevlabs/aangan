@@ -340,7 +340,7 @@ export default function SettingsPage() {
             flash("Language updated");
           }}
         />
-        <p className="m-0 mt-2 text-[13px] text-ink-faint">Everything the family shares (voices, recipes, notes) is translated into your language by Muse. The app itself stays in English. Names stay as the family says them.</p>
+        <p className="m-0 mt-2 text-[13px] text-ink-faint">Everything the family shares (voices, recipes, notes) is translated into your language. The app itself stays in English. Names stay as the family says them.</p>
       </Group>
 
       <Group title="Reading">

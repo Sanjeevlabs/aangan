@@ -10,6 +10,7 @@ import type { Member } from "./schemas";
 import { fetchWeather, mockWeather, phaseFor, type DayPhase, type Weather } from "./weather";
 import { cityOf, farHomeFor, groundedLayers, plainLine } from "./window";
 import { hourIn } from "./zones";
+import { aliveState, type Alive } from "./status";
 import { withDemoShelf } from "./demo";
 
 export interface WindowState {
@@ -22,9 +23,13 @@ export interface WindowState {
   line: string;
   /** What they shared today, newest first, in words ("is having chai"). */
   moments: { memberId: string; label: string; at: string }[];
+  /** Safe & sound at a glance, per person in that home. */
+  people: { id: string; lastActive: string | null; state: Alive }[];
+  /** This viewer's amber threshold, in hours. */
+  quietAfterHours: number;
 }
 
-const DEFAULT_IMAGE = { elders: "/demo/courtyard.jpg", children: "/demo/home-city.svg" };
+const DEFAULT_IMAGE = { elders: "/demo/aangan-home.svg", children: "/demo/home-city.svg" };
 
 async function weatherFor(city: string): Promise<Weather | null> {
   if (!city) return null;
@@ -56,6 +61,24 @@ export async function windowState(familyId: string, viewerId: string, now = new 
   const who = names(home?.members ?? []);
   const latest = today[0] ? `${members.find((m) => m.id === today[0].memberId)?.displayName ?? ""} ${MOMENT_LABEL[today[0].moment].line}`.trim() : null;
   const line = fresh && view.line ? view.line : plainLine(who, city, weather, latest);
+  // Last sign of life in Aangan: any moment (opening the app included), a
+  // voice or photo they sent, a safety check-in. Only what they already share.
+  const [cards, checkins, settings] = await Promise.all([dbListCards(familyId), listDocs(familyId, "safety_checkin"), listDocs(familyId, "care_settings")]);
+  const lastSeen = (id: string): string | null => {
+    const times = [
+      ...presence.filter((p) => p.memberId === id).map((p) => p.at),
+      ...withDemoShelf(cards, familyId).filter((c) => c.authorId === id && Date.parse(c.takenAt) <= now.getTime()).map((c) => c.takenAt),
+      ...checkins.filter((c) => c.memberId === id).map((c) => c.closedAt ?? c.at),
+    ].filter((t) => Date.parse(t) <= now.getTime());
+    return times.sort().pop() ?? null;
+  };
+  const people = (home?.members ?? [])
+    .filter((m) => m.role !== "child")
+    .map((m) => {
+      const shares = settings.find((s) => s.memberId === m.id)?.shareVisits ?? true;
+      const lastActive = shares ? lastSeen(m.id) : null;
+      return { id: m.id, lastActive, state: aliveState(lastActive, m.tz, { shares, now, quietAfter: view?.quietAfterHours }) };
+    });
   let imageRef = view?.imageRef ?? null;
   if (!imageRef) imageRef = home?.elders ? DEFAULT_IMAGE.elders : DEFAULT_IMAGE.children;
   return {
@@ -67,6 +90,8 @@ export async function windowState(familyId: string, viewerId: string, now = new 
     layers,
     line,
     moments: today.slice(0, 4).map((p) => ({ memberId: p.memberId, label: MOMENT_LABEL[p.moment].line, at: p.at })),
+    people,
+    quietAfterHours: view?.quietAfterHours ?? 4,
   };
 }
 

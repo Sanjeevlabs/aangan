@@ -281,7 +281,7 @@ export const HelperSchema = z.object({
   /** When they're usually available: "Mon–Sat, 8–11 am". */
   hours: z.string().max(60).default(""),
   note: z.string().max(160).default(""),
-  /** In this home's local circle: the people to call first if something is wrong. */
+  /** On this home's trusted-nearby list: the people to call first if something is wrong. */
   emergency: z.boolean().default(false),
   /** They agreed to be listed (asked by whoever added them). */
   consent: z.boolean().default(false),
@@ -367,6 +367,8 @@ export const WindowViewSchema = z.object({
   /** One quiet line Muse wrote from what really happened there today. */
   line: z.string().max(140).default(""),
   madeBy: z.enum(["family", "muse"]).default("family"),
+  /** Safe & sound: how long someone may be quiet (in their daytime) before their dot turns amber. */
+  quietAfterHours: z.number().int().min(2).max(12).default(4),
   updatedAt: iso,
 });
 

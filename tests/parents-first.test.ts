@@ -32,19 +32,18 @@ describe("parents first", () => {
   });
 
   it("keeps the parent's menu about what they give; children share their day too", () => {
-    expect(spacesFor(false).map((s) => s.id)).toEqual(["memories", "library", "care", "family"]);
-    expect(spacesFor(true).find((s) => s.id === "library")?.rooms.map((r) => r.href)).not.toContain("/ask");
+    expect(spacesFor(false).map((s) => s.id)).toEqual(["memories", "kitchen", "care", "family", "sit"]);
+    expect(spacesFor(true).find((s) => s.id === "care")?.rooms.map((r) => r.href)).not.toContain("/around");
     expect(shareableFor("adult")).toContain("work");
     expect(shareableFor("child")).toContain("school");
   });
 
-  it("keeps every family feature in four rooms; parents never get Ask", () => {
-    const kid = roomsFor(false, "Maa & Papa");
-    expect(kid.map((r) => r.id)).toEqual(["memories", "library", "care", "family"]);
+  it("keeps every family feature in five rooms, with no duplicate Ask", () => {
+    const kid = roomsFor(false);
+    expect(kid.map((r) => r.title)).toEqual(["Memories", "Kitchen", "Care", "Family", "Get-together"]);
     const hrefs = kid.flatMap((r) => r.items.map((i) => i.href));
-    for (const h of ["/ask", "/care", "/safe", "/kitchen", "/stories", "/advice", "/bond", "/lane", "/rituals", "/together", "/gather", "/around"]) expect(hrefs).toContain(h);
-    expect(kid[1].items[0].title).toBe("Ask Maa & Papa");
-    const parent = roomsFor(true, "");
-    expect(parent.flatMap((r) => r.items.map((i) => i.href))).not.toContain("/ask");
+    for (const h of ["/care", "/nearby", "/safe", "/kitchen", "/stories", "/advice", "/bond", "/lane", "/rituals", "/reel", "/together", "/gather", "/around"]) expect(hrefs).toContain(h);
+    expect(hrefs).not.toContain("/ask");
+    expect(kid.find((r) => r.id === "sit")?.href).toBe("/gather");
   });
 });
