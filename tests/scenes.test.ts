@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SCENES, sceneFor, scenesFor } from "@/lib/scenes";
+import { SCENES, livingAlbum, sceneFor, scenesFor } from "@/lib/scenes";
 
 describe("window scenes", () => {
   it("night and rain win over everything else", () => {
@@ -16,7 +16,18 @@ describe("window scenes", () => {
     expect(new Set(a)).toEqual(new Set(SCENES.day));
     expect(a[0]).not.toBe(b[0]);
   });
-  it("only hotlinks Unsplash's CDN", () => {
-    for (const list of Object.values(SCENES)) for (const u of list) expect(u.startsWith("https://images.unsplash.com/photo-")).toBe(true);
+  it("only hotlinks Unsplash's CDN, and every photo says what it shows", () => {
+    for (const list of Object.values(SCENES))
+      for (const sc of list) {
+        expect(sc.src.startsWith("https://images.unsplash.com/photo-")).toBe(true);
+        expect(sc.title.length).toBeGreaterThan(8);
+      }
+  });
+  it("the living album brings a family photo round every third slide", () => {
+    const fam = [1, 2].map((n) => ({ src: `/f${n}.jpg`, title: `Family ${n}`, by: "Maa · 2025" }));
+    const album = livingAlbum(SCENES.day, fam);
+    expect(album).toHaveLength(SCENES.day.length + 2);
+    expect(album[2]).toMatchObject({ family: true, title: "Family 1" });
+    expect(album[5]).toMatchObject({ family: true, title: "Family 2" });
   });
 });

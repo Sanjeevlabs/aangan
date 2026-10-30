@@ -6,10 +6,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Knock, PresenceMoment, SafetyCheckin, WindowLayer } from "@/lib/kinds";
 import { whatsappInvite } from "@/lib/invite-link";
 import { resolveMediaUrl } from "@/lib/media-session";
-import { callName, memberPhoto } from "@/lib/people";
+import { callName, cardCover, memberPhoto } from "@/lib/people";
 import { MOMENT_LABEL, shareableFor } from "@/lib/presence";
 import { stateOf, type SafetyState } from "@/lib/safety";
-import { scenesFor } from "@/lib/scenes";
+import { livingAlbum, scenesFor, type AlbumSlide } from "@/lib/scenes";
 import type { Card, Member } from "@/lib/schemas";
 import { ALIVE_LOOK, type Alive } from "@/lib/status";
 import { ago, postJson, useJson } from "@/lib/use-json";
@@ -137,35 +137,94 @@ export function ArchWindow({ src, layers, phase, living, children, className }: 
   );
 }
 
-/* ------------------------------------------------------------- slideshow */
-/** Crossfading photos, one every ~14 s, each drifting slowly. Skips any that fail to load. */
-function Slideshow({ srcs, still }: { srcs: string[]; still: boolean }) {
+/* --------------------------------------------------- the living album */
+/** Which slide is showing: turns every ~14 s, skips photos that fail to load, swipe or tap to turn. */
+function useAlbum(slides: AlbumSlide[], still: boolean) {
   const [i, setI] = useState(0);
   const [failed, setFailed] = useState<Set<string>>(new Set());
-  const list = srcs.filter((s) => !failed.has(s));
-  const key = srcs.join("|");
+  const list = slides.filter((sl) => !failed.has(sl.src));
+  const key = slides.map((sl) => sl.src).join("|");
   useEffect(() => setI(0), [key]);
   useEffect(() => {
     if (still || list.length < 2) return;
     const t = window.setInterval(() => setI((n) => n + 1), 14_000);
     return () => window.clearInterval(t);
-  }, [still, list.length]);
-  const cur = list.length ? list[i % list.length] : null;
-  const next = list.length > 1 ? list[(i + 1) % list.length] : null;
+  }, [still, list.length, i]);
+  const at = list.length ? ((i % list.length) + list.length) % list.length : 0;
+  return { list, at, cur: list[at] as AlbumSlide | undefined, go: (d: number) => setI((n) => n + d), fail: (src: string) => setFailed((f) => new Set(f).add(src)) };
+}
+
+/** Crossfading photos; the current one drifts slowly. */
+function AlbumPhotos({ list, at, still, onFail }: { list: AlbumSlide[]; at: number; still: boolean; onFail: (src: string) => void }) {
   return (
-    <div className="absolute inset-0" aria-hidden="true">
-      {list.map((src) => (
+    <>
+      {list.map((sl, k) => (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          key={src}
-          src={src}
+          key={sl.src}
+          src={sl.src}
           alt=""
-          loading={src === cur || src === next ? "eager" : "lazy"}
-          onError={() => setFailed((f) => new Set(f).add(src))}
-          className={cn("absolute inset-0 h-full w-full object-cover transition-opacity duration-[1800ms] ease-out", src === cur ? "opacity-100" : "opacity-0", !still && src === cur && "win-drift")}
+          loading={Math.abs(k - at) <= 1 ? "eager" : "lazy"}
+          onError={() => onFail(sl.src)}
+          className={cn("absolute inset-0 h-full w-full object-cover transition-opacity duration-[1800ms] ease-out", k === at ? "opacity-100" : "opacity-0", !still && k === at && "win-drift")}
         />
       ))}
-    </div>
+    </>
+  );
+}
+
+/**
+ * The window itself: an arched jharokha in a lime-plaster wall, the album
+ * behind the glass, its line written on the sill. Swipe or tap the edges to
+ * turn the photo.
+ */
+function Jharokha({ album, still, layers, phase, children }: { album: ReturnType<typeof useAlbum>; still: boolean; layers: WindowLayer[]; phase: DayPhase; children?: React.ReactNode }) {
+  const x0 = useRef<number | null>(null);
+  return (
+    <figure className="relative m-0 min-h-[150px] flex-1">
+      {/* the carved frame: plaster, a thin inner moulding, a shadowed reveal */}
+      <div className="absolute inset-0" style={{ borderRadius: "999px 999px 22px 22px", background: "linear-gradient(180deg,#efe9e0,#d9d0c3)", boxShadow: "0 30px 60px -24px rgba(0,0,0,.65), inset 0 1px 0 #fff" }} />
+      <div
+        className="absolute inset-[9px] overflow-hidden bg-[#1a1816]"
+        style={{ borderRadius: "999px 999px 15px 15px", boxShadow: "inset 0 0 0 1px rgba(0,0,0,.25)", touchAction: "pan-y" }}
+        onPointerDown={(e) => (x0.current = e.clientX)}
+        onPointerUp={(e) => {
+          if (x0.current === null) return;
+          const dx = e.clientX - x0.current;
+          x0.current = null;
+          if (Math.abs(dx) > 40) album.go(dx < 0 ? 1 : -1);
+        }}
+      >
+        <AlbumPhotos list={album.list} at={album.at} still={still} onFail={album.fail} />
+        {!still && <SkyLayers layers={layers.filter((l) => l === "rain" || l === "breeze")} phase={phase} tint={false} />}
+        {/* depth: the reveal of the wall, and a soft floor for the caption */}
+        <div className="pointer-events-none absolute inset-0" style={{ borderRadius: "inherit", boxShadow: "inset 0 18px 28px -14px rgba(0,0,0,.45), inset 14px 0 26px -18px rgba(0,0,0,.5), inset -14px 0 26px -18px rgba(0,0,0,.5)", background: "linear-gradient(to bottom, transparent 62%, rgba(0,0,0,.55))" }} />
+        {/* a mullion: two panes, like a real window */}
+        <div className="pointer-events-none absolute inset-y-0 left-1/2 w-[3px] -translate-x-1/2 bg-[#e7e0d5]/80 shadow-[0_0_6px_rgba(0,0,0,.3)]" />
+        {album.cur && (
+          <figcaption className="absolute inset-x-4 bottom-3 flex items-end gap-2 text-white">
+            <span className="min-w-0 flex-1 [text-shadow:0_1px_8px_rgba(0,0,0,.5)]">
+              <span className="voice line-clamp-2 block text-[15px] leading-snug">{album.cur.title}</span>
+              {album.cur.by && <span className="block text-[11.5px] text-white/75">{album.cur.by}</span>}
+            </span>
+            {album.list.length > 1 && (
+              <span className="flex shrink-0 gap-1 pb-1" aria-hidden="true">
+                {album.list.slice(0, 8).map((sl, k) => (
+                  <span key={sl.src} className={cn("block h-1 rounded-full transition-all", k === album.at % 8 ? "w-3 bg-white" : "w-1 bg-white/45")} />
+                ))}
+              </span>
+            )}
+          </figcaption>
+        )}
+        {album.list.length > 1 && (
+          <>
+            <button type="button" aria-label="Previous photo" onClick={() => album.go(-1)} className="absolute inset-y-0 left-0 w-[22%]" />
+            <button type="button" aria-label="Next photo" onClick={() => album.go(1)} className="absolute inset-y-0 right-0 w-[22%]" />
+          </>
+        )}
+        {children}
+      </div>
+    </figure>
   );
 }
 
@@ -176,7 +235,7 @@ function SlideToOpen({ onOpen }: { onOpen: () => void }) {
   const start = useRef<number | null>(null);
   const [x, setX] = useState(0);
   const [done, setDone] = useState(false);
-  const KNOB = 52;
+  const KNOB = 44;
   const max = () => Math.max(1, (track.current?.clientWidth ?? 200) - KNOB - 8);
   const finish = useCallback(() => {
     setDone(true);
@@ -194,7 +253,7 @@ function SlideToOpen({ onOpen }: { onOpen: () => void }) {
   }, [onOpen]);
   const p = Math.min(1, x / max());
   return (
-    <div ref={track} className="lite-glass relative h-[60px] min-w-0 flex-1 select-none overflow-hidden rounded-full" style={{ touchAction: "none" }}>
+    <div ref={track} className="relative h-[52px] min-w-0 flex-1 select-none overflow-hidden rounded-full bg-white/10" style={{ touchAction: "none" }}>
       <span className="pointer-events-none absolute inset-0 flex items-center justify-center pl-12 text-[15px] font-medium tracking-[0.22em] text-white" style={{ opacity: 1 - p * 1.6 }}>
         <span className="lite-shimmer uppercase">Kutumb</span>
         <Icon name="chevron" size={15} className="ml-1 opacity-70" />
@@ -291,11 +350,22 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
 
   const latestVoice: Card | undefined = (cards ?? []).find((c) => c.type === "audio" && c.authorId && farIds.has(c.authorId));
   const knock = (sit.data?.knocks ?? []).find((k) => farIds.has(k.memberId));
-  const srcs = useMemo(() => {
+  const slides = useMemo<AlbumSlide[]>(() => {
     if (!data) return [];
     const own = data.chosen ? resolveMediaUrl(data.imageRef) : null;
-    return own ? [own] : scenesFor(data.phase, data.weather?.kind ?? null);
-  }, [data]);
+    if (own) return [{ src: own, title: "", by: "", family: true }];
+    // The family's own photos come round in the album, with their captions.
+    const family = (cards ?? [])
+      .filter((c) => c.type === "photo" && c.caption)
+      .slice(0, 6)
+      .map((c) => {
+        const by = members.find((mm) => mm.id === c.authorId);
+        return { src: cardCover(c, members), title: c.caption, by: [callName(by), new Date(c.takenAt).getFullYear()].filter(Boolean).join(" · ") };
+      });
+    return livingAlbum(scenesFor(data.phase, data.weather?.kind ?? null), family);
+  }, [data, cards, members]);
+  const still = data?.view?.style === "still";
+  const album = useAlbum(slides, still);
 
   // Safe & sound: the latest check-in of each person on the other side who shares with you.
   const checks = useMemo(() => {
@@ -315,25 +385,26 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
 
   return (
     <div className="fixed inset-0 z-30 overflow-hidden bg-[#0d0c0b] text-white">
-      {data && <Slideshow srcs={srcs} still={data.view?.style === "still"} />}
-      {data && data.view?.style !== "still" && <SkyLayers layers={data.layers.filter((l) => l === "rain" || l === "breeze")} phase={data.phase} tint={false} />}
-      {/* Legibility: a soft dark veil top and bottom, the view stays clear in the middle. */}
-      <div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,.5) 0%, rgba(0,0,0,.08) 26%, rgba(0,0,0,.05) 42%, rgba(0,0,0,.6) 72%, rgba(0,0,0,.82) 100%)" }} aria-hidden="true" />
+      {/* The room: the same photo, blurred and dimmed, so the wall glows with the view */}
+      <div className="pointer-events-none absolute inset-0 scale-125 opacity-70 blur-[40px]" aria-hidden="true">
+        {data && <AlbumPhotos list={album.list} at={album.at} still onFail={() => undefined} />}
+      </div>
+      <div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(10,9,8,.35), rgba(10,9,8,.55) 45%, rgba(10,9,8,.8))" }} aria-hidden="true" />
 
-      <div className="relative mx-auto flex h-[100dvh] w-full max-w-[480px] flex-col px-5" style={{ paddingTop: "calc(16px + env(safe-area-inset-top))", paddingBottom: "calc(18px + env(safe-area-inset-bottom))" }}>
+      <div className="relative mx-auto flex h-full w-full max-w-[480px] flex-col gap-3 px-5 [@media(max-height:720px)]:gap-2" style={{ paddingTop: "calc(14px + env(safe-area-inset-top))", paddingBottom: "calc(14px + env(safe-area-inset-bottom))" }}>
         {/* Who, where, their hour, their sky */}
-        <header className="flex items-start justify-between gap-3">
-          <div className="min-w-0 [text-shadow:0_1px_12px_rgba(0,0,0,.35)]">
-            <h1 className="m-0 truncate text-[30px] font-light leading-[1.1] tracking-[-0.01em]">{data?.far?.names || (data ? "Your window" : " ")}</h1>
+        <header className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="m-0 truncate text-[26px] font-light leading-[1.1] tracking-[-0.01em]">{data?.far?.names || (data ? "Your window" : " ")}</h1>
             {data?.far && (
-              <p className="m-0 mt-1.5 flex flex-wrap items-center gap-x-2 text-[14px] text-white/85">
+              <p className="m-0 mt-1 flex flex-wrap items-center gap-x-2.5 text-[13.5px] text-white/80">
                 <span>{data.far.city || "Their home"}</span>
                 <span className="tnum" suppressHydrationWarning>
                   {clock}
                 </span>
                 {data.weather && (
                   <span className="flex items-center gap-1">
-                    <Icon name={SKY_ICON[data.weather.kind]} size={15} /> {data.weather.tempC}°
+                    <Icon name={SKY_ICON[data.weather.kind]} size={14} /> {data.weather.tempC}°
                   </span>
                 )}
               </p>
@@ -343,33 +414,33 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
             <Avatar src={memberPhoto(viewer)} name={viewer.firstName} size={40} />
           </button>
         </header>
-        {welcome && <p className="voice m-0 mt-3 text-[17px] text-white/90">{welcome}</p>}
+        {welcome && <p className="voice m-0 -mt-1 text-[16px] text-white/90">{welcome}</p>}
 
-        <div className="min-h-[12px] flex-1" />
-
-        {!data ? (
-          <div className="lite-glass h-[150px] animate-pulse rounded-[26px]" aria-busy="true" aria-label="Opening the window" />
-        ) : waiting ? (
-          <WaitingCard names={data.far?.names ?? ""} />
+        {/* The window: fills whatever height is left, so the screen is balanced on any phone */}
+        {data ? (
+          <Jharokha album={album} still={still} layers={data.layers} phase={data.phase} />
         ) : (
-          <div className="space-y-2.5">
-            {data.line && <p className="voice m-0 px-1 pb-1 text-[16.5px] leading-snug text-white/90 [text-shadow:0_1px_10px_rgba(0,0,0,.4)]">{data.line}</p>}
-            <SafeGlance people={talkTo} statusOf={statusOf} checks={checks} onWorry={setWorry} onTalk={(id) => talk([id])} />
-            <NextStep people={talkTo} statusOf={statusOf} latestVoice={latestVoice} viewerId={viewer.id} cards={cards ?? []} onWorry={setWorry} onReply={(id) => talk([id])} onWish={(id) => openAdd("voice", null, [id])} knock={knock} />
-            {latestVoice && <VoiceRow card={latestVoice} />}
-            <Moments />
-          </div>
+          <div className="min-h-[200px] flex-1 animate-pulse bg-white/10" style={{ borderRadius: "999px 999px 22px 22px" }} aria-busy="true" aria-label="Opening the window" />
         )}
 
-        {/* Actions: voice note · video · slide the key */}
-        <nav className="mt-4 flex items-center gap-2.5" aria-label="Window actions">
-          <button type="button" onClick={() => talk()} disabled={waiting || !talkTo.length} aria-label={talkTo.length === 1 ? `Voice note to ${callName(talkTo[0])}` : "Voice note"} className="lite-glass press grid h-[60px] w-[60px] shrink-0 place-items-center rounded-full disabled:opacity-40">
-            <Icon name="mic" size={24} strokeWidth={1.8} />
+        {data && waiting && <WaitingCard names={data.far?.names ?? ""} />}
+        {data && !waiting && (
+          <>
+            <SafeGlance people={talkTo} statusOf={statusOf} checks={checks} onWorry={setWorry} onTalk={(id) => talk([id])} />
+            <NextOrVoice people={talkTo} statusOf={statusOf} latestVoice={latestVoice} viewerId={viewer.id} cards={cards ?? []} onWorry={setWorry} onReply={(id) => talk([id])} onWish={(id) => openAdd("voice", null, [id])} knock={knock} />
+            <Moments />
+          </>
+        )}
+
+        {/* One dock: voice note · video · slide the key */}
+        <nav className="lite-glass flex items-center gap-1.5 rounded-full p-1.5" aria-label="Window actions">
+          <button type="button" onClick={() => talk()} disabled={waiting || !talkTo.length} aria-label={talkTo.length === 1 ? `Voice note to ${callName(talkTo[0])}` : "Voice note"} className="press grid h-[52px] w-[52px] shrink-0 place-items-center rounded-full bg-white/15 disabled:opacity-40">
+            <Icon name="mic" size={22} strokeWidth={1.8} />
           </button>
           {!waiting && (
-            <button type="button" onClick={() => void call()} disabled={calling} aria-label={knock ? "Join the video call" : "Video call"} className={cn("lite-glass press relative grid h-[60px] w-[60px] shrink-0 place-items-center rounded-full", calling && "opacity-60")}>
-              <Icon name="video" size={24} strokeWidth={1.8} />
-              {knock && <span className="absolute right-3 top-3 h-2.5 w-2.5 animate-ping rounded-full bg-[#3ccf7a]" />}
+            <button type="button" onClick={() => void call()} disabled={calling} aria-label={knock ? "Join the video call" : "Video call"} className={cn("press relative grid h-[52px] w-[52px] shrink-0 place-items-center rounded-full bg-white/15", calling && "opacity-60")}>
+              <Icon name="video" size={22} strokeWidth={1.8} />
+              {knock && <span className="absolute right-2.5 top-2.5 h-2.5 w-2.5 animate-ping rounded-full bg-[#3ccf7a]" />}
             </button>
           )}
           <SlideToOpen onOpen={onOpenDoor} />
@@ -458,6 +529,17 @@ function SafeGlance({
   );
 }
 
+/* ------------------------------------------- what's waiting · their voice */
+/** One card: the thing waiting on you (if any) above their latest voice. Hidden when empty. */
+function NextOrVoice(props: Parameters<typeof NextStep>[0]) {
+  return (
+    <section aria-label="Waiting for you" className="lite-glass rounded-[22px] p-1 empty:hidden [&>*+*]:border-t [&>*+*]:border-white/15">
+      <NextStep {...props} />
+      {props.latestVoice && <VoiceRow card={props.latestVoice} />}
+    </section>
+  );
+}
+
 /* ------------------------------------------------------------ the voice */
 function VoiceRow({ card }: { card: Card }) {
   const { members } = useViewer();
@@ -465,7 +547,7 @@ function VoiceRow({ card }: { card: Card }) {
   const author = members.find((mm) => mm.id === card.authorId);
   const playing = current?.id === card.id && isPlaying;
   return (
-    <button type="button" onClick={() => (current?.id === card.id ? toggle() : play(card))} className="lite-glass press flex w-full items-center gap-3 rounded-[22px] p-2 pr-4 text-left" aria-label={`${playing ? "Pause" : "Play"} ${callName(author)}'s voice note`}>
+    <button type="button" onClick={() => (current?.id === card.id ? toggle() : play(card))} className="press flex w-full items-center gap-3 rounded-[18px] p-1.5 pr-3 text-left" aria-label={`${playing ? "Pause" : "Play"} ${callName(author)}'s voice note`}>
       <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white text-black">
         <Icon name={playing ? "pause" : "play"} size={17} />
       </span>
@@ -510,7 +592,7 @@ function Moments() {
           <span className={cn("grid h-[46px] w-[46px] place-items-center rounded-full transition-colors", sent === mo ? "bg-white text-black" : "lite-glass")}>
             <Icon name={sent === mo ? "check" : (MOMENT_ICON[mo] as IconName)} size={20} strokeWidth={1.8} />
           </span>
-          <span className="max-w-full truncate text-[11px] text-white/80">{SHORT[mo] ?? MOMENT_LABEL[mo].label}</span>
+          <span className="max-w-full truncate text-[11px] text-white/80 [@media(max-height:720px)]:hidden">{SHORT[mo] ?? MOMENT_LABEL[mo].label}</span>
         </m.button>
       ))}
     </div>
@@ -650,7 +732,7 @@ function NextStep({
   }
   if (!step) return null;
   return (
-    <button type="button" onClick={step.go} aria-label={step.label} className="lite-glass press flex w-full items-center gap-3 rounded-[22px] p-2 pr-3 text-left">
+    <button type="button" onClick={step.go} aria-label={step.label} className="press flex w-full items-center gap-3 rounded-[18px] p-1.5 pr-2 text-left">
       <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white text-black">
         <Icon name={step.icon} size={18} strokeWidth={2.2} />
       </span>

@@ -44,7 +44,7 @@ export function WindowSettings() {
     await reload();
     setBusy(false);
   };
-  const scene = data ? scenesFor(data.phase, data.weather?.kind ?? null)[0] : "";
+  const scene = data ? scenesFor(data.phase, data.weather?.kind ?? null)[0].src : "";
   if (!data) return <div className="skeleton h-[220px] rounded-card" aria-busy="true" aria-label="Loading your window" />;
   return (
     <div>
