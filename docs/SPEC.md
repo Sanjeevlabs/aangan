@@ -762,3 +762,11 @@ Each day the Stories room offers a well-known folk tale (our own three-beat outl
 **30.4 Innovations.** Space: *the same moon*. Science: *hold the lamp* sends a slow heartbeat pulse (about 1 Hz; slow touch is what the body reads as comfort) that their phone plays on next open. History: the **chitthi**, a voice note timed to arrive at their morning. Philosophy: the **Book of Maa & Papa**, their daily answers kept as chapters of a life story, in their own voice.
 
 **30.5 Removed.** Emoji reaction counts, streak dots, *what you gave this week*, the `/trace` page in production.
+
+## 31. Added on 30 Oct after §30 was locked (PR #19) 🆕
+
+- **Global wording:** wall colours are unnamed swatches; no "Kutumb" word (slide the key to the house); no "Rooms" label; "Our traditions"; "The Chorus" (was the garland); "Morning letter" (was chitthi).
+- **Send something:** Swiggy (Food, Instamart, Dineout) and Zomato via their MCP servers with per-member OAuth; gift stores via Shopify's catalogue MCP; Urban Company as a link. Muse suggests 3 items from real catalogues; orders need a preview and an explicit tap; tokens are sealed server-side. Sample mode until partners approve production.
+- **Languages:** 55 content languages; first-run screens in 12 UI languages (RTL for Arabic/Urdu on those screens).
+- **Muse as event coordinator:** plan (run-of-show), tasks with owners, playlist (search links only), availability across time zones, auto-locks a get-together; in-app prompts (real push needs the native wrapper or web push).
+- **Strategy:** roles, consent, sign-up, storage, pricing, moat and engagement are in the doc "Aangan: business and product strategy".

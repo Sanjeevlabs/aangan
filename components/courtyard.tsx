@@ -18,6 +18,7 @@ import { useShell } from "./shell";
 import { SafetyWatch } from "./safety";
 import { PersonDay, lampFor } from "./person-day";
 import { SideSwitch, useSides } from "./sides";
+import { EventPrompts } from "./event-prompts";
 import { TodayCard, useToday } from "./today";
 import { Avatar, Icon, Monogram, Photo } from "./ui/kit";
 import { useViewer } from "./viewer";
@@ -261,6 +262,7 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
         </section>
       )}
 
+      <EventPrompts className="mt-4" />
       <TodayCard />
 
       {cards === null ? (

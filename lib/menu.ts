@@ -34,7 +34,6 @@ export function roomsFor(isParent: boolean, _parentNames = ""): Room[] {
         { href: "/lane", title: "Memory Lane", note: "Every photo and voice, by the years; albums Muse sorts", icon: "lane" },
         { href: "/rituals", title: "Occasions", note: "Birthdays and festivals; wishes and photos from every home", icon: "calendar" },
         { href: "/book", title: "The Book", note: "Their life, chapter by chapter, in their own voice", icon: "book" },
-        { href: "/reel", title: "Year's reel", note: "A film of the family's year, made from what you kept", icon: "sparkle" },
       ],
     },
     {

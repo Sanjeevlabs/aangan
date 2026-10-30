@@ -13,7 +13,6 @@ const SHORT: Record<string, string> = {
   "/lane": "Memory Lane",
   "/rituals": "Occasions",
   "/book": "Book",
-  "/reel": "Reel",
   "/kitchen": "Kitchen",
   "/stories": "Stories",
   "/advice": "Advice",
@@ -22,7 +21,7 @@ const SHORT: Record<string, string> = {
   "/safe": "Safe & sound",
   "/together": "Visits",
   "/bond": "Family tree",
-  "/gather": "Sit together",
+  "/gather": "Get-together",
 };
 
 export function spacesFor(isParent: boolean): Space[] {

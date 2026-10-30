@@ -267,11 +267,11 @@ export function MyQuestions() {
   const { viewer, members } = useViewer();
   const { openAdd } = useShell();
   const { data, reload } = useJson<{ questions: Question[] }>("/api/keeper");
-  // Asks from the family first (someone is waiting), then this week's question.
+  // Only what someone in the family asked (the weekly question now lives in Today).
   const open = (data?.questions ?? [])
-    .filter((q) => q.toMemberId === viewer.id && !q.answeredCardId)
+    .filter((q) => q.toMemberId === viewer.id && !q.answeredCardId && Boolean(q.askedBy))
     .sort((a, b) => Number(Boolean(b.askedBy)) - Number(Boolean(a.askedBy)) || b.createdAt.localeCompare(a.createdAt))
-    .slice(0, 3);
+    .slice(0, 2);
   if (open.length === 0) return null;
   return (
     <>

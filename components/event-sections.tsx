@@ -29,17 +29,35 @@ export function EventSections({ e, members, viewer, onChange, initial = "plan" }
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
   }, []);
+  // The row is as tall as the section on screen, not the tallest one.
+  const [height, setHeight] = useState<number | undefined>(undefined);
   useEffect(() => {
-    // Jump straight to a section (screenshots, deep links) without animating.
     const el = ref.current;
+    const panel = el?.children[TABS.findIndex((t) => t.id === tab)] as HTMLElement | undefined;
+    if (!panel) return;
+    const measure = () => setHeight((panel.firstElementChild as HTMLElement | null)?.offsetHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (panel.firstElementChild) ro.observe(panel.firstElementChild);
+    return () => ro.disconnect();
+  }, [tab, e]);
+  useEffect(() => {
+    // Jump straight to a section (deep links) without animating, once laid out.
     const i = TABS.findIndex((t) => t.id === initial);
-    if (el && i > 0) el.scrollLeft = i * el.clientWidth;
+    if (i <= 0) return;
+    const raf = requestAnimationFrame(() => {
+      const el = ref.current;
+      const child = el?.children[i] as HTMLElement | undefined;
+      if (el && child) el.scrollTo({ left: child.offsetLeft - el.offsetLeft, behavior: "instant" as ScrollBehavior });
+    });
+    return () => cancelAnimationFrame(raf);
   }, [initial]);
   const go = (t: Tab) => {
     const el = ref.current;
     const i = TABS.findIndex((x) => x.id === t);
     setTab(t);
-    el?.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
+    const child = el?.children[i] as HTMLElement | undefined;
+    if (el && child) el.scrollTo({ left: child.offsetLeft - el.offsetLeft, behavior: "smooth" });
   };
   const total = e.plan.runOfShow.reduce((n, s) => n + s.minutes, 0);
   const done = e.plan.tasks.filter((t) => t.done).length;
@@ -53,7 +71,7 @@ export function EventSections({ e, members, viewer, onChange, initial = "plan" }
           </button>
         ))}
       </div>
-      <div ref={ref} className="no-scrollbar -mx-5 mt-4 flex overflow-x-auto" style={{ scrollSnapType: "x mandatory" }}>
+      <div ref={ref} className="no-scrollbar -mx-5 mt-4 flex items-start overflow-x-auto overflow-y-hidden transition-[height] duration-200" style={{ scrollSnapType: "x mandatory", height }}>
         <div className="w-full shrink-0 px-5" style={{ scrollSnapAlign: "start" }} role="tabpanel" aria-label="Plan">
           <RunOfShow e={e} members={members} total={total} />
         </div>
