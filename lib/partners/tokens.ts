@@ -56,7 +56,26 @@ export function memoryTokenStore(rows = new Map<string, PartnerTokenRow>()): Par
 // On globalThis so every route bundle (and a dev recompile) sees the same rows.
 const g = globalThis as typeof globalThis & { __aanganPartnerTokens?: Map<string, PartnerTokenRow> };
 const memory = memoryTokenStore((g.__aanganPartnerTokens ??= new Map<string, PartnerTokenRow>()));
-let store: PartnerTokenStore = memory;
+// Live: family docs (kind "partner_token"). Mock and tests: memory.
+const docs: PartnerTokenStore = {
+  async get(f, id) {
+    const { getDoc } = await import("../family-docs");
+    return (await getDoc(f, "partner_token", id)) ?? undefined;
+  },
+  async list(f) {
+    const { listDocs } = await import("../family-docs");
+    return listDocs(f, "partner_token");
+  },
+  async put(f, row) {
+    const { putDoc } = await import("../family-docs");
+    await putDoc(f, "partner_token", PartnerTokenRowSchema.parse(row));
+  },
+  async delete(f, id) {
+    const { deleteDoc } = await import("../family-docs");
+    await deleteDoc(f, "partner_token", id);
+  },
+};
+let store: PartnerTokenStore = process.env.MOCK === "true" || process.env.VITEST ? memory : docs;
 
 /** Swap in the family-docs backed store once the "partner_token" kind exists. */
 export function setTokenStore(s: PartnerTokenStore): void {

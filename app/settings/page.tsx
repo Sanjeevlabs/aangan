@@ -18,6 +18,7 @@ import { ACCESS_LABEL, can } from "@/lib/permissions";
 import { callName } from "@/lib/people";
 import { cn } from "@/lib/utils";
 import { WindowSettings } from "@/components/window-settings";
+import { ConnectedApps } from "@/components/connected-apps";
 import { useDocumentLang, useT } from "@/lib/use-t";
 import { hasUiCatalogue, translate } from "@/lib/ui-strings";
 
@@ -394,6 +395,9 @@ export default function SettingsPage() {
         <>
       <Group title="Your window" id="window">
         <WindowSettings />
+      </Group>
+      <Group title="Connected apps" id="connected-apps">
+        <ConnectedApps />
       </Group>
       <LanguageSection value={displayLang} onPick={(code) => void setDisplayLang(code)} onMessage={flash} />
 

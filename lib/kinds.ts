@@ -393,6 +393,16 @@ export const LampSchema = z.object({
   updatedAt: iso,
 });
 
+// ---------- Partner connections (Send something): sealed tokens, one per member + account ----------
+export const PartnerTokenSchema = z.object({
+  id,
+  memberId: id,
+  account: z.string().min(1).max(40),
+  /** AES-GCM sealed token set. Never returned to a client, never logged. */
+  sealed: z.string().min(1).max(8000),
+  connectedAt: iso,
+});
+
 // ---------- Chitthi: a voice note that arrives at their morning (SPEC §30.4) ----------
 export const ChitthiSchema = z.object({
   /** The card id. Hidden from everyone but its author until deliverAt. */
@@ -458,6 +468,7 @@ export const DOC_SCHEMAS = {
   today_task: TodayTaskSchema,
   lamp: LampSchema,
   chitthi: ChitthiSchema,
+  partner_token: PartnerTokenSchema,
 } as const;
 
 export type DocKind = keyof typeof DOC_SCHEMAS;

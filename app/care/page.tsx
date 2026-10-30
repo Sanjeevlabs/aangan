@@ -288,6 +288,11 @@ function TaskRow({ need, onOpen, manage, act, muted }: { need: Need; onOpen: () 
           <Icon name="pickUp" size={18} />
         </button>
       )}
+      {live && (
+        <a href={`/send?for=${encodeURIComponent(need.forMemberId)}&kind=need&title=${encodeURIComponent(need.title)}`} aria-label={`Send something for: ${need.title}`} className="press grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-ink no-underline">
+          <Icon name="send" size={17} />
+        </a>
+      )}
       {manage && live && (
         <button type="button" disabled={busy} onClick={() => void run({ action: "done", needId: need.id })} aria-label={`Mark done: ${need.title}`} className="press grid h-10 w-10 shrink-0 place-items-center rounded-full bg-black text-white disabled:opacity-40">
           <Icon name="check" size={18} />

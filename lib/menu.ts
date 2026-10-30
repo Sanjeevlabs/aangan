@@ -59,6 +59,7 @@ export function roomsFor(isParent: boolean, _parentNames = ""): Room[] {
         { href: "/care", title: isParent ? "Ask for help" : "Care tasks", note: "Say it, add it, pick it up", icon: "care" },
         { href: "/care#helpers", title: "Local helpers", note: "Grocer, driver, house help, the plumber", icon: "village" },
         { href: "/nearby", title: "Trusted nearby", note: "Your top 5 to call first, in order", icon: "gather" },
+        { href: "/send", title: "Send something", note: "Groceries, a cake, a gift: Muse suggests, you send", icon: "send" },
         { href: "/safe", title: "Safe & sound", note: "Heading home, landed, I need help", icon: "shield" },
       ],
     },
