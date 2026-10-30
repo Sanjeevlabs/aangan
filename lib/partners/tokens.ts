@@ -32,8 +32,7 @@ export interface PartnerTokenStore {
   delete(familyId: string, id: string): Promise<void>;
 }
 
-export function memoryTokenStore(): PartnerTokenStore & { clear(): void } {
-  const rows = new Map<string, PartnerTokenRow>();
+export function memoryTokenStore(rows = new Map<string, PartnerTokenRow>()): PartnerTokenStore & { clear(): void } {
   const k = (f: string, id: string) => `${f}::${id}`;
   return {
     async get(f, id) {
@@ -54,7 +53,9 @@ export function memoryTokenStore(): PartnerTokenStore & { clear(): void } {
   };
 }
 
-const memory = memoryTokenStore();
+// On globalThis so every route bundle (and a dev recompile) sees the same rows.
+const g = globalThis as typeof globalThis & { __aanganPartnerTokens?: Map<string, PartnerTokenRow> };
+const memory = memoryTokenStore((g.__aanganPartnerTokens ??= new Map<string, PartnerTokenRow>()));
 let store: PartnerTokenStore = memory;
 
 /** Swap in the family-docs backed store once the "partner_token" kind exists. */

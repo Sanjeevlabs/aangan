@@ -12,6 +12,7 @@ import type { Candidate } from "./catalog";
 import { pickAddress } from "./catalog";
 import { parseAddresses, parseCartTotal, parseCheckout, type ParsedAddress } from "./parse";
 import { getPartner, getStore } from "./registry";
+import { seal, unseal } from "./seal";
 import { loadToken } from "./tokens";
 
 const PREVIEW_TTL_MS = 10 * 60_000;
@@ -37,17 +38,23 @@ export type ConfirmResult =
   | { status: "handoff"; url: string };
 
 interface Pending {
-  preview: Preview;
+  preview: Omit<Preview, "id">;
   candidate: Candidate;
-  familyId: string;
-  memberId: string;
+  f: string;
+  m: string;
+  n: string;
   exp: number;
 }
 
-const pending = new Map<string, Pending>();
+// The preview id is the sealed preview itself (AES-GCM, bound to the member,
+// 10 minutes): nothing to look up, and it can't be edited client-side.
+// Confirmed ids are remembered so one preview places one order.
+const PREVIEW_PURPOSE = "partner-preview";
+const g = globalThis as typeof globalThis & { __aanganUsedPreviews?: Map<string, number> };
+const used = (g.__aanganUsedPreviews ??= new Map<string, number>());
 
 export function resetOrders(): void {
-  pending.clear();
+  used.clear();
 }
 
 function sampleAddresses(recipientCity: string, ownCity: string): ParsedAddress[] {
@@ -77,8 +84,8 @@ export async function createPreview(input: {
   if (!partner || !partner.sendable) throw new Error("unknown-partner");
   if (partner.transport === "mcp-oauth" && partner.account && !(await loadToken(input.familyId, input.memberId, partner.account))) throw new NeedsConnect(partner.account);
 
-  const base = { id: `pv-${randomBytes(12).toString("base64url")}`, partnerId: c.partnerId, via: c.via, item: { name: c.name, quantity: 1, price: c.price, image: c.image }, currency: c.currency };
-  let preview: Preview;
+  const base = { partnerId: c.partnerId, via: c.via, item: { name: c.name, quantity: 1, price: c.price, image: c.image }, currency: c.currency };
+  let preview: Omit<Preview, "id">;
 
   if (partner.transport === "mcp-public") {
     // Gift stores: the price as the store listed it; the address is entered at the store's checkout.
@@ -99,17 +106,19 @@ export async function createPreview(input: {
     preview = { ...base, total, address, addresses, eta: partner.eta ?? null, handoff: false, sample: false };
   }
 
-  const now = Date.now();
-  pending.forEach((v, k) => v.exp < now && pending.delete(k));
-  pending.set(preview.id, { preview, candidate: c, familyId: input.familyId, memberId: input.memberId, exp: now + PREVIEW_TTL_MS });
-  return preview;
+  const sealed: Pending = { preview, candidate: c, f: input.familyId, m: input.memberId, n: randomBytes(9).toString("base64url"), exp: Date.now() + PREVIEW_TTL_MS };
+  const id = seal(PREVIEW_PURPOSE, sealed);
+  if (!id) throw new Error("server-misconfigured");
+  return { ...preview, id };
 }
 
 /** Place the previewed order. Single-use; only the member who previewed it. */
 export async function confirmPreview(input: { familyId: string; memberId: string; previewId: string }): Promise<ConfirmResult> {
-  const p = pending.get(input.previewId);
-  if (!p || p.exp < Date.now() || p.familyId !== input.familyId || p.memberId !== input.memberId) throw new Error("preview-not-found");
-  pending.delete(input.previewId);
+  const p = unseal(PREVIEW_PURPOSE, input.previewId) as Pending | null;
+  const now = Date.now();
+  if (!p || typeof p.n !== "string" || p.exp < now || p.f !== input.familyId || p.m !== input.memberId || used.has(p.n)) throw new Error("preview-not-found");
+  used.forEach((exp, k) => exp < now && used.delete(k));
+  used.set(p.n, p.exp);
   const partner = getPartner(p.preview.partnerId);
   if (!partner) throw new Error("unknown-partner");
 

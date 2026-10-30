@@ -3,7 +3,7 @@ import { requireSession } from "@/lib/auth";
 import { dbGetMember } from "@/lib/db";
 import { callName } from "@/lib/people";
 import { NeedsConnect } from "@/lib/partners/adapter";
-import { shownCandidate } from "@/lib/partners/catalog";
+import { candidateFromRef } from "@/lib/partners/catalog";
 import { confirmPreview, createPreview } from "@/lib/partners/orders";
 import { getAccount } from "@/lib/partners/registry";
 
@@ -12,8 +12,8 @@ import { getAccount } from "@/lib/partners/registry";
 //   {action:"confirm", previewId, confirm:true}                → places it (an explicit tap; never Muse)
 // Not connected → { needsConnect: accountId }.
 const BodySchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("preview"), suggestionId: z.string().min(1).max(200), forMemberId: z.string().min(1).max(64), addressId: z.string().min(1).max(120).optional() }).strict(),
-  z.object({ action: z.literal("confirm"), previewId: z.string().regex(/^pv-[A-Za-z0-9_-]{8,40}$/), confirm: z.literal(true) }).strict(),
+  z.object({ action: z.literal("preview"), suggestionId: z.string().min(1).max(4000), forMemberId: z.string().min(1).max(64), addressId: z.string().min(1).max(120).optional() }).strict(),
+  z.object({ action: z.literal("confirm"), previewId: z.string().max(8000).regex(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/), confirm: z.literal(true) }).strict(),
 ]);
 
 export async function POST(req: Request): Promise<Response> {
@@ -32,7 +32,7 @@ export async function POST(req: Request): Promise<Response> {
     if (body.action === "preview") {
       const [recipient, me] = await Promise.all([dbGetMember(body.forMemberId), dbGetMember(auth.memberId)]);
       if (!recipient || recipient.familyId !== auth.familyId) return Response.json({ error: "unknown-member" }, { status: 404 });
-      const candidate = shownCandidate(auth.familyId, auth.memberId, body.suggestionId);
+      const candidate = candidateFromRef(auth.familyId, auth.memberId, body.suggestionId);
       if (!candidate) return Response.json({ error: "suggestion-expired" }, { status: 410 });
       const preview = await createPreview({ familyId: auth.familyId, memberId: auth.memberId, candidate, recipientCity: recipient.city, ownCity: me?.city ?? "", addressId: body.addressId });
       return Response.json({ preview, recipient: callName(recipient) });

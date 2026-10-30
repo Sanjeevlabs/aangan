@@ -1,11 +1,13 @@
 // Searches the curated partners' own catalogues for things to send. Every
 // candidate is a real catalogue row (or, in MOCK mode, a labelled sample);
 // Muse may only choose among them, never add to them. Server only.
+import { z } from "zod";
 import { isMockMode } from "../config";
 import { NeedsConnect, openPartner } from "./adapter";
 import { McpClient, toolJson } from "./mcp-client";
 import { parseAddresses, parseMcpProducts, parseUcpProducts, type ParsedAddress, type ParsedItem } from "./parse";
 import { partnersForCountry, storeMcpUrl, storesForCountry, type GiftStore, type Partner, type SampleItem } from "./registry";
+import { seal, unseal } from "./seal";
 import { loadToken } from "./tokens";
 
 /** The UCP agent profile Shopify asks every catalogue call to carry. Override with UCP_AGENT_PROFILE. */
@@ -176,17 +178,21 @@ export async function searchCandidates(input: { familyId: string; memberId: stri
   return { candidates: clean(mixed), connectable: Array.from(connectable), sample: false };
 }
 
-// Candidates the member was shown, so a preview can't be pointed at an item
-// (or a price) the server never saw. 30 minutes, bound to the member.
-const shown = new Map<string, { c: Candidate; familyId: string; memberId: string; exp: number }>();
+// What the member was shown travels back as a sealed reference (AES-GCM,
+// bound to the member, 30 minutes), so a preview can't be pointed at an
+// item or a price the server never returned, and it works across server
+// instances without shared memory.
+const REF_PURPOSE = "partner-suggestion";
+const REF_TTL_MS = 30 * 60_000;
 
-export function rememberShown(familyId: string, memberId: string, cs: Candidate[]): void {
-  const now = Date.now();
-  shown.forEach((v, k) => v.exp < now && shown.delete(k));
-  for (const c of cs) shown.set(`${familyId}|${memberId}|${c.id}`, { c, familyId, memberId, exp: now + 30 * 60_000 });
+export function refFor(familyId: string, memberId: string, c: Candidate): string | null {
+  return seal(REF_PURPOSE, { c, f: familyId, m: memberId, exp: Date.now() + REF_TTL_MS });
 }
 
-export function shownCandidate(familyId: string, memberId: string, id: string): Candidate | null {
-  const hit = shown.get(`${familyId}|${memberId}|${id}`);
-  return hit && hit.exp > Date.now() ? hit.c : null;
+const RefSchema = z.object({ c: z.custom<Candidate>((v) => typeof v === "object" && v !== null && typeof (v as Candidate).partnerId === "string" && typeof (v as Candidate).price === "number"), f: z.string(), m: z.string(), exp: z.number() });
+
+export function candidateFromRef(familyId: string, memberId: string, ref: string): Candidate | null {
+  const parsed = RefSchema.safeParse(unseal(REF_PURPOSE, ref));
+  if (!parsed.success || parsed.data.f !== familyId || parsed.data.m !== memberId || parsed.data.exp < Date.now()) return null;
+  return parsed.data.c;
 }

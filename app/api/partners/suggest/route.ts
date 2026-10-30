@@ -3,7 +3,7 @@ import { checkRateLimit, requireSession } from "@/lib/auth";
 import { dbGetMember } from "@/lib/db";
 import { countryForZones } from "@/lib/holidays";
 import { callName } from "@/lib/people";
-import { isBlockedText, rememberShown, searchCandidates } from "@/lib/partners/catalog";
+import { isBlockedText, refFor, searchCandidates } from "@/lib/partners/catalog";
 import { pickSuggestions } from "@/lib/partners/suggest";
 
 // POST {forMemberId, occasion? | need?} → three things to send, chosen by Muse
@@ -36,28 +36,52 @@ export async function POST(req: Request): Promise<Response> {
   const kind = body.need ? "need" : "occasion";
   const title = body.need ?? body.occasion ?? "Just because";
   // Medicines go only through a licensed partner with a prescription (SPEC §9.1): not here.
-  if (isBlockedText(title)) return Response.json({ suggestions: [], sample: false, refused: "medical" });
+  if (isBlockedText(title))
+    return Response.json({
+      suggestions: [],
+      sample: false,
+      refused: "medical",
+    });
 
   const country = countryForZones([recipient.tz]);
-  const found = await searchCandidates({ familyId: auth.familyId, memberId: auth.memberId, country, city: recipient.city, kind, title });
-  const { suggestions, source } = await pickSuggestions({ familyId: auth.familyId, recipientName: callName(recipient), kind, title, candidates: found.candidates });
-  rememberShown(auth.familyId, auth.memberId, suggestions);
+  const found = await searchCandidates({
+    familyId: auth.familyId,
+    memberId: auth.memberId,
+    country,
+    city: recipient.city,
+    kind,
+    title,
+  });
+  const { suggestions, source } = await pickSuggestions({
+    familyId: auth.familyId,
+    recipientName: callName(recipient),
+    kind,
+    title,
+    candidates: found.candidates,
+  });
   return Response.json({
     sample: found.sample,
     source,
     connectable: found.connectable,
-    suggestions: suggestions.map((s) => ({
-      id: s.id,
-      partnerId: s.partnerId,
-      via: s.via,
-      kind: s.kind,
-      name: s.name,
-      price: s.price,
-      currency: s.currency,
-      image: s.image ?? null,
-      why: s.why,
-      sample: s.sample,
-      needsAccount: s.account,
-    })),
+    suggestions: suggestions.flatMap((s) => {
+      const ref = refFor(auth.familyId, auth.memberId, s);
+      return ref
+        ? [
+            {
+              id: ref,
+              partnerId: s.partnerId,
+              via: s.via,
+              kind: s.kind,
+              name: s.name,
+              price: s.price,
+              currency: s.currency,
+              image: s.image ?? null,
+              why: s.why,
+              sample: s.sample,
+              needsAccount: s.account,
+            },
+          ]
+        : [];
+    }),
   });
 }

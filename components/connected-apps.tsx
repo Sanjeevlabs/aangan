@@ -66,7 +66,7 @@ export function ConnectedApps() {
                 {a.name}
                 <Dot on={a.connected} />
               </span>
-              <span className="block truncate text-[13px] text-ink-soft">{a.connected ? `Connected · ${a.partners.join(" · ")}` : a.partners.join(" · ")}</span>
+              <span className="block truncate text-[13px] text-ink-soft">{a.partners.join(" · ")}<span className="sr-only">{a.connected ? ", connected" : ", not connected"}</span></span>
             </span>
             {a.connected ? (
               <button type="button" disabled={busy === a.id} onClick={() => void disconnect(a)} aria-label={`Disconnect ${a.name}`} className="press h-10 rounded-full bg-white px-4 text-[14px] font-semibold text-ink-soft disabled:opacity-40">

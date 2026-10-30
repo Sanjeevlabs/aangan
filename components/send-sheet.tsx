@@ -125,7 +125,8 @@ export function SendSheet({
   }, [open, onClose]);
 
   const preview = async (items: SuggestionView[], sample: boolean, picked: SuggestionView, addressId?: string) => {
-    setStep({ s: "previewing", items, sample, picked });
+    // Changing the address keeps the preview on screen while it refreshes.
+    setStep((cur) => (addressId && cur.s === "preview" ? { ...cur, busy: true } : { s: "previewing", items, sample, picked }));
     const res = await postJson<{ preview?: PreviewView; needsConnect?: string; name?: string }>("/api/partners/order", { action: "preview", suggestionId: picked.id, forMemberId, ...(addressId ? { addressId } : {}) });
     if (!res) return setStep({ s: "error" });
     if (res.needsConnect) return setStep({ s: "connect", items, sample, account: res.needsConnect, name: res.name ?? res.needsConnect });

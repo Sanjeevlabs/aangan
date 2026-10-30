@@ -40,9 +40,11 @@ const FlowSchema = z.object({
 });
 export type OAuthFlow = z.infer<typeof FlowSchema>;
 
-const metaCache = new Map<string, Metadata>();
-const clientCache = new Map<string, string>();
-const usedStates = new Set<string>();
+const g = globalThis as typeof globalThis & { __aanganOAuth?: { meta: Map<string, Metadata>; clients: Map<string, string>; used: Set<string> } };
+const shared = (g.__aanganOAuth ??= { meta: new Map(), clients: new Map(), used: new Set() });
+const metaCache = shared.meta;
+const clientCache = shared.clients;
+const usedStates = shared.used;
 
 async function fetchJson(url: string, init?: RequestInit): Promise<unknown> {
   const ctrl = new AbortController();
