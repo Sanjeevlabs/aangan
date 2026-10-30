@@ -1,6 +1,7 @@
 import { CreateRelationshipRequestSchema } from "@/lib/schemas";
 import { dbAddRelationship, dbGetMember, dbListMembers, dbListRelationships } from "@/lib/db";
 import { requireCan, requireSession } from "@/lib/auth";
+import { familyFull } from "@/lib/roles";
 
 export async function GET(req: Request): Promise<Response> {
   const auth = await requireSession(req);
@@ -27,6 +28,7 @@ export async function POST(req: Request): Promise<Response> {
   if (!parsed.success) return Response.json({ error: "invalid-relationship" }, { status: 400 });
   const anchor = await dbGetMember(parsed.data.memberId);
   if (!anchor || anchor.familyId !== auth.familyId) return Response.json({ error: "unknown-member" }, { status: 404 });
+  if (await familyFull(auth.familyId)) return Response.json({ error: "family-full" }, { status: 409 });
   const names = new Set((await dbListMembers(auth.familyId)).map((m) => m.displayName.toLowerCase()));
   if (names.has(parsed.data.newMemberName.toLowerCase())) return Response.json({ error: "duplicate-member" }, { status: 409 });
   const { member, relationship } = await dbAddRelationship({ ...parsed.data, familyId: auth.familyId, anchorRole: anchor.role });

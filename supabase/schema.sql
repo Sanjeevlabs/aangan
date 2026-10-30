@@ -62,6 +62,29 @@ create index if not exists members_person_idx on members (person_id) where perso
 drop index if exists members_email_idx;
 create unique index if not exists members_email_family_idx on members (lower(email), family_id) where email is not null;
 
+-- Roles v2 (owner | admin | member | teen | child) and joiners who wait.
+-- owner: exactly one per family (the creator); admins: up to 3 with the
+-- owner (enforced in lib/roles.ts); teen 13-17; child 0-12, a profile only.
+alter table members drop constraint if exists members_access_check;
+alter table members add constraint members_access_check check (access in ('owner', 'admin', 'member', 'teen', 'child'));
+-- Joining with a code waits for an owner/admin ("pending") unless the family
+-- made the place, or an owner/admin made the code.
+alter table members add column if not exists status text not null default 'active';
+alter table members drop constraint if exists members_status_check;
+alter table members add constraint members_status_check check (status in ('active', 'pending'));
+-- Existing families: the first admin (oldest, then by id) becomes the owner.
+update members m set access = 'owner'
+from (
+  select distinct on (family_id) id
+  from members
+  where access = 'admin'
+    and family_id is not null
+    and family_id not in (select family_id from members where access = 'owner' and family_id is not null)
+  order by family_id, created_at asc nulls last, id asc
+) first_admin
+where m.id = first_admin.id;
+create unique index if not exists members_one_owner_idx on members (family_id) where access = 'owner';
+
 -- ------------------------------------------------------------ relationships
 -- Guided Bond adds, e.g. ('arjun','dadi','parent'). No culture in logic:
 -- relation is a free-text edge label resolved by the M3 kinship resolver.
@@ -269,6 +292,21 @@ create table if not exists invites (
   created_at timestamptz default now()
 );
 
+-- ---------------------------------------------------------------- consents
+-- A parent saying yes to their teen's account (lib/roles.ts). For now the
+-- acting owner/admin's signed-in session is the verification
+-- ('parent-session-code'); a DigiLocker check comes later.
+create table if not exists consents (
+  id text primary key,
+  family_id text not null references families(id) on delete cascade,
+  member_id text not null references members(id) on delete cascade,
+  parent_member_id text references members(id) on delete set null,
+  kind text not null check (kind in ('teen-account')),
+  method text not null check (method in ('parent-session-code')),
+  created_at timestamptz not null default now()
+);
+create index if not exists consents_family_member_idx on consents (family_id, member_id, created_at desc);
+
 -- Legacy Day-1 model cache table; kept untouched for backward compatibility.
 create table if not exists llm_cache (
   key text primary key,
@@ -296,6 +334,7 @@ alter table llm_calls enable row level security;
 alter table kinship_cache enable row level security;
 alter table invites enable row level security;
 alter table llm_cache enable row level security;
+alter table consents enable row level security;
 
 -- Server-only model: RLS stays ENABLED everywhere, but NO policy grants
 -- anything to anon/authenticated, so direct client access is denied by
@@ -319,6 +358,12 @@ drop policy if exists "no direct cache access" on llm_calls;
 drop policy if exists "kinship read" on kinship_cache;
 drop policy if exists "no direct invite access" on invites;
 drop policy if exists "no direct cache access" on llm_cache;
+-- Consents: RLS by family. Grants nothing today (no request carries a
+-- family_id claim; the server uses the service role); scopes reads to the
+-- caller's own family once Supabase Auth JWTs carry one.
+drop policy if exists "family scope" on consents;
+create policy "family scope" on consents for select to authenticated
+  using (family_id = (auth.jwt() ->> 'family_id'));
 
 -- Sole exception: static festival guides are public-read.
 drop policy if exists "read configs" on ritual_configs;
@@ -395,7 +440,10 @@ values
 on conflict (id) do nothing;
 
 -- Demo portraits and the demo family graph (idempotent).
-update members set access = 'admin' where id = 'arjun' and family_id = 'demo-family';
+-- Arjun owns the demo family (only if it has no owner yet, e.g. after a handover).
+update members set access = 'owner'
+where id = 'arjun' and family_id = 'demo-family'
+  and not exists (select 1 from members where family_id = 'demo-family' and access = 'owner');
 update members set access = 'child' where id in ('aria', 'anaya') and family_id = 'demo-family';
 update members set photo_ref = '/demo/portrait-dadi.webp' where id = 'dadi' and photo_ref is null;
 update members set photo_ref = '/demo/portrait-dad.webp' where id = 'arjun' and photo_ref is null;

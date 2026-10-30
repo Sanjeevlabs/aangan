@@ -18,6 +18,8 @@ export async function POST(req: Request): Promise<Response> {
   }
   const parsed = SwitchSchema.safeParse(body);
   if (!parsed.success) return Response.json({ error: "invalid-switch" }, { status: 400 });
+  const current = await dbGetMember(session.memberId);
+  if (current?.status === "pending") return Response.json({ error: "pending" }, { status: 403 });
   const member = await dbGetMember(parsed.data.memberId);
   if (!member || member.familyId !== session.familyId) {
     return Response.json({ error: "unknown-member" }, { status: 404 });

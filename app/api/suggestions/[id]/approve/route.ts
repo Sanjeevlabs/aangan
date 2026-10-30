@@ -1,4 +1,5 @@
 import { dbAddCard, dbAddGatherSession, dbAddSuggestion, dbAddWish, dbAssignDailyRole, dbGetMember, dbListMembers, dbListRitualRuns, dbListSuggestions, dbSetRitualRunStatus, dbSetSuggestionStatus } from "@/lib/db";
+import { isGrownUp } from "@/lib/permissions";
 import { requireSession } from "@/lib/auth";
 
 // Review / Approve: the ONLY place agent proposals become actions.
@@ -13,7 +14,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (found.status !== "pending") return Response.json({ error: "already-reviewed", suggestion: found }, { status: 409 });
   // Approving makes things happen for the whole family: grown-ups only.
   const me = await dbGetMember(auth.memberId);
-  if (!me || me.familyId !== auth.familyId || me.access === "child" || me.role === "child") return Response.json({ error: "grown-ups-only" }, { status: 403 });
+  if (!me || me.familyId !== auth.familyId || !isGrownUp(me) || me.role === "child") return Response.json({ error: "grown-ups-only" }, { status: 403 });
   const familyId = auth.familyId;
   const members = await dbListMembers(familyId);
   const inFamily = (id: string) => members.some((m) => m.id === id);

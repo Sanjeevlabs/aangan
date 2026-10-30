@@ -15,6 +15,7 @@ import type { DayRhythm } from "@/lib/rhythm";
 import { ALIVE_LOOK, type Alive } from "@/lib/status";
 import { ago, postJson, useJson } from "@/lib/use-json";
 import { useFamilyCards } from "@/lib/use-family";
+import { can } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { WALL_LOOK } from "@/lib/walls";
 import { PHASE_TINT, type DayPhase, type Weather } from "@/lib/weather";
@@ -378,7 +379,7 @@ function WindowSheet({ open, onClose, data, onSaved }: { open: boolean; onClose:
   const { viewer, members } = useViewer();
   const [busy, setBusy] = useState(false);
   const chosen = data.people.map((p) => p.id);
-  const others = members.filter((mm) => mm.id !== viewer.id && mm.role !== "child");
+  const others = members.filter((mm) => mm.id !== viewer.id && mm.role !== "child" && can(mm, "window.at"));
   const save = async (body: unknown) => {
     setBusy(true);
     await postJson("/api/window", body);

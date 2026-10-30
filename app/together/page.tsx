@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { isGrownUp } from "@/lib/permissions";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { PlanBadge, countdownWords, daysUntil } from "@/components/together-art";
@@ -23,7 +24,7 @@ export default function TogetherPage() {
   const projects = data?.projects ?? [];
   const active = projects.filter((p) => p.status === "active").sort((a, b) => (a.dueAt ?? "9").localeCompare(b.dueAt ?? "9"));
   const done = projects.filter((p) => p.status === "done");
-  const child = viewer.access === "child";
+  const child = !isGrownUp(viewer);
 
   return (
     <div>

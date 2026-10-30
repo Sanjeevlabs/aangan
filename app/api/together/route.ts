@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isGrownUp } from "@/lib/permissions";
 import { checkRateLimit, requireSession } from "@/lib/auth";
 import { dbGetMember, dbListMembers } from "@/lib/db";
 import { deleteDoc, getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
@@ -48,7 +49,7 @@ export async function POST(req: Request): Promise<Response> {
   const me = await dbGetMember(auth.memberId);
 
   if (body.action === "start") {
-    if (me?.access === "child") return Response.json({ error: "grown-ups-only" }, { status: 403 });
+    if (!isGrownUp(me)) return Response.json({ error: "grown-ups-only" }, { status: 403 });
     const t = template(body.templateId);
     if (!t) return Response.json({ error: "unknown-template" }, { status: 404 });
     if (!known(body.visitorId) || !body.hostIds.every((h) => known(h))) return Response.json({ error: "unknown-member" }, { status: 400 });

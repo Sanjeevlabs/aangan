@@ -3,6 +3,8 @@ import { isDemoFamily, requireSession, sessionCookieHeader, signSession } from "
 import { dbAddMember, dbCreateFamily, dbCreateInvite, dbGetFamilyName, dbListCards, dbGetMember, dbLinkMembers, dbListMembers, dbListRelationships, dbListSides, dbUpdateMemberProfile } from "@/lib/db";
 import { allowAuthAttempt } from "@/lib/otp";
 import type { Member } from "@/lib/schemas";
+import { isAdmin, isGrownUp } from "@/lib/permissions";
+import { recordTeenConsent } from "@/lib/roles";
 
 // Two courtyards, one door. Each family keeps its own Aangan; a married couple
 // and their children belong to both. Nothing crosses between Aangans: this
@@ -32,13 +34,13 @@ async function sidesOf(me: Member) {
   return Promise.all(
     rows.map(async (m) => {
       const [name, people, cards] = await Promise.all([dbGetFamilyName(m.familyId), dbListMembers(m.familyId), dbListCards(m.familyId)]);
-      const host = people.find((p) => p.access === "admin" && p.id !== m.id && p.email) ?? null;
+      const host = people.find((p) => p.access === "owner" && p.id !== m.id && p.email) ?? people.find((p) => isAdmin(p) && p.id !== m.id && p.email) ?? null;
       return {
         familyId: m.familyId,
         memberId: m.id,
         name: name.replace(/^the\s+/i, "").replace(/\s+family$/i, "") || "Family",
         people: people.length,
-        addedBy: m.access === "admin" ? null : host ? host.displayName || host.firstName : null,
+        addedBy: m.access === "owner" ? null : host ? host.displayName || host.firstName : null,
         fresh: cards.filter((c) => c.authorId && c.authorId !== m.id && Date.parse(c.takenAt) > since && Date.parse(c.takenAt) <= Date.now()).length,
       };
     }),
@@ -79,7 +81,7 @@ export async function POST(req: Request): Promise<Response> {
   // Never from a shared demo family: everyone who opens the demo is the same
   // person there, so a side made from it would be open to every visitor.
   if (isDemoFamily(auth.familyId)) return Response.json({ error: "not-in-demo" }, { status: 403 });
-  if (me.access === "child" || me.role === "child") return Response.json({ error: "grown-ups-only" }, { status: 403 });
+  if (!isGrownUp(me) || me.role === "child") return Response.json({ error: "grown-ups-only" }, { status: 403 });
   if (!allowAuthAttempt(`side-create:${me.id}`, 3, 24 * 3_600_000)) return Response.json({ error: "too-many" }, { status: 429 });
   if ((await dbListSides(me)).length >= MAX_SIDES) return Response.json({ error: "too-many-sides" }, { status: 409 });
 
@@ -118,11 +120,17 @@ export async function POST(req: Request): Promise<Response> {
       personId,
     });
   };
-  const self = await copy(me, "admin");
+  // Whoever starts the family owns it.
+  const self = await copy(me, "owner");
   const brought = new Map<string, Member>();
   for (const b of body.bring) {
     const src = members.find((m) => m.id === b);
-    if (src) brought.set(src.id, await copy(src, src.access === "child" ? "child" : "member"));
+    if (!src) continue;
+    const access: Member["access"] = src.access === "child" || src.access === "teen" ? src.access : "member";
+    const row = await copy(src, access);
+    // A teen comes with their parent's say-so (only my spouse and children come).
+    if (access === "teen") await recordTeenConsent(familyId, row.id, self.id);
+    brought.set(src.id, row);
   }
   // Rebuild the relationships inside my home, nothing else.
   for (const [srcId, row] of Array.from(brought)) {
@@ -131,7 +139,7 @@ export async function POST(req: Request): Promise<Response> {
     const asMine = r.memberId === me.id;
     await dbLinkMembers({ familyId, memberId: asMine ? self.id : row.id, relationMemberId: asMine ? row.id : self.id, relation: r.relation });
   }
-  const invite = await dbCreateInvite(familyId);
+  const invite = await dbCreateInvite(familyId, self.id);
   const signed = signSession({ familyId, memberId: self.id });
   if (!signed) return Response.json({ error: "session-unavailable" }, { status: 500 });
   return Response.json({ familyId, memberId: self.id, invite }, { headers: { "set-cookie": sessionCookieHeader(signed) } });

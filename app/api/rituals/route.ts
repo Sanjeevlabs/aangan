@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isGrownUp } from "@/lib/permissions";
 import { checkRateLimit, requireSession } from "@/lib/auth";
 import { dbEnsureRitualRun, dbGetMember, dbListMembers, dbListRitualRuns, dbListWishes } from "@/lib/db";
 import { countryName, traditionChoices, TRADITIONS_DATA } from "@/lib/holidays";
@@ -27,7 +28,7 @@ export async function GET(req: Request): Promise<Response> {
   const cutoff = new Date(Date.now() - 21 * 86_400_000).toISOString().slice(0, 10);
   const recentRuns = new Set(runs.filter((r) => r.occasionDate >= cutoff).map((r) => r.id));
   const wishes = recentRuns.size ? (await dbListWishes(undefined, auth.familyId)).filter((w) => w.ritualRunId && recentRuns.has(w.ritualRunId)) : [];
-  const canEdit = Boolean(me && me.familyId === auth.familyId && me.access !== "child");
+  const canEdit = Boolean(me && me.familyId === auth.familyId && isGrownUp(me));
   return Response.json({
     configs: ritualConfigs(),
     holidays: fam.all,
@@ -60,7 +61,7 @@ export async function POST(req: Request): Promise<Response> {
   if (!parsed.success) return Response.json({ error: "invalid-request" }, { status: 400 });
   const me = await dbGetMember(auth.memberId);
   if (!me || me.familyId !== auth.familyId) return Response.json({ error: "unknown-member" }, { status: 404 });
-  if (me.access === "child") return Response.json({ error: "not-allowed" }, { status: 403 });
+  if (!isGrownUp(me)) return Response.json({ error: "not-allowed" }, { status: 403 });
   const body = parsed.data;
   // Override keys: any holiday key from data/traditions.json or a ritual config slug (not birthdays).
   const known = new Set([...TRADITIONS_DATA.patterns.map((p) => p.key), ...ritualConfigs().map((c) => c.slug)].filter((s) => s !== "birthday"));

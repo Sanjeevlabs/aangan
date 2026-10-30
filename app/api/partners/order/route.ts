@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { requireSession } from "@/lib/auth";
+import { requireCan, requireSession } from "@/lib/auth";
 import { dbGetMember } from "@/lib/db";
 import { callName } from "@/lib/people";
 import { NeedsConnect } from "@/lib/partners/adapter";
@@ -19,6 +19,9 @@ const BodySchema = z.discriminatedUnion("action", [
 export async function POST(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
+  // Send something is for grown-ups with an account (never a teen or child).
+  const allowed = await requireCan(auth, "partners.order");
+  if (allowed instanceof Response) return allowed;
   let raw: unknown;
   try {
     raw = await req.json();

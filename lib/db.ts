@@ -51,11 +51,14 @@ import {
   deleteCard as memDeleteCard,
   removeReaction as memRemoveReaction,
   deleteRelationship as memDeleteRelationship,
+  addConsent as memAddConsent,
+  listConsents as memListConsents,
   type Invite as MemInvite,
 } from "./store";
 import { isDbLive, supabaseServer } from "./supabase";
 import { baseLang } from "./languages";
 import type { MemberPatch } from "./store";
+import { ConsentSchema, type Consent } from "./schemas";
 import { AgentRunSchema, CardSchema, DailyRoleSchema, GatherSessionSchema, MemberSchema, PlaySchema, ReactionSchema, RelationshipSchema, RitualRunSchema, SuggestionSchema, WishSchema, type AgentRun, type Card, type DailyRole, type GatherSession, type Member, type Play, type Reaction, type Relationship, type RitualRun, type Suggestion, type Wish } from "./schemas";
 
 // Postgres returns "2026-10-27 08:10:00+00" / "...+00:00"; the schemas (and
@@ -110,7 +113,8 @@ function memberFromRow(r: Record<string, unknown>): Member {
     homePalette: Array.isArray(r.home_palette) ? (r.home_palette as string[]) : [],
     photoRef: (r.photo_ref as string | null) ?? null,
     email: (r.email as string | null) ?? null,
-    access: r.access === "admin" || r.access === "child" ? r.access : "member",
+    access: r.access === "owner" || r.access === "admin" || r.access === "teen" || r.access === "child" ? r.access : "member",
+    status: r.status === "pending" ? "pending" : "active",
     personId: (r.person_id as string | null) ?? null,
   });
 }
@@ -194,7 +198,17 @@ export async function dbAddCard(input: Omit<import("zod").input<typeof CardSchem
   return card;
 }
 
-export async function dbListMembers(familyId: string): Promise<Member[]> {
+/**
+ * The family's people. Joiners still waiting for an admin ("pending") are left
+ * out unless asked for: they aren't in the family yet, so no screen, window,
+ * tree or count sees them. Admin screens and the caps pass includePending.
+ */
+export async function dbListMembers(familyId: string, opts: { includePending?: boolean } = {}): Promise<Member[]> {
+  const all = await listMembersAll(familyId);
+  return opts.includePending ? all : all.filter((m) => m.status !== "pending");
+}
+
+async function listMembersAll(familyId: string): Promise<Member[]> {
   if (!live()) return scoped(memListMembers(), familyId);
   const sb = supabaseServer();
   if (!sb) return scoped(memListMembers(), familyId);
@@ -255,6 +269,7 @@ export async function dbAddMember(input: Omit<import("zod").input<typeof MemberS
     display_name: member.displayName,
     role: member.role,
     access: member.access,
+    status: member.status,
     lang: member.lang,
     display_lang: member.displayLang,
     tz: member.tz,
@@ -303,6 +318,7 @@ export async function dbUpdateMemberProfile(memberId: string, patch: MemberPatch
   if (patch.displayName !== undefined) row.display_name = patch.displayName;
   if (patch.role !== undefined) row.role = patch.role;
   if (patch.access !== undefined) row.access = patch.access;
+  if (patch.status !== undefined) row.status = patch.status;
   if (patch.birthday !== undefined) row.birthday = patch.birthday;
   if (patch.tz !== undefined) row.tz = patch.tz;
   if (patch.city !== undefined) row.city = patch.city;
@@ -842,6 +858,7 @@ export async function dbListInvites(): Promise<Invite[]> {
     code: r.code as string,
     familyId: r.family_id as string,
     expiresAt: iso(r.expires_at),
+    createdBy: (r.created_by as string | null) ?? null,
   }));
 }
 
@@ -854,20 +871,52 @@ function inviteCode(): string {
   return out;
 }
 
-export async function dbCreateInvite(familyId: string): Promise<Invite> {
+export async function dbCreateInvite(familyId: string, createdBy: string | null = null): Promise<Invite> {
   const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString();
-  if (!live()) return memCreateInvite(inviteCode(), expiresAt, familyId);
+  if (!live()) return memCreateInvite(inviteCode(), expiresAt, familyId, createdBy);
   const sb = supabaseServer();
-  if (!sb) return memCreateInvite(inviteCode(), expiresAt, familyId);
-  const invite: Invite = { id: crypto.randomUUID(), code: inviteCode(), familyId, expiresAt };
+  if (!sb) return memCreateInvite(inviteCode(), expiresAt, familyId, createdBy);
+  const invite: Invite = { id: crypto.randomUUID(), code: inviteCode(), familyId, expiresAt, createdBy };
   const { error } = await sb.from("invites").insert({
     id: invite.id,
     family_id: familyId,
     code: invite.code,
     expires_at: expiresAt,
+    created_by: createdBy,
   });
-  if (error) return memCreateInvite(invite.code, expiresAt, familyId);
+  if (error) return memCreateInvite(invite.code, expiresAt, familyId, createdBy);
   return invite;
+}
+
+// ---- Consents (supabase/schema.sql `consents`). ----
+
+export async function dbAddConsent(input: Omit<Consent, "id" | "createdAt">): Promise<Consent> {
+  const c = ConsentSchema.parse({ id: `consent-${crypto.randomUUID().slice(0, 12)}`, createdAt: new Date().toISOString(), ...input });
+  if (!live()) return memAddConsent(c);
+  const sb = supabaseServer();
+  if (!sb) return memAddConsent(c);
+  const { error } = await sb.from("consents").insert({
+    id: c.id,
+    family_id: c.familyId,
+    member_id: c.memberId,
+    parent_member_id: c.parentMemberId,
+    kind: c.kind,
+    method: c.method,
+    created_at: c.createdAt,
+  });
+  if (error) throw new Error("consent-failed");
+  return c;
+}
+
+export async function dbListConsents(familyId: string): Promise<Consent[]> {
+  if (!live()) return memListConsents(familyId);
+  const sb = supabaseServer();
+  if (!sb) return memListConsents(familyId);
+  const { data, error } = await sb.from("consents").select("*").eq("family_id", familyId).order("created_at", { ascending: false });
+  if (error || !data) return memListConsents(familyId);
+  return data.map((r) =>
+    ConsentSchema.parse({ id: r.id, familyId: r.family_id, memberId: r.member_id, parentMemberId: r.parent_member_id ?? null, kind: r.kind, method: r.method, createdAt: iso(r.created_at) }),
+  );
 }
 
 // "Remove my memories": delete the member's attributable traces (cards stay

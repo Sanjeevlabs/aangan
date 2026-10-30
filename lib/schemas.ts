@@ -115,11 +115,15 @@ export const CardSchema = z.object({
 export const MemberRoleSchema = z.enum(["elder", "adult", "child"]);
 
 /**
- * What a person may do in the family (separate from their generation):
- * admin manages people, roles and invites; member adds family, creates and
- * cares; child talks, shares and cooks but can't change the tree or care.
+ * What a person may do in the family (separate from their generation), see
+ * lib/permissions.ts: owner (exactly one, the creator) > admin (up to 3 with
+ * the owner) > member; teen (13-17) shares, voices, wishes and tells stories;
+ * child (0-12) is a profile only. Elder mode is a setting, not a role.
  */
-export const AccessSchema = z.enum(["admin", "member", "child"]);
+export const AccessSchema = z.enum(["owner", "admin", "member", "teen", "child"]);
+
+/** Joiners wait ("pending") until an owner/admin lets them in. */
+export const MemberStatusSchema = z.enum(["active", "pending"]);
 
 export const DisplayLangSchema = z.enum(LANG_CODES);
 
@@ -142,6 +146,7 @@ export const MemberSchema = z.object({
   photoRef: z.string().nullable().default(null),
   email: z.string().nullable().default(null),
   access: AccessSchema.default("member"),
+  status: MemberStatusSchema.default("active"),
   /**
    * The same person in another family's Aangan (a married couple and their
    * children belong to both sides). Set by the server only, never by a client.
@@ -312,6 +317,19 @@ export type DailyRole = z.infer<typeof DailyRoleSchema>;
 export type GatherSession = z.infer<typeof GatherSessionSchema>;
 export type DisplayLang = z.infer<typeof DisplayLangSchema>;
 export type Access = z.infer<typeof AccessSchema>;
+export type MemberStatus = z.infer<typeof MemberStatusSchema>;
+
+/** A recorded consent, e.g. a parent letting their teen have an account. */
+export const ConsentSchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+  memberId: z.string(),
+  parentMemberId: z.string().nullable(),
+  kind: z.enum(["teen-account"]),
+  method: z.enum(["parent-session-code"]),
+  createdAt: z.string(),
+});
+export type Consent = z.infer<typeof ConsentSchema>;
 export type RitualConfig = z.infer<typeof RitualConfigSchema>;
 export type Card = z.infer<typeof CardSchema>;
 export type CardSource = z.infer<typeof CardSourceSchema>;

@@ -1,4 +1,5 @@
 import { requireSession } from "@/lib/auth";
+import { isGrownUp } from "@/lib/permissions";
 import { dbGetFamilyName, dbListCards, dbListMembers, dbListRelationships } from "@/lib/db";
 import { listDocs } from "@/lib/family-docs";
 import { DOC_SCHEMAS, type DocKind } from "@/lib/kinds";
@@ -13,7 +14,7 @@ export async function GET(req: Request): Promise<Response> {
   if (auth instanceof Response) return auth;
   const members = await dbListMembers(auth.familyId);
   const me = members.find((m) => m.id === auth.memberId);
-  if (!me || me.access === "child") return Response.json({ error: "not-allowed" }, { status: 403 });
+  if (!me || !isGrownUp(me)) return Response.json({ error: "not-allowed" }, { status: 403 });
   const kinds = (Object.keys(DOC_SCHEMAS) as DocKind[]).filter((k) => !SKIP.has(k));
   const [name, relationships, cards, ...docs] = await Promise.all([dbGetFamilyName(auth.familyId), dbListRelationships(auth.familyId), dbListCards(auth.familyId), ...kinds.map((k) => listDocs(auth.familyId, k))]);
   const out = {

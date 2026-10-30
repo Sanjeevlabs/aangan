@@ -315,7 +315,7 @@ function TaskSheet({ need, home, draft, helpers, pets, onClose, onChange }: { ne
   const { viewer, members } = useViewer();
   const manage = can(viewer, "care.manage");
   const elders = home.members.filter((x) => x.role === "elder");
-  const family = members.filter((x) => x.access !== "child").sort((a, b) => Number(b.id === viewer.id) - Number(a.id === viewer.id));
+  const family = members.filter((x) => can(x, "care.write")).sort((a, b) => Number(b.id === viewer.id) - Number(a.id === viewer.id));
   const mayEdit = !need || manage || need.askedBy === viewer.id || need.forMemberId === viewer.id;
   const [title, setTitle] = useState(need?.title ?? draft);
   const [kind, setKind] = useState<Kind>(need?.kind ?? "other");

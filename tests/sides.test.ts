@@ -64,7 +64,7 @@ describe("two courtyards, one door", () => {
     expect(out.invite.code).toBeTruthy();
     const there = await dbListMembers(out.familyId);
     expect(there.map((m) => m.displayName).sort()).toEqual(["Anaya", "Bua", "Fufa"]);
-    expect(there.find((m) => m.id === out.memberId)?.access).toBe("admin");
+    expect(there.find((m) => m.id === out.memberId)?.access).toBe("owner");
     expect(there.find((m) => m.displayName === "Anaya")?.access).toBe("child");
     expect(await dbListRelationships(out.familyId)).toHaveLength(2);
     const kavya = await dbGetMember(f.kavya.id);

@@ -232,7 +232,7 @@ export function AuthFlow({ mode }: { mode: Mode }) {
         body: JSON.stringify({ ...identity, ...base }),
       });
       if (sb) void sb.auth.signOut({ scope: "local" });
-      const data = (await res.json()) as { error?: string; welcome?: string };
+      const data = (await res.json()) as { error?: string; welcome?: string; status?: string };
       if (!res.ok) throw new Error(data.error ?? "failed");
       if (data.welcome) {
         try {
@@ -241,6 +241,8 @@ export function AuthFlow({ mode }: { mode: Mode }) {
           /* private mode */
         }
       }
+      // A joiner waiting for an admin: the waiting screen takes over.
+      if (data.status === "pending") return enter();
       if (mode === "create") {
         // Signed in: now the other side of the window.
         setBusy(false);

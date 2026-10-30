@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { isGrownUp } from "@/lib/permissions";
 import { whatsappInvite } from "@/lib/invite-link";
 import { callName, memberPhoto } from "@/lib/people";
 import type { Member, Relationship } from "@/lib/schemas";
@@ -85,7 +86,7 @@ export function BothSides() {
   const { sides, current, loading, failed, reload } = useSides();
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
-  const grownUp = viewer.access !== "child" && viewer.role !== "child";
+  const grownUp = isGrownUp(viewer) && viewer.role !== "child";
   const demo = viewer.familyId.startsWith("demo-");
   const n = sides.length;
   return (

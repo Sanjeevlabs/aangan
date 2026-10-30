@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { can } from "@/lib/permissions";
 import { checkRateLimit, requireSession } from "@/lib/auth";
 import { dbGetMember, dbListMembers } from "@/lib/db";
 import { EVENT_TYPES, eventTitle, lockedStart, markNone, occasionEventKey, participants, proposeSlots, slotToLock, templateFor, toggleVote, type FamilyEvent } from "@/lib/events";
@@ -42,7 +43,7 @@ export async function GET(req: Request): Promise<Response> {
   const [members, me, all, dismissed] = await Promise.all([dbListMembers(auth.familyId), dbGetMember(auth.memberId), listEvents(auth.familyId), listDismissed(auth.familyId, auth.memberId)]);
   const events = visible(all);
   const occasions = await upcoming(auth.familyId, members);
-  const canPlan = Boolean(me && me.access !== "child" && me.role !== "child");
+  const canPlan = Boolean(me && can(me, "events.plan") && me.role !== "child");
   const prompts = buildPrompts({ viewerId: auth.memberId, canPlan, events, occasions, dismissed });
   return Response.json({ events, occasions, prompts, canPlan, viewerId: auth.memberId });
 }
@@ -105,7 +106,7 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   if (body.action === "create") {
-    if (me.access === "child" || me.role === "child") return Response.json({ error: "grown-ups-only" }, { status: 403 });
+    if (!can(me, "events.plan") || me.role === "child") return Response.json({ error: "grown-ups-only" }, { status: 403 });
     if (!checkRateLimit(auth, "/api/gather")) return Response.json({ error: "rate-limited" }, { status: 429 });
     const t = today();
     if (body.date < addDays(t, -1) || body.date > addDays(t, 366)) return Response.json({ error: "bad-date" }, { status: 400 });

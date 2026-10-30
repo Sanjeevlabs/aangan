@@ -14,7 +14,8 @@ import { resolveMediaUrl } from "@/lib/media-session";
 import { memberPhoto } from "@/lib/people";
 import { resetFamilyCards } from "@/lib/use-family";
 import { useLargeText } from "@/lib/use-large-text";
-import { ACCESS_LABEL, can } from "@/lib/permissions";
+import { ACCESS_LABEL, ACCESS_ORDER, can, isGrownUp } from "@/lib/permissions";
+import type { Member } from "@/lib/schemas";
 import { callName } from "@/lib/people";
 import { cn } from "@/lib/utils";
 import { WindowSettings } from "@/components/window-settings";
@@ -27,51 +28,143 @@ interface Invite {
   expiresAt: string;
 }
 
-/** Who's who, and (for admins) who may do what. */
-function PeopleAndRoles({ onMessage }: { onMessage: (m: string) => void }) {
-  const { viewer, members, refreshMembers } = useViewer();
-  const admin = can(viewer, "roles.assign");
-  const order: Record<string, number> = { admin: 0, member: 1, child: 2 };
-  const people = [...members].sort((a, b) => order[a.access] - order[b.access] || callName(a).localeCompare(callName(b)));
+const ROLE_ERROR: Record<string, string> = {
+  "admins-full": "A family can have up to 3 admins, the owner included.",
+  "needs-parent": "Only their parent can make this a teen account.",
+  "has-account": "They have their own account, so they can't be a child profile.",
+  "owner-use-transfer": "Hand the family over to change the owner's role.",
+  "needs-account": "They need their own account before they can own the family.",
+  "family-full": "A family can have up to 50 people.",
+  "grown-ups-only": "Only a grown-up can own the family.",
+};
+
+/** Joiners waiting for an owner/admin, at the top of the Family tab. */
+function WaitingToJoin({ onMessage }: { onMessage: (m: string) => void }) {
+  const { viewer, refreshMembers } = useViewer();
+  const allowed = can(viewer, "members.approve");
+  const { data, failed, reload } = useJson<{ pending: Member[] }>(allowed ? "/api/members" : null);
+  const [busy, setBusy] = useState<string | null>(null);
+  if (!allowed) return null;
+  if (failed) return <p className="m-0 mt-6 rounded-[22px] bg-surface p-4 text-[14px] text-ink-soft">Couldn&rsquo;t check who&rsquo;s waiting. Pull to try again.</p>;
+  if (!data) return <div className="mt-6 h-[72px] animate-pulse rounded-[22px] bg-surface" aria-busy="true" aria-label="Checking who's waiting" />;
+  if (data.pending.length === 0) return null;
+  const decide = async (m: Member, decision: "approve" | "decline") => {
+    if (decision === "decline" && !window.confirm(`Decline ${callName(m)}? Their place will be removed.`)) return;
+    setBusy(m.id);
+    const res = await fetch(`/api/members/${encodeURIComponent(m.id)}/approve`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ decision }) }).catch(() => null);
+    const body = (await res?.json().catch(() => null)) as { error?: string } | null;
+    setBusy(null);
+    if (res?.ok) onMessage(decision === "approve" ? `${callName(m)} is in.` : `${callName(m)} was declined.`);
+    else onMessage(ROLE_ERROR[body?.error ?? ""] ?? "Couldn't do that. Try again.");
+    await Promise.all([reload(), refreshMembers()]);
+  };
   return (
-    <div>
+    <section aria-label="Waiting to join" className="mt-9">
+      <h2 className="m-0 mb-3 text-[20px]">Waiting to join</h2>
       <ul className="m-0 list-none divide-y divide-[var(--line)] rounded-[22px] bg-surface p-0 px-4">
-        {people.map((m) => (
+        {data.pending.map((m) => (
           <li key={m.id} className="flex items-center gap-3 py-3">
             <Avatar src={memberPhoto(m)} name={callName(m)} size={40} />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[16px] font-semibold">
-                {callName(m)}
-                {m.id === viewer.id ? " (you)" : ""}
-              </span>
-              <span className="block text-[13px] text-ink-soft">{m.email ? "Has their own account" : "Added by family"}</span>
+              <span className="block truncate text-[16px] font-semibold">{callName(m)}</span>
+              <span className="block text-[13px] text-ink-soft">{m.city ? `Joined with a code · ${m.city}` : "Joined with a code"}</span>
             </span>
-            {admin ? (
-              <select
-                aria-label={`${callName(m)}'s role`}
-                value={m.access}
-                onChange={async (e) => {
-                  const res = await fetch(`/api/members/${encodeURIComponent(m.id)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ access: e.target.value }) });
-                  if (res.status === 409) onMessage("The family needs at least one admin.");
-                  else if (res.ok) onMessage(`${callName(m)} is now ${ACCESS_LABEL[e.target.value as keyof typeof ACCESS_LABEL].label.toLowerCase()}.`);
-                  await refreshMembers();
-                }}
-                className="h-10 rounded-full bg-white px-3 text-[14px] font-semibold"
-              >
-                {(["admin", "member", "child"] as const).map((a) => (
-                  <option key={a} value={a}>
-                    {ACCESS_LABEL[a].label}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <span className="rounded-full bg-white px-3 py-1.5 text-[13px] font-semibold">{ACCESS_LABEL[m.access].label}</span>
-            )}
+            <button type="button" aria-label={`Decline ${callName(m)}`} disabled={busy === m.id} onClick={() => void decide(m, "decline")} className="press grid h-11 w-11 place-items-center rounded-full bg-white text-ink disabled:opacity-40">
+              <Icon name="close" size={20} />
+            </button>
+            <button type="button" aria-label={`Let ${callName(m)} in`} disabled={busy === m.id} onClick={() => void decide(m, "approve")} className="press grid h-11 w-11 place-items-center rounded-full bg-ink text-white disabled:opacity-40">
+              <Icon name="check" size={20} />
+            </button>
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+/** Who's who, and (for owners/admins) who may do what: one chip per role. */
+function PeopleAndRoles({ onMessage }: { onMessage: (m: string) => void }) {
+  const { viewer, members, refreshMembers } = useViewer();
+  const admin = can(viewer, "roles.assign");
+  const owner = can(viewer, "owner.transfer");
+  const [busy, setBusy] = useState<string | null>(null);
+  const rank = (a: Member["access"]) => ACCESS_ORDER.indexOf(a);
+  const people = [...members].sort((a, b) => rank(a.access) - rank(b.access) || callName(a).localeCompare(callName(b)));
+  const send = async (m: Member, url: string, init: RequestInit, ok: string) => {
+    setBusy(m.id);
+    const res = await fetch(url, { headers: { "content-type": "application/json" }, ...init }).catch(() => null);
+    const body = (await res?.json().catch(() => null)) as { error?: string } | null;
+    setBusy(null);
+    onMessage(res?.ok ? ok : (ROLE_ERROR[body?.error ?? ""] ?? "Couldn't change that. Try again."));
+    await refreshMembers();
+  };
+  const pick = (m: Member, to: Member["access"]) => {
+    if (to === m.access) return;
+    if (to === "owner") {
+      if (!window.confirm(`Hand the family over to ${callName(m)}? You'll stay an admin.`)) return;
+      return void send(m, `/api/members/${encodeURIComponent(m.id)}/owner`, { method: "POST", body: "{}" }, `${callName(m)} owns the family now.`);
+    }
+    void send(m, `/api/members/${encodeURIComponent(m.id)}`, { method: "PATCH", body: JSON.stringify({ access: to }) }, `${callName(m)} is now ${ACCESS_LABEL[to].label.toLowerCase()}.`);
+  };
+  const remove = (m: Member) => {
+    if (!window.confirm(`Remove ${callName(m)} from the family? What they shared stays.`)) return;
+    void send(m, `/api/members/${encodeURIComponent(m.id)}`, { method: "DELETE" }, `${callName(m)} was removed.`);
+  };
+  /** Chips this viewer may tap for this person. */
+  const choices = (m: Member): Member["access"][] => {
+    if (!admin || m.access === "owner") return [];
+    return ACCESS_ORDER.filter((a) => (a === "owner" ? owner && (m.access === "admin" || m.access === "member") : a === "child" ? !m.email : true));
+  };
+  return (
+    <div>
+      <ul className="m-0 list-none divide-y divide-[var(--line)] rounded-[22px] bg-surface p-0 px-4">
+        {people.map((m) => {
+          const options = choices(m);
+          const removable = m.id !== viewer.id && m.access !== "owner" && can(viewer, m.email || m.access === "admin" || m.access === "teen" ? "tree.remove-account" : "tree.remove");
+          return (
+            <li key={m.id} className="py-3">
+              <div className="flex items-center gap-3">
+                <Avatar src={memberPhoto(m)} name={callName(m)} size={40} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[16px] font-semibold">
+                    {callName(m)}
+                    {m.id === viewer.id ? " (you)" : ""}
+                  </span>
+                  <span className="block text-[13px] text-ink-soft">{m.email ? "Has their own account" : "Added by family"}</span>
+                </span>
+                {options.length === 0 && <span className="rounded-full bg-white px-3 py-1.5 text-[13px] font-semibold">{ACCESS_LABEL[m.access].label}</span>}
+                {removable && (
+                  <button type="button" aria-label={`Remove ${callName(m)}`} disabled={busy === m.id} onClick={() => remove(m)} className="press grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink-soft disabled:opacity-40">
+                    <Icon name="trash" size={18} />
+                  </button>
+                )}
+              </div>
+              {options.length > 0 && (
+                <div role="radiogroup" aria-label={`${callName(m)}'s role`} className="no-scrollbar -mx-1 mt-2.5 flex gap-1.5 overflow-x-auto px-1">
+                  {options.map((a) => {
+                    const on = a === m.access;
+                    return (
+                      <button
+                        key={a}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        disabled={busy === m.id}
+                        onClick={() => pick(m, a)}
+                        className={cn("press h-9 shrink-0 rounded-full px-3 text-[13px] font-semibold disabled:opacity-40", on ? "bg-ink text-white" : "bg-white text-ink")}
+                      >
+                        {ACCESS_LABEL[a].label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
       <ul className="m-0 mt-3 list-none space-y-1 p-0 text-[13px] text-ink-soft">
-        {(["admin", "member", "child"] as const).map((a) => (
+        {ACCESS_ORDER.map((a) => (
           <li key={a}>
             <span className="font-semibold text-ink">{ACCESS_LABEL[a].label}</span> · {ACCESS_LABEL[a].note}
           </li>
@@ -450,6 +543,7 @@ export default function SettingsPage() {
 
       {tab === "family" && (
         <>
+      <WaitingToJoin onMessage={flash} />
       <Group title="Invite family" id="invite">
         {!can(viewer, "invite.create") ? (
           <p className="m-0 text-[15px] text-ink-soft">Ask a grown-up in the family to invite people.</p>
@@ -499,7 +593,7 @@ export default function SettingsPage() {
           <li>Demo mode: Meta&rsquo;s AI models process content to caption, transcribe and translate.</li>
         </ul>
         <LampToggle onMessage={flash} />
-        {viewer.access !== "child" && (
+        {isGrownUp(viewer) && (
           <div className="mt-4 overflow-hidden rounded-[22px] bg-surface">
             <a href="/api/export" download className="press flex w-full items-center justify-between px-4 py-4 text-left text-[16px] font-medium text-ink no-underline">
               <span>

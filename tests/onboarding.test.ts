@@ -34,7 +34,7 @@ describe("onboarding: whose window is this?", () => {
   it("create stores the creator's city; no welcome line for the creator", async () => {
     const me = await create();
     expect(me.welcome).toBeUndefined();
-    expect((await members(me.cookie))[0]).toMatchObject({ city: "Boston", tz: "America/New_York", access: "admin" });
+    expect((await members(me.cookie))[0]).toMatchObject({ city: "Boston", tz: "America/New_York", access: "owner" });
   });
 
   it("adds any people on the other side, no roles assumed, each with a city; they share one home", async () => {

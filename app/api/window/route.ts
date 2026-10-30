@@ -5,6 +5,7 @@ import { getDoc, putDoc } from "@/lib/family-docs";
 import { composeWindow, photoRefFor, windowState } from "@/lib/window-server";
 import { withDemoShelf } from "@/lib/demo";
 import { WALLS } from "@/lib/kinds";
+import { can } from "@/lib/permissions";
 
 // The window (LITE): your view into the other home. Each person sets their
 // own: a family photo, still or living. Muse composes the living motion.
@@ -57,6 +58,8 @@ export async function POST(req: Request): Promise<Response> {
   const people = People.safeParse(body);
   if (people.success) {
     const members = await dbListMembers(auth.familyId);
+    // Teens (and children) are never at someone's window.
+    if (people.data.people.some((id) => { const m = members.find((x) => x.id === id); return m && !can(m, "window.at"); })) return Response.json({ error: "not-at-window" }, { status: 403 });
     const ids = Array.from(new Set(people.data.people)).filter((id) => id !== auth.memberId && members.some((m) => m.id === id));
     return Response.json({ view: await putDoc(auth.familyId, "window_view", { ...base, people: ids, updatedAt: mine?.updatedAt ?? now }) });
   }

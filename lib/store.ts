@@ -15,6 +15,7 @@ import {
   SuggestionSchema,
   WishSchema,
   type AgentRun,
+  type Consent,
   type Card,
   type DailyRole,
   type GatherSession,
@@ -163,6 +164,7 @@ export interface MemberPatch {
   displayName?: string;
   role?: Member["role"];
   access?: Member["access"];
+  status?: Member["status"];
   tz?: string;
   city?: string;
   birthday?: string;
@@ -177,6 +179,7 @@ export function updateMemberProfile(memberId: string, patch: MemberPatch): Membe
   if (patch.displayName !== undefined) member.displayName = patch.displayName;
   if (patch.role !== undefined) member.role = patch.role;
   if (patch.access !== undefined) member.access = patch.access;
+  if (patch.status !== undefined) member.status = patch.status;
   if (patch.birthday !== undefined) member.birthday = patch.birthday;
   if (patch.email !== undefined) member.email = patch.email;
   if (patch.firstName !== undefined) member.firstName = patch.firstName;
@@ -235,6 +238,7 @@ export function resetDemo(): void {
   dailyRoles = [];
   gatherSessions = [];
   clearInvites();
+  consents = [];
   clearMovableCache();
   resetDocs();
   seedDemo();
@@ -342,6 +346,7 @@ export function removeMemberCompletely(memberId: string): boolean {
   const exists = members.some((m) => m.id === memberId);
   if (!exists) return false;
   members = members.filter((m) => m.id !== memberId);
+  consents = consents.filter((c) => c.memberId !== memberId);
   relationships = relationships.filter((r) => r.memberId !== memberId && r.relationMemberId !== memberId);
   plays = plays.filter((p) => p.memberId !== memberId);
   reactions = reactions.filter((r) => r.memberId !== memberId);
@@ -355,6 +360,8 @@ export interface Invite {
   code: string;
   familyId: string;
   expiresAt: string;
+  /** Who made the code: an owner/admin's invite lets people straight in. */
+  createdBy: string | null;
 }
 
 let invites: Invite[] = [];
@@ -363,14 +370,27 @@ export function listInvites(): Invite[] {
   return [...invites];
 }
 
-export function createInvite(code: string, expiresAt: string, familyId = "demo-family"): Invite {
-  const invite: Invite = { id: crypto.randomUUID(), code, familyId, expiresAt };
+export function createInvite(code: string, expiresAt: string, familyId = "demo-family", createdBy: string | null = null): Invite {
+  const invite: Invite = { id: crypto.randomUUID(), code, familyId, expiresAt, createdBy };
   invites.push(invite);
   return invite;
 }
 
 export function clearInvites(): void {
   invites = [];
+}
+
+// Consents (a parent letting their teen have an account). Mirrors the
+// consents table in supabase/schema.sql.
+let consents: Consent[] = [];
+
+export function addConsent(c: Consent): Consent {
+  consents.push(c);
+  return c;
+}
+
+export function listConsents(familyId: string): Consent[] {
+  return consents.filter((c) => c.familyId === familyId);
 }
 
 // Movable-date persistent cache: (slug, year) -> grounded ISO date + sources.

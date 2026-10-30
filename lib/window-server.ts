@@ -1,5 +1,6 @@
 // Server side of the window: who's on the other side, their sky, and the
 // motion Muse composes over the chosen photo. Server only.
+import { can } from "./permissions";
 import { z } from "zod";
 import { dbListCards, dbListMembers, dbListRelationships } from "./db";
 import { getDoc, listDocs } from "./family-docs";
@@ -62,7 +63,8 @@ export async function windowState(familyId: string, viewerId: string, now = new 
   const viewer = members.find((m) => m.id === viewerId);
   const farHome = viewer ? farHomeFor(viewer, members, relationships) : undefined;
   // Who's at your window: your choice (at most two), else the grown-ups on the other side.
-  const chosen = (view?.people ?? []).map((id) => members.find((m) => m.id === id && m.id !== viewerId)).filter((m): m is Member => Boolean(m)).slice(0, 2);
+  // Teens are never at a window, even if picked before they became one.
+  const chosen = (view?.people ?? []).map((id) => members.find((m) => m.id === id && m.id !== viewerId)).filter((m): m is Member => Boolean(m) && can(m, "window.at")).slice(0, 2);
   const home = chosen.length ? { id: `chosen-${chosen.map((m) => m.id).join("-")}`, members: chosen, tz: chosen[0].tz, elders: chosen.some((m) => m.role === "elder") } : farHome;
   const city = cityOf(home);
   const tz = home?.tz ?? viewer?.tz ?? "UTC";
