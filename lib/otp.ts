@@ -43,6 +43,23 @@ export async function verifyCode(email: string, code: string): Promise<boolean> 
   return !error;
 }
 
+/**
+ * Who signed in, from a Supabase Auth session token (Google, a magic link, or
+ * a phone code verified in the browser). The login identity is the verified
+ * email, or "tel:+<digits>" for phone sign-in. null when the token is invalid.
+ */
+export async function identityFromToken(accessToken: string): Promise<string | null> {
+  if (otpMode() !== "live") return null;
+  const sb = authClient();
+  if (!sb) return null;
+  const { data, error } = await sb.auth.getUser(accessToken);
+  if (error || !data.user) return null;
+  const u = data.user;
+  if (u.email && (u.email_confirmed_at || u.app_metadata?.provider === "google")) return u.email.trim().toLowerCase();
+  if (u.phone && u.phone_confirmed_at) return `tel:+${u.phone.replace(/\D/g, "")}`;
+  return null;
+}
+
 // Small in-process limiter for unauthenticated auth endpoints (per key).
 const hits = new Map<string, number[]>();
 export function allowAuthAttempt(key: string, max = 5, windowMs = 10 * 60_000, now = Date.now()): boolean {

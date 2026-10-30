@@ -9,6 +9,7 @@ import { postJson } from "@/lib/use-json";
 import { useDocumentLang, useT, type T } from "@/lib/use-t";
 import { en, htmlLang, type UiKey } from "@/lib/ui-strings";
 import { cn } from "@/lib/utils";
+import { AUTH_INTENT_KEY, browserAuth, callbackUrl, signInOptions } from "@/lib/supabase-browser";
 import { useShell } from "./shell";
 import { Button, Icon } from "./ui/kit";
 
@@ -66,7 +67,10 @@ export function AuthFlow({ mode }: { mode: Mode }) {
   const [month, setMonth] = useState("");
   const [day, setDay] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [byPhone, setByPhone] = useState(false);
   const [code, setCode] = useState("");
+  const ways = signInOptions();
   const [mock, setMock] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +82,9 @@ export function AuthFlow({ mode }: { mode: Mode }) {
     setChromeHidden(true);
     return () => setChromeHidden(false);
   }, [setChromeHidden]);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("resume") === "other-side") setStep("other-side");
+  }, []);
   useEffect(() => {
     if (step === "code") codeRef.current?.focus();
   }, [step]);
@@ -133,10 +140,23 @@ export function AuthFlow({ mode }: { mode: Mode }) {
 
   const detailsValid = (claimed || firstName.trim()) && (mode === "create" ? familyName.trim() && month && day : inviteCode.trim().length >= 4);
 
+  const phoneE164 = () => `+${phone.replace(/\D/g, "")}`;
   const sendCode = async () => {
     setBusy(true);
     setError(null);
     try {
+      const sb = browserAuth();
+      if (sb) {
+        // Live: Supabase sends the code (and, for email, a magic link back to /auth/callback).
+        saveIntent();
+        const { error: err } = byPhone
+          ? await sb.auth.signInWithOtp({ phone: phoneE164() })
+          : await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: callbackUrl(), shouldCreateUser: true } });
+        if (err) throw new Error(/rate/i.test(err.message) ? "too-many-attempts" : "code-not-sent");
+        setMock(false);
+        setStep("code");
+        return;
+      }
       const res = await fetch("/api/auth/start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email }) });
       const data = (await res.json()) as { error?: string; mock?: boolean };
       if (!res.ok) throw new Error(data.error ?? "code-not-sent");
@@ -145,6 +165,37 @@ export function AuthFlow({ mode }: { mode: Mode }) {
     } catch (e) {
       setError(errorText(t, (e as Error).message));
     } finally {
+      setBusy(false);
+    }
+  };
+
+  /** What we're signing in to do, kept across a redirect (Google, a magic link opened on this phone). */
+  const intentBody = () => {
+    const name = claimed ? claimed.callName : firstName.trim();
+    const intent =
+      mode === "signin"
+        ? { type: "signin" }
+        : mode === "create"
+          ? { type: "create", familyName: familyName.trim(), firstName: name, callName: callName.trim() || undefined }
+          : { type: "join", inviteCode: inviteCode.trim(), firstName: name, callName: claimed ? undefined : callName.trim() || undefined, claimMemberId: claimed?.id };
+    return { tz: Intl.DateTimeFormat().resolvedOptions().timeZone, birthday: month && day ? `${month}-${day}` : undefined, city: city.trim() || undefined, intent, mode };
+  };
+  const saveIntent = () => {
+    try {
+      sessionStorage.setItem(AUTH_INTENT_KEY, JSON.stringify(intentBody()));
+      localStorage.setItem(AUTH_INTENT_KEY, JSON.stringify(intentBody()));
+    } catch {
+      /* private mode: the callback falls back to sign-in */
+    }
+  };
+  const google = async () => {
+    const sb = browserAuth();
+    if (!sb) return;
+    setBusy(true);
+    saveIntent();
+    const { error: err } = await sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: callbackUrl() } });
+    if (err) {
+      setError(errorText(t, "code-not-sent"));
       setBusy(false);
     }
   };
@@ -164,26 +215,23 @@ export function AuthFlow({ mode }: { mode: Mode }) {
     if (value.length !== 6) return;
     setBusy(true);
     setError(null);
-    const name = claimed ? claimed.callName : firstName.trim();
-    const intent =
-      mode === "signin"
-        ? { type: "signin" }
-        : mode === "create"
-          ? { type: "create", familyName: familyName.trim(), firstName: name, callName: callName.trim() || undefined }
-          : { type: "join", inviteCode: inviteCode.trim(), firstName: name, callName: claimed ? undefined : callName.trim() || undefined, claimMemberId: claimed?.id };
+    const { mode: _m, ...base } = intentBody();
+    void _m;
     try {
+      let identity: Record<string, string> = { email, code: value };
+      const sb = browserAuth();
+      if (sb) {
+        const out = byPhone ? await sb.auth.verifyOtp({ phone: phoneE164(), token: value, type: "sms" }) : await sb.auth.verifyOtp({ email, token: value, type: "email" });
+        const token = out.data.session?.access_token;
+        if (out.error || !token) throw new Error("wrong-code");
+        identity = { accessToken: token };
+      }
       const res = await fetch("/api/auth/verify", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          email,
-          code: value,
-          tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          birthday: month && day ? `${month}-${day}` : undefined,
-          city: city.trim() || undefined,
-          intent,
-        }),
+        body: JSON.stringify({ ...identity, ...base }),
       });
+      if (sb) void sb.auth.signOut({ scope: "local" });
       const data = (await res.json()) as { error?: string; welcome?: string };
       if (!res.ok) throw new Error(data.error ?? "failed");
       if (data.welcome) {
@@ -311,16 +359,42 @@ export function AuthFlow({ mode }: { mode: Mode }) {
               {t("auth.emailSub")}
               {mode === "join" ? ` ${t("auth.emailSubJoin")}` : ""}
             </p>
-            <Field label={t("auth.email")}>
-              <input className={input} type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("auth.emailPh")} dir="ltr" autoFocus />
-            </Field>
+            {ways.google && (
+              <>
+                <button type="button" onClick={() => void google()} disabled={busy} className="press mt-6 flex h-14 w-full items-center justify-center gap-3 rounded-full border border-[var(--line)] bg-white text-[16px] font-semibold text-ink">
+                  <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
+                    <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.8 6C12.3 13.4 17.7 9.5 24 9.5z" />
+                    <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4 7.1-10 7.1-17.5z" />
+                    <path fill="#FBBC05" d="M10.4 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.2.8-4.7l-7.8-6C1 16.6 0 20.2 0 24s1 7.4 2.6 10.7l7.8-6z" />
+                    <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.3 0-11.7-3.9-13.6-9.5l-7.8 6C6.6 42.6 14.6 48 24 48z" />
+                  </svg>
+                  {t("auth.google")}
+                </button>
+                <p className="m-0 mt-4 text-center text-[13px] text-ink-soft">{t("auth.or")}</p>
+              </>
+            )}
+            {byPhone ? (
+              <Field label={t("auth.phone")}>
+                <input className={input} type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 98765 43210" dir="ltr" autoFocus />
+              </Field>
+            ) : (
+              <Field label={t("auth.email")}>
+                <input className={input} type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("auth.emailPh")} dir="ltr" autoFocus={!ways.google} />
+              </Field>
+            )}
+            {ways.phone && (
+              <button type="button" onClick={() => setByPhone((v) => !v)} className="mt-3 self-start text-[14px] font-medium text-ink-soft underline-offset-2 hover:underline">
+                {byPhone ? t("auth.useEmail") : t("auth.usePhone")}
+              </button>
+            )}
+            {ways.live && !byPhone && <p className="m-0 mt-2 text-[13px] text-ink-faint">{t("auth.magicLink")}</p>}
             {error && (
               <p className="m-0 mt-3 text-[14px] text-[#b42318]" role="alert">
                 {error}
               </p>
             )}
             <div className="flex-1" />
-            <Button type="submit" className="mt-8 w-full" disabled={busy || !/^\S+@\S+\.\S+$/.test(email)}>
+            <Button type="submit" className="mt-8 w-full" disabled={busy || (byPhone ? phone.replace(/\D/g, "").length < 8 : !/^\S+@\S+\.\S+$/.test(email))}>
               {busy ? t("auth.sending") : t("auth.sendCode")}
             </Button>
             {mode === "signin" && (
@@ -341,7 +415,7 @@ export function AuthFlow({ mode }: { mode: Mode }) {
         {step === "code" && (
           <div className="flex flex-1 flex-col">
             <p className="m-0 mt-2 text-[16px] text-ink-soft">
-              {t.rich("auth.codeSub", { email: <span className="font-semibold text-ink" dir="ltr">{email}</span> })}
+              {t.rich("auth.codeSub", { email: <span className="font-semibold text-ink" dir="ltr">{byPhone ? phone : email}</span> })}
             </p>
             {mock && <p className="m-0 mt-2 rounded-[16px] bg-surface px-4 py-2.5 text-[14px] text-ink-soft">{t("auth.codeMock")}</p>}
             <label className="mt-6 block">

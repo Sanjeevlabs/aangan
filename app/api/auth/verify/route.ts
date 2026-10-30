@@ -2,13 +2,16 @@ import { z } from "zod";
 import { sessionCookieHeader, signSession } from "@/lib/auth";
 import { dbAddMember, dbCreateFamily, dbFindMemberByEmail, dbGetMember, dbListInvites, dbListMembers, dbListSides, dbUpdateMemberProfile } from "@/lib/db";
 import type { Member } from "@/lib/schemas";
-import { allowAuthAttempt, verifyCode } from "@/lib/otp";
+import { allowAuthAttempt, identityFromToken, verifyCode } from "@/lib/otp";
 
 const Name = z.string().trim().min(1).max(40);
 const City = z.string().trim().max(60);
 const VerifySchema = z.object({
-  email: z.string().trim().toLowerCase().email().max(254),
-  code: z.string().trim().regex(/^\d{6}$/),
+  // Either an email + 6-digit code (mock and the server-sent code), or a
+  // Supabase Auth session token (Google, magic link, phone) verified here.
+  email: z.string().trim().toLowerCase().email().max(254).optional(),
+  code: z.string().trim().regex(/^\d{6}$/).optional(),
+  accessToken: z.string().min(20).max(4096).optional(),
   tz: z.string().max(64).default("UTC"),
   birthday: z.string().regex(/^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/).optional(),
   /** Where they live, in their words: the other home sees its sky. */
@@ -57,9 +60,20 @@ export async function POST(req: Request): Promise<Response> {
   }
   const parsed = VerifySchema.safeParse(body);
   if (!parsed.success) return Response.json({ error: "invalid-request" }, { status: 400 });
-  const { email, code, intent } = parsed.data;
-  if (!allowAuthAttempt(`verify:${email}`, 8)) return Response.json({ error: "too-many-attempts" }, { status: 429 });
-  if (!(await verifyCode(email, code))) return Response.json({ error: "wrong-code" }, { status: 401 });
+  const { intent } = parsed.data;
+  let email: string;
+  if (parsed.data.accessToken) {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+    if (!allowAuthAttempt(`token:${ip}`, 20)) return Response.json({ error: "too-many-attempts" }, { status: 429 });
+    const who = await identityFromToken(parsed.data.accessToken);
+    if (!who) return Response.json({ error: "wrong-code" }, { status: 401 });
+    email = who;
+  } else {
+    if (!parsed.data.email || !parsed.data.code) return Response.json({ error: "invalid-request" }, { status: 400 });
+    email = parsed.data.email;
+    if (!allowAuthAttempt(`verify:${email}`, 8)) return Response.json({ error: "too-many-attempts" }, { status: 429 });
+    if (!(await verifyCode(email, parsed.data.code))) return Response.json({ error: "wrong-code" }, { status: 401 });
+  }
 
   const existing = await dbFindMemberByEmail(email);
   let familyId: string;
