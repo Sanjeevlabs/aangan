@@ -40,7 +40,7 @@ export function Carousel({ children, label, className, slide = "86%" }: { childr
         <div className="mt-2.5 flex justify-center gap-1.5">
           {items.map((_, i) => (
             <button key={i} type="button" onClick={() => go(i)} aria-label={`Show ${i + 1} of ${items.length}`} className="grid h-4 w-4 place-items-center">
-              <span className={cn("block h-1.5 rounded-full transition-all", i === at ? "w-4 bg-ink" : "w-1.5 bg-ink/25")} />
+              <span className={cn("block h-1.5 rounded-full transition-all", i === at ? "w-4 bg-black/80" : "w-1.5 bg-black/20")} />
             </button>
           ))}
         </div>

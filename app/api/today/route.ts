@@ -5,7 +5,7 @@ import { getDoc, listDocs, putDoc } from "@/lib/family-docs";
 import { isComplete, sideOf, streak, viewFor } from "@/lib/today";
 import { ensureToday } from "@/lib/today-server";
 import { dbListMembers } from "@/lib/db";
-import { nextOccasion } from "@/lib/occasions-server";
+import { nextOccasionFor } from "@/lib/occasions-server";
 import { withDemoShelf } from "@/lib/demo";
 
 // Today: one task, both homes. Your answer is a voice note you recorded; the
@@ -16,7 +16,7 @@ export async function GET(req: Request): Promise<Response> {
   if (auth instanceof Response) return auth;
   if (!checkRateLimit(auth, "/api/today")) return Response.json({ error: "rate-limited" }, { status: 429 });
   const task = await ensureToday(auth.familyId);
-  const occasion = nextOccasion(await dbListMembers(auth.familyId));
+  const occasion = await nextOccasionFor(auth.familyId, await dbListMembers(auth.familyId));
   if (!task) return Response.json({ task: null, streak: 0, recent: [], occasion });
   const all = await listDocs(auth.familyId, "today_task");
   const recent = all.filter((t) => t.id !== task.id && t.completedAt).slice(0, 6).map((t) => viewFor(t, auth.memberId));

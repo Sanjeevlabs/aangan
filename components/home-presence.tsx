@@ -278,7 +278,7 @@ export function ShareYourDay() {
       <p className="m-0 text-[13px] text-ink-soft">{today.length ? `Shared today: ${today.map((p) => MOMENT_LABEL[p.moment].label).join(", ")}` : "The ordinary day is what they miss most."}</p>
       <div className="no-scrollbar -mx-5 mt-2.5 flex gap-2 overflow-x-auto px-5">
         {shareableFor(viewer.role).map((mo) => (
-          <button key={mo} type="button" onClick={() => void share(mo)} className={cn("press h-10 shrink-0 rounded-full px-4 text-[14px] font-semibold", sent === mo ? "bg-marigold text-black" : "bg-surface")}>
+          <button key={mo} type="button" onClick={() => void share(mo)} className={cn("press h-10 shrink-0 rounded-full px-4 text-[14px] font-semibold", sent === mo ? "bg-ink text-white" : "bg-surface")}>
             {MOMENT_LABEL[mo].label}
           </button>
         ))}
