@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { joinLink, whatsappInvite } from "@/lib/invite-link";
 import { resetFamilyCards } from "@/lib/use-family";
 import { postJson } from "@/lib/use-json";
+import { useDocumentLang, useT, type T } from "@/lib/use-t";
+import { en, htmlLang, type UiKey } from "@/lib/ui-strings";
 import { cn } from "@/lib/utils";
 import { useShell } from "./shell";
 import { Button, Icon } from "./ui/kit";
@@ -13,19 +15,22 @@ import { Button, Icon } from "./ui/kit";
 type Mode = "create" | "join" | "signin";
 type Step = "details" | "email" | "code" | "other-side" | "invite";
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** Month names in the viewer's language (Intl), never a hard-coded list. */
+function monthNames(lang: string): string[] {
+  let fmt: Intl.DateTimeFormat;
+  try {
+    fmt = new Intl.DateTimeFormat(lang, { month: "short", timeZone: "UTC" });
+  } catch {
+    fmt = new Intl.DateTimeFormat("en", { month: "short", timeZone: "UTC" });
+  }
+  return Array.from({ length: 12 }, (_, i) => fmt.format(new Date(Date.UTC(2000, i, 15))));
+}
 
-const ERRORS: Record<string, string> = {
-  "invalid-email": "That email doesn't look right.",
-  "too-many-codes": "Too many codes requested. Wait a few minutes, then try again.",
-  "code-not-sent": "We couldn't send the code. Try again in a moment.",
-  "wrong-code": "That code didn't match. Check the latest email and try again.",
-  "too-many-attempts": "Too many tries. Wait a few minutes, then request a new code.",
-  "no-family": "No family uses this email yet. Start one, or join with an invite code.",
-  "already-member": "This email already belongs to a family. Sign in instead.",
-  "invalid-invite": "That invite code isn't valid or has expired. Ask for a new one.",
-  "too-many-sides": "You're already in four families, the most Aangan allows.",
-};
+/** Server error code → a translated line (unknown codes read the generic one). */
+function errorText(t: T, code: string): string {
+  const key = `error.${code}`;
+  return key in en ? t(key as UiKey) : t("error.generic");
+}
 
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
@@ -47,6 +52,8 @@ interface Peek {
 
 export function AuthFlow({ mode }: { mode: Mode }) {
   const router = useRouter();
+  const t = useT();
+  useDocumentLang();
   const { setChromeHidden } = useShell();
   const [step, setStep] = useState<Step>(mode === "signin" ? "email" : "details");
   const [familyName, setFamilyName] = useState("");
@@ -102,22 +109,27 @@ export function AuthFlow({ mode }: { mode: Mode }) {
   }, [mode, inviteCode]);
 
   const claimed = peek?.places.find((p) => p.id === claim);
+  const months = monthNames(htmlLang(t.lang));
   const title =
     step === "other-side"
-      ? "Whose window is this?"
+      ? t("auth.titleOtherSide")
       : step === "invite"
-        ? `Invite ${farNames.length ? farNames.join(" & ") : "them"}`
+        ? farNames.length
+          ? t("auth.titleInvite", { names: farNames.join(t("auth.namesJoin")) })
+          : t("auth.titleInviteThem")
         : step === "email"
           ? mode === "signin"
-            ? "Welcome back"
-            : "Your email"
+            ? t("auth.titleWelcomeBack")
+            : t("auth.titleEmail")
           : step === "code"
-            ? "Check your email"
+            ? t("auth.titleCheck")
             : mode === "create"
-              ? "Open your window"
+              ? t("auth.titleCreate")
               : peek
-                ? `Join ${peek.host ? `${peek.host}'s` : `the ${peek.family}`} window`
-                : "Join your family";
+                ? peek.host
+                  ? t("auth.titleJoinHost", { host: peek.host })
+                  : t("auth.titleJoinFamily", { family: peek.family })
+                : t("auth.titleJoin");
 
   const detailsValid = (claimed || firstName.trim()) && (mode === "create" ? familyName.trim() && month && day : inviteCode.trim().length >= 4);
 
@@ -131,7 +143,7 @@ export function AuthFlow({ mode }: { mode: Mode }) {
       setMock(Boolean(data.mock));
       setStep("code");
     } catch (e) {
-      setError(ERRORS[(e as Error).message] ?? "Something went wrong. Try again.");
+      setError(errorText(t, (e as Error).message));
     } finally {
       setBusy(false);
     }
@@ -190,7 +202,7 @@ export function AuthFlow({ mode }: { mode: Mode }) {
       enter();
     } catch (e) {
       const key = (e as Error).message;
-      setError(ERRORS[key] ?? "Something went wrong. Try again.");
+      setError(errorText(t, key));
       if (key === "wrong-code") setCode("");
       setBusy(false);
     }
@@ -207,8 +219,8 @@ export function AuthFlow({ mode }: { mode: Mode }) {
   return (
     <div className="fixed inset-0 z-30 overflow-y-auto bg-white">
       <div className="mx-auto flex min-h-full max-w-[480px] flex-col px-5" style={{ paddingTop: "calc(16px + env(safe-area-inset-top))", paddingBottom: "calc(24px + env(safe-area-inset-bottom))" }}>
-        <button type="button" onClick={back} aria-label={step === "other-side" || step === "invite" ? "Skip for now" : "Back"} className="press -ml-2 grid h-11 w-11 place-items-center rounded-full">
-          <Icon name={step === "other-side" || step === "invite" ? "close" : "back"} />
+        <button type="button" onClick={back} aria-label={step === "other-side" || step === "invite" ? t("auth.skip") : t("auth.back")} className="press -ms-2 grid h-11 w-11 place-items-center rounded-full">
+          <Icon name={step === "other-side" || step === "invite" ? "close" : "back"} className="rtl:-scale-x-100" />
         </button>
         <h1 className="m-0 mt-4 text-[32px] leading-[1.08]">{title}</h1>
 
@@ -220,57 +232,57 @@ export function AuthFlow({ mode }: { mode: Mode }) {
               if (detailsValid) setStep("email");
             }}
           >
-            <p className="m-0 mt-2 text-[16px] text-ink-soft">{mode === "create" ? "A window into your parents' home, and theirs into yours." : "Use the code your family sent you."}</p>
+            <p className="m-0 mt-2 text-[16px] text-ink-soft">{mode === "create" ? t("landing.sub") : t("auth.joinSub")}</p>
             {mode === "create" ? (
-              <Field label="Family name">
-                <input className={input} value={familyName} onChange={(e) => setFamilyName(e.target.value)} placeholder="Sharma" maxLength={40} autoFocus />
+              <Field label={t("auth.familyName")}>
+                <input className={input} value={familyName} onChange={(e) => setFamilyName(e.target.value)} placeholder={t("auth.familyNamePh")} maxLength={40} autoFocus />
               </Field>
             ) : (
-              <Field label="Invite code">
+              <Field label={t("auth.inviteCode")}>
                 <input className={`${input} tnum uppercase tracking-[0.12em]`} value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} placeholder="ABC123" maxLength={64} autoCapitalize="characters" autoFocus={!inviteCode} />
               </Field>
             )}
             {mode === "join" && peek && peek.places.length > 0 && (
               <div className="mt-4">
-                <span className="mb-1.5 block text-[13px] font-medium text-ink-soft">Which one is you?</span>
-                <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5" role="radiogroup" aria-label="Which one is you?">
+                <span className="mb-1.5 block text-[13px] font-medium text-ink-soft">{t("auth.whichYou")}</span>
+                <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5" role="radiogroup" aria-label={t("auth.whichYou")}>
                   {peek.places.map((p) => (
                     <button key={p.id} type="button" role="radio" aria-checked={claim === p.id} onClick={() => setClaim(claim === p.id ? null : p.id)} className={cn("press h-11 shrink-0 rounded-full px-5 text-[15px] font-semibold", claim === p.id ? "bg-ink text-white" : "bg-surface")}>
-                      I&rsquo;m {p.callName}
+                      {t("auth.imName", { name: p.callName })}
                     </button>
                   ))}
                   <button type="button" role="radio" aria-checked={claim === null} onClick={() => setClaim(null)} className={cn("press h-11 shrink-0 rounded-full px-5 text-[15px] font-medium", claim === null ? "bg-ink text-white" : "bg-surface")}>
-                    Someone else
+                    {t("auth.someoneElse")}
                   </button>
                 </div>
               </div>
             )}
             {!claimed && (
               <>
-                <Field label="Your first name">
-                  <input className={input} value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Arjun" maxLength={40} autoComplete="given-name" />
+                <Field label={t("auth.firstName")}>
+                  <input className={input} value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder={t("auth.firstNamePh")} maxLength={40} autoComplete="given-name" />
                 </Field>
-                <Field label="What the family calls you" hint="Leave empty to use your name.">
-                  <input className={input} value={callName} onChange={(e) => setCallName(e.target.value)} placeholder="Beta, Didi, Maa…" maxLength={40} />
+                <Field label={t("auth.callName")} hint={t("auth.callNameHint")}>
+                  <input className={input} value={callName} onChange={(e) => setCallName(e.target.value)} placeholder={t("auth.callNamePh")} maxLength={40} />
                 </Field>
               </>
             )}
-            <Field label="Your city" hint="The other home sees your sky and the time there.">
-              <input className={input} value={city} onChange={(e) => setCity(e.target.value)} placeholder="Bengaluru" maxLength={60} autoComplete="address-level2" />
+            <Field label={t("auth.city")} hint={t("auth.cityHint")}>
+              <input className={input} value={city} onChange={(e) => setCity(e.target.value)} placeholder={t("auth.cityPh")} maxLength={60} autoComplete="address-level2" />
             </Field>
             {mode === "create" && (
-              <Field label="Your birthday" hint="We never ask for the year.">
+              <Field label={t("auth.birthday")} hint={t("auth.birthdayHint")}>
                 <div className="flex gap-2">
-                  <select className={`${input} appearance-none`} value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Birthday month">
-                    <option value="">Month</option>
-                    {MONTHS.map((m, i) => (
+                  <select className={`${input} appearance-none`} value={month} onChange={(e) => setMonth(e.target.value)} aria-label={t("auth.birthdayMonth")}>
+                    <option value="">{t("auth.month")}</option>
+                    {months.map((m, i) => (
                       <option key={m} value={String(i + 1).padStart(2, "0")}>
                         {m}
                       </option>
                     ))}
                   </select>
-                  <select className={`${input} w-[120px] appearance-none`} value={day} onChange={(e) => setDay(e.target.value)} aria-label="Birthday day">
-                    <option value="">Day</option>
+                  <select className={`${input} w-[120px] appearance-none`} value={day} onChange={(e) => setDay(e.target.value)} aria-label={t("auth.birthdayDay")}>
+                    <option value="">{t("auth.day")}</option>
                     {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, "0")).map((d) => (
                       <option key={d} value={d}>
                         {Number(d)}
@@ -282,7 +294,7 @@ export function AuthFlow({ mode }: { mode: Mode }) {
             )}
             <div className="flex-1" />
             <Button type="submit" className="mt-8 w-full" disabled={!detailsValid}>
-              Continue
+              {t("auth.continue")}
             </Button>
           </form>
         )}
@@ -296,11 +308,11 @@ export function AuthFlow({ mode }: { mode: Mode }) {
             }}
           >
             <p className="m-0 mt-2 text-[16px] text-ink-soft">
-              We&rsquo;ll email you a 6-digit code. No password.
-              {mode === "join" ? " Already in another family? Use the same email: you'll be in both." : ""}
+              {t("auth.emailSub")}
+              {mode === "join" ? ` ${t("auth.emailSubJoin")}` : ""}
             </p>
-            <Field label="Email">
-              <input className={input} type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoFocus />
+            <Field label={t("auth.email")}>
+              <input className={input} type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("auth.emailPh")} dir="ltr" autoFocus />
             </Field>
             {error && (
               <p className="m-0 mt-3 text-[14px] text-[#b42318]" role="alert">
@@ -309,17 +321,17 @@ export function AuthFlow({ mode }: { mode: Mode }) {
             )}
             <div className="flex-1" />
             <Button type="submit" className="mt-8 w-full" disabled={busy || !/^\S+@\S+\.\S+$/.test(email)}>
-              {busy ? "Sending…" : "Send code"}
+              {busy ? t("auth.sending") : t("auth.sendCode")}
             </Button>
             {mode === "signin" && (
               <p className="m-0 mt-4 text-center text-[15px] text-ink-soft">
-                New here?{" "}
+                {t("auth.newHere")}{" "}
                 <Link href="/create" className="font-semibold text-ink">
-                  Create
-                </Link>{" "}
-                or{" "}
+                  {t("landing.create")}
+                </Link>
+                {" · "}
                 <Link href="/join" className="font-semibold text-ink">
-                  join with a code
+                  {t("landing.join")}
                 </Link>
               </p>
             )}
@@ -329,15 +341,16 @@ export function AuthFlow({ mode }: { mode: Mode }) {
         {step === "code" && (
           <div className="flex flex-1 flex-col">
             <p className="m-0 mt-2 text-[16px] text-ink-soft">
-              Enter the code we sent to <span className="font-semibold text-ink">{email}</span>.
+              {t.rich("auth.codeSub", { email: <span className="font-semibold text-ink" dir="ltr">{email}</span> })}
             </p>
-            {mock && <p className="m-0 mt-2 rounded-[16px] bg-surface px-4 py-2.5 text-[14px] text-ink-soft">Demo mode: no email is sent. Use 000000.</p>}
+            {mock && <p className="m-0 mt-2 rounded-[16px] bg-surface px-4 py-2.5 text-[14px] text-ink-soft">{t("auth.codeMock")}</p>}
             <label className="mt-6 block">
-              <span className="sr-only">6-digit code</span>
+              <span className="sr-only">{t("auth.codeLabel")}</span>
               <input
                 ref={codeRef}
                 value={code}
                 inputMode="numeric"
+                dir="ltr"
                 autoComplete="one-time-code"
                 maxLength={6}
                 onChange={(e) => {
@@ -355,11 +368,11 @@ export function AuthFlow({ mode }: { mode: Mode }) {
               </p>
             )}
             <button type="button" onClick={() => void sendCode()} disabled={busy} className="mt-3 h-11 self-center text-[15px] font-medium text-ink-soft">
-              Send a new code
+              {t("auth.resend")}
             </button>
             <div className="flex-1" />
             <Button className="mt-8 w-full" disabled={busy || code.length !== 6} onClick={() => void verify()}>
-              {busy ? "Checking…" : mode === "create" ? "Open our window" : mode === "join" ? "Join" : "Sign in"}
+              {busy ? t("auth.checking") : mode === "create" ? t("auth.openOurs") : mode === "join" ? t("auth.joinCta") : t("landing.signin")}
             </Button>
           </div>
         )}
@@ -383,14 +396,15 @@ export function AuthFlow({ mode }: { mode: Mode }) {
 }
 
 type They = "parents" | "children" | "other";
-const THEY: { id: They; label: string }[] = [
-  { id: "parents", label: "My parents" },
-  { id: "children", label: "My children" },
-  { id: "other", label: "Other family" },
+const THEY: { id: They; label: UiKey }[] = [
+  { id: "parents", label: "other.parents" },
+  { id: "children", label: "other.children" },
+  { id: "other", label: "other.other" },
 ];
 
 /** Add the home on the other side: 1–n people, any roles, each with a call name and city. */
 function OtherSide({ onDone, onSkip }: { onDone: (names: string[]) => Promise<void>; onSkip: () => void }) {
+  const t = useT();
   const [they, setThey] = useState<They>("parents");
   const [people, setPeople] = useState<{ callName: string; city: string }[]>([{ callName: "", city: "" }]);
   const [busy, setBusy] = useState(false);
@@ -410,17 +424,17 @@ function OtherSide({ onDone, onSkip }: { onDone: (names: string[]) => Promise<vo
         const out = await postJson<{ members: { displayName: string }[] }>("/api/members/other-side", { they, people: ready.map((p) => ({ callName: p.callName.trim(), city: p.city.trim() || shared })) });
         if (!out) {
           setBusy(false);
-          setError("Couldn't add them. Check the names and try again.");
+          setError(t("other.error"));
           return;
         }
         await onDone(out.members.map((m) => m.displayName));
       }}
     >
-      <p className="m-0 mt-2 text-[16px] text-ink-soft">Who&rsquo;s in the home on the other side? Add them by the name you call them.</p>
-      <div className="mt-4 flex gap-2" role="radiogroup" aria-label="They are">
-        {THEY.map((t) => (
-          <button key={t.id} type="button" role="radio" aria-checked={they === t.id} onClick={() => setThey(t.id)} className={cn("press h-10 flex-1 rounded-full text-[14px] font-medium", they === t.id ? "bg-ink text-white" : "bg-surface")}>
-            {t.label}
+      <p className="m-0 mt-2 text-[16px] text-ink-soft">{t("other.sub")}</p>
+      <div className="mt-4 flex gap-2" role="radiogroup" aria-label={t("other.theyAre")}>
+        {THEY.map((o) => (
+          <button key={o.id} type="button" role="radio" aria-checked={they === o.id} onClick={() => setThey(o.id)} className={cn("press min-h-10 flex-1 rounded-full px-2 py-1.5 text-[14px] font-medium leading-tight", they === o.id ? "bg-ink text-white" : "bg-surface")}>
+            {t(o.label)}
           </button>
         ))}
       </div>
@@ -428,15 +442,15 @@ function OtherSide({ onDone, onSkip }: { onDone: (names: string[]) => Promise<vo
         {people.map((p, i) => (
           <li key={i} className="flex items-end gap-2">
             <div className="grid min-w-0 flex-1 grid-cols-2 gap-2">
-              <Field label={i === 0 ? "They're called" : "And"}>
-                <input className={input} value={p.callName} onChange={(e) => set(i, { callName: e.target.value.slice(0, 40) })} placeholder={they === "children" ? "Arjun" : i === 0 ? "Maa" : "Papa"} aria-label={`Person ${i + 1} name`} />
+              <Field label={i === 0 ? t("other.calledFirst") : t("other.calledMore")}>
+                <input className={input} value={p.callName} onChange={(e) => set(i, { callName: e.target.value.slice(0, 40) })} placeholder={they === "children" ? t("other.childPh") : i === 0 ? t("other.parentPh1") : t("other.parentPh2")} aria-label={t("other.personName", { n: i + 1 })} />
               </Field>
-              <Field label={i === 0 ? "City" : " "}>
-                <input className={input} value={p.city} onChange={(e) => set(i, { city: e.target.value.slice(0, 60) })} placeholder={i === 0 ? "Kanpur" : "Same city"} aria-label={`Person ${i + 1} city`} />
+              <Field label={i === 0 ? t("other.city") : " "}>
+                <input className={input} value={p.city} onChange={(e) => set(i, { city: e.target.value.slice(0, 60) })} placeholder={i === 0 ? t("other.cityPh") : t("other.sameCity")} aria-label={t("other.personCity", { n: i + 1 })} />
               </Field>
             </div>
             {people.length > 1 && (
-              <button type="button" aria-label={`Remove person ${i + 1}`} onClick={() => setPeople((ps) => ps.filter((_, n) => n !== i))} className="press mb-1 grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink-soft">
+              <button type="button" aria-label={t("other.remove", { n: i + 1 })} onClick={() => setPeople((ps) => ps.filter((_, n) => n !== i))} className="press mb-1 grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink-soft">
                 <Icon name="close" size={18} />
               </button>
             )}
@@ -446,7 +460,7 @@ function OtherSide({ onDone, onSkip }: { onDone: (names: string[]) => Promise<vo
       {people.length < 6 && (
         <button type="button" onClick={() => setPeople((ps) => [...ps, { callName: "", city: "" }])} className="press mt-3 flex h-11 items-center justify-center gap-2 self-start rounded-full bg-surface px-4 text-[15px] font-medium">
           <Icon name="plus" size={18} />
-          Add someone
+          {t("other.add")}
         </button>
       )}
       {error && (
@@ -456,10 +470,10 @@ function OtherSide({ onDone, onSkip }: { onDone: (names: string[]) => Promise<vo
       )}
       <div className="flex-1" />
       <Button type="submit" className="mt-8 w-full" disabled={busy || ready.length === 0}>
-        {busy ? "Adding…" : "Continue"}
+        {busy ? t("other.adding") : t("auth.continue")}
       </Button>
       <Button variant="quiet" className="mt-1 w-full" onClick={onSkip}>
-        Later
+        {t("other.later")}
       </Button>
     </form>
   );
@@ -469,27 +483,28 @@ function OtherSide({ onDone, onSkip }: { onDone: (names: string[]) => Promise<vo
 function InviteStep({ code, names, from, onDone }: { code: string | null; names: string[]; from: string; onDone: () => void }) {
   const [origin, setOrigin] = useState("");
   const [copied, setCopied] = useState(false);
+  const t = useT();
   useEffect(() => setOrigin(window.location.origin), []);
   if (!code) {
     return (
       <div className="flex flex-1 flex-col">
-        <p className="m-0 mt-2 text-[16px] text-ink-soft">We couldn&rsquo;t make an invite just now. You can send one later from the window.</p>
+        <p className="m-0 mt-2 text-[16px] text-ink-soft">{t("invite.failed")}</p>
         <div className="flex-1" />
         <Button className="mt-8 w-full" onClick={onDone}>
-          Open the window
+          {t("invite.openWindow")}
         </Button>
       </div>
     );
   }
   return (
     <div className="flex flex-1 flex-col">
-      <p className="m-0 mt-2 text-[16px] text-ink-soft">Send them the link. They tap it, pick their name, and their window opens onto yours.</p>
-      <p className="tnum m-0 mt-6 rounded-[22px] bg-surface py-4 text-center text-[28px] font-bold tracking-[0.12em]">{code}</p>
-      <p className="m-0 mt-2 text-center text-[13px] text-ink-faint">Works for 7 days</p>
+      <p className="m-0 mt-2 text-[16px] text-ink-soft">{t("invite.sub")}</p>
+      <p dir="ltr" className="tnum m-0 mt-6 rounded-[22px] bg-surface py-4 text-center text-[28px] font-bold tracking-[0.12em]">{code}</p>
+      <p className="m-0 mt-2 text-center text-[13px] text-ink-faint">{t("invite.valid")}</p>
       <div className="flex-1" />
       <a href={whatsappInvite(origin, code, from || undefined)} target="_blank" rel="noopener noreferrer" className="press mt-8 flex h-[52px] items-center justify-center gap-2 rounded-full bg-black text-[16px] font-semibold text-white no-underline">
         <Icon name="whatsapp" size={20} />
-        Send on WhatsApp
+        {t("invite.whatsapp")}
       </a>
       <button
         type="button"
@@ -504,10 +519,10 @@ function InviteStep({ code, names, from, onDone }: { code: string | null; names:
         className="press mt-2 flex h-11 items-center justify-center gap-2 rounded-full text-[15px] font-medium text-ink-soft"
       >
         <Icon name={copied ? "check" : "share"} size={18} />
-        {copied ? "Link copied" : "Copy the link"}
+        {copied ? t("invite.copied") : t("invite.copy")}
       </button>
       <Button variant="secondary" className="mt-2 w-full" onClick={onDone}>
-        {names.length ? "Open my window" : "Done"}
+        {names.length ? t("invite.openMine") : t("invite.done")}
       </Button>
     </div>
   );

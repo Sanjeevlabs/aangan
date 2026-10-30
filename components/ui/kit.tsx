@@ -74,6 +74,13 @@ const ICONS = {
   up: L.ChevronUp,
   assign: L.UserPlus,
   contacts: L.Contact,
+  gift: L.Gift,
+  basket: L.ShoppingBasket,
+  store: L.Store,
+  external: L.ExternalLink,
+  plug: L.Plug,
+  wrench: L.Wrench,
+  utensils: L.UtensilsCrossed,
 } satisfies Record<string, L.LucideIcon>;
 
 export type IconName = keyof typeof ICONS;
@@ -256,8 +263,9 @@ export function RoomHeader({ title, subtitle, action }: { title: string; subtitl
         </button>
         {action}
       </div>
-      <h1 className="m-0 text-[32px] leading-[1.05]">{title}</h1>
-      {subtitle && <p className="m-0 mt-1.5 text-[15px] text-ink-soft">{subtitle}</p>}
+      <h1 className="m-0 text-[30px] font-light leading-[1.05] tracking-[-0.01em]">{title}</h1>
+      {/* Subtitles stay in the code for screen readers only: the page says it, the header doesn't repeat it. */}
+      {subtitle && <p className="sr-only">{subtitle}</p>}
       <SpaceTabs />
     </header>
   );

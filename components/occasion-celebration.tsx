@@ -164,9 +164,9 @@ export function OccasionCelebration({
             </>
           )}
           {beads.length > 0 && (
-            <button type="button" onClick={() => setGarland(true)} aria-label="Play the garland of wishes" className={`press flex h-11 items-center justify-center gap-2 rounded-full bg-white/20 px-4 text-[15px] font-semibold text-white ${mine || iWished ? "flex-1" : ""}`}>
+            <button type="button" onClick={() => setGarland(true)} aria-label="Play the Chorus: everyone’s wishes" className={`press flex h-11 items-center justify-center gap-2 rounded-full bg-white/20 px-4 text-[15px] font-semibold text-white ${mine || iWished ? "flex-1" : ""}`}>
               <Icon name="play" size={16} />
-              {mine || iWished ? "Play the garland" : null}
+              {mine || iWished ? "Play the Chorus" : null}
             </button>
           )}
         </div>

@@ -13,10 +13,13 @@ import { withDemoShelf } from "@/lib/demo";
 export async function GET(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
-  const [stored, tasks] = await Promise.all([dbListCards(auth.familyId), listDocs(auth.familyId, "today_task")]);
+  const [stored, tasks, letters] = await Promise.all([dbListCards(auth.familyId), listDocs(auth.familyId, "today_task"), listDocs(auth.familyId, "chitthi")]);
   const cards = withDemoShelf(stored, auth.familyId);
   // Today's answers from the other home stay sealed until you add yours.
   const sealed = sealedCardIds(tasks, auth.memberId);
+  // Morning letters stay in the envelope until their morning (the author can always see theirs).
+  const now = Date.now();
+  for (const l of letters) if (l.authorId !== auth.memberId && Date.parse(l.deliverAt) > now) sealed.add(l.id);
   return Response.json({ familyId: auth.familyId, cards: sealed.size ? cards.filter((c) => !sealed.has(c.id)) : cards });
 }
 

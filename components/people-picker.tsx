@@ -3,6 +3,7 @@
 import { AnimatePresence, m } from "framer-motion";
 import { callName, memberPhoto } from "@/lib/people";
 import type { Member } from "@/lib/schemas";
+import { useT } from "@/lib/use-t";
 import { cn } from "@/lib/utils";
 import { Avatar, Icon } from "./ui/kit";
 
@@ -14,7 +15,7 @@ export function PeoplePicker({
   open,
   title,
   people,
-  everyoneLabel = "Everyone",
+  everyoneLabel,
   status,
   onPick,
   onClose,
@@ -28,11 +29,12 @@ export function PeoplePicker({
   onPick: (ids: string[]) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   return (
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center" role="dialog" aria-modal="true" aria-label={title}>
-          <m.button type="button" aria-label="Close" className="absolute inset-0 bg-black/40" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
+          <m.button type="button" aria-label={t("picker.close")} className="absolute inset-0 bg-black/40" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
           <m.div
             className="frost relative w-full max-w-[480px] rounded-t-[32px] px-4 pt-3 text-ink"
             style={{ paddingBottom: "calc(16px + env(safe-area-inset-bottom))" }}
@@ -46,7 +48,7 @@ export function PeoplePicker({
             <ul className="m-0 list-none overflow-hidden rounded-[22px] bg-white/90 p-0 ring-1 ring-black/[.05]">
               {people.length > 1 && (
                 <li>
-                  <button type="button" onClick={() => onPick(people.map((p) => p.id))} className="press flex w-full items-center gap-3.5 px-3.5 py-3 text-left">
+                  <button type="button" onClick={() => onPick(people.map((p) => p.id))} className="press flex w-full items-center gap-3.5 px-3.5 py-3 text-start">
                     <span className="flex -space-x-3">
                       {people.slice(0, 3).map((p) => (
                         <span key={p.id} className="rounded-full ring-2 ring-white">
@@ -54,8 +56,8 @@ export function PeoplePicker({
                         </span>
                       ))}
                     </span>
-                    <span className="flex-1 text-[16px] font-semibold">{everyoneLabel}</span>
-                    <Icon name="chevron" size={16} className="text-ink-faint" />
+                    <span className="flex-1 text-[16px] font-semibold">{everyoneLabel ?? t("picker.everyone")}</span>
+                    <Icon name="chevron" size={16} className="text-ink-faint rtl:-scale-x-100" />
                   </button>
                 </li>
               )}
@@ -63,7 +65,7 @@ export function PeoplePicker({
                 const st = status?.(p);
                 return (
                   <li key={p.id} className={cn((people.length > 1 || i) && "border-t border-[var(--line)]")}>
-                    <button type="button" onClick={() => onPick([p.id])} className="press flex w-full items-center gap-3.5 px-3.5 py-3 text-left">
+                    <button type="button" onClick={() => onPick([p.id])} className="press flex w-full items-center gap-3.5 px-3.5 py-3 text-start">
                       <span className="relative">
                         <Avatar src={memberPhoto(p)} name={callName(p)} size={40} />
                         {st?.dot && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full ring-2 ring-white" style={{ background: st.dot }} />}
@@ -72,7 +74,7 @@ export function PeoplePicker({
                         <span className="block text-[16px] font-semibold leading-tight">{callName(p)}</span>
                         {st?.text && <span className="block truncate text-[13px] text-ink-soft">{st.text}</span>}
                       </span>
-                      <Icon name="chevron" size={16} className="text-ink-faint" />
+                      <Icon name="chevron" size={16} className="text-ink-faint rtl:-scale-x-100" />
                     </button>
                   </li>
                 );

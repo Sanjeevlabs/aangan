@@ -1,0 +1,81 @@
+import { z } from "zod";
+import { requireSession } from "@/lib/auth";
+import { dbListCards, dbListMembers, dbListRelationships } from "@/lib/db";
+import { withDemoShelf } from "@/lib/demo";
+import { getDoc, listDocs, putDoc } from "@/lib/family-docs";
+import { households } from "@/lib/households";
+import { BEAT_TTL_MS, glowFrom, lastContact, pendingBeats } from "@/lib/lamp";
+
+// The light in the window (SPEC §30.1, §30.4). One lamp per home.
+// GET: every home's lamp + heartbeats waiting for you.
+// POST light: light your home's lamp. beat: send a heartbeat to another home
+// (played on their next open). felt: you've felt the waiting heartbeats.
+
+const Body = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("light") }),
+  z.object({ action: z.literal("beat"), toMemberId: z.string().min(1).max(64) }),
+  z.object({ action: z.literal("felt") }),
+]);
+
+async function homesOf(familyId: string) {
+  const [members, relationships] = await Promise.all([dbListMembers(familyId), dbListRelationships(familyId)]);
+  return { members, homes: households(members, relationships) };
+}
+
+export async function GET(req: Request): Promise<Response> {
+  const auth = await requireSession(req);
+  if (auth instanceof Response) return auth;
+  const [{ members, homes }, lamps, stored] = await Promise.all([homesOf(auth.familyId), listDocs(auth.familyId, "lamp"), dbListCards(auth.familyId)]);
+  const cards = withDemoShelf(stored, auth.familyId);
+  const hidden = new Set((await listDocs(auth.familyId, "care_settings")).filter((s) => s.shareVisits === false && s.memberId !== auth.memberId).map((s) => s.memberId));
+  const now = Date.now();
+  const mine = homes.find((h) => h.members.some((m) => m.id === auth.memberId));
+  const myLamp = lamps.find((l) => l.id === mine?.id);
+  return Response.json({
+    lamps: homes.map((h) => {
+      const lamp = lamps.find((l) => l.id === h.id);
+      const ids = h.members.map((m) => m.id).filter((id) => !hidden.has(id));
+      const c = lastContact(lamp && lamp.litBy && hidden.has(lamp.litBy) ? undefined : lamp, ids, cards, now);
+      return { homeKey: h.id, memberIds: h.members.map((m) => m.id), litAt: c.at, litBy: c.by, glow: glowFrom(c.at, now) };
+    }),
+    beats: pendingBeats(myLamp, auth.memberId, now).filter((b) => members.some((m) => m.id === b.from)),
+  });
+}
+
+export async function POST(req: Request): Promise<Response> {
+  const auth = await requireSession(req);
+  if (auth instanceof Response) return auth;
+  const parsed = Body.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return Response.json({ error: "invalid-lamp" }, { status: 400 });
+  const { homes } = await homesOf(auth.familyId);
+  const nowIso = new Date().toISOString();
+  const mine = homes.find((h) => h.members.some((m) => m.id === auth.memberId));
+  if (!mine) return Response.json({ error: "no-home" }, { status: 404 });
+  const blank = (id: string) => ({ id, litAt: null, litBy: null, beats: [], felt: {}, updatedAt: nowIso });
+
+  if (parsed.data.action === "light") {
+    const lamp = (await getDoc(auth.familyId, "lamp", mine.id)) ?? blank(mine.id);
+    const saved = await putDoc(auth.familyId, "lamp", { ...lamp, litAt: nowIso, litBy: auth.memberId, updatedAt: nowIso });
+    return Response.json({ lamp: { homeKey: mine.id, litAt: saved.litAt, litBy: saved.litBy, glow: 1 } });
+  }
+
+  if (parsed.data.action === "beat") {
+    const to = homes.find((h) => h.members.some((m) => m.id === (parsed.data as { toMemberId: string }).toMemberId));
+    if (!to) return Response.json({ error: "unknown-member" }, { status: 404 });
+    if (to.id === mine.id) return Response.json({ error: "same-home" }, { status: 400 });
+    const lamp = (await getDoc(auth.familyId, "lamp", to.id)) ?? blank(to.id);
+    const now = Date.now();
+    // Keep it gentle: at most one heartbeat a minute from the same person.
+    if (lamp.beats.some((b) => b.from === auth.memberId && now - Date.parse(b.at) < 60_000)) return Response.json({ ok: true, throttled: true });
+    const beats = [...lamp.beats.filter((b) => now - Date.parse(b.at) < BEAT_TTL_MS), { from: auth.memberId, at: nowIso }].slice(-20);
+    await putDoc(auth.familyId, "lamp", { ...lamp, beats, updatedAt: nowIso });
+    // Sending one also lights your own lamp.
+    const own = (await getDoc(auth.familyId, "lamp", mine.id)) ?? blank(mine.id);
+    await putDoc(auth.familyId, "lamp", { ...own, litAt: nowIso, litBy: auth.memberId, updatedAt: nowIso });
+    return Response.json({ ok: true });
+  }
+
+  const lamp = (await getDoc(auth.familyId, "lamp", mine.id)) ?? blank(mine.id);
+  await putDoc(auth.familyId, "lamp", { ...lamp, felt: { ...lamp.felt, [auth.memberId]: nowIso }, updatedAt: nowIso });
+  return Response.json({ ok: true });
+}

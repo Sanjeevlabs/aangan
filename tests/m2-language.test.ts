@@ -120,7 +120,7 @@ describe("major languages", () => {
   it("every registered language has a native label and validates as a display language", async () => {
     const { LANGUAGES } = await import("@/lib/languages");
     const { DisplayLangSchema } = await import("@/lib/schemas");
-    expect(LANGUAGES.length).toBeGreaterThanOrEqual(25);
+    expect(LANGUAGES.length).toBeGreaterThanOrEqual(50);
     for (const l of LANGUAGES) {
       expect(DisplayLangSchema.parse(l.code)).toBe(l.code);
       expect(displayLangLabel(l.code).length).toBeGreaterThan(0);

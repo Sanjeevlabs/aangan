@@ -13,7 +13,14 @@ export async function GET(req: Request): Promise<Response> {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");
   const list = await dbListSuggestions(status === "pending" || status === "approved" || status === "rejected" || status === "done" ? status : undefined, auth.familyId);
-  return Response.json({ suggestions: list });
+  // A request to record a wish is for one person: only they see it.
+  const mine = list.filter((x) => {
+    const p = x.payload as { action?: string; memberId?: string; args?: { memberId?: string } };
+    const action = p.action ?? "";
+    const who = p.memberId ?? p.args?.memberId;
+    return action !== "request_wish" || !who || who === auth.memberId;
+  });
+  return Response.json({ suggestions: mine });
 }
 
 export async function POST(req: Request): Promise<Response> {

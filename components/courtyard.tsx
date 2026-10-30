@@ -229,7 +229,6 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
             </button>
           </div>
           <div className="absolute inset-x-4 bottom-3.5 text-white">
-            <p className="m-0 text-[11.5px] uppercase tracking-[0.22em] text-white/75">Kutumb</p>
             <h1 className="m-0 mt-0.5 truncate text-[26px] font-light leading-[1.1] tracking-[-0.01em]">{familyName ? `The ${familyName} family` : "Your family"}</h1>
           </div>
         </div>

@@ -14,7 +14,17 @@ export interface Weather {
   label: string;
   source: "open-meteo" | "mock";
   at: string;
+  /** City coordinates (for the sun's position over their home). Never a person's location. */
+  lat?: number;
+  lon?: number;
 }
+
+/** Coordinates for the demo and tests (no network). */
+const KNOWN: Record<string, [number, number]> = {
+  amritsar: [31.63, 74.87], bengaluru: [12.97, 77.59], bangalore: [12.97, 77.59], pune: [18.52, 73.86], london: [51.51, -0.13],
+  delhi: [28.61, 77.21], "new delhi": [28.61, 77.21], mumbai: [19.08, 72.88], chennai: [13.08, 80.27], kolkata: [22.57, 88.36], hyderabad: [17.39, 78.49],
+  jaipur: [26.91, 75.79], "new york": [40.71, -74.01], toronto: [43.65, -79.38], dubai: [25.2, 55.27], singapore: [1.35, 103.82], sydney: [-33.87, 151.21],
+};
 
 /** WMO weather code → our six skies (https://open-meteo.com/en/docs). */
 export function skyFromWmo(code: number): { kind: SkyKind; label: string } {
@@ -54,7 +64,8 @@ export function mockWeather(city: string, now = new Date()): Weather {
   const pick = (h + day) % 5;
   const codes = [0, 2, 61, 3, 45];
   const sky = skyFromWmo(codes[pick]);
-  return { city, tempC: 14 + ((h >> 3) % 16), ...sky, source: "mock", at: now.toISOString() };
+  const ll = KNOWN[city.trim().toLowerCase()];
+  return { city, tempC: 14 + ((h >> 3) % 16), ...sky, source: "mock", at: now.toISOString(), ...(ll ? { lat: ll[0], lon: ll[1] } : {}) };
 }
 
 const CACHE = new Map<string, { at: number; w: Weather }>();
@@ -75,7 +86,7 @@ export async function fetchWeather(city: string, fetcher: typeof fetch = fetch):
     if (!res.ok) return null;
     const d = (await res.json()) as { current?: { temperature_2m?: number; weather_code?: number } };
     if (typeof d.current?.temperature_2m !== "number" || typeof d.current.weather_code !== "number") return null;
-    const w: Weather = { city, tempC: Math.round(d.current.temperature_2m), ...skyFromWmo(d.current.weather_code), source: "open-meteo", at: new Date().toISOString() };
+    const w: Weather = { city, tempC: Math.round(d.current.temperature_2m), ...skyFromWmo(d.current.weather_code), source: "open-meteo", at: new Date().toISOString(), lat: place.latitude, lon: place.longitude };
     CACHE.set(key, { at: Date.now(), w });
     return w;
   } catch {

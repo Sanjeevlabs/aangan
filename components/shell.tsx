@@ -65,7 +65,7 @@ function RoomsSheet({ room, onClose }: { room: Room["id"] | "all" | null; onClos
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Rooms">
+        <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Memories, kitchen, care, family, get-together">
           <m.button type="button" aria-label="Close" className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
           <m.nav
             className="frost relative w-full max-w-[480px] overflow-y-auto rounded-t-[32px] px-4 pt-3"
@@ -105,7 +105,6 @@ function RoomsSheet({ room, onClose }: { room: Room["id"] | "all" | null; onClos
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-[16.5px] font-semibold leading-tight">{g.title}</span>
-                        <span className="block truncate text-[12.5px] text-ink-soft">{g.note}</span>
                       </span>
                       <Icon name={g.href ? "chevron" : "down"} size={17} className={`text-ink-faint transition-transform ${isOpen ? "rotate-180" : ""}`} />
                     </button>
@@ -115,10 +114,7 @@ function RoomsSheet({ room, onClose }: { room: Room["id"] | "all" | null; onClos
                           {g.items.map((r) => (
                             <li key={r.href + r.title}>
                               <Link href={r.href} onClick={onClose} className="press flex items-center gap-3 py-2.5 pl-[68px] pr-3.5 text-ink no-underline hover:bg-black/[.03]">
-                                <span className="min-w-0 flex-1">
-                                  <span className="block text-[15px] font-medium leading-tight">{r.title}</span>
-                                  <span className="block truncate text-[12px] text-ink-soft">{r.note}</span>
-                                </span>
+                                <span className="min-w-0 flex-1 text-[15px] font-medium leading-tight">{r.title}</span>
                                 <Icon name="chevron" size={15} className="text-ink-faint" />
                               </Link>
                             </li>
@@ -191,7 +187,7 @@ function Dock() {
               <button type="button" onClick={() => openAdd("photos")} aria-label="Share a photo or video" className="press grid h-14 w-14 place-items-center rounded-full text-ink">
                 <Icon name="camera" size={23} strokeWidth={1.9} />
               </button>
-              <button type="button" onClick={() => openRoom("all")} aria-label="Rooms: memories, kitchen, care, family, get-together" className="press grid h-14 w-14 place-items-center rounded-full text-ink">
+              <button type="button" onClick={() => openRoom("all")} aria-label="Memories, kitchen, care, family, get-together" className="press grid h-14 w-14 place-items-center rounded-full text-ink">
                 <Icon name="more" size={24} strokeWidth={2} />
               </button>
             </div>

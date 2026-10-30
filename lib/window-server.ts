@@ -11,6 +11,9 @@ import { fetchWeather, mockWeather, phaseFor, type DayPhase, type Weather } from
 import { cityOf, farHomeFor, groundedLayers, plainLine } from "./window";
 import { hourIn } from "./zones";
 import { aliveState, type Alive } from "./status";
+import { dayRhythm, rhythmLine, type DayRhythm } from "./rhythm";
+import { moonPhase, sunInArch, sunPosition } from "./sky";
+import type { Wall } from "./kinds";
 import { withDemoShelf } from "./demo";
 
 export interface WindowState {
@@ -23,14 +26,22 @@ export interface WindowState {
   line: string;
   /** What they shared today, newest first, in words ("is having chai"). */
   moments: { memberId: string; label: string; at: string }[];
-  /** Safe & sound at a glance, per person in that home. */
-  people: { id: string; lastActive: string | null; state: Alive }[];
+  /** Safe & sound at a glance, per person at the window (at most two). */
+  people: { id: string; lastActive: string | null; state: Alive; line: string; rhythm: DayRhythm }[];
   /** This viewer's amber threshold, in hours. */
   quietAfterHours: number;
   /** A family photo was chosen for this window (else: the scene slideshow). */
   chosen: boolean;
   /** Someone on the other side has signed in (has an account). Emails never leave the server. */
   joined: boolean;
+  /** How far apart the two homes are, in km (city to city), when both are known. */
+  km: number | null;
+  /** The wall around this viewer's window. */
+  wall: Wall;
+  /** Their real sky: the sun in the arch (null when it has set) and tonight's moon. */
+  sky: { sun: { x: number; y: number } | null; moon: { illumination: number; waxing: boolean; name: string } };
+  /** Is now a good time to call, in their day and yours. */
+  call: { good: boolean; text: string };
 }
 
 const DEFAULT_IMAGE = { elders: "/demo/aangan-home.svg", children: "/demo/home-city.svg" };
@@ -49,11 +60,14 @@ function names(ms: Member[]): string {
 export async function windowState(familyId: string, viewerId: string, now = new Date()): Promise<WindowState> {
   const [members, relationships, view] = await Promise.all([dbListMembers(familyId), dbListRelationships(familyId), getDoc(familyId, "window_view", viewerId)]);
   const viewer = members.find((m) => m.id === viewerId);
-  const home = viewer ? farHomeFor(viewer, members, relationships) : undefined;
+  const farHome = viewer ? farHomeFor(viewer, members, relationships) : undefined;
+  // Who's at your window: your choice (at most two), else the grown-ups on the other side.
+  const chosen = (view?.people ?? []).map((id) => members.find((m) => m.id === id && m.id !== viewerId)).filter((m): m is Member => Boolean(m)).slice(0, 2);
+  const home = chosen.length ? { id: `chosen-${chosen.map((m) => m.id).join("-")}`, members: chosen, tz: chosen[0].tz, elders: chosen.some((m) => m.role === "elder") } : farHome;
   const city = cityOf(home);
   const tz = home?.tz ?? viewer?.tz ?? "UTC";
   const phase = phaseFor(hourIn(tz, now));
-  const weather = await weatherFor(city);
+  const [weather, here] = await Promise.all([weatherFor(city), weatherFor(viewer?.city ?? "")]);
   const presence = await listDocs(familyId, "presence");
   const ids = home?.members.map((m) => m.id) ?? [];
   const today: Presence[] = ids.flatMap((id) => todayFor(id, presence, tz, now)).filter((p) => p.moment !== "here");
@@ -68,21 +82,23 @@ export async function windowState(familyId: string, viewerId: string, now = new 
   // Last sign of life in Aangan: any moment (opening the app included), a
   // voice or photo they sent, a safety check-in. Only what they already share.
   const [cards, checkins, settings] = await Promise.all([dbListCards(familyId), listDocs(familyId, "safety_checkin"), listDocs(familyId, "care_settings")]);
-  const lastSeen = (id: string): string | null => {
-    const times = [
+  const signs = (id: string): string[] =>
+    [
       ...presence.filter((p) => p.memberId === id).map((p) => p.at),
       ...withDemoShelf(cards, familyId).filter((c) => c.authorId === id && Date.parse(c.takenAt) <= now.getTime()).map((c) => c.takenAt),
       ...checkins.filter((c) => c.memberId === id).map((c) => c.closedAt ?? c.at),
     ].filter((t) => Date.parse(t) <= now.getTime());
-    return times.sort().pop() ?? null;
-  };
+  const lastSeen = (id: string): string | null => signs(id).sort().pop() ?? null;
   const people = (home?.members ?? [])
     .filter((m) => m.role !== "child")
     .map((m) => {
       const shares = settings.find((s) => s.memberId === m.id)?.shareVisits ?? true;
       const lastActive = shares ? lastSeen(m.id) : null;
-      return { id: m.id, lastActive, state: aliveState(lastActive, m.tz, { shares, now, quietAfter: view?.quietAfterHours }) };
-    });
+      const state = aliveState(lastActive, m.tz, { shares, now, quietAfter: view?.quietAfterHours });
+      const rhythm = dayRhythm(shares ? signs(m.id) : [], m.tz, now);
+      return { id: m.id, lastActive, state, rhythm, line: rhythmLine(state, lastActive, rhythm, m.tz, (iso) => agoWords(iso, now)) };
+    })
+    .slice(0, 2);
   let imageRef = view?.imageRef ?? null;
   if (!imageRef) imageRef = home?.elders ? DEFAULT_IMAGE.elders : DEFAULT_IMAGE.children;
   return {
@@ -98,8 +114,59 @@ export async function windowState(familyId: string, viewerId: string, now = new 
     quietAfterHours: view?.quietAfterHours ?? 4,
     chosen: Boolean(view?.cardId && view.imageRef),
     // Signed in, or has done anything in Aangan (the demo family has no emails).
+    km: distanceKm(weather, here),
+    wall: view?.wall ?? "jodhpur",
+    sky: skyOver(weather, now),
+    call: callHint(tz, viewer?.tz ?? tz, home?.members.filter((m) => m.role !== "child").map((m) => m.displayName || m.firstName) ?? [], now),
     joined: (home?.members ?? []).some((m) => m.role !== "child" && (Boolean(m.email) || lastSeen(m.id) !== null)),
   };
+}
+
+function distanceKm(a: Weather | null, b: Weather | null): number | null {
+  if (a?.lat === undefined || a.lon === undefined || b?.lat === undefined || b.lon === undefined) return null;
+  const R = 6371;
+  const r = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * r;
+  const dLon = (b.lon - a.lon) * r;
+  const x = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLon / 2) ** 2;
+  const km = 2 * R * Math.asin(Math.sqrt(x));
+  return km < 15 ? null : Math.round(km / 10) * 10;
+}
+
+function agoWords(iso: string, now: Date): string {
+  const min = Math.max(0, Math.round((now.getTime() - Date.parse(iso)) / 60_000));
+  if (min < 2) return "just now";
+  if (min < 60) return `${min} min ago`;
+  const h = Math.round(min / 60);
+  return h < 24 ? `${h} h ago` : `${Math.round(h / 24)} d ago`;
+}
+
+function skyOver(weather: Weather | null, now: Date): WindowState["sky"] {
+  const m = moonPhase(now);
+  const sun = weather?.lat !== undefined && weather.lon !== undefined ? sunInArch(sunPosition(weather.lat, weather.lon, now)) : null;
+  return { sun, moon: { illumination: Math.round(m.illumination * 100) / 100, waxing: m.waxing, name: m.name } };
+}
+
+function clockIn(tz: string, d: Date): string {
+  try {
+    return new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(d);
+  } catch {
+    return "";
+  }
+}
+
+/** Both awake and not in the dead of night on either side: say so. Otherwise, when. */
+export function callHint(theirTz: string, myTz: string, names: string[], now = new Date()): { good: boolean; text: string } {
+  const them = hourIn(theirTz, now);
+  const me = hourIn(myTz, now);
+  const who = names.length <= 1 ? (names[0] ?? "them") : `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]}`;
+  if (them >= 8 && them < 21.5 && me >= 7 && me < 23) return { good: true, text: `Good time to call ${who}` };
+  if (them < 8 || them >= 21.5) {
+    // Next 8 AM there, in your time.
+    const wait = ((8 - them + 24) % 24) * 3_600_000;
+    return { good: false, text: `They're asleep · best from 8 AM their time (${clockIn(myTz, new Date(now.getTime() + wait))} yours)` };
+  }
+  return { good: false, text: `It's late for you · ${clockIn(theirTz, now)} there` };
 }
 
 /** A photo card from this family, as the window's image. */

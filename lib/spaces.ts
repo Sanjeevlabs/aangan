@@ -12,6 +12,7 @@ export interface Space {
 const SHORT: Record<string, string> = {
   "/lane": "Memory Lane",
   "/rituals": "Occasions",
+  "/book": "Book",
   "/reel": "Reel",
   "/kitchen": "Kitchen",
   "/stories": "Stories",

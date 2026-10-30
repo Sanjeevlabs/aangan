@@ -90,7 +90,7 @@ export default function OccasionsPage() {
         subtitle="Birthdays, national days and your festivals"
         action={
           data ? (
-            <button type="button" onClick={() => setFestivalsOpen(true)} aria-label="Traditions your family celebrates" className="press grid h-11 w-11 place-items-center rounded-full bg-surface">
+            <button type="button" onClick={() => setFestivalsOpen(true)} aria-label="Our traditions" className="press grid h-11 w-11 place-items-center rounded-full bg-surface">
               <Icon name="settings" size={20} />
             </button>
           ) : undefined

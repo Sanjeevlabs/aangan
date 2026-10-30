@@ -10,6 +10,7 @@ import { getSessionMedia } from "@/lib/media-session";
 import { callName, formatDuration, memberPhoto } from "@/lib/people";
 import type { TranscriptSegment } from "@/lib/schemas";
 import { cn } from "@/lib/utils";
+import { hourIn } from "@/lib/zones";
 import { useShell } from "./shell";
 import { Avatar, Button, Icon, LiveDot, PlayButton } from "./ui/kit";
 import { useViewer } from "./viewer";
@@ -217,6 +218,13 @@ function VoiceComposer({ addressee, contribution, onDone }: { addressee: string[
   const chunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const levels = useMicLevels(stream);
+  // Morning letter (SPEC §30.4): when it's night where they are, the note can
+  // wait in the envelope and arrive with their morning (7:30 AM their time).
+  const theirTz = members.find((m) => m.id === to[0])?.tz ?? null;
+  const theirHour = theirTz ? hourIn(theirTz, new Date()) : 12;
+  const nightThere = Boolean(theirTz && !contribution && (theirHour >= 21.5 || theirHour < 6));
+  const [letter, setLetter] = useState(true);
+  const morningAt = () => new Date(Date.now() + (((7.5 - theirHour + 24) % 24) * 3_600_000)).toISOString();
   // "Maa & Papa" when a whole home is chosen, otherwise the people's names.
   const toLabel = (() => {
     if (to.length === 0) return "";
@@ -321,6 +329,9 @@ function VoiceComposer({ addressee, contribution, onDone }: { addressee: string[
       setError("Couldn't send. Check your connection and try again.");
       setPhase("ready");
       return;
+    }
+    if (nightThere && letter && posted.id) {
+      await fetch("/api/letters", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cardId: posted.id, deliverAt: morningAt() }) }).catch(() => null);
     }
     if (contribution && posted.id) {
       const json = (url: string, body: unknown) =>
@@ -470,6 +481,18 @@ function VoiceComposer({ addressee, contribution, onDone }: { addressee: string[
         )}
       </div>
 
+      {phase === "ready" && nightThere && (
+        <button type="button" role="switch" aria-checked={letter} onClick={() => setLetter((v) => !v)} className="press mb-2 flex w-full items-center gap-3 rounded-[18px] border border-[var(--line)] px-3.5 py-3 text-left">
+          <Icon name="coffee" size={20} />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[15px] font-semibold">Morning letter</span>
+            <span className="block text-[12.5px] text-ink-soft">It&rsquo;s night there. Arrives at 7:30 AM their time.</span>
+          </span>
+          <span className={cn("relative h-[26px] w-[44px] shrink-0 rounded-full transition-colors", letter ? "bg-ink" : "bg-black/15")}>
+            <span className={cn("absolute top-[3px] h-5 w-5 rounded-full bg-white shadow transition-all", letter ? "left-[21px]" : "left-[3px]")} />
+          </span>
+        </button>
+      )}
       {phase === "ready" ? (
         <div className="flex gap-2">
           <Button variant="secondary" className="flex-1" onClick={discard}>
@@ -477,7 +500,7 @@ function VoiceComposer({ addressee, contribution, onDone }: { addressee: string[
           </Button>
           <Button className="flex-[1.4]" onClick={() => void send()}>
             <Icon name="send" size={18} />
-            {purpose ? purpose.cta : `Send${toLabel ? ` to ${toLabel}` : ""}`}
+            {purpose ? purpose.cta : nightThere && letter ? "Send for the morning" : `Send${toLabel ? ` to ${toLabel}` : ""}`}
           </Button>
         </div>
       ) : (

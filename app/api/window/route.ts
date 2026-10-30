@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { checkRateLimit, requireSession } from "@/lib/auth";
-import { dbListCards } from "@/lib/db";
+import { dbListCards, dbListMembers } from "@/lib/db";
 import { getDoc, putDoc } from "@/lib/family-docs";
 import { composeWindow, photoRefFor, windowState } from "@/lib/window-server";
 import { withDemoShelf } from "@/lib/demo";
+import { WALLS } from "@/lib/kinds";
 
 // The window (LITE): your view into the other home. Each person sets their
 // own: a family photo, still or living. Muse composes the living motion.
@@ -22,6 +23,8 @@ const Choose = z.object({
 });
 const Compose = z.object({ action: z.literal("compose") });
 const Quiet = z.object({ action: z.literal("quiet"), hours: z.number().int().min(2).max(12) });
+const Wall = z.object({ action: z.literal("wall"), wall: z.enum(WALLS) });
+const People = z.object({ action: z.literal("people"), people: z.array(z.string().min(1).max(64)).max(2) });
 
 export async function POST(req: Request): Promise<Response> {
   const auth = await requireSession(req);
@@ -46,6 +49,16 @@ export async function POST(req: Request): Promise<Response> {
       updatedAt: now,
     });
     return Response.json({ view });
+  }
+
+  const base = mine ?? { id: auth.memberId, memberId: auth.memberId, cardId: null, imageRef: null, style: "living" as const };
+  const wall = Wall.safeParse(body);
+  if (wall.success) return Response.json({ view: await putDoc(auth.familyId, "window_view", { ...base, wall: wall.data.wall, updatedAt: mine?.updatedAt ?? now }) });
+  const people = People.safeParse(body);
+  if (people.success) {
+    const members = await dbListMembers(auth.familyId);
+    const ids = Array.from(new Set(people.data.people)).filter((id) => id !== auth.memberId && members.some((m) => m.id === id));
+    return Response.json({ view: await putDoc(auth.familyId, "window_view", { ...base, people: ids, updatedAt: mine?.updatedAt ?? now }) });
   }
 
   const quiet = Quiet.safeParse(body);

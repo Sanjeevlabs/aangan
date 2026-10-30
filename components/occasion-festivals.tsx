@@ -105,9 +105,9 @@ export function TraditionsSheet({
           >
             <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-black/15" aria-hidden="true" />
             <h2 id="traditions-title" className="m-0 text-[22px] leading-tight">
-              Which traditions does your family celebrate?
+              Our traditions
             </h2>
-            <p className="m-0 mt-1.5 text-[14px] text-ink-soft">Used only to show your family&rsquo;s festivals. You can change it anytime.</p>
+            <p className="m-0 mt-1.5 text-[14px] text-ink-soft">Which ones does your family celebrate? Used only to show your festivals; change it anytime.</p>
 
             <div className="mt-4 grid grid-cols-2 gap-2" role="group" aria-label="Traditions">
               {choices.map((c) => {

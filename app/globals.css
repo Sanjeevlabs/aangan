@@ -306,3 +306,38 @@ button {
   0%, 100% { box-shadow: 0 0 0 0 currentColor; }
   50% { box-shadow: 0 0 0 5px rgba(60, 207, 122, 0); opacity: 0.75; }
 }
+
+/* ------------------------------------------------ the light in the window */
+.lamp-halo {
+  mix-blend-mode: screen;
+  background: radial-gradient(circle, rgba(255, 214, 140, calc(0.95 * var(--g))) 0, rgba(255, 190, 100, calc(0.55 * var(--g))) 12%, rgba(255, 170, 80, calc(0.18 * var(--g))) 34%, rgba(255, 160, 60, 0) 60%);
+  animation: lamp-breathe 3.2s ease-in-out infinite;
+}
+@keyframes lamp-breathe {
+  50% { transform: translate(-50%, -50%) scale(1.06); opacity: 0.85; }
+}
+.lamp-flame {
+  transform-origin: 28px 30px;
+  animation: lamp-flick 1.4s ease-in-out infinite;
+}
+@keyframes lamp-flick {
+  30% { transform: scale(0.94, 1.06) translate(0.5px, -1px); }
+  60% { transform: scale(1.03, 0.97); }
+}
+.lamp-ring { animation: lamp-ring 1.4s ease-out; }
+@keyframes lamp-ring {
+  from { box-shadow: 0 0 0 0 rgba(255, 210, 130, 0.9); }
+  to { box-shadow: 0 0 0 160px rgba(255, 210, 130, 0); }
+}
+.wall-grain {
+  opacity: 0.5;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .22 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+.lite-shimmer-dot { animation: lite-dot 1.6s ease-in-out infinite; }
+.lite-shimmer-dot:nth-child(2) { animation-delay: 0.2s; }
+.lite-shimmer-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes lite-dot {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}

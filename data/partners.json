@@ -1,0 +1,151 @@
+{
+  "_comment": "Curated partners for 'Send something' (SPEC §9: named partners only, never a marketplace). transport: mcp-oauth (the member connects their own account), mcp-public (no account), link (hand-off only). A partner is live only when its envFlag is \"true\" (or defaultOn and the flag is unset); MOCK mode enables every partner with sample data. Tool names for Swiggy are from mcp.swiggy.com/builders (checked 30 Oct 2026); argument templates beyond Instamart's documented ones are best guesses and marked verified:false. '$name' placeholders are filled by lib/partners/adapter.ts.",
+  "accounts": [
+    {
+      "id": "swiggy",
+      "name": "Swiggy",
+      "discovery": "https://mcp.swiggy.com/.well-known/oauth-authorization-server",
+      "scope": "mcp:tools",
+      "clientIdEnv": "SWIGGY_CLIENT_ID",
+      "envFlag": "PARTNER_SWIGGY",
+      "note": "OAuth 2.1 + PKCE (S256). Free on localhost; production needs Swiggy to review the app and allowlist the redirect URI (builders@swiggy.in)."
+    },
+    {
+      "id": "zomato",
+      "name": "Zomato",
+      "discovery": "https://mcp-server.zomato.com/.well-known/oauth-authorization-server",
+      "scope": "mcp:tools",
+      "clientIdEnv": "ZOMATO_CLIENT_ID",
+      "envFlag": "PARTNER_ZOMATO",
+      "note": "OAuth + PKCE (S256). Redirect URIs must be allowlisted by Zomato. Payment is a UPI QR code."
+    }
+  ],
+  "partners": [
+    {
+      "id": "swiggy-instamart",
+      "name": "Instamart",
+      "account": "swiggy",
+      "kind": "groceries",
+      "transport": "mcp-oauth",
+      "envFlag": "PARTNER_SWIGGY",
+      "countries": ["IN"],
+      "url": "https://mcp.swiggy.com/im",
+      "urlEnv": "SWIGGY_MCP_INSTAMART_URL",
+      "sendable": true,
+      "eta": "~25 min",
+      "verified": true,
+      "tools": {
+        "addresses": { "name": "get_addresses", "args": {} },
+        "search": { "name": "search_products", "args": { "addressId": "$addressId", "query": "$query" } },
+        "clearCart": { "name": "clear_cart", "args": {} },
+        "addToCart": { "name": "update_cart", "args": { "items": [{ "spinId": "$itemId", "quantity": "$quantity" }] } },
+        "cart": { "name": "get_cart", "args": {} },
+        "checkout": { "name": "checkout", "args": { "paymentMethod": "UPI", "generateUPIQR": true } }
+      },
+      "queries": { "occasion": ["sweets box", "dry fruits", "flowers"], "need": [] },
+      "samples": [
+        { "id": "im-kaju-katli", "name": "Kaju katli, 500 g", "price": 54900, "currency": "INR", "tags": ["sweets", "mithai", "box"] },
+        { "id": "im-dry-fruits", "name": "Premium dry fruits box, 500 g", "price": 79900, "currency": "INR", "tags": ["dry fruits", "nuts", "box"] },
+        { "id": "im-flowers", "name": "Fresh flower bouquet", "price": 39900, "currency": "INR", "tags": ["flowers"] },
+        { "id": "im-milk", "name": "Toned milk, 1 L", "price": 6800, "currency": "INR", "tags": ["milk", "groceries", "dairy"] },
+        { "id": "im-atta", "name": "Whole wheat atta, 5 kg", "price": 28900, "currency": "INR", "tags": ["atta", "flour", "groceries"] },
+        { "id": "im-fruit", "name": "Seasonal fruit basket", "price": 49900, "currency": "INR", "tags": ["fruit", "groceries"] }
+      ]
+    },
+    {
+      "id": "swiggy-food",
+      "name": "Swiggy Food",
+      "account": "swiggy",
+      "kind": "food",
+      "transport": "mcp-oauth",
+      "envFlag": "PARTNER_SWIGGY",
+      "countries": ["IN"],
+      "url": "https://mcp.swiggy.com/food",
+      "urlEnv": "SWIGGY_MCP_FOOD_URL",
+      "sendable": true,
+      "eta": "~35 min",
+      "verified": false,
+      "tools": {
+        "addresses": { "name": "get_addresses", "args": {} },
+        "search": { "name": "search_menu", "args": { "addressId": "$addressId", "query": "$query" } },
+        "clearCart": { "name": "flush_food_cart", "args": {} },
+        "addToCart": { "name": "update_food_cart", "args": { "items": [{ "itemId": "$itemId", "quantity": "$quantity" }] } },
+        "cart": { "name": "get_food_cart", "args": {} },
+        "checkout": { "name": "place_food_order", "args": { "paymentMethod": "UPI" } }
+      },
+      "queries": { "occasion": ["thali"], "need": ["home food"] },
+      "samples": [
+        { "id": "sf-thali", "name": "Home-style veg thali", "price": 24900, "currency": "INR", "tags": ["thali", "food", "lunch", "dinner"] }
+      ]
+    },
+    {
+      "id": "swiggy-dineout",
+      "name": "Dineout",
+      "account": "swiggy",
+      "kind": "dining",
+      "transport": "mcp-oauth",
+      "envFlag": "PARTNER_SWIGGY",
+      "countries": ["IN"],
+      "url": "https://mcp.swiggy.com/dineout",
+      "urlEnv": "SWIGGY_MCP_DINEOUT_URL",
+      "sendable": false,
+      "verified": false,
+      "queries": { "occasion": [], "need": [] },
+      "samples": []
+    },
+    {
+      "id": "zomato",
+      "name": "Zomato",
+      "account": "zomato",
+      "kind": "food",
+      "transport": "mcp-oauth",
+      "envFlag": "PARTNER_ZOMATO",
+      "countries": ["IN"],
+      "url": "https://mcp-server.zomato.com/mcp",
+      "urlEnv": "ZOMATO_MCP_URL",
+      "sendable": true,
+      "eta": "~40 min",
+      "verified": false,
+      "tools": {
+        "addresses": { "name": "getAddresses", "args": {} },
+        "search": { "name": "searchRestaurants", "args": { "query": "$query", "addressId": "$addressId" } },
+        "addToCart": { "name": "addToCart", "args": { "itemId": "$itemId", "quantity": "$quantity" } },
+        "cart": { "name": "getCart", "args": {} },
+        "checkout": { "name": "checkout", "args": {} }
+      },
+      "queries": { "occasion": [], "need": ["home food"] },
+      "samples": [
+        { "id": "zo-khichdi", "name": "Moong dal khichdi with ghee", "price": 22900, "currency": "INR", "tags": ["food", "khichdi", "home food", "dinner"] }
+      ]
+    },
+    {
+      "id": "shopify-gifts",
+      "name": "Gift stores",
+      "account": null,
+      "kind": "gifts",
+      "transport": "mcp-public",
+      "envFlag": "PARTNER_SHOPIFY_GIFTS",
+      "defaultOn": true,
+      "countries": ["IN"],
+      "sendable": true,
+      "verified": true,
+      "queries": { "occasion": [], "need": [] },
+      "samples": []
+    },
+    {
+      "id": "urban-company",
+      "name": "Urban Company",
+      "account": null,
+      "kind": "home-services",
+      "transport": "link",
+      "envFlag": "PARTNER_URBAN_COMPANY",
+      "defaultOn": true,
+      "countries": ["IN"],
+      "url": "https://www.urbancompany.com",
+      "sendable": false,
+      "verified": true,
+      "queries": { "occasion": [], "need": [] },
+      "samples": []
+    }
+  ]
+}

@@ -18,6 +18,8 @@ import { ACCESS_LABEL, can } from "@/lib/permissions";
 import { callName } from "@/lib/people";
 import { cn } from "@/lib/utils";
 import { WindowSettings } from "@/components/window-settings";
+import { useDocumentLang, useT } from "@/lib/use-t";
+import { hasUiCatalogue, translate } from "@/lib/ui-strings";
 
 interface Invite {
   code: string;
@@ -127,8 +129,10 @@ function LampToggle({ onMessage }: { onMessage: (m: string) => void }) {
   );
 }
 
-/** Searchable picker: 29 languages would be a wall of radio buttons. */
+/** Searchable picker: dozens of languages would be a wall of radio buttons. */
 function LanguagePicker({ value, onPick }: { value: SupportedLang; onPick: (code: SupportedLang) => void }) {
+  const t = useT();
+  useDocumentLang();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const current = language(value);
@@ -140,24 +144,24 @@ function LanguagePicker({ value, onPick }: { value: SupportedLang; onPick: (code
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="press flex w-full items-center justify-between rounded-[20px] bg-surface px-4 py-3.5 text-left"
+        className="press flex w-full items-center justify-between rounded-[20px] bg-surface px-4 py-3.5 text-start"
       >
         <span>
           <span className="block text-[17px] font-semibold">{current.native}</span>
           <span className="block text-[14px] text-ink-soft">{current.name}</span>
         </span>
-        <span className="text-[15px] font-medium text-ink-soft">{open ? "Done" : "Change"}</span>
+        <span className="text-[15px] font-medium text-ink-soft">{open ? t("settings.done") : t("settings.change")}</span>
       </button>
       {open && (
         <div className="mt-2 rounded-[20px] bg-surface p-2">
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search languages"
-            aria-label="Search languages"
+            placeholder={t("settings.search")}
+            aria-label={t("settings.search")}
             className="h-11 w-full rounded-full bg-white px-4 text-[16px] outline-none focus:ring-2 focus:ring-marigold"
           />
-          <ul role="radiogroup" aria-label="Language" className="m-0 mt-2 max-h-[320px] list-none overflow-y-auto p-0">
+          <ul role="radiogroup" aria-label={t("settings.language")} className="m-0 mt-2 max-h-[320px] list-none overflow-y-auto p-0">
             {list.map((l) => (
               <li key={l.code}>
                 <button
@@ -169,16 +173,19 @@ function LanguagePicker({ value, onPick }: { value: SupportedLang; onPick: (code
                     setOpen(false);
                     setQ("");
                   }}
-                  className={cn("press flex h-12 w-full items-center justify-between rounded-[14px] px-3 text-left", l.code === value && "bg-black text-white")}
+                  className={cn("press flex h-12 w-full items-center justify-between rounded-[14px] px-3 text-start", l.code === value && "bg-black text-white")}
                 >
                   <span className="text-[16px] font-medium" dir={"rtl" in l && l.rtl ? "rtl" : undefined}>
                     {l.native}
                   </span>
-                  <span className={cn("text-[13px]", l.code === value ? "text-white/70" : "text-ink-soft")}>{l.name}</span>
+                  <span className={cn("flex items-center gap-1.5 text-[13px]", l.code === value ? "text-white/70" : "text-ink-soft")}>
+                    {hasUiCatalogue(l.code) && <Icon name="check" size={13} />}
+                    {l.name}
+                  </span>
                 </button>
               </li>
             ))}
-            {list.length === 0 && <li className="px-3 py-3 text-[15px] text-ink-soft">No match. Try the English name.</li>}
+            {list.length === 0 && <li className="px-3 py-3 text-[15px] text-ink-soft">{t("settings.noMatch")}</li>}
           </ul>
         </div>
       )}
@@ -186,6 +193,27 @@ function LanguagePicker({ value, onPick }: { value: SupportedLang; onPick: (code
   );
 }
 
+
+/** Settings → Language: one choice drives the app's words and the family's translations. */
+function LanguageSection({ value, onPick, onMessage }: { value: SupportedLang; onPick: (code: SupportedLang) => void; onMessage: (m: string) => void }) {
+  const t = useT();
+  return (
+    <Group title={t("settings.language")}>
+      <LanguagePicker
+        value={value}
+        onPick={(code) => {
+          onPick(code);
+          onMessage(translate(code, "settings.languageUpdated"));
+        }}
+      />
+      <p className="m-0 mt-2 text-[13px] text-ink-faint">{t("settings.languageNote")}</p>
+      <p className="m-0 mt-1.5 flex items-center gap-1.5 text-[13px] text-ink-faint">
+        <Icon name="check" size={13} />
+        {t("settings.appSpeaks")}
+      </p>
+    </Group>
+  );
+}
 
 function Group({ title, id, children }: { title: string; id?: string; children: React.ReactNode }) {
   return (
@@ -367,16 +395,7 @@ export default function SettingsPage() {
       <Group title="Your window" id="window">
         <WindowSettings />
       </Group>
-      <Group title="Hear the family in">
-        <LanguagePicker
-          value={displayLang}
-          onPick={(code) => {
-            void setDisplayLang(code);
-            flash("Language updated");
-          }}
-        />
-        <p className="m-0 mt-2 text-[13px] text-ink-faint">Everything the family shares (voices, recipes, notes) is translated into your language. The app itself stays in English. Names stay as the family says them.</p>
-      </Group>
+      <LanguageSection value={displayLang} onPick={(code) => void setDisplayLang(code)} onMessage={flash} />
 
       <Group title="Reading">
         <LargeTextToggle />

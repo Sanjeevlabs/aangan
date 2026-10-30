@@ -110,7 +110,7 @@ export function DoorTransition({ state, onDone }: { state: "opening" | "closing"
             transition={{ duration: 0.18 }}
             role="status"
             aria-live="polite"
-            aria-label={opening ? "Opening Kutumb" : "Closing Kutumb"}
+            aria-label={opening ? "Opening home" : "Closing the door"}
           >
             {/* Lime-plaster wall, lit from above */}
             <div className="absolute inset-0" style={{ background: "radial-gradient(90% 70% at 50% 35%, #f4f0ea, #ddd5c9 65%, #c4baab)" }} />

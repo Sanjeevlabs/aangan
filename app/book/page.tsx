@@ -46,8 +46,10 @@ function ChapterPage({ chapter, n }: { chapter: Chapter; n: number }) {
 
 function Book() {
   const params = useSearchParams();
-  const memberId = params.get("member") ?? "";
-  const { members, ready } = useViewer();
+  const { members, ready, viewer } = useViewer();
+  // No one named: the book of the grandparent generation, starting with the first of them.
+  const elders = members.filter((m) => m.role === "elder");
+  const memberId = params.get("member") ?? (elders.find((m) => m.id !== viewer.id) ?? elders[0])?.id ?? "";
   const person = members.find((m) => m.id === memberId);
   const { data, failed, reload } = useJson<{ chapters: Chapter[] }>(memberId ? `/api/book?member=${encodeURIComponent(memberId)}` : null);
   const name = callName(person);
@@ -68,6 +70,15 @@ function Book() {
   return (
     <div>
       <RoomHeader title="Book" subtitle={`${name}, in their own voice`} />
+      {elders.length > 1 && (
+        <nav aria-label="Whose book" className="-mt-3 mb-4 flex gap-1.5">
+          {elders.map((e) => (
+            <a key={e.id} href={`/book?member=${encodeURIComponent(e.id)}`} aria-current={e.id === memberId ? "page" : undefined} className={`press flex h-9 items-center rounded-full px-4 text-[14px] font-medium no-underline ${e.id === memberId ? "bg-ink text-white" : "bg-black/[.05] text-ink"}`}>
+              {callName(e)}
+            </a>
+          ))}
+        </nav>
+      )}
       <section aria-label="Cover" className="relative h-[300px] overflow-hidden rounded-[28px] bg-[#1c1b1a] text-white" style={{ boxShadow: "0 24px 50px -24px rgba(60,35,20,.6)" }}>
         {photo ? <Photo src={photo} alt="" sizes="440px" priority position="center 28%" /> : <Monogram name={name} size={300} />}
         <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-black/20 to-black/80" aria-hidden="true" />
