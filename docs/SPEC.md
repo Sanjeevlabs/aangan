@@ -748,3 +748,17 @@ Muse does the work (today's task, the window line and motion, recipe cards, albu
 ### 29.14 Stories to tell
 Each day the Stories room offers a well-known folk tale (our own three-beat outline + the lesson) for a grandparent, parent or guardian to retell in their own voice for the children; titles the family has already recorded are skipped. "A story only you know" (their own childhood) is in the rotation.
 
+
+## 30. Far from home, never far from them (locked 30 Oct, PR #19) 🆕
+
+**Tagline:** *Far from home. Never far from them.* Subline: "A window into your parents' day, and theirs into yours." Parents stay the centre; Kutumb is the whole family.
+
+**30.1 The window (first screen).** At most **two** people at the window (default the parents; anyone else picks, e.g. a grandparent or guardian): Settings → *Who's at your window*. An arched window in a coloured wall (Jodhpur blue, Jaipur pink, Chettinad ochre, Goan green, Kerala teak, lime white; per viewer). Inside: the living album (every photo captioned; family photos come round). The top of the arch is their real sky: the sun's position and tonight's moon phase, computed locally from their city's coordinates and time. The glass carries their weather (rain, fog, a warm glow at night). On the ledge: **the light in the window** (tap to light it, shared by both homes; it fades over about 3 days without contact) and their latest voice note as a folded note. Below: two status lines in words, with a usual-day timeline; *good time to call*; when you're next together; slide the key to Kutumb.
+
+**30.2 Kutumb.** A real courtyard photo as the header, with the family name. The *Everyone* row: each person's photo with a **lamp-glow ring** (glowing = active or shared today) instead of a tick; tap for their day, tapping through photos with captions; reply by voice or with a blessing; no likes, nothing expires (it is all kept in Memory Lane). Rooms stay behind ⋯. Privacy: *Show my lamp and activity to family* (on by default).
+
+**30.3 Occasions.** *Traditions your family celebrates* (multi-select, optional, family-level; used only for the calendar). Festival dates come from Google's public holiday calendar for the family's country (public iCal, cached daily) mapped to traditions by data in `rituals/`; bundled list as fallback. Wishing together: 7 days before, Muse asks every member for a wish; on the day, a **garland of wishes** plays one after another; for festivals, every home lights its lamp at the same local hour.
+
+**30.4 Innovations.** Space: *the same moon*. Science: *hold the lamp* sends a slow heartbeat pulse (about 1 Hz; slow touch is what the body reads as comfort) that their phone plays on next open. History: the **chitthi**, a voice note timed to arrive at their morning. Philosophy: the **Book of Maa & Papa**, their daily answers kept as chapters of a life story, in their own voice.
+
+**30.5 Removed.** Emoji reaction counts, streak dots, *what you gave this week*, the `/trace` page in production.
