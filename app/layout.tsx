@@ -2,12 +2,16 @@ import type { Metadata, Viewport } from "next";
 import { Kalam, Literata, Onest } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { Shell } from "@/components/shell";
+import { HERO_SIZES } from "@/lib/hero";
 import "./globals.css";
 
 const onest = Onest({ subsets: ["latin"], variable: "--font-body", display: "swap" });
-const literata = Literata({ subsets: ["latin"], style: ["italic"], weight: ["400", "500"], variable: "--font-voice", display: "swap" });
+const literata = Literata({ subsets: ["latin"], style: ["italic"], weight: ["400", "500"], variable: "--font-voice", display: "swap", preload: false });
 // Handwriting on printed photos (when, where, a note). Kalam covers Latin and Devanagari, so Hindi notes are handwritten too.
 const kalam = Kalam({ subsets: ["latin", "devanagari"], weight: ["400"], variable: "--font-hand", display: "swap", preload: false });
+
+// Same candidates and sizes as the courtyard header's <Photo> (components/courtyard.tsx), so the preload is the file it uses.
+const HERO_PRELOAD = `try{if(sessionStorage.getItem("aangan:door")==="open"){document.documentElement.dataset.door="open";var l=document.createElement("link");l.rel="preload";l.as="image";l.setAttribute("imagesrcset","/demo/courtyard-390.webp 390w, /demo/courtyard-780.webp 780w");l.setAttribute("imagesizes","${HERO_SIZES}");l.setAttribute("fetchpriority","high");document.head.appendChild(l)}}catch(e){}`;
 
 export const metadata: Metadata = {
   title: "Aangan — far from home, never far from them",
@@ -31,6 +35,11 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Behind the door (sessionStorage, set by app/page.tsx) the first thing drawn is the courtyard photo:
+            start fetching it now, in step with the scripts, not after they have run. */}
+        <script dangerouslySetInnerHTML={{ __html: HERO_PRELOAD }} />
+      </head>
       <body className={`${onest.variable} ${literata.variable} ${kalam.variable}`}>
         <Providers>
           <Shell>{children}</Shell>

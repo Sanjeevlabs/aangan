@@ -235,8 +235,9 @@ export default function BondPage() {
       const [mRes, rRes] = await Promise.all([fetch("/api/members", { cache: "no-store" }), fetch("/api/relationships", { cache: "no-store" })]);
       if (!mRes.ok || !rRes.ok) throw new Error("bond-fetch-failed");
       const m = (await mRes.json()) as { members: Member[] };
+      const r = (await rRes.json()) as { relationships: Relationship[] };
       setMembers(m.members);
-      setRelationships(((await rRes.json()) as { relationships: Relationship[] }).relationships);
+      setRelationships(r.relationships);
     } catch {
       setFailed(true);
     }
@@ -251,7 +252,7 @@ export default function BondPage() {
     <div>
       <RoomHeader title="Family tree" subtitle="Every generation, both sides, home by home" action={members && canShareTree(viewer) ? <TreeShare members={members} relationships={relationships ?? []} /> : undefined} />
       {failed && <EmptyLine>Couldn&rsquo;t load the family. Try again in a moment.</EmptyLine>}
-      {members === null && !failed && <div className="skeleton h-[420px] rounded-card" aria-busy="true" aria-label="Loading family" />}
+      {members === null && !failed && <div key="loading" className="skeleton h-[420px] rounded-card" aria-busy="true" aria-label="Loading family" />}
       {members && (
         <>
           <Boundary label="The family tree"><section aria-label="Family tree">

@@ -22,7 +22,7 @@ import { WindowSettings } from "@/components/window-settings";
 import { WindowOptions } from "./window-options";
 import { ConnectedApps } from "@/components/connected-apps";
 import { useDocumentLang, useT } from "@/lib/use-t";
-import { hasUiCatalogue, translate } from "@/lib/ui-strings";
+import { ensureCatalogue, hasUiCatalogue, translate } from "@/lib/ui-strings/lazy";
 
 interface Invite {
   code: string;
@@ -298,7 +298,7 @@ function LanguageSection({ value, onPick, onMessage }: { value: SupportedLang; o
         value={value}
         onPick={(code) => {
           onPick(code);
-          onMessage(translate(code, "settings.languageUpdated"));
+          void ensureCatalogue(code).then(() => onMessage(translate(code, "settings.languageUpdated")));
         }}
       />
       <p className="m-0 mt-2 text-[13px] text-ink-faint">{t("settings.languageNote")}</p>

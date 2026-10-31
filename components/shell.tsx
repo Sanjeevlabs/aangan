@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, LazyMotion, domAnimation, m } from "framer-motion";
+import { AnimatePresence, LazyMotion, m } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
@@ -16,12 +16,22 @@ import type { AddTab, ReplyContribution } from "./add-sheet";
 import { PlayerProvider, usePlayer } from "./player";
 import { Icon, type IconName } from "./ui/kit";
 import { ViewerProvider, useViewer } from "./viewer";
-import { PeoplePicker } from "./people-picker";
-import { InviteSheet } from "./invite-sheet";
 import { DocumentLangOnly } from "@/lib/use-t";
 import { onAppUrlOpen, setStatusBar } from "@/lib/native";
 
 // The composer (mic, EXIF, media processing) loads only when first opened.
+// Sheets nobody needs until they tap: fetched when first opened, then kept mounted so they can animate out.
+const PeoplePicker = dynamic(() => import("./people-picker").then((x) => x.PeoplePicker), { ssr: false });
+const InviteSheet = dynamic(() => import("./invite-sheet").then((x) => x.InviteSheet), { ssr: false });
+const loadMotionFeatures = () => import("./motion-features").then((x) => x.default);
+
+/** True from the first time `flag` is true, for good. */
+function useEver(flag: boolean): boolean {
+  const [ever, setEver] = useState(flag);
+  if (flag && !ever) setEver(true);
+  return ever || flag;
+}
+
 const AddSheet = dynamic(() => import("./add-sheet").then((m) => m.AddSheet), { ssr: false });
 
 interface ShellState {
@@ -109,6 +119,8 @@ function Dock() {
   const pathname = usePathname();
   const [picking, setPicking] = useState(false);
   const [inviting, setInviting] = useState(false);
+  const pickerEver = useEver(picking);
+  const inviteEver = useEver(inviting);
 
   const pagePerson = pathname.startsWith("/people/") ? members.find((mm) => mm.id === pathname.split("/")[2]) : undefined;
   // Who sent you a voice you haven't answered: shown in the picker, never assumed.
@@ -159,19 +171,21 @@ function Dock() {
           </m.div>
         )}
       </AnimatePresence>
-      <PeoplePicker
-        open={picking}
-        title="Voice note to"
-        people={others}
-        everyoneLabel="The whole family"
-        status={(p) => (waiting.has(p.id) ? { text: "Waiting for your reply", dot: "#e8402a" } : { text: p.city || "" })}
-        onPick={(ids) => {
-          setPicking(false);
-          openAdd("voice", null, ids.length === others.length ? null : ids);
-        }}
-        onClose={() => setPicking(false)}
-      />
-      <InviteSheet open={inviting} onClose={() => setInviting(false)} />
+      {pickerEver && (
+        <PeoplePicker
+          open={picking}
+          title="Voice note to"
+          people={others}
+          everyoneLabel="The whole family"
+          status={(p) => (waiting.has(p.id) ? { text: "Waiting for your reply", dot: "#e8402a" } : { text: p.city || "" })}
+          onPick={(ids) => {
+            setPicking(false);
+            openAdd("voice", null, ids.length === others.length ? null : ids);
+          }}
+          onClose={() => setPicking(false)}
+        />
+      )}
+      {inviteEver && <InviteSheet open={inviting} onClose={() => setInviting(false)} />}
     </>
   );
 }
@@ -255,7 +269,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
 
 export function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <LazyMotion features={domAnimation} strict={false}>
+    <LazyMotion features={loadMotionFeatures} strict={false}>
       <ViewerProvider>
         <ShellInner>{children}</ShellInner>
       </ViewerProvider>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useCourtyardSlice } from "./courtyard-data";
 
 // Last good payload per URL: a route paints from it at once and refreshes in
 // the background. Kept in memory and (small payloads) in sessionStorage.
@@ -67,9 +68,13 @@ export async function revalidate<T>(url: string, f: typeof fetch = (...a) => fet
  * Stale-while-revalidate: the last good payload for the URL shows at once and
  * is refreshed in the background; `stale` marks data that could not be
  * refreshed. `every` (ms) also refetches quietly while the page is visible:
- * on an interval and when the tab comes back.
+ * on an interval and when the tab comes back. Inside the courtyard, the
+ * payload comes from the one shared GET /api/courtyard (lib/courtyard-data.tsx)
+ * and this hook does not fetch.
  */
-export function useJson<T>(url: string | null, opts?: { every?: number }): { data: T | null; stale: boolean; failed: boolean; reload: () => Promise<void> } {
+export function useJson<T>(wanted: string | null, opts?: { every?: number }): { data: T | null; stale: boolean; failed: boolean; reload: () => Promise<void> } {
+  const shared = useCourtyardSlice(wanted);
+  const url = shared ? null : wanted;
   const every = opts?.every;
   // Memory only at first, so the first client render matches the server's (null).
   const [data, setData] = useState<T | null>(() => (url && cache.has(url) ? (cache.get(url) as T) : null));
@@ -107,6 +112,7 @@ export function useJson<T>(url: string | null, opts?: { every?: number }): { dat
       document.removeEventListener("visibilitychange", tick);
     };
   }, [url, every, load]);
+  if (shared) return { data: (shared.data ?? null) as T | null, stale: false, failed: false, reload: shared.reload };
   return { data, stale, failed, reload };
 }
 
