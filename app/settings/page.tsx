@@ -19,6 +19,7 @@ import type { Member } from "@/lib/schemas";
 import { callName } from "@/lib/people";
 import { cn } from "@/lib/utils";
 import { WindowSettings } from "@/components/window-settings";
+import { WindowOptions } from "./window-options";
 import { ConnectedApps } from "@/components/connected-apps";
 import { useDocumentLang, useT } from "@/lib/use-t";
 import { hasUiCatalogue, translate } from "@/lib/ui-strings";
@@ -488,6 +489,7 @@ export default function SettingsPage() {
         <>
       <Group title="Your window" id="window">
         <WindowSettings />
+        <WindowOptions />
       </Group>
       <Group title="Connected apps" id="connected-apps">
         <ConnectedApps />

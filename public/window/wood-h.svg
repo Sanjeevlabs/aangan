@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="240" viewBox="0 0 480 240">
+  <!-- Oiled teak, procedurally: long grain bands (stretched noise), fine figure
+       lines and pores, slow colour variation. Made for Aangan; no third-party image. -->
+  <filter id="w" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+    <feTurbulence type="fractalNoise" baseFrequency="0.0035 0.045" numOctaves="3" seed="5" stitchTiles="stitch" result="bands"/>
+    <feTurbulence type="fractalNoise" baseFrequency="0.012 0.35" numOctaves="2" seed="9" stitchTiles="stitch" result="lines"/>
+    <feComposite in="bands" in2="lines" operator="arithmetic" k2="0.8" k3="0.35" k4="-0.08" result="g0"/>
+    <feColorMatrix in="g0" type="matrix" values="1 0 0 0 0  1 0 0 0 0  1 0 0 0 0  0 0 0 0 1" result="g"/>
+    <feComponentTransfer in="g" result="wood">
+      <feFuncR type="table" tableValues="0.24 0.33 0.43 0.51 0.57 0.53 0.42"/>
+      <feFuncG type="table" tableValues="0.13 0.19 0.26 0.32 0.36 0.33 0.25"/>
+      <feFuncB type="table" tableValues="0.07 0.10 0.14 0.18 0.21 0.19 0.13"/>
+    </feComponentTransfer>
+    <feTurbulence type="fractalNoise" baseFrequency="0.06 1.2" numOctaves="1" seed="3" stitchTiles="stitch" result="pores"/>
+    <feColorMatrix in="pores" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -3 0 0 0 1.25" result="poreMask"/>
+    <feFlood flood-color="#1c0f06" flood-opacity="0.3" result="poreInk"/>
+    <feComposite in="poreInk" in2="poreMask" operator="in" result="poreDots"/>
+    <feComposite in="poreDots" in2="wood" operator="over"/>
+  </filter>
+  <rect width="480" height="240" filter="url(#w)"/>
+</svg>

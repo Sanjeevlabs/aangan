@@ -16,11 +16,10 @@ import type { DayRhythm } from "@/lib/rhythm";
 import { ALIVE_LOOK, type Alive } from "@/lib/status";
 import { ago, postJson, useJson } from "@/lib/use-json";
 import { useFamilyCards } from "@/lib/use-family";
-import { can } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { WALL_LOOK } from "@/lib/walls";
 import { PHASE_TINT, type DayPhase, type Weather } from "@/lib/weather";
-import { placeFromTz, timeIn } from "@/lib/zones";
+import { timeIn } from "@/lib/zones";
 import { PeoplePicker } from "./people-picker";
 import { usePlayer } from "./player";
 import { useShell } from "./shell";
@@ -116,11 +115,14 @@ export function SkyLayers({ layers, phase, tint = true }: { layers: WindowLayer[
 /** A small arched preview of a window (Settings). */
 export function ArchWindow({ src, layers, phase, living, children, className }: { src: string; layers: WindowLayer[]; phase: DayPhase; living: boolean; children?: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("relative overflow-hidden", className)} style={{ borderRadius: "999px 999px 28px 28px", boxShadow: "0 30px 60px -30px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.18)" }}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt="" className={cn("absolute inset-0 h-full w-full object-cover", living && "win-drift")} />
-      <SkyLayers layers={living ? layers : []} phase={phase} />
-      {children}
+    <div className={cn("win-frame relative p-[6px]", className)}>
+      <div className="relative h-full w-full overflow-hidden bg-[#1a1816]" style={{ borderRadius: "999px 999px 1px 1px", boxShadow: "0 0 0 1px #22140a" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt="" className={cn("absolute inset-0 h-full w-full object-cover", living && "win-drift")} />
+        <SkyLayers layers={living ? layers : []} phase={phase} />
+        <div className="win-glass pointer-events-none absolute inset-0" aria-hidden="true" />
+        {children}
+      </div>
     </div>
   );
 }
@@ -237,7 +239,7 @@ function RealSky({ sky, phase }: { sky: WindowData["sky"]; phase: DayPhase }) {
           ))}
         </div>
       )}
-      {!night && sky.sun && <span className="absolute h-[34px] w-[34px] -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ left: `${sky.sun.x * 100}%`, top: `${sky.sun.y * 100}%`, background: "radial-gradient(circle,#fff8e1 30%,rgba(255,236,180,0) 72%)", boxShadow: "0 0 40px 18px rgba(255,240,200,.5)" }} />}
+      {!night && sky.sun && <span className="absolute h-[96px] w-[96px] -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ left: `${sky.sun.x * 100}%`, top: `${sky.sun.y * 100}%`, background: "radial-gradient(circle, #fffef8 0 9%, rgba(255,250,232,.92) 13%, rgba(255,242,205,.45) 24%, rgba(255,236,190,.16) 42%, rgba(255,236,190,0) 68%)" }} />}
       {night && (
         <svg className="absolute left-[64%] top-[22%]" width={moonR * 2} height={moonR * 2} viewBox={`0 0 ${moonR * 2} ${moonR * 2}`} style={{ filter: "drop-shadow(0 0 10px rgba(255,255,230,.55))" }}>
           <circle cx={moonR} cy={moonR} r={moonR} fill="#fdf6dc" />
@@ -249,17 +251,40 @@ function RealSky({ sky, phase }: { sky: WindowData["sky"]; phase: DayPhase }) {
 }
 
 /* ------------------------------------------------------- the window */
+/**
+ * Teak glazing bars: a mullion, a transom at the springing line of the arch
+ * (50cqw: the arch is a half circle as wide as the glass), and a fanlight of
+ * radiating bars around a small carved hub.
+ */
+function GlazingBars() {
+  return (
+    <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+      {[-50, 0, 50].map((deg) => (
+        <span key={deg} className="win-wood win-bar absolute left-1/2 top-0 w-[6px]" style={{ height: "50cqw", marginLeft: -3, transformOrigin: "50% 100%", transform: `rotate(${deg}deg)` }} />
+      ))}
+      <span className="win-wood win-bar absolute bottom-0 left-1/2 w-[7px] -translate-x-1/2" style={{ top: "50cqw" }} />
+      <span className="win-wood-h win-bar-h absolute inset-x-0 h-[8px]" style={{ top: "calc(50cqw - 4px)" }} />
+      <span className="win-wood win-bar absolute left-1/2 h-[30px] w-[30px] -translate-x-1/2 rounded-t-full" style={{ top: "calc(50cqw - 30px)" }} />
+    </div>
+  );
+}
+
 function Jharokha({ album, still, data }: { album: ReturnType<typeof useAlbum>; still: boolean; data: WindowData }) {
   const x0 = useRef<number | null>(null);
   const night = data.phase === "night" || data.phase === "dusk";
   const raining = data.weather?.kind === "rain" || data.weather?.kind === "storm";
   const caption = night && !album.cur?.family ? `Look up: ${data.far?.names.split(" & ")[0] ?? "they"} can see this same moon tonight, ${Math.round(data.sky.moon.illumination * 100)}% full` : album.cur?.title;
   return (
-    <figure className="relative m-0 mx-auto h-full w-full max-w-[290px]">
-      <div className="absolute inset-0" style={{ borderRadius: "999px 999px 10px 10px", background: "linear-gradient(180deg,#e8cfa8,#c9a678)", boxShadow: "0 24px 40px -18px rgba(0,0,0,.55), inset 0 0 0 2px rgba(255,255,255,.35), inset 0 0 0 9px rgba(120,80,40,.12)" }} />
+    <figure className="relative m-0 mx-auto h-full w-full max-w-[310px]">
+      {/* Plaster surround, the reveal (wall thickness), the carved teak frame with its bead and rebate */}
+      <div className="win-surround absolute inset-0" aria-hidden="true" />
+      <div className="win-reveal absolute inset-x-[11px] bottom-0 top-[11px]" aria-hidden="true" />
+      <div className="win-wood win-frame absolute inset-x-[17px] bottom-[2px] top-[17px]" aria-hidden="true" />
+      <div className="win-bead pointer-events-none absolute inset-x-[23px] bottom-[8px] top-[23px]" aria-hidden="true" />
+      <div className="win-rebate absolute inset-x-[29px] bottom-[14px] top-[29px]" aria-hidden="true" />
       <div
-        className="absolute inset-[13px] overflow-hidden bg-[#1a1816]"
-        style={{ borderRadius: "999px 999px 4px 4px", touchAction: "pan-y" }}
+        className="absolute inset-x-[31px] bottom-[16px] top-[31px] overflow-hidden bg-[#1a1816]"
+        style={{ borderRadius: "999px 999px 1px 1px", touchAction: "pan-y", containerType: "inline-size" }}
         onPointerDown={(e) => (x0.current = e.clientX)}
         onPointerUp={(e) => {
           if (x0.current === null) return;
@@ -273,9 +298,9 @@ function Jharokha({ album, still, data }: { album: ReturnType<typeof useAlbum>; 
         <div className="pointer-events-none absolute inset-0 transition-opacity duration-1000" style={{ background: "radial-gradient(70% 50% at 50% 100%, rgba(255,180,90,.5), transparent 70%)", mixBlendMode: "screen", opacity: night ? 1 : 0.2 }} />
         <RealSky sky={data.sky} phase={data.phase} />
         {raining && !still && <SkyLayers layers={["rain"]} phase={data.phase} tint={false} />}
-        <div className="pointer-events-none absolute inset-0" style={{ boxShadow: "inset 0 16px 26px -12px rgba(0,0,0,.5), inset 12px 0 20px -14px rgba(0,0,0,.5), inset -12px 0 20px -14px rgba(0,0,0,.5)", background: "linear-gradient(transparent 58%, rgba(0,0,0,.6))" }} />
-        <div className="pointer-events-none absolute inset-x-0 top-[34%] h-1" style={{ background: "linear-gradient(180deg,#b8935f,#e2c597,#b8935f)" }} />
-        <div className="pointer-events-none absolute inset-y-0 left-1/2 w-1 -translate-x-1/2" style={{ background: "linear-gradient(90deg,#b8935f,#e2c597,#b8935f)" }} />
+        <div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(transparent 60%, rgba(0,0,0,.55))" }} />
+        <GlazingBars />
+        <div className="win-glass pointer-events-none absolute inset-0" style={{ borderRadius: "inherit", opacity: night ? 0.55 : 1 }} aria-hidden="true" />
         {caption && (
           <figcaption className="voice pointer-events-none absolute inset-x-5 bottom-[58px] text-center text-[15px] leading-snug text-white [text-shadow:0_1px_8px_rgba(0,0,0,.6)]">
             {caption}
@@ -308,9 +333,9 @@ function Lamp({ glow, onLight, onHold, pulseKey }: { glow: number; onLight: () =
   }, [pulseKey]);
   const g = Math.max(0.35, Math.min(1.25, glow));
   return (
-    <div className="absolute bottom-[6px] left-1/2 z-[1] -translate-x-1/2">
-      <span className="lamp-halo pointer-events-none absolute left-1/2 top-[22px] h-[400px] w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ ["--g" as string]: g } as React.CSSProperties} aria-hidden="true" />
-      <span key={rings} className={cn("pointer-events-none absolute left-1/2 top-[24px] h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full", rings && "lamp-ring")} aria-hidden="true" />
+    <div className="absolute bottom-[5px] left-[40%] z-[1] -translate-x-1/2">
+      <span className="lamp-halo pointer-events-none absolute left-[47px] top-[26px] h-[400px] w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ ["--g" as string]: g } as React.CSSProperties} aria-hidden="true" />
+      <span key={rings} className={cn("pointer-events-none absolute left-[47px] top-[28px] h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full", rings && "lamp-ring")} aria-hidden="true" />
       <button
         type="button"
         aria-label="Tap to light the lamp; hold to send a heartbeat"
@@ -333,12 +358,30 @@ function Lamp({ glow, onLight, onHold, pulseKey }: { glow: number; onLight: () =
         }}
         onContextMenu={(e) => e.preventDefault()}
       >
+        {/* A clay diya: fired terracotta, a little oil, a cotton wick */}
         <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true">
-          <path d="M11 38 Q28 54 45 38 Z" fill="#b98a4a" />
-          <path d="M11 38 Q28 48 45 38" fill="none" stroke="#e4c48d" strokeWidth="2" />
-          <g className="lamp-flame" style={{ opacity: Math.max(0.25, Math.min(1, g)) }}>
-            <path d="M28 10 C34 19 34 26 28 33 C22 26 22 19 28 10 Z" fill="#ffc861" />
-            <path d="M28 18 C31 23 31 27 28 31 C25 27 25 23 28 18 Z" fill="#fff4cf" />
+          <defs>
+            <radialGradient id="diya-clay" cx="40%" cy="20%" r="85%">
+              <stop offset="0" stopColor="#c27a4a" />
+              <stop offset=".55" stopColor="#8f4c2a" />
+              <stop offset="1" stopColor="#4e2512" />
+            </radialGradient>
+            <radialGradient id="diya-flame" cx="50%" cy="72%" r="60%">
+              <stop offset="0" stopColor="#fffbe8" />
+              <stop offset=".35" stopColor="#ffe08a" />
+              <stop offset=".75" stopColor="#ff9f3a" />
+              <stop offset="1" stopColor="#e2551c" stopOpacity=".6" />
+            </radialGradient>
+          </defs>
+          <ellipse cx="28" cy="47.5" rx="15" ry="2" fill="rgba(0,0,0,.35)" />
+          <path d="M10 37.5 C12 46 20 48 28 48 C37 48 44 45 47.5 38 L50 35.5 C46 37 41 37.5 28 37.5 C18 37.5 13 37 10 37.5 Z" fill="url(#diya-clay)" />
+          <ellipse cx="29" cy="37.2" rx="18.5" ry="2.6" fill="#3a1d0e" />
+          <ellipse cx="29" cy="37" rx="16.5" ry="1.7" fill="#6b4a1c" opacity=".85" />
+          <path d="M11 37.5 C17 36 40 36 50 35.5" fill="none" stroke="#d99868" strokeWidth=".8" opacity=".7" />
+          <path d="M45 36.5 L47.5 33.5" stroke="#2a1608" strokeWidth="1.4" strokeLinecap="round" />
+          <g className="lamp-flame" style={{ opacity: Math.max(0.25, Math.min(1, g)), transformOrigin: "46px 33px" }}>
+            <path d="M46.6 14 C51 22 51.5 28 47.6 33.6 C43.6 29 43.6 22 46.6 14 Z" fill="url(#diya-flame)" />
+            <path d="M47 23 C48.6 26.5 48.6 29.5 47.4 32.4 C46 30 46 26.5 47 23 Z" fill="#fffdf2" />
           </g>
         </svg>
       </button>
@@ -346,86 +389,56 @@ function Lamp({ glow, onLight, onHold, pulseKey }: { glow: number; onLight: () =
   );
 }
 
-/* ------------------------------------------------------- status lines */
-function StatusLine({ p, st, onWorry }: { p: Member; st: WindowData["people"][number] | undefined; onWorry: () => void }) {
+/* ------------------------------------------------------- safe & sound */
+/** What each dot means, in words, next to the dot. */
+const STATUS_WORD: Partial<Record<Alive, { word: string; ink: string }>> = {
+  active: { word: "All good", ink: "#1e7a45" },
+  quiet: { word: "Quiet for a while", ink: "#9a5b00" },
+  asleep: { word: "Night-time there", ink: "var(--ink-soft)" },
+};
+
+const lowerFirst = (s: string) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
+
+/** "Maa · up since 6:09 AM · active 29 min ago", then "● All good · Home safe · 2 h ago". */
+function StatusLine({ p, st, check, onWorry }: { p: Member; st: WindowData["people"][number] | undefined; check: SafetyState | null; onWorry: () => void }) {
   const look = ALIVE_LOOK[st?.state ?? "unknown"];
   const quiet = st?.state === "quiet";
-  const r = st?.rhythm;
-  return (
-    <button type="button" onClick={quiet ? onWorry : undefined} className={cn("grid w-full grid-cols-[34px_1fr] items-center gap-2.5 text-left", !quiet && "cursor-default")} aria-label={`${callName(p)}: ${st?.line ?? look.word}`}>
-      <span className="relative">
-        <Avatar src={memberPhoto(p)} name={callName(p)} size={34} />
+  const word = st ? STATUS_WORD[st.state] : undefined;
+  const alarm = check && (check.tone === "overdue" || check.tone === "help");
+  const head = (
+    <>
+      <span className="relative shrink-0">
+        <Avatar src={memberPhoto(p)} name={callName(p)} size={38} />
         <span className={cn("absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-paper", st?.state === "active" && "alive-breathe")} style={{ background: look.dot, color: look.dot }} />
       </span>
-      <span className="min-w-0">
-        <span className="block truncate text-[13px] text-ink-soft" suppressHydrationWarning>
-          <b className="font-semibold text-ink">{callName(p)}</b> · <span className={quiet ? "text-[#9a5b00]" : ""}>{st?.line ?? "…"}</span>
-        </span>
-        <span className="relative mt-1.5 block h-[5px] rounded-full bg-black/[.05]" aria-hidden="true">
-          {r?.usual && <span className="absolute inset-y-0 rounded-full bg-black/[.09]" style={{ left: `${r.usual[0] * 100}%`, width: `${(r.usual[1] - r.usual[0]) * 100}%` }} />}
-          {r?.ticks.map((t, i) => <span key={i} className="absolute inset-y-0 w-[3px] rounded-full bg-ink" style={{ left: `${t * 100}%` }} />)}
-          {r?.now !== null && r?.now !== undefined && <span className="absolute -inset-y-[3px] w-[1.5px] bg-[#e5484d]" style={{ left: `${r.now * 100}%` }} />}
-        </span>
+      <span className="block min-w-0 text-[14px] leading-snug text-ink-soft" suppressHydrationWarning>
+        <b className="font-semibold text-ink">{callName(p)}</b> · {st ? lowerFirst(st.line) : "…"}
       </span>
-    </button>
+    </>
   );
-}
-
-/* --------------------------------------------------- window settings sheet */
-function WindowSheet({ open, onClose, data, onSaved }: { open: boolean; onClose: () => void; data: WindowData; onSaved: () => void }) {
-  const { viewer, members } = useViewer();
-  const [busy, setBusy] = useState(false);
-  const chosen = data.people.map((p) => p.id);
-  const others = members.filter((mm) => mm.id !== viewer.id && mm.role !== "child" && can(mm, "window.at"));
-  const save = async (body: unknown) => {
-    setBusy(true);
-    await postJson("/api/window", body);
-    setBusy(false);
-    onSaved();
-  };
-  if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Your window">
-      <button type="button" aria-label="Close" className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <m.div className="relative max-h-[86vh] w-full max-w-[480px] overflow-y-auto rounded-t-[28px] bg-white px-5 pt-4 text-ink" style={{ paddingBottom: "calc(20px + env(safe-area-inset-bottom))" }} initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
-        <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-black/15" aria-hidden="true" />
-        <p className="m-0 text-[13px] font-medium text-ink-soft">Wall</p>
-        <div className="mt-2 flex gap-2.5" role="radiogroup" aria-label="Wall colour">
-          {(Object.keys(WALL_LOOK) as Wall[]).map((w) => (
-            <button key={w} type="button" role="radio" aria-checked={data.wall === w} aria-label={WALL_LOOK[w].label} disabled={busy} onClick={() => void save({ action: "wall", wall: w })} className={cn("h-11 w-11 rounded-full ring-1 ring-black/10", data.wall === w && "outline outline-2 outline-offset-[3px] outline-ink")} style={{ background: `linear-gradient(180deg,${WALL_LOOK[w].top},${WALL_LOOK[w].bottom})` }} />
-          ))}
-        </div>
-        <p className="m-0 mt-5 text-[13px] font-medium text-ink-soft">Who&rsquo;s at your window · up to two</p>
-        <ul className="m-0 mt-1 list-none p-0">
-          {others.map((mm) => {
-            const on = chosen.includes(mm.id);
-            const full = !on && chosen.length >= 2;
-            return (
-              <li key={mm.id} className="flex items-center gap-3 border-t border-[var(--line)] py-2.5 first:border-0">
-                <Avatar src={memberPhoto(mm)} name={callName(mm)} size={34} />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[15px]">{callName(mm)}</span>
-                  <span className="block text-[12px] text-ink-soft">{mm.city || placeFromTz(mm.tz)}</span>
-                </span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={on}
-                  aria-label={`${callName(mm)} at your window`}
-                  disabled={busy || full}
-                  onClick={() => void save({ action: "people", people: on ? chosen.filter((id) => id !== mm.id) : [...chosen, mm.id] })}
-                  className={cn("relative h-[26px] w-[44px] rounded-full transition-colors disabled:opacity-35", on ? "bg-ink" : "bg-black/15")}
-                >
-                  <span className={cn("absolute top-[3px] h-5 w-5 rounded-full bg-white shadow transition-all", on ? "left-[21px]" : "left-[3px]")} />
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-        <a href="/settings#window" className="mt-3 block text-center text-[13px] text-ink-soft no-underline">
-          Photo, slideshow and quiet hours
-        </a>
-      </m.div>
+    <div className="grid grid-cols-[38px_1fr] gap-x-3">
+      {quiet ? (
+        <button type="button" onClick={onWorry} className="col-span-2 grid grid-cols-[38px_1fr] items-center gap-x-3 text-left" aria-label={`${callName(p)}: ${st?.line}. Quiet for a while, tap to check on them`}>
+          {head}
+        </button>
+      ) : (
+        <div className="col-span-2 grid grid-cols-[38px_1fr] items-center gap-x-3">{head}</div>
+      )}
+      <p className="col-start-2 m-0 -mt-1.5 flex flex-wrap items-center gap-x-1.5 text-[12.5px] leading-snug text-ink-soft" suppressHydrationWarning>
+        {word && (
+          <span className="inline-flex items-center gap-1.5" style={{ color: word.ink }}>
+            <span className="h-[7px] w-[7px] rounded-full" style={{ background: look.dot }} aria-hidden="true" />
+            {word.word}
+          </span>
+        )}
+        {word && check && <span aria-hidden="true">·</span>}
+        {check && (
+          <a href="/safe" className={cn("inline-flex items-center gap-1 no-underline", alarm ? "font-semibold text-[#c2343a]" : "text-ink-soft")}>
+            <Icon name="shield" size={12} /> {check.label} · {ago(check.at)}
+          </a>
+        )}
+      </p>
     </div>
   );
 }
@@ -434,7 +447,7 @@ function WindowSheet({ open, onClose, data, onSaved }: { open: boolean; onClose:
 export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
   const router = useRouter();
   const { viewer, members } = useViewer();
-  const { openAdd, openRoom, refreshKey } = useShell();
+  const { openAdd, refreshKey } = useShell();
   const { play, current, isPlaying, toggle } = usePlayer();
   const win = useJson<WindowData>("/api/window");
   const lamp = useJson<LampData>("/api/lamp");
@@ -445,7 +458,6 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
   const [calling, setCalling] = useState(false);
   const [picking, setPicking] = useState(false);
   const [worry, setWorry] = useState<Member | null>(null);
-  const [sheet, setSheet] = useState(false);
   const [welcome, setWelcome] = useState<string | null>(null);
   const [lampLine, setLampLine] = useState<string | null>(null);
   const [pulse, setPulse] = useState(0);
@@ -531,11 +543,12 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
   const lastBy = members.find((mm) => mm.id === pair.last?.litBy);
   const defaultLampLine = pair.last?.litAt ? `${pair.last.litBy === viewer.id ? "You" : callName(lastBy)} · ${ago(pair.last.litAt)} · tap to light · hold for a heartbeat` : "Tap to light · hold for a heartbeat";
 
-  // Safe & sound: the latest check-in of each person at the window who shares with you.
-  const checks = useMemo(() => {
-    const all = safety.data?.checkins ?? [];
-    return atWindow.map((p) => ({ p, s: stateOf(all, p.id) })).filter((x): x is { p: Member; s: SafetyState } => Boolean(x.s) && (x.s!.tone !== "calm" || Date.now() - Date.parse(x.s!.at) < 24 * 3_600_000));
-  }, [safety.data, atWindow]);
+  // Safe & sound: the latest check-in of each person at the window who shares
+  // with you (calm ones only for a day; a missed promise stays until closed).
+  const checkOf = (id: string): SafetyState | null => {
+    const s = stateOf(safety.data?.checkins ?? [], id);
+    return s && (s.tone !== "calm" || Date.now() - Date.parse(s.at) < 24 * 3_600_000) ? s : null;
+  };
 
   const call = async () => {
     if (knock) return router.push(`/call/${knock.id}`);
@@ -571,19 +584,20 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
 
   return (
     <div className="fixed inset-0 z-30 flex flex-col overflow-hidden bg-paper text-ink">
-      {/* The wall, the window, the ledge */}
+      {/* The wall, the window, the sill */}
       <section
-        className={cn("relative flex min-h-0 flex-[1.25] flex-col px-5 transition-[filter] duration-700", dark ? "text-ink" : "text-white")}
+        className={cn("wall-paint relative flex min-h-0 flex-[1.25] flex-col px-5 transition-[filter] duration-700", dark ? "text-ink" : "text-white")}
         style={{
           paddingTop: "calc(14px + env(safe-area-inset-top))",
-          background: `radial-gradient(120% 80% at 50% 0%, rgba(255,255,255,.18), transparent 60%), linear-gradient(180deg, ${look.top}, ${look.bottom})`,
-          filter: data && data.phase === "night" ? "brightness(.62) saturate(.85)" : undefined,
-          ["--wall-ink-soft" as string]: dark ? "rgba(28,27,26,.7)" : "rgba(255,255,255,.9)",
+          ["--wall-top" as string]: look.top,
+          ["--wall-bottom" as string]: look.bottom,
+          filter: data && data.phase === "night" ? "brightness(.6) saturate(.8)" : undefined,
+          ["--wall-ink-soft" as string]: dark ? "rgba(28,27,26,.72)" : "rgba(255,255,255,.92)",
         } as React.CSSProperties}
       >
-        <div className="wall-grain pointer-events-none absolute inset-0" aria-hidden="true" />
+        <div className="wall-plaster pointer-events-none absolute inset-0" aria-hidden="true" />
         <header className="relative flex items-start justify-between gap-3">
-          <div className="min-w-0 [text-shadow:0_1px_10px_rgba(0,0,0,.18)]">
+          <div className={cn("min-w-0", dark ? "[text-shadow:0_1px_0_rgba(255,255,255,.25)]" : "[text-shadow:0_1px_10px_rgba(0,0,0,.22)]")}>
             <h1 className="m-0 truncate text-[26px] font-light leading-[1.1] tracking-[-0.01em]">{names || (data ? "Your window" : " ")}</h1>
             {data?.far && (
               <p className="m-0 mt-1 flex flex-wrap items-center gap-x-2.5 text-[13px] opacity-90">
@@ -596,16 +610,22 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
             )}
             {welcome && <p className="voice m-0 mt-1.5 text-[15px]">{welcome}</p>}
           </div>
-          <button type="button" onClick={() => openRoom("all")} aria-label="Everything, and your settings" className="press shrink-0 rounded-full ring-1 ring-white/50">
+          <button type="button" onClick={() => router.push("/settings")} aria-label="Your profile and settings" className="press shrink-0 rounded-full ring-1 ring-white/50">
             <Avatar src={memberPhoto(viewer)} name={viewer.firstName} size={40} />
           </button>
         </header>
-        <div className="relative mt-3 min-h-0 flex-1">{data ? <Jharokha album={album} still={still} data={data} /> : <div className="mx-auto h-full max-w-[290px] animate-pulse bg-white/15" style={{ borderRadius: "999px 999px 10px 10px" }} aria-busy="true" aria-label="Opening the window" />}</div>
-        {/* The ledge: the lamp and their latest voice */}
-        <div className="relative z-[1] mx-auto mb-2 mt-[-6px] h-[16px] w-full max-w-[320px] rounded-[4px]" style={{ background: "linear-gradient(180deg,#ecd6b2,#b99567)", boxShadow: "0 10px 18px -8px rgba(0,0,0,.5)" }}>
+        <div className="relative mt-3 min-h-0 flex-1">{data ? <Jharokha album={album} still={still} data={data} /> : <div className="win-reveal mx-auto h-full max-w-[310px] animate-pulse" aria-busy="true" aria-label="Opening the window" />}</div>
+        {/* The sill: a teak board. The lamp and their latest voice sit on it. */}
+        <div className="relative z-[1] mx-auto mb-2 mt-[-3px] h-[19px] w-full max-w-[340px]">
+          <div className="win-wood-h win-sill-top absolute inset-x-0 top-0 h-[7px] [clip-path:polygon(4px_0,calc(100%-4px)_0,100%_100%,0_100%)]" aria-hidden="true">
+            <span className="absolute inset-0 bg-[rgba(255,236,205,.16)]" />
+          </div>
+          <div className="win-wood-h win-sill-face absolute inset-x-0 bottom-0 top-[7px]" aria-hidden="true">
+            <span className="absolute inset-0 rounded-[inherit] bg-[rgba(30,14,4,.18)]" />
+          </div>
           {!waiting && data && <Lamp glow={litNow ? 1.15 : pair.glow} onLight={() => void light()} onHold={() => void heartbeat()} pulseKey={pulse} />}
           {latestVoice && (
-            <button type="button" onClick={() => (current?.id === latestVoice.id ? toggle() : play(latestVoice))} aria-label={`${playing ? "Pause" : "Play"} ${callName(voiceBy)}'s voice note`} className="absolute -top-[30px] right-2 z-[2] flex -rotate-3 items-center gap-1.5 rounded-[8px_8px_3px_3px] bg-[#fbf7ef] py-1.5 pl-1.5 pr-2.5 text-[11.5px] font-medium text-ink shadow-[0_6px_14px_-6px_rgba(0,0,0,.45)]">
+            <button type="button" onClick={() => (current?.id === latestVoice.id ? toggle() : play(latestVoice))} aria-label={`${playing ? "Pause" : "Play"} ${callName(voiceBy)}'s voice note`} className="absolute -top-[27px] right-3 z-[2] flex -rotate-2 items-center gap-1.5 rounded-[3px] bg-[#f6f0e3] py-1.5 pl-1.5 pr-2.5 text-[11.5px] font-medium text-ink shadow-[0_1px_1px_rgba(0,0,0,.25),2px_6px_10px_-4px_rgba(0,0,0,.45)]">
               <span className="grid h-5 w-5 place-items-center rounded-full bg-ink text-white">
                 <Icon name={playing ? "pause" : "play"} size={10} />
               </span>
@@ -613,30 +633,28 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
             </button>
           )}
         </div>
-        <p className="relative m-0 mb-3 text-center text-[11.5px] [text-shadow:0_1px_6px_rgba(0,0,0,.3)]" style={{ color: "var(--wall-ink-soft)" }} suppressHydrationWarning>
+        <p className="relative m-0 mb-3 text-center text-[11.5px]" style={{ color: "var(--wall-ink-soft)", textShadow: dark ? "0 1px 0 rgba(255,255,255,.3)" : "0 1px 6px rgba(0,0,0,.3)" }} suppressHydrationWarning>
           {waiting ? " " : (lampLine ?? defaultLampLine)}
         </p>
       </section>
 
-      {/* Inside: how they are, and the one thing to do */}
+      {/* Inside: are they safe and sound, and the one thing to do */}
       <section className="relative flex flex-none flex-col gap-2.5 px-5 pt-3" style={{ paddingBottom: "calc(14px + env(safe-area-inset-bottom))" }}>
         {data && waiting ? (
           <WaitingCard names={names} />
         ) : (
           <>
-            <div className="flex items-center justify-between">
-              <p className="m-0 text-[11px] uppercase tracking-[0.14em] text-ink-soft">{atWindow.length ? `${atWindow.map((p) => callName(p)).join(" & ")} today` : "Today"}</p>
-              <button type="button" onClick={() => setSheet(true)} aria-label="Your window: wall colour and who's at your window" className="grid h-8 w-8 place-items-center rounded-full text-ink-soft">
-                <Icon name="settings" size={17} />
-              </button>
+            <div>
+              <div className="-my-2.5 flex items-center justify-between gap-3">
+                <h2 className="m-0 text-[17px] font-semibold leading-tight tracking-[-0.01em]">Safe &amp; sound</h2>
+                <a href="/safe" className="-mr-2 flex min-h-[44px] shrink-0 items-center gap-0.5 px-2 text-[13px] font-medium text-ink-soft no-underline">
+                  See check-ins <Icon name="chevron" size={14} />
+                </a>
+              </div>
+              <p className="m-0 mt-0.5 text-[12px] leading-snug text-ink-soft">From when they last opened Aangan and checked in</p>
             </div>
             {atWindow.map((p) => (
-              <StatusLine key={p.id} p={p} st={statusOf(p.id)} onWorry={() => setWorry(p)} />
-            ))}
-            {checks.map(({ p, s }) => (
-              <a key={p.id} href="/safe" className={cn("-mt-0.5 flex items-center gap-1.5 pl-[44px] text-[12px] no-underline", s.tone === "overdue" || s.tone === "help" ? "font-semibold text-[#c2343a]" : "text-ink-soft")}>
-                <Icon name="shield" size={13} /> {callName(p)} · {s.label} · {ago(s.at)}
-              </a>
+              <StatusLine key={p.id} p={p} st={statusOf(p.id)} check={checkOf(p.id)} onWorry={() => setWorry(p)} />
             ))}
             <div className="my-0.5 h-px bg-[var(--line)]" />
             <div className="flex items-center gap-2.5">
@@ -674,7 +692,6 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
         onPick={(ids) => talk(ids)}
         onClose={() => setPicking(false)}
       />
-      {data && <WindowSheet open={sheet} onClose={() => setSheet(false)} data={data} onSaved={() => void win.reload()} />}
       <WorrySheet person={worry} status={worry ? statusOf(worry.id) : undefined} onTalk={() => worry && talk([worry.id])} onCall={() => void call()} onClose={() => setWorry(null)} />
     </div>
   );
