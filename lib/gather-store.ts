@@ -70,6 +70,12 @@ export async function dismiss(familyId: string, memberId: string, k: string): Pr
   dismissals.set(key(familyId, d.id), d);
 }
 
+/** Demo only: plant an event in memory (no database, no await). */
+export function seedEvent(familyId: string, input: unknown): void {
+  const e = EventSchema.parse(input);
+  events.set(key(familyId, e.id), e);
+}
+
 export function resetEvents(): void {
   events.clear();
   dismissals.clear();

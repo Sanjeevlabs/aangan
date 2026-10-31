@@ -4,6 +4,8 @@
 // Every person, place and phone number here is invented.
 import { seedDoc } from "./family-docs";
 import { hourIn } from "./zones";
+import { eventTitle, fallbackPlan } from "./events";
+import { seedEvent } from "./gather-store";
 import { dateIn } from "./today";
 
 const FAM = "demo-family";
@@ -232,6 +234,40 @@ export function seedDemoRooms(now = Date.now()): void {
   // A visit yesterday, so "Since yesterday" has something to say in the demo.
   for (const id of ["arjun", "priya", "dadi", "dada"])
     [30, 20].forEach((h, i) => seedDoc(FAM, "presence", { id: `presence-${id}-visit-${i}`, memberId: id, moment: "here", note: "", at: ago(60 * h, now) }));
+  // Coming up: Vihaan's birthday video call, evening of 9 Nov (IST), both homes invited.
+  const people = [
+    { id: "priya", role: "adult", lang: "en" },
+    { id: "arjun", role: "adult", lang: "en" },
+    { id: "dadi", role: "elder", lang: "hi" },
+    { id: "dada", role: "elder", lang: "hi" },
+    { id: "leo", role: "child", lang: "en" },
+    { id: "aria", role: "child", lang: "en" },
+  ];
+  seedEvent(FAM, {
+    id: "event-leo-birthday-2026",
+    type: "birthday",
+    title: eventTitle("birthday", "Vihaan"),
+    forMemberId: "leo",
+    occasionKey: "birthday",
+    date: "2026-11-09",
+    hostId: "priya",
+    invites: ["arjun", "dadi", "dada", "leo", "aria"],
+    minutes: 45,
+    slots: [
+      { id: "s1", startsAt: "2026-11-09T13:30:00.000Z" },
+      { id: "s2", startsAt: "2026-11-09T14:00:00.000Z" },
+      { id: "s3", startsAt: "2026-11-09T14:30:00.000Z" },
+    ],
+    votes: { s2: ["priya", "dadi"] },
+    answered: ["priya", "dadi"],
+    status: "voting",
+    lockedSlotId: null,
+    sittingId: null,
+    plan: fallbackPlan("birthday", people, { hostId: "priya", honoreeId: "leo" }),
+    planSource: "fallback",
+    extras: false,
+    createdAt: new Date(now).toISOString(),
+  });
   seedDoc(FAM, "care_settings", { id: "dadi", memberId: "dadi", quietAlert: true, tellMemberId: "arjun", graceHours: 3, updatedAt: ago(60 * 24 * 6, now) });
 
   // ---------- Maa's Village ----------
