@@ -13,6 +13,7 @@ import { callName, memberPhoto } from "@/lib/people";
 import { useFamilyCards } from "@/lib/use-family";
 import { postJson, useJson } from "@/lib/use-json";
 import { cn } from "@/lib/utils";
+import { Boundary } from "@/components/ui/boundary";
 
 // Advice & blessings: what the elders said when the family asked, kept on
 // shelves (data/advice-categories.json): life, marriage, raising children,
@@ -98,7 +99,7 @@ export default function AdvicePage() {
               {current.note && <p className="m-0 mb-2 text-[13px] text-ink-faint">{current.note}</p>}
               <div className="divide-y divide-[var(--line)] rounded-card bg-surface px-3.5">
                 {current.items.map((x) => (
-                  <AdviceItem key={x.q.id} item={x} />
+                  <Boundary key={x.q.id} label="This answer"><AdviceItem item={x} /></Boundary>
                 ))}
               </div>
             </section>
@@ -112,7 +113,7 @@ export default function AdvicePage() {
                 <div className="no-scrollbar -mx-5 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-5">
                   {s.items.map((x) => (
                     <div key={x.q.id} className="w-[84%] max-w-[340px] shrink-0 snap-start rounded-card bg-surface px-3.5">
-                      <AdviceItem item={x} />
+                      <Boundary label="This answer"><AdviceItem item={x} /></Boundary>
                     </div>
                   ))}
                 </div>

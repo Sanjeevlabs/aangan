@@ -12,6 +12,7 @@ import { icsFor, roomUrl } from "@/lib/overlap";
 import { isLive, lockedStart, participants, startsInLabel, type FamilyEvent } from "@/lib/events";
 import { eventAction, useEvents } from "@/lib/gather-client";
 import { callName } from "@/lib/people";
+import { Boundary } from "@/components/ui/boundary";
 
 type Tab = "plan" | "tasks" | "playlist";
 
@@ -123,7 +124,7 @@ export default function EventPage(props: { params: Promise<{ id: string }> }) {
         </section>
       ) : null}
 
-      <EventSections key={`${e.id}-${tab}`} e={e} members={members} viewer={viewer} initial={tab} onChange={(next) => setLocal(next)} />
+      <Boundary label="This celebration"><EventSections key={`${e.id}-${tab}`} e={e} members={members} viewer={viewer} initial={tab} onChange={(next) => setLocal(next)} /></Boundary>
     </div>
   );
 }

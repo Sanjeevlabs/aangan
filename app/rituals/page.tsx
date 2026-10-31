@@ -18,6 +18,7 @@ import { callName, cardCover, cardDuration, formatDuration, memberPhoto } from "
 import type { Member, RitualRun, Wish } from "@/lib/schemas";
 import { useFamilyCards } from "@/lib/use-family";
 import { useJson } from "@/lib/use-json";
+import { Boundary } from "@/components/ui/boundary";
 
 // Occasions (Celebrations → Occasions): every photo and voice from the
 // family's birthdays, weddings, anniversaries and festivals, one group per
@@ -229,7 +230,7 @@ export default function OccasionsPage() {
           )}
 
           {groups.map((g) => (
-            <Group key={g.key} g={g} members={data.members} albums={albumsQ.data?.albums ?? []} onOpen={(grp, index) => setOpen({ g: grp, index })} />
+            <Boundary key={g.key} label={g.title}><Group g={g} members={data.members} albums={albumsQ.data?.albums ?? []} onOpen={(grp, index) => setOpen({ g: grp, index })} /></Boundary>
           ))}
 
           <button type="button" onClick={() => setFestivalsOpen(true)} className="press flex w-full items-center gap-3 rounded-card bg-card px-4 py-3 text-left shadow-card">

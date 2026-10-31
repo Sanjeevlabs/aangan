@@ -17,6 +17,7 @@ import { postJson, useJson } from "@/lib/use-json";
 import { cn } from "@/lib/utils";
 import { museLabel } from "@/lib/muse-portrait";
 import { isOccasionAlbum } from "@/lib/occasion-album";
+import { Boundary } from "@/components/ui/boundary";
 
 // Memory Lane: the family's everyday photos and voices, by the years. Same
 // kind together: albums, photos, videos and voices each get one swipe row
@@ -146,7 +147,7 @@ export default function LanePage() {
       ) : (
         <div className="space-y-5">
           {(albums.length > 0 || (albumsQ.data && total > 0)) && cards && (
-            <section aria-label="Albums">
+            <Boundary label="Albums"><section aria-label="Albums">
               <RowHead
                 title="Albums"
                 count={albums.length}
@@ -173,21 +174,21 @@ export default function LanePage() {
               ) : (
                 <p className="m-0 text-[14px] text-ink-soft">No albums yet. Tap the wand to sort photos into albums.</p>
               )}
-            </section>
+            </section></Boundary>
           )}
 
           {LANE_ROWS.map((r) => {
             const list = groups[r.kind];
             if (!list.length) return null;
             return (
-              <section key={r.kind} aria-label={r.title}>
+              <Boundary key={r.kind} label={r.title}><section aria-label={r.title}>
                 <RowHead title={r.title} count={list.length} range={rangeLabel(list)} />
                 <Row label={r.title}>
                   {list.map((c, i) => (
                     <Tile key={c.id} card={c} kind={r.kind} onOpen={() => setOpen({ kind: r.kind, index: i })} />
                   ))}
                 </Row>
-              </section>
+              </section></Boundary>
             );
           })}
         </div>

@@ -9,6 +9,7 @@ import { sendOrder } from "@/lib/households";
 import { callName, memberPhoto } from "@/lib/people";
 import { appsFor, countryForTz } from "@/lib/send-apps";
 import { cn } from "@/lib/utils";
+import { Boundary } from "@/components/ui/boundary";
 
 // Send something (SPEC §9), the first page in Care. Who it's for, the apps
 // their home already uses (links only, by their country: data/send-apps.json),
@@ -90,7 +91,7 @@ function Send() {
           ))}
         </div>
       )}
-      {person && <AppCategories tz={person.tz} name={callName(person)} />}
+      {person && <Boundary label="Their apps"><AppCategories tz={person.tz} name={callName(person)} /></Boundary>}
       {forMemberId && <SendSheet key={forMemberId} inline forMemberId={forMemberId} context={title ? { kind, title } : undefined} open onClose={() => undefined} />}
     </div>
   );

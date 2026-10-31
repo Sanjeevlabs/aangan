@@ -19,6 +19,7 @@ import { InviteSheet } from "@/components/invite-sheet";
 import { FamilyCircles, FamilyHomes } from "@/components/family-homes";
 import { can } from "@/lib/permissions";
 import { ZONES, placeFromTz } from "@/lib/zones";
+import { Boundary } from "@/components/ui/boundary";
 
 const RELATION_WORDS = ["mother", "father", "wife", "husband", "daughter", "son", "sister", "brother"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -253,7 +254,7 @@ export default function BondPage() {
       {members === null && !failed && <div className="skeleton h-[420px] rounded-card" aria-busy="true" aria-label="Loading family" />}
       {members && (
         <>
-          <section aria-label="Family tree">
+          <Boundary label="The family tree"><section aria-label="Family tree">
             <FamilyTree
               members={members}
               relationships={relationships ?? []}
@@ -267,7 +268,7 @@ export default function BondPage() {
                   : undefined
               }
             />
-          </section>
+          </section></Boundary>
           <BothSides />
           <div className="mt-10">
             <FamilyHomes members={members} relationships={relationships ?? []} />

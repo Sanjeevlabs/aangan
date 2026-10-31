@@ -18,6 +18,7 @@ import { useFamilyCards } from "@/lib/use-family";
 import { postJson, useJson } from "@/lib/use-json";
 import { cn } from "@/lib/utils";
 import type { StoryIdea } from "@/lib/story-ideas";
+import { Boundary } from "@/components/ui/boundary";
 
 // Stories: the kids' corner. Grandparents tell, children listen (at bedtime
 // too), and ask for the next one. Muse only labels a story; it never writes one.
@@ -41,7 +42,7 @@ function minutesOf(card: Card | undefined): string {
 export default function StoriesPage() {
   return (
     <Suspense fallback={<div className="skeleton mt-16 h-[420px] rounded-card" aria-busy="true" />}>
-      <Stories />
+      <Boundary label="Stories"><Stories /></Boundary>
     </Suspense>
   );
 }

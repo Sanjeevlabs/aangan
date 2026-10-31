@@ -13,6 +13,7 @@ import type { Card, Member } from "@/lib/schemas";
 import { useFamilyCards } from "@/lib/use-family";
 import { useJson } from "@/lib/use-json";
 import { cn } from "@/lib/utils";
+import { Boundary } from "@/components/ui/boundary";
 
 // Family portrait: pick who's in it, pick a painted style, and Muse paints one
 // portrait from the family's own photos. Nothing is shared until you tap Keep;
@@ -271,7 +272,7 @@ function rank(m: Member): number {
 export default function PortraitPage() {
   return (
     <Suspense fallback={<div className="skeleton mt-6 h-[320px] rounded-card" aria-busy="true" />}>
-      <PortraitInner />
+      <Boundary label="Portrait"><PortraitInner /></Boundary>
     </Suspense>
   );
 }
