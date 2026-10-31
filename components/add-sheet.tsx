@@ -7,6 +7,7 @@ import { addressTo, householdName, households } from "@/lib/households";
 import { ASK_STARTERS } from "@/lib/i18n";
 import { blobToWav16k, extractVideoFrames, processImage, processVideo, processVoiceBlob, type ProcessedUpload } from "@/lib/media-client";
 import { getSessionMedia } from "@/lib/media-session";
+import { uploadQueue, type Outcome } from "@/lib/upload-queue";
 import { callName, formatDuration, memberPhoto } from "@/lib/people";
 import type { TranscriptSegment } from "@/lib/schemas";
 import { CARD_NOTE_MAX, CARD_PLACE_MAX } from "@/lib/card-limits";
@@ -62,24 +63,29 @@ export function purposeTitle(c: ReplyContribution | null): string | null {
 
 // Card upload carries the real bytes: `media` for the photo/video plus key
 // frames for video grounding. The server captions from these bytes only.
-async function postMoment(upload: ProcessedUpload, file: File | Blob, caption: string, lang: string, frames: Blob[] = [], extra: { place?: string; note?: string } = {}): Promise<boolean> {
-  const form = new FormData();
-  form.append("type", upload.kind === "video" ? "video" : "photo");
-  form.append("caption", caption);
-  if (extra.place) form.append("place", extra.place.slice(0, CARD_PLACE_MAX));
-  if (extra.note) form.append("note", extra.note.slice(0, CARD_NOTE_MAX));
-  form.append("lang", lang);
-  form.append("takenAt", upload.takenAt);
-  form.append("takenAtSource", upload.takenAtSource);
-  form.append("mediaRef", upload.mediaRef);
-  form.append("source", upload.source);
-  form.append("peaks", JSON.stringify(upload.peaks));
-  form.append("palette", JSON.stringify(upload.palette));
-  form.append("taggedNames", JSON.stringify([]));
-  form.append("media", file, "media");
-  for (const frame of frames.slice(0, 3)) form.append("frames", frame, "frame.jpg");
-  const res = await fetch("/api/cards", { method: "POST", body: form });
-  return res.ok;
+async function postMoment(upload: ProcessedUpload, file: File | Blob, caption: string, lang: string, frames: Blob[] = [], extra: { place?: string; note?: string } = {}): Promise<Outcome> {
+  const fields: Record<string, string> = {
+    type: upload.kind === "video" ? "video" : "photo",
+    caption,
+    lang,
+    takenAt: upload.takenAt,
+    takenAtSource: upload.takenAtSource,
+    mediaRef: upload.mediaRef,
+    source: upload.source,
+    peaks: JSON.stringify(upload.peaks),
+    palette: JSON.stringify(upload.palette),
+    taggedNames: JSON.stringify([]),
+  };
+  if (extra.place) fields.place = extra.place.slice(0, CARD_PLACE_MAX);
+  if (extra.note) fields.note = extra.note.slice(0, CARD_NOTE_MAX);
+  const files = [{ field: "media", name: "media", blob: file as Blob }, ...frames.slice(0, 3).map((blob) => ({ field: "frames", name: "frame.jpg", blob }))];
+  // Saved on the device first; the queue sends it and keeps retrying if the network drops.
+  return uploadQueue().enqueue({
+    id: crypto.randomUUID(),
+    fields,
+    files,
+    upload: upload.mediaRef.startsWith("storage:") ? undefined : { blob: file as Blob, filename: upload.kind === "video" ? "video.mp4" : "photo.jpg", mime: (file as Blob).type || "application/octet-stream" },
+  });
 }
 
 async function postVoice(input: {
@@ -89,11 +95,14 @@ async function postVoice(input: {
   transcriptLang: string;
   segments: TranscriptSegment[];
   addressedTo: string | null;
-}): Promise<{ ok: boolean; id: string | null }> {
-  const res = await fetch("/api/cards", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
+  /** Posted after a retried send lands; a first-try success leaves these to the caller. */
+  after?: (cardId: string) => { url: string; body: unknown }[];
+}): Promise<{ ok: boolean; id: string | null; queued: boolean }> {
+  const id = crypto.randomUUID();
+  const voiceBlob = input.upload.mediaRef.startsWith("storage:") ? null : (getSessionMedia(input.upload.mediaRef)?.blob ?? null);
+  const outcome = await uploadQueue().enqueue({
+    id,
+    json: {
       type: "audio",
       caption: input.caption.slice(0, 280),
       lang: input.transcriptLang,
@@ -106,11 +115,11 @@ async function postVoice(input: {
       transcriptLang: input.transcriptLang,
       segments: input.segments.slice(0, 64),
       addressedTo: input.addressedTo,
-    }),
+    },
+    upload: voiceBlob ? { blob: voiceBlob, filename: "voice.webm", mime: voiceBlob.type || "audio/webm" } : undefined,
+    after: input.after?.(id),
   });
-  if (!res.ok) return { ok: false, id: null };
-  const data = (await res.json()) as { card?: { id?: string } };
-  return { ok: true, id: data.card?.id ?? null };
+  return { ok: outcome !== "dropped", id: outcome === "dropped" ? null : id, queued: outcome === "queued" };
 }
 
 const CONSENT_KEY = "aangan:voice-consent";
@@ -219,6 +228,7 @@ function VoiceComposer({ addressee, contribution, onDone }: { addressee: string[
   const [seconds, setSeconds] = useState(0);
   const [ready, setReady] = useState<VoiceReady | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [ideas, setIdeas] = useState(false);
   const [previewPlaying, setPreviewPlaying] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -330,11 +340,30 @@ function VoiceComposer({ addressee, contribution, onDone }: { addressee: string[
 
   const send = async () => {
     if (!ready) return;
+    setNotice("Saved, sending…");
     setPhase("working");
-    const posted = await postVoice({ ...ready, caption: ready.transcript, addressedTo: addressTo(to) });
+    // If the network drops, the queue keeps the recording and posts these once it lands.
+    const after = (cardId: string) => {
+      const steps: { url: string; body: unknown }[] = [];
+      if (nightThere && letter) steps.push({ url: "/api/letters", body: { cardId, deliverAt: morningAt() } });
+      if (contribution?.kind === "wish" || contribution?.kind === "blessing") steps.push({ url: "/api/wishes", body: { ritualRunId: contribution.runId, cardId, memberId: viewer.id, kind: contribution.kind } });
+      else if (contribution?.kind === "recipe") steps.push({ url: "/api/kitchen", body: { action: "teach", cardId, title: contribution.title, questionId: contribution.questionId } });
+      else if (contribution?.kind === "story") steps.push({ url: "/api/stories", body: { action: "tell", cardId, questionId: contribution.questionId } });
+      else if (contribution?.kind === "today") steps.push({ url: "/api/today", body: { action: "answer", taskId: contribution.taskId, cardId } });
+      else if (contribution?.kind === "answer") steps.push({ url: "/api/keeper", body: { action: "answer", questionId: contribution.questionId, cardId } });
+      else if (contribution?.kind === "need") steps.push({ url: "/api/care", body: { action: "need-from-voice", cardId, forMemberId: contribution.forMemberId ?? viewer.id } });
+      return steps;
+    };
+    const posted = await postVoice({ ...ready, caption: ready.transcript, addressedTo: addressTo(to), after });
     if (!posted.ok) {
-      setError("Couldn't send. Check your connection and try again.");
+      setNotice(null);
+      setError("Couldn't send that recording. Try again.");
       setPhase("ready");
+      return;
+    }
+    if (posted.queued) {
+      setNotice("Saved. Couldn't send yet, will retry on its own.");
+      window.setTimeout(onDone, 1600);
       return;
     }
     if (nightThere && letter && posted.id) {
@@ -464,7 +493,7 @@ function VoiceComposer({ addressee, contribution, onDone }: { addressee: string[
                   {formatDuration(seconds)}
                 </span>
               ) : phase === "working" ? (
-                "Listening back…"
+                (notice ?? "Listening back…")
               ) : (
                 purpose ? "Tap to start" : `Tap to talk${toLabel ? ` to ${toLabel}` : " to everyone"}`
               )}
@@ -547,6 +576,7 @@ function MomentComposer({ onDone }: { onDone: () => void }) {
   const glasses = false;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState<string | null>(null);
   // Muse's one offer here: restore a single old photo (kept only if the person chooses it).
   const [restored, setRestored] = useState<Restored | null>(null);
   const single = files.length === 1 && files[0].type.startsWith("image/") ? files[0] : null;
@@ -558,6 +588,7 @@ function MomentComposer({ onDone }: { onDone: () => void }) {
     setBusy(true);
     setError(null);
     let failed = 0;
+    let queued = 0;
     for (const file of files) {
       try {
         const video = file.type.startsWith("video/");
@@ -571,14 +602,25 @@ function MomentComposer({ onDone }: { onDone: () => void }) {
         }
         const stored = getSessionMedia(upload.mediaRef)?.blob ?? file;
         const frames = video ? await extractVideoFrames(file).catch(() => []) : [];
-        if (!(await postMoment(upload, stored, note.trim(), viewer.lang, frames, { place: where.trim(), note: printNote.trim() }))) failed += 1;
+        setSending("Saved, sending…");
+        const out = await postMoment(upload, stored, note.trim(), viewer.lang, frames, { place: where.trim(), note: printNote.trim() });
+        if (out === "dropped") failed += 1;
+        else if (out === "queued") queued += 1;
       } catch {
         failed += 1;
       }
     }
     setBusy(false);
-    if (failed === 0) onDone();
-    else setError(`${failed} of ${files.length} didn't upload. Videos must be 30 seconds or shorter.`);
+    if (failed === 0 && queued === 0) {
+      setSending("Sent");
+      window.setTimeout(onDone, 500);
+    } else if (failed === 0) {
+      setSending("Saved. Couldn't send yet, will retry on its own.");
+      window.setTimeout(onDone, 1800);
+    } else {
+      setSending(null);
+      setError(`${failed} of ${files.length} didn't upload. Videos must be 30 seconds or shorter.`);
+    }
   };
 
   return (
@@ -671,7 +713,12 @@ function MomentComposer({ onDone }: { onDone: () => void }) {
           {error}
         </p>
       )}
-      <Button className="mt-4 w-full" disabled={files.length === 0 || busy} onClick={() => void share()}>
+      {sending && (
+        <p className="m-0 mt-2 text-[14px] text-ink-soft" role="status">
+          {sending}
+        </p>
+      )}
+      <Button className="mt-4 w-full" disabled={files.length === 0 || busy || sending !== null} onClick={() => void share()}>
         {busy ? "Sharing…" : files.length > 1 ? `Share ${files.length} with the family` : "Share with the family"}
       </Button>
     </div>

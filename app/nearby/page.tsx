@@ -11,6 +11,7 @@ import { callName, memberPhoto } from "@/lib/people";
 import { postJson, useJson } from "@/lib/use-json";
 import { cn } from "@/lib/utils";
 import { placeFromTz } from "@/lib/zones";
+import { Boundary } from "@/components/ui/boundary";
 
 // Trusted nearby (SPEC §29.9): for every home, your top 5 people nearby, in
 // the order to call them. If the family can't reach someone, they call #1,
@@ -45,7 +46,7 @@ export default function NearbyPage() {
       ) : !data ? (
         <div className="skeleton h-[300px] rounded-card" aria-busy="true" aria-label="Loading" />
       ) : (
-        homes.map((h) => <HomeNearby key={h.id} home={h} helpers={rankNearby((data.helpers ?? []).filter((x) => x.emergency && h.members.some((m) => m.id === x.forMemberId)))} onChange={reload} />)
+        homes.map((h) => <Boundary key={h.id} label="This home"><HomeNearby home={h} helpers={rankNearby((data.helpers ?? []).filter((x) => x.emergency && h.members.some((m) => m.id === x.forMemberId)))} onChange={reload} /></Boundary>)
       )}
     </div>
   );

@@ -18,6 +18,7 @@ import { useNextVisit } from "@/components/home-presence";
 import { callName, memberPhoto } from "@/lib/people";
 import type { Member } from "@/lib/schemas";
 import { useJson } from "@/lib/use-json";
+import { Boundary } from "@/components/ui/boundary";
 
 export default function GatherPage() {
   const { viewer, members } = useViewer();
@@ -127,7 +128,7 @@ export default function GatherPage() {
         </Link>
       )}
 
-      <ComingUp occasions={upcoming} members={members} canPlan={canPlan} onPlan={(o) => setSheet({ occasion: o })} />
+      <Boundary label="Coming up"><ComingUp occasions={upcoming} members={members} canPlan={canPlan} onPlan={(o) => setSheet({ occasion: o })} /></Boundary>
 
       <PlanSheet
         open={sheet !== null}

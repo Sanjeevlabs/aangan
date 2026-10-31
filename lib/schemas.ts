@@ -166,6 +166,8 @@ export const DisplayLangRequestSchema = z.object({
 });
 
 export const CreateCardRequestSchema = z.object({
+  /** Client-made UUID: a retry after a lost response upserts the same card. */
+  id: z.string().uuid().optional(),
   type: z.enum(["photo", "audio", "video"]),
   caption: z.string().max(280).default(""),
   lang: z.string().min(2).max(8).default("en"),

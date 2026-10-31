@@ -16,6 +16,7 @@ import { canChange } from "@/lib/permissions";
 import { callName, memberPhoto } from "@/lib/people";
 import { cn } from "@/lib/utils";
 import { postJson, useJson } from "@/lib/use-json";
+import { Boundary } from "@/components/ui/boundary";
 
 // The family Kitchen: a library of every recipe anyone in the family shares,
 // shelved by the person who cooks it. Each dish belongs to someone, may be
@@ -115,7 +116,7 @@ export default function KitchenPage() {
       )}
 
       {shelves.map(({ cook, list }) => (
-        <section key={cook.id} aria-label={`${callName(cook)}'s recipes`}>
+        <Boundary key={cook.id} label="This shelf"><section aria-label={`${callName(cook)}'s recipes`}>
           <div className="mb-3 mt-7 flex items-center gap-2.5">
             <Avatar src={memberPhoto(cook)} name={callName(cook)} size={38} />
             <h2 className="m-0 min-w-0 flex-1 truncate text-[20px]">
@@ -133,7 +134,7 @@ export default function KitchenPage() {
               <RecipeTile key={r.id} recipe={r} attempts={attemptsFor(r.id)} canManage={canChange(viewer, r.cookId) || Boolean(r.addedBy && canChange(viewer, r.addedBy))} onDeleted={() => void reload()} />
             ))}
           </ul>
-        </section>
+        </section></Boundary>
       ))}
       {recipes.length > 0 && shelves.length === 0 && <EmptyLine>No recipes match.</EmptyLine>}
       {iHaveNone && recipes.length > 0 && (
