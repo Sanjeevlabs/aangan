@@ -2,7 +2,8 @@
 // every other locale is partial and falls back to English per key.
 // Add a locale: write lib/ui-strings/<base>.ts and list it here.
 
-import { baseLang, isRtl, toLangCode } from "../languages";
+import { baseLang, toLangCode } from "../languages";
+import { htmlDir, htmlLang } from "./lang";
 import { ar } from "./ar";
 import { bn } from "./bn";
 import { en, type Catalogue, type UiKey } from "./en";
@@ -17,7 +18,7 @@ import { ta } from "./ta";
 import { te } from "./te";
 import { ur } from "./ur";
 
-export { en, type Catalogue, type UiKey };
+export { en, htmlDir, htmlLang, type Catalogue, type UiKey };
 
 /** Keyed by registry code (hi-deva) or base code (ta). Hinglish (hi-latn) reads English. */
 export const CATALOGUES: Record<string, Catalogue> = {
@@ -54,14 +55,3 @@ export function translate(lang: string | null | undefined, key: UiKey, vars?: Va
   return raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
 }
 
-/** The html lang attribute for a registry code (hi-deva → hi, hi-latn → hi-Latn). */
-export function htmlLang(lang: string | null | undefined): string {
-  const code = toLangCode(lang);
-  if (code === "hi-deva") return "hi";
-  if (code === "hi-latn") return "hi-Latn";
-  return code;
-}
-
-export function htmlDir(lang: string | null | undefined): "rtl" | "ltr" {
-  return isRtl(lang) ? "rtl" : "ltr";
-}

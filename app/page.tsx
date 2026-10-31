@@ -1,19 +1,24 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import { Courtyard } from "@/components/courtyard";
 import { CourtyardProvider } from "@/lib/courtyard-data";
-import { DoorTransition } from "@/components/door";
 import { useShell } from "@/components/shell";
 import { useViewer } from "@/components/viewer";
-import { HomeSite } from "@/components/home-site";
-import { Landing } from "@/components/welcome";
-import { LiteWindow } from "@/components/window";
 import { Photo } from "@/components/ui/kit";
 import { HERO_SIZES } from "@/lib/hero";
 import { resetFamilyCards } from "@/lib/use-family";
 
 const DOOR_KEY = "aangan:door";
+
+// Each person needs one of these four: the window (signed in, door closed), the courtyard
+// (above, door open), the landing (signed out) or the door itself (only when it swings).
+// The others stay out of the first download; the likely next one is fetched while idle.
+const LiteWindow = dynamic(() => import("@/components/window").then((x) => x.LiteWindow), { ssr: false, loading: () => <div className="lite-ground fixed inset-0 z-30" aria-busy="true" aria-label="Opening Aangan" /> });
+const Landing = dynamic(() => import("@/components/welcome").then((x) => x.Landing), { ssr: false });
+const HomeSite = dynamic(() => import("@/components/home-site").then((x) => x.HomeSite), { ssr: false });
+const DoorTransition = dynamic(() => import("@/components/door").then((x) => x.DoorTransition), { ssr: false });
 
 /**
  * What the server sends and the phone paints before any script has run. Behind the
@@ -40,13 +45,24 @@ export default function Page() {
   const { ready, signedIn } = useViewer();
   const [open, setOpen] = useState<boolean | null>(null);
   const [moving, setMoving] = useState<"opening" | "closing" | null>(null);
+  // Once the door has swung it stays mounted, so it can fade out.
+  const [doorUsed, setDoorUsed] = useState(false);
+  useEffect(() => {
+    if (moving) setDoorUsed(true);
+  }, [moving]);
 
   useEffect(() => {
+    let isOpen = false;
     try {
-      setOpen(sessionStorage.getItem(DOOR_KEY) === "open");
+      isOpen = sessionStorage.getItem(DOOR_KEY) === "open";
     } catch {
-      setOpen(false);
+      /* private mode */
     }
+    setOpen(isOpen);
+    // Start the next screen's code now, in step with the session check.
+    if (!isOpen) void import("@/components/window");
+    const idle = (window as { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 1500));
+    idle(() => void import("@/components/door"));
   }, []);
 
   // Wide screens see the home page; phones go straight to the app.
@@ -103,7 +119,7 @@ export default function Page() {
           <Courtyard onCloseDoor={() => setMoving("closing")} />
         </CourtyardProvider>
       )}
-      <DoorTransition state={moving} onDone={settle} />
+      {(moving || doorUsed) && <DoorTransition state={moving} onDone={settle} />}
     </>
   );
 }
