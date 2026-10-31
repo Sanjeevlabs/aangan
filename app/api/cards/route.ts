@@ -125,7 +125,7 @@ async function postMultipart(req: Request, familyId: string, authorId: string): 
       f.type === "video" && frameImages.length > 0
         ? frameImages
         : [{ bytes: mediaBytes, mime: mediaFile && mediaFile.type ? mediaFile.type : "image/jpeg" }];
-    const prompt = `A short family video moment. Tagged: ${taggedNames.join(", ") || "none"}.`;
+    const prompt = `${f.type === "video" ? "A short family video moment" : "A family photo"}. Tagged: ${taggedNames.join(", ") || "none"}.`;
     const { caption: grounded } = await captionCard(prompt, {
       mediaId: sha256Hex(mediaBytes),
       store: serverStore,
