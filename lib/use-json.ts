@@ -1,13 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useCourtyardSlice } from "./courtyard-data";
 
 /**
  * Fetch JSON for a room; `reload` after a write. Null while loading.
  * `every` (ms) also refetches quietly while the page is visible: on an
  * interval and when the tab comes back. A failed quiet refetch keeps the data.
+ * Inside the courtyard, the payload comes from the one shared GET /api/courtyard
+ * (lib/courtyard-data.tsx) and this hook does not fetch.
  */
-export function useJson<T>(url: string | null, opts?: { every?: number }): { data: T | null; failed: boolean; reload: () => Promise<void> } {
+export function useJson<T>(wanted: string | null, opts?: { every?: number }): { data: T | null; failed: boolean; reload: () => Promise<void> } {
+  const shared = useCourtyardSlice(wanted);
+  const url = shared ? null : wanted;
   const every = opts?.every;
   const [data, setData] = useState<T | null>(null);
   const [failed, setFailed] = useState(false);
@@ -44,6 +49,7 @@ export function useJson<T>(url: string | null, opts?: { every?: number }): { dat
       document.removeEventListener("visibilitychange", tick);
     };
   }, [url, every, load]);
+  if (shared) return { data: (shared.data ?? null) as T | null, failed: false, reload: shared.reload };
   return { data, failed, reload };
 }
 

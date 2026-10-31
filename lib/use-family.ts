@@ -9,6 +9,8 @@ import type { Card } from "./schemas";
 
 let cache: Card[] | null = null;
 let inflight: Promise<Card[]> | null = null;
+let loadedAt = 0;
+let loadedKey = -1;
 const listeners = new Set<() => void>();
 
 // The server already joins the demo shelf (demo family only) and holds back
@@ -26,6 +28,7 @@ async function load(): Promise<Card[]> {
     .then((cards) => {
       cache = cards;
       inflight = null;
+      loadedAt = Date.now();
       listeners.forEach((l) => l());
       return cards;
     });
@@ -47,6 +50,9 @@ function subscribe(onChange: () => void): () => void {
 export function useFamilyCards(refreshKey = 0): { cards: Card[] | null } {
   const cards = useSyncExternalStore(subscribe, () => cache, () => null);
   useEffect(() => {
+    // Two mounts in the same moment (shell + room) share one fetch; a later mount revalidates.
+    if (cache && refreshKey === loadedKey && Date.now() - loadedAt < 2000) return;
+    loadedKey = refreshKey;
     void load();
   }, [refreshKey]);
   return { cards };
@@ -56,4 +62,6 @@ export function useFamilyCards(refreshKey = 0): { cards: Card[] | null } {
 export function resetFamilyCards(): void {
   cache = null;
   inflight = null;
+  loadedAt = 0;
+  loadedKey = -1;
 }

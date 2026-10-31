@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Courtyard } from "@/components/courtyard";
+import { CourtyardProvider } from "@/lib/courtyard-data";
 import { DoorTransition } from "@/components/door";
 import { useShell } from "@/components/shell";
 import { useViewer } from "@/components/viewer";
@@ -77,7 +78,11 @@ export default function Page() {
   if (gate === "landing") return wide ? <HomeSite onDemo={startDemo} /> : <Landing onDemo={startDemo} />;
   return (
     <>
-      {gate === "lite" ? <LiteWindow onOpenDoor={() => setMoving("opening")} /> : <Courtyard onCloseDoor={() => setMoving("closing")} />}
+      {gate === "lite" ? <LiteWindow onOpenDoor={() => setMoving("opening")} /> : (
+        <CourtyardProvider>
+          <Courtyard onCloseDoor={() => setMoving("closing")} />
+        </CourtyardProvider>
+      )}
       <DoorTransition state={moving} onDone={settle} />
     </>
   );
