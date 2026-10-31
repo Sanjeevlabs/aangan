@@ -221,11 +221,7 @@ export function seedDemo(): void {
   photo("demo-wed-silk", "priya", "2025-12-06T09:10:00.000Z", "/demo/family-dadi.webp", "Maa in the silk she wore at her own wedding.", { place: "Jaipur" });
   photo("demo-wed-mehendi", "priya", "2025-12-05T14:00:00.000Z", "/demo/portrait-aria.webp", "Anika's first mehendi, drying in the sun.", { place: "Jaipur" });
   photo("demo-wed-baraat", "arjun", "2025-12-06T15:45:00.000Z", "/demo/portrait-dad.webp", "Dancing in the baraat till the band gave up.", { place: "Jaipur" });
-}
 
-export function resetDemo(): void {
-  members = [...DEMO_MEMBERS, ...DEMO_IYER_MEMBERS].map((m) => MemberSchema.parse(m));
-  clearPlays();
   // A few real-looking listens so a parent's "your gifts this week" isn't empty
   // in the demo: each is someone hearing something Maa or Papa gave.
   const h = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
@@ -236,6 +232,11 @@ export function resetDemo(): void {
     ["play-priya-morning", "demo-from-dadi-1", "priya", h(3)],
   ] as const)
     addPlay({ id, familyId: "demo-family", cardId, memberId, playedAt: at });
+}
+
+export function resetDemo(): void {
+  members = [...DEMO_MEMBERS, ...DEMO_IYER_MEMBERS].map((m) => MemberSchema.parse(m));
+  clearPlays();
   clearReactions();
   clearRelationships();
   kinshipCache.clear();
