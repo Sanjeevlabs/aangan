@@ -1,9 +1,8 @@
 // Ritual agent planner (M4): pure, testable occasion scan.
-// 7 days before an occasion -> request wishes from members AND blessings
-// from elders; day 3 -> remind the missing; occasion morning -> assemble the
+// 7 days before an occasion -> ask every grown-up for a wish (elders: a
+// blessing), voice or photo; day 3 -> remind the missing; occasion morning -> assemble the
 // reel for 8am recipient delivery. Also assigns elder daily roles.
-// Movable festival dates resolve from the data fixture (clearly labelled;
-// live search-grounding wiring moves to M6).
+// Festival dates come from the family's holiday calendar (lib/holidays.ts).
 import { ritualRunId } from "./rituals";
 import type { DailyRole, Member, RitualRun, Wish } from "./schemas";
 
@@ -123,7 +122,7 @@ export function planRitualScan(
     if (!iso) continue;
     const date = new Date(`${iso}T00:00:00.000Z`);
     if (Number.isNaN(date.getTime())) continue;
-    occasions.push({ slug: c.slug, title: c.title, date });
+    occasions.push({ slug: c.slug, title: c.title.split(/\s+[—-]\s+/)[0].trim(), date });
   }
 
   for (const occ of occasions) {
@@ -147,22 +146,27 @@ export function planRitualScan(
       }
       continue;
     }
-    if (days <= 7 && days > 3 && !existing) {
-      // 7-day window: request wishes from members AND blessings from elders.
+    if (days <= 7 && days > 3) {
+      // 7-day window: every grown-up (not child accounts) is asked for a
+      // wish, elders for a blessing, voice or photo. The scan route skips a
+      // suggestion it has already made, so this stays idempotent.
       for (const m of members) {
+        if (m.role === "child") continue;
         if (occ.birthdayMember && m.id === occ.birthdayMember.id) continue;
         const kind = m.role === "elder" ? "blessing" : "wish";
         const already = state.wishes.some((w) => w.ritualRunId === runId && w.memberId === m.id);
         if (already) continue;
+        const prompt = `Record a ${kind} for ${occ.title}`;
         plan.suggestions.push({
-          goal: `Request a ${kind} from ${m.displayName} for ${occ.title}`,
-          payload: { action: "request_wish", ritualRunId: runId, memberId: m.id, kind },
+          goal: prompt,
+          payload: { action: "request_wish", ritualRunId: runId, memberId: m.id, kind, prompt, occasionDate, media: ["voice", "photo"] },
         });
       }
     }
     if (days <= 3 && existing) {
-      // Day 3: remind the missing (no wish row yet for this run).
+      // Day 3: remind the missing grown-ups (no wish row yet for this run).
       for (const m of members) {
+        if (m.role === "child") continue;
         if (occ.birthdayMember && m.id === occ.birthdayMember.id) continue;
         const missing = !state.wishes.some((w) => w.ritualRunId === runId && w.memberId === m.id);
         if (!missing) continue;

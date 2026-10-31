@@ -98,6 +98,8 @@ export async function POST(req: Request): Promise<Response> {
   const person = (id: string | null | undefined): Member | undefined => members.find((m) => m.id === id);
   const me = person(auth.memberId);
   const now = new Date().toISOString();
+  // Teens (and children) don't write to care at all: no tasks, no Trusted nearby.
+  if (!can(me, "care.write")) return Response.json({ error: "not-allowed", action: "care.write" }, { status: 403 });
 
   // Your own trusted-nearby list (the people near *you*) is yours to keep.
   let ownNearby = false;
@@ -166,7 +168,7 @@ export async function POST(req: Request): Promise<Response> {
       const need = await loadNeed(body.needId);
       if (need instanceof Response) return need;
       const who = person(body.action === "claim" ? auth.memberId : body.memberId);
-      if (!who || who.access === "child") return Response.json({ error: "unknown-member" }, { status: 404 });
+      if (!who || !can(who, "care.write")) return Response.json({ error: "unknown-member" }, { status: 404 });
       const noteForParent = await reassure(need, `${who.displayName} is taking care of it.`);
       const what = body.action === "claim" ? `${who.displayName} took it` : `${me?.displayName ?? "Family"} assigned it to ${who.displayName}`;
       return Response.json({ need: await save(need, what, { status: need.status === "progress" ? "progress" : "claimed", claimedBy: who.id, noteForParent }) });

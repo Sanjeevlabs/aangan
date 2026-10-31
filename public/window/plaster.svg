@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="360" viewBox="0 0 360 360">
+  <!-- Lime plaster, procedurally: slow mottle (uneven lime wash) over a fine
+       trowelled relief lit from the top left. Grey, so it tints any paint
+       (used with a multiply blend). Made for Aangan; no third-party image. -->
+  <filter id="p" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+    <feTurbulence type="fractalNoise" baseFrequency="0.008" numOctaves="4" seed="7" stitchTiles="stitch" result="mottle"/>
+    <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="4" seed="2" stitchTiles="stitch" result="trowel"/>
+    <feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="2" seed="11" stitchTiles="stitch" result="grit"/>
+    <feComposite in="trowel" in2="grit" operator="arithmetic" k2="0.8" k3="0.2" result="height"/>
+    <feColorMatrix in="height" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1 0 0 0 0" result="h"/>
+    <feDiffuseLighting in="h" surfaceScale="1.6" diffuseConstant="1.05" lighting-color="#ffffff" result="relief">
+      <feDistantLight azimuth="235" elevation="62"/>
+    </feDiffuseLighting>
+    <feColorMatrix in="mottle" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.9 0 0 0 -0.32" result="blotch"/>
+    <feFlood flood-color="#4a3f33" result="dark"/>
+    <feComposite in="dark" in2="blotch" operator="in" result="stain"/>
+    <feComposite in="stain" in2="relief" operator="over"/>
+  </filter>
+  <rect width="360" height="360" filter="url(#p)"/>
+</svg>

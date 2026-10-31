@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { EVENT_KINDS } from "./kind-values";
+import { CARD_NOTE_MAX, CARD_PLACE_MAX } from "./card-limits";
 import { LANG_CODES } from "./languages";
 
 // Caption may only reference tagged members (enforced in lib/grounding.ts).
@@ -86,7 +87,8 @@ export const RitualConfigSchema = z.object({
   steps: z.array(RitualStepSchema).min(1),
 });
 
-export const CardSourceSchema = z.enum(["upload", "today", "glasses", "ritual", "agent"]);
+/** muse-portrait / muse-restored: made by Muse Image from the family's own photos, always labelled. */
+export const CardSourceSchema = z.enum(["upload", "today", "glasses", "ritual", "agent", "muse-portrait", "muse-restored"]);
 
 export const CardSchema = z.object({
   id: z.string(),
@@ -110,16 +112,24 @@ export const CardSchema = z.object({
   coverRef: z.string().nullable().default(null),
   /** Who a voice note was spoken to (member id). Null = the whole family. */
   addressedTo: z.string().nullable().default(null),
+  /** Where it was taken, as the sharer wrote it ("Amritsar"). Optional. */
+  place: z.string().max(CARD_PLACE_MAX).default(""),
+  /** A short handwritten-style note under the print. Optional; falls back to the caption. */
+  note: z.string().max(CARD_NOTE_MAX).default(""),
 });
 
 export const MemberRoleSchema = z.enum(["elder", "adult", "child"]);
 
 /**
- * What a person may do in the family (separate from their generation):
- * admin manages people, roles and invites; member adds family, creates and
- * cares; child talks, shares and cooks but can't change the tree or care.
+ * What a person may do in the family (separate from their generation), see
+ * lib/permissions.ts: owner (exactly one, the creator) > admin (up to 3 with
+ * the owner) > member; teen (13-17) shares, voices, wishes and tells stories;
+ * child (0-12) is a profile only. Elder mode is a setting, not a role.
  */
-export const AccessSchema = z.enum(["admin", "member", "child"]);
+export const AccessSchema = z.enum(["owner", "admin", "member", "teen", "child"]);
+
+/** Joiners wait ("pending") until an owner/admin lets them in. */
+export const MemberStatusSchema = z.enum(["active", "pending"]);
 
 export const DisplayLangSchema = z.enum(LANG_CODES);
 
@@ -142,6 +152,7 @@ export const MemberSchema = z.object({
   photoRef: z.string().nullable().default(null),
   email: z.string().nullable().default(null),
   access: AccessSchema.default("member"),
+  status: MemberStatusSchema.default("active"),
   /**
    * The same person in another family's Aangan (a married couple and their
    * children belong to both sides). Set by the server only, never by a client.
@@ -159,7 +170,8 @@ export const CreateCardRequestSchema = z.object({
   caption: z.string().max(280).default(""),
   lang: z.string().min(2).max(8).default("en"),
   takenAt: z.string().datetime(),
-  source: CardSourceSchema.default("upload"),
+  // Muse-made sources are set only by /api/muse/keep, from a real render.
+  source: CardSourceSchema.exclude(["muse-portrait", "muse-restored"]).default("upload"),
   mediaRef: z.string().nullable().default(null),
   peaks: z.array(z.number().min(0).max(1)).max(128).default([]),
   palette: z.array(z.string()).max(5).default([]),
@@ -167,6 +179,8 @@ export const CreateCardRequestSchema = z.object({
   transcriptLang: z.string().min(2).max(8).default("en"),
   segments: z.array(TranscriptSegmentSchema).max(64).default([]),
   addressedTo: z.string().max(64).nullable().default(null),
+  place: z.string().trim().max(CARD_PLACE_MAX).default(""),
+  note: z.string().trim().max(CARD_NOTE_MAX).default(""),
 });
 
 export const HomeImageRequestSchema = z.object({
@@ -312,6 +326,19 @@ export type DailyRole = z.infer<typeof DailyRoleSchema>;
 export type GatherSession = z.infer<typeof GatherSessionSchema>;
 export type DisplayLang = z.infer<typeof DisplayLangSchema>;
 export type Access = z.infer<typeof AccessSchema>;
+export type MemberStatus = z.infer<typeof MemberStatusSchema>;
+
+/** A recorded consent, e.g. a parent letting their teen have an account. */
+export const ConsentSchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+  memberId: z.string(),
+  parentMemberId: z.string().nullable(),
+  kind: z.enum(["teen-account"]),
+  method: z.enum(["parent-session-code"]),
+  createdAt: z.string(),
+});
+export type Consent = z.infer<typeof ConsentSchema>;
 export type RitualConfig = z.infer<typeof RitualConfigSchema>;
 export type Card = z.infer<typeof CardSchema>;
 export type CardSource = z.infer<typeof CardSourceSchema>;

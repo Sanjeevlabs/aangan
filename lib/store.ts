@@ -15,6 +15,7 @@ import {
   SuggestionSchema,
   WishSchema,
   type AgentRun,
+  type Consent,
   type Card,
   type DailyRole,
   type GatherSession,
@@ -163,6 +164,7 @@ export interface MemberPatch {
   displayName?: string;
   role?: Member["role"];
   access?: Member["access"];
+  status?: Member["status"];
   tz?: string;
   city?: string;
   birthday?: string;
@@ -177,6 +179,7 @@ export function updateMemberProfile(memberId: string, patch: MemberPatch): Membe
   if (patch.displayName !== undefined) member.displayName = patch.displayName;
   if (patch.role !== undefined) member.role = patch.role;
   if (patch.access !== undefined) member.access = patch.access;
+  if (patch.status !== undefined) member.status = patch.status;
   if (patch.birthday !== undefined) member.birthday = patch.birthday;
   if (patch.email !== undefined) member.email = patch.email;
   if (patch.firstName !== undefined) member.firstName = patch.firstName;
@@ -190,26 +193,34 @@ export function updateMemberProfile(memberId: string, patch: MemberPatch): Membe
 export function seedDemo(): void {
   seedDemoRooms();
   clearCards();
-  addCard({
-    id: "demo-diya-1",
-    familyId: "demo-family",
-    type: "photo",
-    caption: "Diyas lit together, miles apart.",
-    summary: "Ritual card from the Festival of Lights guide.",
-    lang: "en",
-    takenAt: "2026-10-26T18:30:00.000Z",
-    ritualSlug: "diwali",
-  });
-  addCard({
-    id: "demo-bday-1",
-    familyId: "demo-family",
-    type: "audio",
-    caption: "परिवार ने मिलकर जन्मदिन का गीत गाया।",
-    summary: "Birthday ritual voice note.",
-    lang: "hi",
-    takenAt: "2026-10-20T12:00:00.000Z",
-    ritualSlug: "birthday",
-  });
+  // ---- Occasions (Celebrations → Occasions). Synthetic: invented moments, demo photos reused. ----
+  const photo = (id: string, authorId: string | null, takenAt: string, mediaRef: string, caption: string, extra: Partial<z.input<typeof CardSchema>> = {}) =>
+    addCard({ id, familyId: "demo-family", type: "photo", caption, lang: "en", takenAt, mediaRef, authorId, source: "upload", ...extra });
+  const voice = (id: string, authorId: string | null, takenAt: string, caption: string, transcript: string, extra: Partial<z.input<typeof CardSchema>> = {}) =>
+    addCard({ id, familyId: "demo-family", type: "audio", caption, lang: "en", takenAt, authorId, source: "ritual", transcript, transcriptLang: "en", segments: [{ start: 0, end: 6, text: transcript }], ...extra });
+  // Diwali last year, every home's lamps.
+  photo("demo-diya-1", null, "2025-10-20T13:30:00.000Z", "/demo/courtyard.jpg", "Diyas lit together, miles apart.", { summary: "Ritual card from the Festival of Lights guide.", ritualSlug: "diwali", mediaRef: null });
+  photo("demo-diwali-rangoli", "dadi", "2025-10-20T11:00:00.000Z", "/demo/courtyard.jpg", "Rangoli at the door before the first lamp.", { ritualSlug: "diwali", place: "Amritsar" });
+  photo("demo-diwali-sparklers", "priya", "2025-10-20T15:10:00.000Z", "/demo/family-leo.webp", "Vihaan's first sparkler, held very far away.", { ritualSlug: "diwali", place: "Bengaluru" });
+  // Arjun's birthday: the family sang, and every home sent a wish.
+  voice("demo-bday-1", null, "2026-07-30T12:00:00.000Z", "परिवार ने मिलकर जन्मदिन का गीत गाया।", "", { summary: "Birthday ritual voice note.", lang: "hi", ritualSlug: "birthday", segments: [] });
+  voice("demo-wish-dadi-arjun", "dadi", "2026-07-30T01:00:00.000Z", "Jeete raho, beta.", "Jeete raho, beta. On this day you arrived in the rain, and you have been bringing good news ever since.", { coverRef: "/demo/family-dadi.webp" });
+  voice("demo-wish-dada-arjun", "dada", "2026-07-30T01:20:00.000Z", "Happy birthday from your Papa.", "Happy birthday, Arjun. Take the day off from worrying about us. We are fine, and we are proud.", { coverRef: "/demo/courtyard.jpg" });
+  voice("demo-wish-aria-arjun", "aria", "2026-07-30T02:30:00.000Z", "Happy birthday Papa!", "Happy birthday Papa! I made you a card, it's under your pillow. Don't look yet!", { coverRef: "/demo/portrait-aria.webp" });
+  photo("demo-wish-priya-arjun", "priya", "2026-07-29T18:40:00.000Z", "/demo/portrait-dad.webp", "Cake at midnight, as promised.", { place: "Bengaluru" });
+  addRitualRun({ id: "birthday:2026-07-30", familyId: "demo-family", ritualSlug: "birthday", occasionDate: "2026-07-30", status: "done", createdAt: "2026-07-20T00:00:00.000Z" });
+  for (const [member, cardId, kind] of [
+    ["dadi", "demo-wish-dadi-arjun", "blessing"],
+    ["dada", "demo-wish-dada-arjun", "blessing"],
+    ["aria", "demo-wish-aria-arjun", "wish"],
+    ["priya", "demo-wish-priya-arjun", "wish"],
+  ] as const)
+    addWish({ id: `wish-${cardId}`, familyId: "demo-family", ritualRunId: "birthday:2026-07-30", cardId, memberId: member, kind, createdAt: "2026-07-30T03:00:00.000Z" });
+  // A cousin's wedding in Jaipur (the album is seeded in demo-rooms).
+  photo("demo-wed-mandap", "arjun", "2025-12-06T12:30:00.000Z", "/demo/family-group.webp", "Everyone at the mandap, nobody looking at the camera.", { place: "Jaipur", note: "Cousin Meera's wedding." });
+  photo("demo-wed-silk", "priya", "2025-12-06T09:10:00.000Z", "/demo/family-dadi.webp", "Maa in the silk she wore at her own wedding.", { place: "Jaipur" });
+  photo("demo-wed-mehendi", "priya", "2025-12-05T14:00:00.000Z", "/demo/portrait-aria.webp", "Anika's first mehendi, drying in the sun.", { place: "Jaipur" });
+  photo("demo-wed-baraat", "arjun", "2025-12-06T15:45:00.000Z", "/demo/portrait-dad.webp", "Dancing in the baraat till the band gave up.", { place: "Jaipur" });
 }
 
 export function resetDemo(): void {
@@ -235,6 +246,7 @@ export function resetDemo(): void {
   dailyRoles = [];
   gatherSessions = [];
   clearInvites();
+  consents = [];
   clearMovableCache();
   resetDocs();
   seedDemo();
@@ -342,6 +354,7 @@ export function removeMemberCompletely(memberId: string): boolean {
   const exists = members.some((m) => m.id === memberId);
   if (!exists) return false;
   members = members.filter((m) => m.id !== memberId);
+  consents = consents.filter((c) => c.memberId !== memberId);
   relationships = relationships.filter((r) => r.memberId !== memberId && r.relationMemberId !== memberId);
   plays = plays.filter((p) => p.memberId !== memberId);
   reactions = reactions.filter((r) => r.memberId !== memberId);
@@ -355,6 +368,8 @@ export interface Invite {
   code: string;
   familyId: string;
   expiresAt: string;
+  /** Who made the code: an owner/admin's invite lets people straight in. */
+  createdBy: string | null;
 }
 
 let invites: Invite[] = [];
@@ -363,14 +378,27 @@ export function listInvites(): Invite[] {
   return [...invites];
 }
 
-export function createInvite(code: string, expiresAt: string, familyId = "demo-family"): Invite {
-  const invite: Invite = { id: crypto.randomUUID(), code, familyId, expiresAt };
+export function createInvite(code: string, expiresAt: string, familyId = "demo-family", createdBy: string | null = null): Invite {
+  const invite: Invite = { id: crypto.randomUUID(), code, familyId, expiresAt, createdBy };
   invites.push(invite);
   return invite;
 }
 
 export function clearInvites(): void {
   invites = [];
+}
+
+// Consents (a parent letting their teen have an account). Mirrors the
+// consents table in supabase/schema.sql.
+let consents: Consent[] = [];
+
+export function addConsent(c: Consent): Consent {
+  consents.push(c);
+  return c;
+}
+
+export function listConsents(familyId: string): Consent[] {
+  return consents.filter((c) => c.familyId === familyId);
 }
 
 // Movable-date persistent cache: (slug, year) -> grounded ISO date + sources.

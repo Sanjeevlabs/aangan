@@ -1,6 +1,7 @@
-// Pure date helpers for the Occasions room: which birthdays and kept
-// festivals fall on which day. Client-safe (no fs). Festival specifics come
-// from rituals/*.json via the API; nothing here names a festival.
+// Pure date helpers for the Occasions room: which birthdays, national days
+// and the family's festivals fall on which day. Client-safe (no fs).
+// Festival specifics come from data/ and rituals/ via the API; nothing here
+// names a festival.
 
 export interface OccasionStep {
   key: string;
@@ -18,14 +19,49 @@ export interface OccasionPerson {
   id: string;
   birthday?: string;
 }
+/** A dated festival or national day (lib/holidays.ts), as the client sees it. */
+export interface CalHoliday {
+  key: string;
+  date: string;
+  title: string;
+  kind: "festival" | "national";
+  traditions: string[];
+  ritual: string | null;
+  lampHour: number | null;
+}
+export interface OccasionChoices {
+  traditions: string[];
+  kept: string[];
+  skipped: string[];
+}
 export interface CalOccasion {
   id: string;
+  /** "birthday", or the holiday key (also the ritual-run slug). */
   slug: string;
+  kind: "birthday" | "festival" | "national";
   /** YYYY-MM-DD */
   date: string;
-  /** Festival title from its config; empty for birthdays (the page names the person). */
+  /** Holiday title; empty for birthdays (the page names the person). */
   title: string;
   memberId: string | null;
+  /** Local hour every home lights its lamp (festivals only). */
+  lampHour: number | null;
+}
+
+/**
+ * Is this holiday on the family's calendar? A manual override wins (skipped
+ * off, kept on); then national days always; then festivals of a chosen
+ * tradition. No traditions chosen = national days only.
+ */
+export function holidayVisible(h: Pick<CalHoliday, "key" | "kind" | "traditions" | "ritual">, c: OccasionChoices): boolean {
+  if (c.skipped.includes(h.key)) return false;
+  if (c.kept.includes(h.key) || (h.ritual !== null && c.kept.includes(h.ritual))) return true;
+  if (h.kind === "national") return true;
+  return h.traditions.some((t) => c.traditions.includes(t));
+}
+
+export function visibleHolidays<T extends CalHoliday>(list: T[], c: OccasionChoices): T[] {
+  return list.filter((h) => holidayVisible(h, c));
 }
 
 const DAY = 86_400_000;
@@ -71,18 +107,10 @@ function birthdayIn(year: number, mmdd: string): string | null {
 }
 
 /**
- * Every birthday and every KEPT festival between start and end (inclusive),
- * sorted by date. Birthdays always appear; a festival only when the family
- * chose to keep it and its date is known.
+ * Every birthday and every given holiday (already filtered to the family's
+ * choice, see visibleHolidays) between start and end (inclusive), by date.
  */
-export function occasionsInRange(
-  members: OccasionPerson[],
-  configs: Pick<OccasionConfig, "slug" | "title">[],
-  movable: Record<string, string>,
-  kept: string[],
-  startIso: string,
-  endIso: string,
-): CalOccasion[] {
+export function occasionsInRange(members: OccasionPerson[], holidays: CalHoliday[], startIso: string, endIso: string): CalOccasion[] {
   if (!ISO.test(startIso) || !ISO.test(endIso) || endIso < startIso) return [];
   const out: CalOccasion[] = [];
   const y0 = Number(startIso.slice(0, 4));
@@ -91,17 +119,20 @@ export function occasionsInRange(
     if (!m.birthday) continue;
     for (let y = y0; y <= y1; y++) {
       const date = birthdayIn(y, m.birthday);
-      if (date && date >= startIso && date <= endIso) out.push({ id: `birthday:${m.id}:${date}`, slug: "birthday", date, title: "", memberId: m.id });
+      if (date && date >= startIso && date <= endIso) out.push({ id: `birthday:${m.id}:${date}`, slug: "birthday", kind: "birthday", date, title: "", memberId: m.id, lampHour: null });
     }
   }
-  const keep = new Set(kept);
-  for (const c of configs) {
-    if (c.slug === "birthday" || !keep.has(c.slug)) continue;
-    const date = movable[c.slug];
-    if (!date || !ISO.test(date) || date < startIso || date > endIso) continue;
-    out.push({ id: `${c.slug}:${date}`, slug: c.slug, date, title: cleanTitle(c.title), memberId: null });
+  for (const h of holidays) {
+    if (!ISO.test(h.date) || h.date < startIso || h.date > endIso) continue;
+    out.push({ id: `${h.key}:${h.date}`, slug: h.key, kind: h.kind, date: h.date, title: h.title, memberId: null, lampHour: h.kind === "festival" ? h.lampHour : null });
   }
   return out.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+}
+
+/** "19" → "7 PM", "9" → "9 AM". */
+export function hourLabel(hour: number): string {
+  const h = ((hour % 24) + 24) % 24;
+  return `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? "AM" : "PM"}`;
 }
 
 /** One month as calendar cells, weeks starting Sunday; only the weeks it needs. */

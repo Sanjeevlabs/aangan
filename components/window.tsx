@@ -1,35 +1,46 @@
 "use client";
 
 import { m } from "framer-motion";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Knock, PresenceMoment, SafetyCheckin, WindowLayer } from "@/lib/kinds";
 import { whatsappInvite } from "@/lib/invite-link";
+import { haptic } from "@/lib/native";
+import type { FirstScene, Knock, Pot, SafetyCheckin, Wall, WindowLayer } from "@/lib/kinds";
 import { resolveMediaUrl } from "@/lib/media-session";
 import { callName, cardCover, memberPhoto } from "@/lib/people";
-import { MOMENT_LABEL, shareableFor } from "@/lib/presence";
 import { stateOf, type SafetyState } from "@/lib/safety";
 import { livingAlbum, scenesFor, type AlbumSlide } from "@/lib/scenes";
 import type { Card, Member } from "@/lib/schemas";
+import { moonShadowPath } from "@/lib/sky";
+import type { DayRhythm } from "@/lib/rhythm";
 import { ALIVE_LOOK, type Alive } from "@/lib/status";
 import { ago, postJson, useJson } from "@/lib/use-json";
 import { useFamilyCards } from "@/lib/use-family";
 import { cn } from "@/lib/utils";
+import { WALL_LOOK } from "@/lib/walls";
+import { bloomFrom, sharedToday } from "@/lib/pots";
 import { PHASE_TINT, type DayPhase, type Weather } from "@/lib/weather";
 import { timeIn } from "@/lib/zones";
+import { InviteSheet, inviteCode } from "./invite-sheet";
 import { PeoplePicker } from "./people-picker";
 import { usePlayer } from "./player";
-import { VoiceCode } from "./plaque";
 import { useShell } from "./shell";
-import { useToday } from "./today";
-import { Avatar, Icon, type IconName } from "./ui/kit";
+import { Avatar, Icon } from "./ui/kit";
 import { useViewer } from "./viewer";
+import { PotArt, PotDefs } from "./window-pots";
+import { BalconyRail, CourtyardRoom, balconyRail, camFor, project, useBox, yardDepth, yardFarWall, yardStep, yardWalls } from "./window-scenes";
 
-// LITE (SPEC §29.1, revised 30 Oct): the whole screen is the window. A real
-// landscape that matches their sky right now (or a family photo you chose),
-// changing slowly like a lock screen. On it, only what matters at a glance:
-// are they OK, what's waiting on you, their latest voice, what you're doing.
-// Actions are icons. Kutumb opens by sliding the key.
+// The window (SPEC §30.1): the first screen, with the parents at its centre.
+// An arched window in a coloured wall. Inside, the living album under their
+// real sky (the sun where it is, tonight's moon); the glass carries their
+// weather. On the ledge, the light both homes share and their latest voice.
+// Below: how they are in words against their usual day, whether now is a good
+// time to call, and the key you slide home.
+// Each viewer can stand somewhere else instead (Settings → Your first screen):
+// on a balcony, or inside the courtyard (components/window-scenes.tsx); the
+// view can be a photo of their actual home; up to three flower pots bloom
+// with the family (components/window-pots.tsx, lib/pots.ts).
 
 interface WindowData {
   imageRef: string;
@@ -38,11 +49,18 @@ interface WindowData {
   phase: DayPhase;
   layers: WindowLayer[];
   line: string;
-  moments: { memberId: string; label: string; at: string }[];
   view: { style: "still" | "living"; cardId: string | null; madeBy: "family" | "muse" } | null;
-  people: { id: string; lastActive: string | null; state: Alive }[];
+  people: { id: string; lastActive: string | null; state: Alive; line: string; rhythm: DayRhythm }[];
   chosen?: boolean;
   joined?: boolean;
+  km: number | null;
+  wall: Wall;
+  sky: { sun: { x: number; y: number } | null; moon: { illumination: number; waxing: boolean; name: string } };
+  call: { good: boolean; text: string };
+  scene?: FirstScene;
+  pots?: Pot[];
+  homePhoto?: string | null;
+  mixAlbum?: boolean;
 }
 
 export const WELCOME_KEY = "aangan:welcome";
@@ -56,24 +74,6 @@ function statusText(p: { lastActive: string | null; state: Alive }): string {
   if (p.state === "quiet") return `Quiet for ${hours} h`;
   return "Asleep";
 }
-
-const SKY_ICON: Record<Weather["kind"], IconName> = { clear: "sun", clouds: "cloud", fog: "fog", rain: "rain", storm: "storm", snow: "snow" };
-/** Short words under the icons (the full line is what the other home reads). */
-const SHORT: Partial<Record<PresenceMoment, string>> = { commute: "On my way", "cooked-yours": "Cooked", thinking: "Miss you", work: "Work", awake: "Up" };
-const MOMENT_ICON: Partial<Record<PresenceMoment, IconName>> = {
-  awake: "sun",
-  chai: "coffee",
-  walk: "walk",
-  cooking: "pot",
-  prayer: "flower",
-  resting: "moon",
-  thinking: "heart",
-  work: "briefcase",
-  commute: "car",
-  home: "village",
-  school: "school",
-  "cooked-yours": "pot",
-};
 
 /* ------------------------------------------------------------ the motion */
 // Deterministic positions (no Math.random in render: server and client agree).
@@ -128,11 +128,14 @@ export function SkyLayers({ layers, phase, tint = true }: { layers: WindowLayer[
 /** A small arched preview of a window (Settings). */
 export function ArchWindow({ src, layers, phase, living, children, className }: { src: string; layers: WindowLayer[]; phase: DayPhase; living: boolean; children?: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("relative overflow-hidden", className)} style={{ borderRadius: "999px 999px 28px 28px", boxShadow: "0 30px 60px -30px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.18)" }}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt="" className={cn("absolute inset-0 h-full w-full object-cover", living && "win-drift")} />
-      <SkyLayers layers={living ? layers : []} phase={phase} />
-      {children}
+    <div className={cn("win-frame relative p-[6px]", className)}>
+      <div className="relative h-full w-full overflow-hidden bg-[#1a1816]" style={{ borderRadius: "999px 999px 1px 1px", boxShadow: "0 0 0 1px #22140a" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt="" className={cn("absolute inset-0 h-full w-full object-cover", living && "win-drift")} />
+        <SkyLayers layers={living ? layers : []} phase={phase} />
+        <div className="win-glass pointer-events-none absolute inset-0" aria-hidden="true" />
+        {children}
+      </div>
     </div>
   );
 }
@@ -161,7 +164,7 @@ function AlbumPhotos({ list, at, still, onFail }: { list: AlbumSlide[]; at: numb
       {list.map((sl, k) => (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          key={sl.src}
+          key={`${k}-${sl.src}`}
           src={sl.src}
           alt=""
           loading={Math.abs(k - at) <= 1 ? "eager" : "lazy"}
@@ -173,78 +176,19 @@ function AlbumPhotos({ list, at, still, onFail }: { list: AlbumSlide[]; at: numb
   );
 }
 
-/**
- * The window itself: an arched jharokha in a lime-plaster wall, the album
- * behind the glass, its line written on the sill. Swipe or tap the edges to
- * turn the photo.
- */
-function Jharokha({ album, still, layers, phase, children }: { album: ReturnType<typeof useAlbum>; still: boolean; layers: WindowLayer[]; phase: DayPhase; children?: React.ReactNode }) {
-  const x0 = useRef<number | null>(null);
-  return (
-    <figure className="relative m-0 min-h-[150px] flex-1">
-      {/* the carved frame: plaster, a thin inner moulding, a shadowed reveal */}
-      <div className="absolute inset-0" style={{ borderRadius: "999px 999px 22px 22px", background: "linear-gradient(180deg,#efe9e0,#d9d0c3)", boxShadow: "0 30px 60px -24px rgba(0,0,0,.65), inset 0 1px 0 #fff" }} />
-      <div
-        className="absolute inset-[9px] overflow-hidden bg-[#1a1816]"
-        style={{ borderRadius: "999px 999px 15px 15px", boxShadow: "inset 0 0 0 1px rgba(0,0,0,.25)", touchAction: "pan-y" }}
-        onPointerDown={(e) => (x0.current = e.clientX)}
-        onPointerUp={(e) => {
-          if (x0.current === null) return;
-          const dx = e.clientX - x0.current;
-          x0.current = null;
-          if (Math.abs(dx) > 40) album.go(dx < 0 ? 1 : -1);
-        }}
-      >
-        <AlbumPhotos list={album.list} at={album.at} still={still} onFail={album.fail} />
-        {!still && <SkyLayers layers={layers.filter((l) => l === "rain" || l === "breeze")} phase={phase} tint={false} />}
-        {/* depth: the reveal of the wall, and a soft floor for the caption */}
-        <div className="pointer-events-none absolute inset-0" style={{ borderRadius: "inherit", boxShadow: "inset 0 18px 28px -14px rgba(0,0,0,.45), inset 14px 0 26px -18px rgba(0,0,0,.5), inset -14px 0 26px -18px rgba(0,0,0,.5)", background: "linear-gradient(to bottom, transparent 62%, rgba(0,0,0,.55))" }} />
-        {/* a mullion: two panes, like a real window */}
-        <div className="pointer-events-none absolute inset-y-0 left-1/2 w-[3px] -translate-x-1/2 bg-[#e7e0d5]/80 shadow-[0_0_6px_rgba(0,0,0,.3)]" />
-        {album.cur && (
-          <figcaption className="absolute inset-x-4 bottom-3 flex items-end gap-2 text-white">
-            <span className="min-w-0 flex-1 [text-shadow:0_1px_8px_rgba(0,0,0,.5)]">
-              <span className="voice line-clamp-2 block text-[15px] leading-snug">{album.cur.title}</span>
-              {album.cur.by && <span className="block text-[11.5px] text-white/75">{album.cur.by}</span>}
-            </span>
-            {album.list.length > 1 && (
-              <span className="flex shrink-0 gap-1 pb-1" aria-hidden="true">
-                {album.list.slice(0, 8).map((sl, k) => (
-                  <span key={sl.src} className={cn("block h-1 rounded-full transition-all", k === album.at % 8 ? "w-3 bg-white" : "w-1 bg-white/45")} />
-                ))}
-              </span>
-            )}
-          </figcaption>
-        )}
-        {album.list.length > 1 && (
-          <>
-            <button type="button" aria-label="Previous photo" onClick={() => album.go(-1)} className="absolute inset-y-0 left-0 w-[22%]" />
-            <button type="button" aria-label="Next photo" onClick={() => album.go(1)} className="absolute inset-y-0 right-0 w-[22%]" />
-          </>
-        )}
-        {children}
-      </div>
-    </figure>
-  );
-}
-
-/* ------------------------------------------------------- slide to open */
-/** Slide the key to open Kutumb (or press Enter on the key). */
-function SlideToOpen({ onOpen }: { onOpen: () => void }) {
+/* ------------------------------------------------------- slide the key home */
+/** Slide the key to the house to open home (or press Enter on the key). No words. */
+function SlideHome({ onOpen }: { onOpen: () => void }) {
   const track = useRef<HTMLDivElement>(null);
   const start = useRef<number | null>(null);
   const [x, setX] = useState(0);
   const [done, setDone] = useState(false);
-  const KNOB = 44;
+  const KNOB = 46;
   const max = () => Math.max(1, (track.current?.clientWidth ?? 200) - KNOB - 8);
   const finish = useCallback(() => {
     setDone(true);
     setX(max());
-    try {
-      navigator.vibrate?.(12);
-    } catch {
-      /* no haptics */
-    }
+    void haptic("selection");
     window.setTimeout(onOpen, 160);
     window.setTimeout(() => {
       setDone(false);
@@ -253,16 +197,18 @@ function SlideToOpen({ onOpen }: { onOpen: () => void }) {
   }, [onOpen]);
   const p = Math.min(1, x / max());
   return (
-    <div ref={track} className="relative h-[52px] min-w-0 flex-1 select-none overflow-hidden rounded-full bg-white/10" style={{ touchAction: "none" }}>
-      <span className="pointer-events-none absolute inset-0 flex items-center justify-center pl-12 text-[15px] font-medium tracking-[0.22em] text-white" style={{ opacity: 1 - p * 1.6 }}>
-        <span className="lite-shimmer uppercase">Kutumb</span>
-        <Icon name="chevron" size={15} className="ml-1 opacity-70" />
-        <Icon name="chevron" size={15} className="-ml-2 opacity-40" />
+    <div ref={track} className="relative h-[56px] w-full select-none overflow-hidden rounded-full bg-ink" style={{ touchAction: "none" }}>
+      <span className="pointer-events-none absolute inset-y-0 left-[64px] right-[56px] flex items-center justify-center gap-1.5 text-white/50" style={{ opacity: 1 - p * 1.4 }} aria-hidden="true">
+        {[0, 1, 2].map((i) => (
+          <Icon key={i} name="chevron" size={15} className="lite-shimmer-dot" />
+        ))}
       </span>
-      <span className="pointer-events-none absolute inset-y-0 left-0 rounded-full bg-white/20" style={{ width: x + KNOB + 8 }} aria-hidden="true" />
+      <span className="pointer-events-none absolute right-1.5 top-1.5 grid h-[44px] w-[44px] place-items-center rounded-full text-white" style={{ background: `rgba(255,255,255,${0.1 + p * 0.25})` }} aria-hidden="true">
+        <Icon name="village" size={20} strokeWidth={1.8} />
+      </span>
       <button
         type="button"
-        aria-label="Slide to open Kutumb, the whole family"
+        aria-label="Slide the key home to open your family"
         onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), finish())}
         onPointerDown={(e) => {
           if (done) return;
@@ -280,45 +226,401 @@ function SlideToOpen({ onOpen }: { onOpen: () => void }) {
           start.current = null;
           setX(0);
         }}
-        className="absolute left-1 top-1 grid place-items-center rounded-full bg-white text-black shadow-[0_6px_18px_rgba(0,0,0,.35)]"
+        className="absolute left-[5px] top-[5px] grid place-items-center rounded-full bg-white text-ink shadow-[0_6px_18px_rgba(0,0,0,.35)]"
         style={{ width: KNOB, height: KNOB, transform: `translateX(${x}px)`, transition: start.current === null ? "transform 260ms cubic-bezier(.2,.9,.3,1.2)" : "none" }}
       >
         <m.span animate={done ? { rotate: 90 } : { rotate: 0 }} transition={{ duration: 0.2 }}>
-          <Icon name={done ? "lockOpen" : "key"} size={22} strokeWidth={2} />
+          <Icon name={done ? "lockOpen" : "key"} size={21} strokeWidth={2} />
         </m.span>
       </button>
     </div>
   );
 }
 
-/* ---------------------------------------------------------------- LITE */
+/* --------------------------------------------------------- the real sky */
+/** Sun where it really is over their home, or tonight's moon with stars. Top of the arch only. */
+function RealSky({ sky, phase }: { sky: WindowData["sky"]; phase: DayPhase }) {
+  const night = phase === "night" || phase === "dusk";
+  const moonR = 13;
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-0 h-[46%]" aria-hidden="true">
+      <div className="absolute inset-0 transition-[background] duration-1000" style={{ background: night ? "linear-gradient(180deg, rgba(8,14,40,.9), rgba(8,14,40,.35) 70%, rgba(8,14,40,0))" : "linear-gradient(180deg, rgba(140,190,240,.45), rgba(255,255,255,0))" }} />
+      {night && (
+        <div className="win-stars absolute inset-0">
+          {spread(22, 3).map((sx, i) => (
+            <i key={i} style={{ left: `${sx * 100}%`, top: `${spread(22, 9)[i] * 80}%`, animationDelay: `${(i % 7) * 0.45}s` }} />
+          ))}
+        </div>
+      )}
+      {!night && sky.sun && <span className="absolute h-[96px] w-[96px] -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ left: `${sky.sun.x * 100}%`, top: `${sky.sun.y * 100}%`, background: "radial-gradient(circle, #fffef8 0 9%, rgba(255,250,232,.92) 13%, rgba(255,242,205,.45) 24%, rgba(255,236,190,.16) 42%, rgba(255,236,190,0) 68%)" }} />}
+      {night && (
+        <svg className="absolute left-[64%] top-[22%]" width={moonR * 2} height={moonR * 2} viewBox={`0 0 ${moonR * 2} ${moonR * 2}`} style={{ filter: "drop-shadow(0 0 10px rgba(255,255,230,.55))" }}>
+          <circle cx={moonR} cy={moonR} r={moonR} fill="#fdf6dc" />
+          <path d={moonShadowPath(moonR, { phase: 0, illumination: sky.moon.illumination, waxing: sky.moon.waxing, name: sky.moon.name })} fill="rgba(10,16,44,.9)" />
+        </svg>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------- the window */
+/**
+ * Teak glazing bars: a mullion, a transom at the springing line of the arch
+ * (50cqw: the arch is a half circle as wide as the glass), and a fanlight of
+ * radiating bars around a small carved hub.
+ */
+function GlazingBars() {
+  return (
+    <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+      {[-50, 0, 50].map((deg) => (
+        <span key={deg} className="win-wood win-bar absolute left-1/2 top-0 w-[6px]" style={{ height: "50cqw", marginLeft: -3, transformOrigin: "50% 100%", transform: `rotate(${deg}deg)` }} />
+      ))}
+      <span className="win-wood win-bar absolute bottom-0 left-1/2 w-[7px] -translate-x-1/2" style={{ top: "50cqw" }} />
+      <span className="win-wood-h win-bar-h absolute inset-x-0 h-[8px]" style={{ top: "calc(50cqw - 4px)" }} />
+      <span className="win-wood win-bar absolute left-1/2 h-[30px] w-[30px] -translate-x-1/2 rounded-t-full" style={{ top: "calc(50cqw - 30px)" }} />
+    </div>
+  );
+}
+
+function Jharokha({ album, still, data }: { album: ReturnType<typeof useAlbum>; still: boolean; data: WindowData }) {
+  const potted = (data.pots ?? []).length > 0;
+  const x0 = useRef<number | null>(null);
+  const night = data.phase === "night" || data.phase === "dusk";
+  const raining = data.weather?.kind === "rain" || data.weather?.kind === "storm";
+  const caption = night && !album.cur?.family ? `Look up: ${data.far?.names.split(" & ")[0] ?? "they"} can see this same moon tonight, ${Math.round(data.sky.moon.illumination * 100)}% full` : album.cur?.title;
+  return (
+    <figure className="relative m-0 mx-auto h-full w-full max-w-[310px]">
+      {/* Plaster surround, the reveal (wall thickness), the carved teak frame with its bead and rebate */}
+      <div className="win-surround absolute inset-0" aria-hidden="true" />
+      <div className="win-reveal absolute inset-x-[11px] bottom-0 top-[11px]" aria-hidden="true" />
+      <div className="win-wood win-frame absolute inset-x-[17px] bottom-[2px] top-[17px]" aria-hidden="true" />
+      <div className="win-bead pointer-events-none absolute inset-x-[23px] bottom-[8px] top-[23px]" aria-hidden="true" />
+      <div className="win-rebate absolute inset-x-[29px] bottom-[14px] top-[29px]" aria-hidden="true" />
+      <div
+        className="absolute inset-x-[31px] bottom-[16px] top-[31px] overflow-hidden bg-[#1a1816]"
+        style={{ borderRadius: "999px 999px 1px 1px", touchAction: "pan-y", containerType: "inline-size" }}
+        onPointerDown={(e) => (x0.current = e.clientX)}
+        onPointerUp={(e) => {
+          if (x0.current === null) return;
+          const dx = e.clientX - x0.current;
+          x0.current = null;
+          if (Math.abs(dx) > 40) album.go(dx < 0 ? 1 : -1);
+        }}
+      >
+        <AlbumPhotos list={album.list} at={album.at} still={still} onFail={album.fail} />
+        {/* A warm room-light at night, soft daylight by day */}
+        <div className="pointer-events-none absolute inset-0 transition-opacity duration-1000" style={{ background: "radial-gradient(70% 50% at 50% 100%, rgba(255,180,90,.5), transparent 70%)", mixBlendMode: "screen", opacity: night ? 1 : 0.2 }} />
+        <RealSky sky={data.sky} phase={data.phase} />
+        {raining && !still && <SkyLayers layers={["rain"]} phase={data.phase} tint={false} />}
+        <div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(transparent 60%, rgba(0,0,0,.55))" }} />
+        <GlazingBars />
+        <div className="win-glass pointer-events-none absolute inset-0" style={{ borderRadius: "inherit", opacity: night ? 0.55 : 1 }} aria-hidden="true" />
+        {caption && (
+          <figcaption className={cn("voice pointer-events-none absolute inset-x-5 text-center text-[15px] leading-snug text-white [text-shadow:0_1px_8px_rgba(0,0,0,.6)]", potted ? "bottom-[78px]" : "bottom-[58px]")}>
+            {caption}
+            {album.cur?.by && !night && <span className="mt-0.5 block font-sans text-[11px] not-italic text-white/80">{album.cur.by}</span>}
+          </figcaption>
+        )}
+        {album.list.length > 1 && (
+          <>
+            <button type="button" aria-label="Previous photo" onClick={() => album.go(-1)} className="absolute inset-y-0 left-0 w-[22%]" />
+            <button type="button" aria-label="Next photo" onClick={() => album.go(1)} className="absolute inset-y-0 right-0 w-[22%]" />
+          </>
+        )}
+      </div>
+    </figure>
+  );
+}
+
+/* --------------------------------------------- the balcony and the courtyard */
+type Spot = { x: number; y: number; k: number };
+
+/** Up to three pots, nearest drawn last. `slots` are where they stand on screen. */
+function Pots({ pots, bloom, slots, size }: { pots: Pot[]; bloom: number; slots: Spot[]; size: number }) {
+  const placed = pots.slice(0, 3).map((kind, i) => ({ kind, at: slots[i], i })).filter((p): p is { kind: Pot; at: Spot; i: number } => Boolean(p.at));
+  placed.sort((a, b) => a.at.k - b.at.k);
+  return (
+    <>
+      {placed.map(({ kind, at, i }) => {
+        const hgt = size * at.k;
+        return <PotArt key={`${kind}-${i}`} kind={kind} bloom={bloom} height={hgt} delay={i * 2.3} className="pointer-events-none absolute" style={{ left: at.x - (hgt * 50) / 130, top: at.y - hgt * 0.975 }} />;
+      })}
+    </>
+  );
+}
+
+/**
+ * Standing on a balcony or inside the courtyard: the view (the living album,
+ * or their home photo) fills the open middle under their real sky; the room
+ * is drawn over it in perspective; the lamp stands on the rail or a step.
+ */
+function OpenScene({
+  kind,
+  album,
+  still,
+  data,
+  pots,
+  bloom,
+  glow,
+  lamp,
+  voice,
+}: {
+  kind: "balcony" | "courtyard";
+  glow: number;
+  album: ReturnType<typeof useAlbum>;
+  still: boolean;
+  data: WindowData;
+  pots: Pot[];
+  bloom: number;
+  lamp: (at: { x: number; y: number }) => React.ReactNode;
+  voice: (style: React.CSSProperties) => React.ReactNode;
+}) {
+  const [ref, box] = useBox<HTMLDivElement>();
+  const x0 = useRef<number | null>(null);
+  const night = data.phase === "night" || data.phase === "dusk";
+  const raining = data.weather?.kind === "rain" || data.weather?.kind === "storm";
+  const caption = night && !album.cur?.family ? `Look up: ${data.far?.names.split(" & ")[0] ?? "they"} can see this same moon tonight, ${Math.round(data.sky.moon.illumination * 100)}% full` : album.cur?.title;
+  const cam = box.w && box.h ? camFor(box.w, box.h) : null;
+  let lampAt: { x: number; y: number } | null = null;
+  let voiceAt: React.CSSProperties = {};
+  let captionBottom = 120;
+  let slots: Spot[] = [];
+  if (cam) {
+    const { w, h } = cam;
+    if (kind === "balcony") {
+      const r = balconyRail(cam);
+      lampAt = { x: w * 0.42, y: r.topY - 2 * r.k };
+      voiceAt = { right: 18, top: r.topY - 4 * r.k - 27 };
+      captionBottom = h - r.topY + 46;
+      slots = [project(cam, w - 54, h, -36), project(cam, 62, h, -40), project(cam, w - 112, h, -84)];
+    } else {
+      const st = yardStep(cam);
+      const walls = yardWalls(cam);
+      const top = project(cam, (st.x0 + st.x1) / 2, h - st.hgt, st.z0 - st.d / 2);
+      lampAt = { x: top.x, y: top.y };
+      voiceAt = { left: Math.min(w - 132, top.x + 36), top: top.y - 30 };
+      captionBottom = h - project(cam, w / 2, h - yardFarWall(cam), -yardDepth(cam)).y + 16;
+      slots = [project(cam, w - 50, h, -40), project(cam, walls.l + 48, h, -560), project(cam, walls.r - 46, h, -330)];
+    }
+  }
+  return (
+    <div ref={ref} className="absolute inset-0 overflow-hidden bg-[#1a1816]">
+      {/* The view: their sky over the album, or their own home */}
+      <div
+        className="absolute inset-0"
+        style={{ touchAction: "pan-y" }}
+        onPointerDown={(e) => (x0.current = e.clientX)}
+        onPointerUp={(e) => {
+          if (x0.current === null) return;
+          const dx = e.clientX - x0.current;
+          x0.current = null;
+          if (Math.abs(dx) > 40) album.go(dx < 0 ? 1 : -1);
+        }}
+      >
+        <AlbumPhotos list={album.list} at={album.at} still={still} onFail={album.fail} />
+        {/* Their sun and moon over the open view; a photo of a real place keeps its own sky */}
+        {!album.cur?.family && <RealSky sky={data.sky} phase={data.phase} />}
+        {raining && !still && <SkyLayers layers={["rain"]} phase={data.phase} tint={false} />}
+        {/* Open air: a touch of haze toward the distance, deeper at night */}
+        <div className="pointer-events-none absolute inset-0" style={{ background: night ? "linear-gradient(180deg, rgba(6,10,30,.35), rgba(6,10,30,.15) 50%, rgba(0,0,0,.35))" : "linear-gradient(180deg, rgba(255,255,255,0) 30%, rgba(225,230,235,.10) 60%, rgba(0,0,0,.12))" }} />
+        {album.list.length > 1 && (
+          <>
+            <button type="button" aria-label="Previous photo" onClick={() => album.go(-1)} className="absolute bottom-[30%] left-0 top-[24%] w-[22%]" />
+            <button type="button" aria-label="Next photo" onClick={() => album.go(1)} className="absolute bottom-[30%] right-0 top-[24%] w-[22%]" />
+          </>
+        )}
+      </div>
+      {cam && (kind === "balcony" ? <BalconyRail cam={cam} night={night} /> : <CourtyardRoom cam={cam} night={night} />)}
+      {caption && (
+        <p className="voice pointer-events-none absolute inset-x-12 m-0 text-center text-[15px] leading-snug text-white [text-shadow:0_1px_8px_rgba(0,0,0,.7)]" style={{ bottom: captionBottom }}>
+          {caption}
+          {album.cur?.by && !night && <span className="mt-0.5 block font-sans text-[11px] not-italic text-white/80">{album.cur.by}</span>}
+        </p>
+      )}
+      {cam && <Pots pots={pots} bloom={bloom} slots={slots} size={kind === "balcony" ? 104 : 112} />}
+      {/* At night the lamp lights what's around it: the rail and floor, the step and the tiles */}
+      {night && lampAt && <span className="pointer-events-none absolute h-[340px] w-[340px] -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ left: lampAt.x + 16, top: lampAt.y - 14, mixBlendMode: "screen", opacity: 0.45 + 0.55 * Math.min(1, glow), background: "radial-gradient(circle, rgba(255,182,96,.95), rgba(255,160,70,.42) 30%, rgba(255,150,60,.12) 52%, rgba(255,150,60,0) 70%)" }} aria-hidden="true" />}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[70px]" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.38))" }} aria-hidden="true" />
+      {lampAt && lamp(lampAt)}
+      {cam && voice(voiceAt)}
+    </div>
+  );
+}
+
+/** Pots on the window sill: either side of the lamp, the third a step behind. */
+const SILL_SLOTS = [
+  { left: "23%", scale: 1 },
+  { left: "55%", scale: 1 },
+  { left: "9%", scale: 0.86 },
+];
+function SillPots({ pots, bloom }: { pots: Pot[]; bloom: number }) {
+  const placed = pots.slice(0, 3).map((kind, i) => ({ kind, i, slot: SILL_SLOTS[i] }));
+  return (
+    <>
+      {[...placed].reverse().map(({ kind, i, slot }) => (
+        <PotArt key={`${kind}-${i}`} kind={kind} bloom={bloom} height={74 * slot.scale} delay={i * 2.3} className="pointer-events-none absolute -translate-x-1/2" style={{ left: slot.left, bottom: `calc(100% - ${slot.scale < 1 ? 7 : 5}px)` }} />
+      ))}
+    </>
+  );
+}
+
+/* ------------------------------------------------- the light in the window */
+interface LampData {
+  lamps: { homeKey: string; memberIds: string[]; litAt: string | null; litBy: string | null; glow: number }[];
+  beats: { from: string; at: string }[];
+}
+
+/** `at`: where the diya's base stands, in px of its positioned parent (balcony rail, courtyard step). Default: on the sill. */
+function Lamp({ glow, onLight, onHold, pulseKey, at }: { glow: number; onLight: () => void; onHold: () => void; pulseKey: number; at?: { x: number; y: number } }) {
+  const held = useRef<number | "held" | null>(null);
+  const [rings, setRings] = useState(0);
+  useEffect(() => {
+    if (!pulseKey) return;
+    setRings((n) => n + 1);
+  }, [pulseKey]);
+  const g = Math.max(0.35, Math.min(1.25, glow));
+  return (
+    <div className={cn("absolute z-[1]", !at && "bottom-[5px] left-[40%] -translate-x-1/2")} style={at ? { left: at.x, top: at.y, transform: "translate(-50%, calc(-100% + 8px))" } : undefined}>
+      <span className="lamp-halo pointer-events-none absolute left-[47px] top-[26px] h-[400px] w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ ["--g" as string]: g } as React.CSSProperties} aria-hidden="true" />
+      <span key={rings} className={cn("pointer-events-none absolute left-[47px] top-[28px] h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full", rings && "lamp-ring")} aria-hidden="true" />
+      <button
+        type="button"
+        aria-label="Tap to light the lamp; hold to send a heartbeat"
+        className="relative z-[1] block h-[56px] w-[56px]"
+        onPointerDown={() => {
+          held.current = window.setTimeout(() => {
+            held.current = "held";
+            onHold();
+          }, 600);
+        }}
+        onPointerUp={() => {
+          if (held.current === "held") return void (held.current = null);
+          if (held.current !== null) window.clearTimeout(held.current);
+          held.current = null;
+          onLight();
+        }}
+        onPointerLeave={() => {
+          if (typeof held.current === "number") window.clearTimeout(held.current);
+          held.current = null;
+        }}
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        {/* A clay diya: fired terracotta, a little oil, a cotton wick */}
+        <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true">
+          <defs>
+            <radialGradient id="diya-clay" cx="40%" cy="20%" r="85%">
+              <stop offset="0" stopColor="#c27a4a" />
+              <stop offset=".55" stopColor="#8f4c2a" />
+              <stop offset="1" stopColor="#4e2512" />
+            </radialGradient>
+            <radialGradient id="diya-flame" cx="50%" cy="72%" r="60%">
+              <stop offset="0" stopColor="#fffbe8" />
+              <stop offset=".35" stopColor="#ffe08a" />
+              <stop offset=".75" stopColor="#ff9f3a" />
+              <stop offset="1" stopColor="#e2551c" stopOpacity=".6" />
+            </radialGradient>
+          </defs>
+          <ellipse cx="28" cy="47.5" rx="15" ry="2" fill="rgba(0,0,0,.35)" />
+          <path d="M10 37.5 C12 46 20 48 28 48 C37 48 44 45 47.5 38 L50 35.5 C46 37 41 37.5 28 37.5 C18 37.5 13 37 10 37.5 Z" fill="url(#diya-clay)" />
+          <ellipse cx="29" cy="37.2" rx="18.5" ry="2.6" fill="#3a1d0e" />
+          <ellipse cx="29" cy="37" rx="16.5" ry="1.7" fill="#6b4a1c" opacity=".85" />
+          <path d="M11 37.5 C17 36 40 36 50 35.5" fill="none" stroke="#d99868" strokeWidth=".8" opacity=".7" />
+          <path d="M45 36.5 L47.5 33.5" stroke="#2a1608" strokeWidth="1.4" strokeLinecap="round" />
+          <g className="lamp-flame" style={{ opacity: Math.max(0.25, Math.min(1, g)), transformOrigin: "46px 33px" }}>
+            <path d="M46.6 14 C51 22 51.5 28 47.6 33.6 C43.6 29 43.6 22 46.6 14 Z" fill="url(#diya-flame)" />
+            <path d="M47 23 C48.6 26.5 48.6 29.5 47.4 32.4 C46 30 46 26.5 47 23 Z" fill="#fffdf2" />
+          </g>
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------- safe & sound */
+/** What each dot means, in words, next to the dot. */
+const STATUS_WORD: Partial<Record<Alive, { word: string; ink: string }>> = {
+  active: { word: "All good", ink: "#1e7a45" },
+  quiet: { word: "Quiet for a while", ink: "#9a5b00" },
+  asleep: { word: "Night-time there", ink: "var(--ink-soft)" },
+};
+
+const lowerFirst = (s: string) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
+
+/** "Maa · up since 6:09 AM · active 29 min ago", then "● All good · Home safe · 2 h ago". */
+function StatusLine({ p, st, check, onWorry }: { p: Member; st: WindowData["people"][number] | undefined; check: SafetyState | null; onWorry: () => void }) {
+  const look = ALIVE_LOOK[st?.state ?? "unknown"];
+  const quiet = st?.state === "quiet";
+  const word = st ? STATUS_WORD[st.state] : undefined;
+  const alarm = check && (check.tone === "overdue" || check.tone === "help");
+  const head = (
+    <>
+      <span className="relative shrink-0">
+        <Avatar src={memberPhoto(p)} name={callName(p)} size={38} />
+        <span className={cn("absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-paper", st?.state === "active" && "alive-breathe")} style={{ background: look.dot, color: look.dot }} />
+      </span>
+      <span className="block min-w-0 text-[14px] leading-snug text-ink-soft" suppressHydrationWarning>
+        <b className="font-semibold text-ink">{callName(p)}</b> · {st ? lowerFirst(st.line) : "…"}
+      </span>
+    </>
+  );
+  return (
+    <div className="grid grid-cols-[38px_1fr] gap-x-3">
+      {quiet ? (
+        <button type="button" onClick={onWorry} className="col-span-2 grid grid-cols-[38px_1fr] items-center gap-x-3 text-left" aria-label={`${callName(p)}: ${st?.line}. Quiet for a while, tap to check on them`}>
+          {head}
+        </button>
+      ) : (
+        <div className="col-span-2 grid grid-cols-[38px_1fr] items-center gap-x-3">{head}</div>
+      )}
+      <p className="col-start-2 m-0 -mt-1.5 flex flex-wrap items-center gap-x-1.5 text-[12.5px] leading-snug text-ink-soft" suppressHydrationWarning>
+        {word && (
+          <span className="inline-flex items-center gap-1.5" style={{ color: word.ink }}>
+            <span className="h-[7px] w-[7px] rounded-full" style={{ background: look.dot }} aria-hidden="true" />
+            {word.word}
+          </span>
+        )}
+        {word && check && <span aria-hidden="true">·</span>}
+        {check && (
+          <Link href="/safe" className={cn("inline-flex items-center gap-1 no-underline", alarm ? "font-semibold text-[#c2343a]" : "text-ink-soft")}>
+            <Icon name="shield" size={12} /> {check.label} · {ago(check.at)}
+          </Link>
+        )}
+      </p>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- the screen */
 export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
   const router = useRouter();
   const { viewer, members } = useViewer();
-  const { openAdd, openRoom, refreshKey } = useShell();
+  const { openAdd, refreshKey } = useShell();
+  const { play, current, isPlaying, toggle } = usePlayer();
   const win = useJson<WindowData>("/api/window");
+  const lamp = useJson<LampData>("/api/lamp");
   const sit = useJson<{ knocks: Knock[] }>("/api/sit");
   const safety = useJson<{ checkins: SafetyCheckin[] }>("/api/safety");
   const { cards } = useFamilyCards(refreshKey);
-  const [clock, setClock] = useState<string>("");
+  const [clock, setClock] = useState("");
   const [calling, setCalling] = useState(false);
   const [picking, setPicking] = useState(false);
   const [worry, setWorry] = useState<Member | null>(null);
   const [welcome, setWelcome] = useState<string | null>(null);
+  const [lampLine, setLampLine] = useState<string | null>(null);
+  const [pulse, setPulse] = useState(0);
+  const [litNow, setLitNow] = useState(false);
   const data = win.data;
   const farIds = useMemo(() => new Set(data?.far?.ids ?? []), [data?.far?.ids]);
-  const farPeople = members.filter((mm) => farIds.has(mm.id));
-  // Whoever is on the other side: one parent, two, a guardian. Never assumed.
-  const grownUps = farPeople.filter((p) => p.role !== "child");
-  const talkTo = grownUps.length ? grownUps : farPeople;
+  const atWindow = useMemo(() => (data?.people ?? []).map((p) => members.find((mm) => mm.id === p.id)).filter((mm): mm is Member => Boolean(mm)), [data?.people, members]);
   const statusOf = (id: string) => data?.people.find((p) => p.id === id);
   const waiting = Boolean(data && (!data.far || data.joined === false));
+  const names = data?.far?.names ?? "";
 
   const talk = (ids?: string[]) => {
-    if (!ids && talkTo.length > 1) return setPicking(true);
+    if (!ids && atWindow.length > 1) return setPicking(true);
     setPicking(false);
     setWorry(null);
-    openAdd("voice", null, ids ?? talkTo.map((p) => p.id));
+    openAdd("voice", null, ids ?? atWindow.map((p) => p.id));
   };
 
   useEffect(() => {
@@ -341,39 +643,65 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
     return () => clearInterval(t);
   }, [data?.far]);
 
-  // Muse writes the one quiet line once per visit (cached and grounded server-side).
+  // A heartbeat waiting for you: feel it once, then it's gone.
   useEffect(() => {
-    if (!data || data.view?.style === "still" || data.view?.madeBy === "muse") return;
-    void postJson("/api/window", { action: "compose" }).then((r) => r && void win.reload());
+    const beats = lamp.data?.beats ?? [];
+    if (!beats.length) return;
+    const from = members.find((mm) => mm.id === beats[beats.length - 1].from);
+    setLampLine(`${callName(from)} sent you a heartbeat`);
+    let n = 0;
+    const iv = window.setInterval(() => {
+      setPulse((k) => k + 1);
+      void haptic("light");
+      if (++n >= 4) window.clearInterval(iv);
+    }, 1000);
+    void postJson("/api/lamp", { action: "felt" });
+    return () => window.clearInterval(iv);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [Boolean(data)]);
+  }, [lamp.data?.beats?.length]);
 
   const latestVoice: Card | undefined = (cards ?? []).find((c) => c.type === "audio" && c.authorId && farIds.has(c.authorId));
+  const voiceBy = members.find((mm) => mm.id === latestVoice?.authorId);
   const knock = (sit.data?.knocks ?? []).find((k) => farIds.has(k.memberId));
   const slides = useMemo<AlbumSlide[]>(() => {
     if (!data) return [];
-    const own = data.chosen ? resolveMediaUrl(data.imageRef) : null;
-    if (own) return [{ src: own, title: "", by: "", family: true }];
-    // The family's own photos come round in the album, with their captions.
     const family = (cards ?? [])
       .filter((c) => c.type === "photo" && c.caption)
       .slice(0, 6)
       .map((c) => {
         const by = members.find((mm) => mm.id === c.authorId);
-        return { src: cardCover(c, members), title: c.caption, by: [callName(by), new Date(c.takenAt).getFullYear()].filter(Boolean).join(" · ") };
+        return { src: cardCover(c, members), title: c.caption, by: [callName(by), new Date(c.takenAt).getFullYear()].filter(Boolean).join(" · "), family: true };
       });
+    // A photo of their actual home: it stays, and (if they like) a family photo crossfades in now and then.
+    const home = data.homePhoto ? resolveMediaUrl(data.homePhoto) : null;
+    if (home) {
+      const slide = { src: home, title: data.far?.city ? `Home, ${data.far.city}` : "Their home", by: "", family: true };
+      return data.mixAlbum === false || !family.length ? [slide] : family.slice(0, 4).flatMap((f) => [slide, slide, f]);
+    }
+    const own = data.chosen ? resolveMediaUrl(data.imageRef) : null;
+    if (own) return [{ src: own, title: "", by: "", family: true }];
     return livingAlbum(scenesFor(data.phase, data.weather?.kind ?? null), family);
   }, [data, cards, members]);
   const still = data?.view?.style === "still";
   const album = useAlbum(slides, still);
 
-  // Safe & sound: the latest check-in of each person on the other side who shares with you.
-  const checks = useMemo(() => {
-    const all = safety.data?.checkins ?? [];
-    return talkTo
-      .map((p) => ({ p, s: stateOf(all, p.id) }))
-      .filter((x): x is { p: Member; s: SafetyState } => Boolean(x.s) && (x.s!.tone !== "calm" || Date.now() - Date.parse(x.s!.at) < 24 * 3_600_000));
-  }, [safety.data, talkTo]);
+  // The light between your home and theirs: whoever reached out last.
+  const pair = useMemo(() => {
+    const ls = lamp.data?.lamps ?? [];
+    const theirs = ls.find((l) => l.memberIds.some((id) => farIds.has(id)));
+    const mine = ls.find((l) => l.memberIds.includes(viewer.id));
+    const last = [theirs, mine].filter((l): l is NonNullable<typeof l> => Boolean(l?.litAt)).sort((a, b) => (b.litAt ?? "").localeCompare(a.litAt ?? ""))[0];
+    return { glow: Math.max(theirs?.glow ?? 0, mine?.glow ?? 0), last };
+  }, [lamp.data, farIds, viewer.id]);
+  const lastBy = members.find((mm) => mm.id === pair.last?.litBy);
+  const defaultLampLine = pair.last?.litAt ? `${pair.last.litBy === viewer.id ? "You" : callName(lastBy)} · ${ago(pair.last.litAt)} · tap to light · hold for a heartbeat` : "Tap to light · hold for a heartbeat";
+
+  // Safe & sound: the latest check-in of each person at the window who shares
+  // with you (calm ones only for a day; a missed promise stays until closed).
+  const checkOf = (id: string): SafetyState | null => {
+    const s = stateOf(safety.data?.checkins ?? [], id);
+    return s && (s.tone !== "calm" || Date.now() - Date.parse(s.at) < 24 * 3_600_000) ? s : null;
+  };
 
   const call = async () => {
     if (knock) return router.push(`/call/${knock.id}`);
@@ -382,78 +710,173 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
     setCalling(false);
     if (out?.knock) router.push(`/call/${out.knock.id}`);
   };
+  const light = async () => {
+    setLitNow(true);
+    setPulse((k) => k + 1);
+    setLampLine(`You lit it just now · it's glowing in ${data?.far?.city || "their home"}`);
+    void haptic("medium");
+    await postJson("/api/lamp", { action: "light" });
+    void lamp.reload();
+  };
+  const heartbeat = async () => {
+    const to = atWindow[0];
+    if (!to) return;
+    setLampLine(`Heartbeat sent · ${callName(to)} will feel it next time they open Aangan`);
+    let n = 0;
+    const iv = window.setInterval(() => {
+      setPulse((k) => k + 1);
+      if (++n >= 4) window.clearInterval(iv);
+    }, 1000);
+    await postJson("/api/lamp", { action: "beat", toMemberId: to.id });
+    void lamp.reload();
+  };
+
+  const look = WALL_LOOK[data?.wall ?? "jodhpur"];
+  const scene = data?.scene ?? "window";
+  const open = scene !== "window";
+  const dark = look.ink === "dark" && !open;
+  const playing = latestVoice && current?.id === latestVoice.id && isPlaying;
+  const pots = data?.pots ?? [];
+  // The pots bloom with the family: the lamp's glow, and a voice or photo today. Never below healthy.
+  const bloom = bloomFrom(litNow ? 1 : pair.glow, sharedToday(cards ?? []));
+
+  const lampEl = (at?: { x: number; y: number }) => (!waiting && data ? <Lamp glow={litNow ? 1.15 : pair.glow} onLight={() => void light()} onHold={() => void heartbeat()} pulseKey={pulse} at={at} /> : null);
+  const voiceEl = (style?: React.CSSProperties) =>
+    latestVoice ? (
+      <button type="button" onClick={() => (current?.id === latestVoice.id ? toggle() : play(latestVoice))} aria-label={`${playing ? "Pause" : "Play"} ${callName(voiceBy)}'s voice note`} className={cn("absolute z-[2] flex -rotate-2 items-center gap-1.5 rounded-[3px] bg-[#f6f0e3] py-1.5 pl-1.5 pr-2.5 text-[11.5px] font-medium text-ink shadow-[0_1px_1px_rgba(0,0,0,.25),2px_6px_10px_-4px_rgba(0,0,0,.45)]", !style && "-top-[27px] right-3")} style={style}>
+        <span className="grid h-5 w-5 place-items-center rounded-full bg-ink text-white">
+          <Icon name={playing ? "pause" : "play"} size={10} />
+        </span>
+        {callName(voiceBy)} · {ago(latestVoice.takenAt)}
+      </button>
+    ) : null;
+  const header = (
+    <header className="relative flex items-start justify-between gap-3">
+      <div className={cn("min-w-0", dark ? "[text-shadow:0_1px_0_rgba(255,255,255,.25)]" : open ? "[text-shadow:0_1px_12px_rgba(0,0,0,.55)]" : "[text-shadow:0_1px_10px_rgba(0,0,0,.22)]")}>
+        <h1 className="m-0 truncate text-[26px] font-light leading-[1.1] tracking-[-0.01em]">{names || (data ? "Your window" : " ")}</h1>
+        {data?.far && (
+          <p className="m-0 mt-1 flex flex-wrap items-center gap-x-2.5 text-[13px] opacity-90">
+            <span>{data.far.city || "Their home"}</span>
+            <span className="tnum" suppressHydrationWarning>
+              {clock}
+            </span>
+            {data.km && <span>{data.km.toLocaleString()} km away</span>}
+          </p>
+        )}
+        {welcome && <p className="voice m-0 mt-1.5 text-[15px]">{welcome}</p>}
+      </div>
+      <button type="button" onClick={() => router.push("/settings")} aria-label="Your profile and settings" className="press shrink-0 rounded-full ring-1 ring-white/50">
+        <Avatar src={memberPhoto(viewer)} name={viewer.firstName} size={40} />
+      </button>
+    </header>
+  );
+  const lampWords = waiting ? " " : (lampLine ?? defaultLampLine);
 
   return (
-    <div className="fixed inset-0 z-30 overflow-hidden bg-[#0d0c0b] text-white">
-      {/* The room: the same photo, blurred and dimmed, so the wall glows with the view */}
-      <div className="pointer-events-none absolute inset-0 scale-125 opacity-70 blur-[40px]" aria-hidden="true">
-        {data && <AlbumPhotos list={album.list} at={album.at} still onFail={() => undefined} />}
-      </div>
-      <div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(10,9,8,.35), rgba(10,9,8,.55) 45%, rgba(10,9,8,.8))" }} aria-hidden="true" />
-
-      <div className="relative mx-auto flex h-full w-full max-w-[480px] flex-col gap-3 px-5 [@media(max-height:720px)]:gap-2" style={{ paddingTop: "calc(14px + env(safe-area-inset-top))", paddingBottom: "calc(14px + env(safe-area-inset-bottom))" }}>
-        {/* Who, where, their hour, their sky */}
-        <header className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="m-0 truncate text-[26px] font-light leading-[1.1] tracking-[-0.01em]">{data?.far?.names || (data ? "Your window" : " ")}</h1>
-            {data?.far && (
-              <p className="m-0 mt-1 flex flex-wrap items-center gap-x-2.5 text-[13.5px] text-white/80">
-                <span>{data.far.city || "Their home"}</span>
-                <span className="tnum" suppressHydrationWarning>
-                  {clock}
-                </span>
-                {data.weather && (
-                  <span className="flex items-center gap-1">
-                    <Icon name={SKY_ICON[data.weather.kind]} size={14} /> {data.weather.tempC}°
-                  </span>
-                )}
-              </p>
-            )}
-          </div>
-          <button type="button" onClick={() => openRoom("all")} aria-label="Everything, and your settings" className="press shrink-0 rounded-full ring-1 ring-white/40">
-            <Avatar src={memberPhoto(viewer)} name={viewer.firstName} size={40} />
-          </button>
-        </header>
-        {welcome && <p className="voice m-0 -mt-1 text-[16px] text-white/90">{welcome}</p>}
-
-        {/* The window: fills whatever height is left, so the screen is balanced on any phone */}
-        {data ? (
-          <Jharokha album={album} still={still} layers={data.layers} phase={data.phase} />
-        ) : (
-          <div className="min-h-[200px] flex-1 animate-pulse bg-white/10" style={{ borderRadius: "999px 999px 22px 22px" }} aria-busy="true" aria-label="Opening the window" />
-        )}
-
-        {data && waiting && <WaitingCard names={data.far?.names ?? ""} />}
-        {data && !waiting && (
+    <div className="fixed inset-0 z-30 flex flex-col overflow-hidden bg-paper text-ink">
+      {/* The wall, the window, the sill */}
+      <section
+        className={cn("wall-paint relative flex min-h-0 flex-[1.25] flex-col transition-[filter] duration-700", open ? "px-0" : "px-5", dark ? "text-ink" : "text-white")}
+        style={{
+          paddingTop: open ? undefined : "calc(14px + env(safe-area-inset-top))",
+          ["--wall-top" as string]: look.top,
+          ["--wall-bottom" as string]: look.bottom,
+          filter: data && data.phase === "night" ? "brightness(.6) saturate(.8)" : undefined,
+          ["--wall-ink-soft" as string]: dark ? "rgba(28,27,26,.72)" : "rgba(255,255,255,.92)",
+        } as React.CSSProperties}
+      >
+        <PotDefs />
+        {open && data ? (
           <>
-            <SafeGlance people={talkTo} statusOf={statusOf} checks={checks} onWorry={setWorry} onTalk={(id) => talk([id])} />
-            <NextOrVoice people={talkTo} statusOf={statusOf} latestVoice={latestVoice} viewerId={viewer.id} cards={cards ?? []} onWorry={setWorry} onReply={(id) => talk([id])} onWish={(id) => openAdd("voice", null, [id])} knock={knock} />
-            <Moments />
+            {/* Standing on the balcony, or inside the courtyard */}
+            <OpenScene kind={scene as "balcony" | "courtyard"} album={album} still={still} data={data} pots={pots} bloom={bloom} glow={litNow ? 1 : pair.glow} lamp={(at) => lampEl(at)} voice={(st) => voiceEl(st)} />
+            <div className="scene-scrim pointer-events-none absolute inset-x-0 top-0 h-[150px]" aria-hidden="true" />
+            <div className="relative z-[3] px-5" style={{ paddingTop: "calc(14px + env(safe-area-inset-top))" }}>
+              {header}
+            </div>
+            <p className="pointer-events-none absolute inset-x-0 bottom-2.5 z-[3] mx-auto m-0 max-w-[210px] text-center text-[11.5px] leading-snug text-white/95 [text-shadow:0_1px_6px_rgba(0,0,0,.75)]" suppressHydrationWarning>
+              {lampWords}
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="wall-plaster pointer-events-none absolute inset-0" aria-hidden="true" />
+            {header}
+            <div className="relative mt-3 min-h-0 flex-1">{data ? <Jharokha album={album} still={still} data={data} /> : <div className="win-reveal mx-auto h-full max-w-[310px] animate-pulse" aria-busy="true" aria-label="Opening the window" />}</div>
+            {/* The sill: a teak board. The pots, the lamp and their latest voice sit on it. */}
+            <div className="relative z-[1] mx-auto mb-2 mt-[-3px] h-[19px] w-full max-w-[340px]">
+              <div className="win-wood-h win-sill-top absolute inset-x-0 top-0 h-[7px] [clip-path:polygon(4px_0,calc(100%-4px)_0,100%_100%,0_100%)]" aria-hidden="true">
+                <span className="absolute inset-0 bg-[rgba(255,236,205,.16)]" />
+              </div>
+              <div className="win-wood-h win-sill-face absolute inset-x-0 bottom-0 top-[7px]" aria-hidden="true">
+                <span className="absolute inset-0 rounded-[inherit] bg-[rgba(30,14,4,.18)]" />
+              </div>
+              <SillPots pots={pots} bloom={bloom} />
+              {lampEl()}
+              {voiceEl()}
+            </div>
+            <p className="relative m-0 mb-3 text-center text-[11.5px]" style={{ color: "var(--wall-ink-soft)", textShadow: dark ? "0 1px 0 rgba(255,255,255,.3)" : "0 1px 6px rgba(0,0,0,.3)" }} suppressHydrationWarning>
+              {lampWords}
+            </p>
           </>
         )}
+      </section>
 
-        {/* One dock: voice note · video · slide the key */}
-        <nav className="lite-glass flex items-center gap-1.5 rounded-full p-1.5" aria-label="Window actions">
-          <button type="button" onClick={() => talk()} disabled={waiting || !talkTo.length} aria-label={talkTo.length === 1 ? `Voice note to ${callName(talkTo[0])}` : "Voice note"} className="press grid h-[52px] w-[52px] shrink-0 place-items-center rounded-full bg-white/15 disabled:opacity-40">
-            <Icon name="mic" size={22} strokeWidth={1.8} />
-          </button>
-          {!waiting && (
-            <button type="button" onClick={() => void call()} disabled={calling} aria-label={knock ? "Join the video call" : "Video call"} className={cn("press relative grid h-[52px] w-[52px] shrink-0 place-items-center rounded-full bg-white/15", calling && "opacity-60")}>
-              <Icon name="video" size={22} strokeWidth={1.8} />
-              {knock && <span className="absolute right-2.5 top-2.5 h-2.5 w-2.5 animate-ping rounded-full bg-[#3ccf7a]" />}
-            </button>
-          )}
-          <SlideToOpen onOpen={onOpenDoor} />
-        </nav>
-      </div>
+      {/* Inside: are they safe and sound, and the one thing to do */}
+      <section className="relative flex flex-none flex-col gap-2.5 px-5 pt-3" style={{ paddingBottom: "calc(14px + env(safe-area-inset-bottom))" }}>
+        {data && waiting ? (
+          <WaitingCard names={names} />
+        ) : (
+          <>
+            <div>
+              <div className="-my-2.5 flex items-center justify-between gap-3">
+                <h2 className="m-0 text-[17px] font-semibold leading-tight tracking-[-0.01em]">Safe &amp; sound</h2>
+                <Link href="/safe" className="-mr-2 flex min-h-[44px] shrink-0 items-center gap-0.5 px-2 text-[13px] font-medium text-ink-soft no-underline">
+                  See check-ins <Icon name="chevron" size={14} />
+                </Link>
+              </div>
+              <p className="m-0 mt-0.5 text-[12px] leading-snug text-ink-soft">From when they last opened Aangan and checked in</p>
+            </div>
+            {atWindow.map((p) => (
+              <StatusLine key={p.id} p={p} st={statusOf(p.id)} check={checkOf(p.id)} onWorry={() => setWorry(p)} />
+            ))}
+            <div className="my-0.5 h-px bg-[var(--line)]" />
+            <div className="flex items-center gap-2.5">
+              <p className="m-0 min-w-0 flex-1 text-[13.5px] leading-snug">
+                {knock ? (
+                  <>
+                    <b className="font-semibold">{callName(members.find((mm) => mm.id === knock.memberId))} is at the window</b>
+                    <span className="block text-[12px] text-ink-soft">On a video call now</span>
+                  </>
+                ) : (
+                  <b className={cn("font-semibold", !data?.call.good && "font-normal text-ink-soft")}>{data?.call.text ?? " "}</b>
+                )}
+              </p>
+              {atWindow.length > 0 && (
+                <button type="button" onClick={() => router.push(`/send?for=${encodeURIComponent(atWindow[0].id)}`)} aria-label={`Send ${names || callName(atWindow[0])} something`} title={`Send ${names || callName(atWindow[0])} something`} className="press grid h-[46px] w-[46px] shrink-0 place-items-center rounded-full bg-black/[.06]">
+                  <Icon name="gift" size={20} strokeWidth={1.9} />
+                </button>
+              )}
+              <button type="button" onClick={() => talk()} disabled={!atWindow.length} aria-label={atWindow.length === 1 ? `Voice note to ${callName(atWindow[0])}` : "Voice note"} className="press grid h-[46px] w-[46px] shrink-0 place-items-center rounded-full bg-black/[.06] disabled:opacity-40">
+                <Icon name="mic" size={20} strokeWidth={1.9} />
+              </button>
+              <button type="button" onClick={() => void call()} disabled={calling} aria-label={knock ? "Join the video call" : "Video call"} className={cn("press relative grid h-[46px] w-[46px] shrink-0 place-items-center rounded-full bg-ink text-white", calling && "opacity-60")}>
+                <Icon name="video" size={20} strokeWidth={1.9} />
+                {knock && <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 animate-ping rounded-full bg-[#3ccf7a]" />}
+              </button>
+            </div>
+          </>
+        )}
+        <SlideHome onOpen={onOpenDoor} />
+      </section>
 
       <PeoplePicker
         open={picking}
         title="Voice note to"
-        people={talkTo}
+        people={atWindow}
         status={(p) => {
           const st = statusOf(p.id);
-          return st ? { text: statusText(st), dot: ALIVE_LOOK[st.state].dot } : null;
+          return st ? { text: st.line, dot: ALIVE_LOOK[st.state].dot } : null;
         }}
         onPick={(ids) => talk(ids)}
         onClose={() => setPicking(false)}
@@ -463,162 +886,17 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
   );
 }
 
-/* -------------------------------------------------------- safe & sound */
-/** Each person: a light that breathes when they've been around, amber when quiet; the latest check-in. */
-function SafeGlance({
-  people,
-  statusOf,
-  checks,
-  onWorry,
-  onTalk,
-}: {
-  people: Member[];
-  statusOf: (id: string) => { lastActive: string | null; state: Alive } | undefined;
-  checks: { p: Member; s: SafetyState }[];
-  onWorry: (m: Member) => void;
-  onTalk: (id: string) => void;
-}) {
-  if (!people.length) return null;
-  return (
-    <section aria-label="Safe and sound" className="lite-glass rounded-[24px] p-1.5">
-      <ul className="no-scrollbar m-0 flex list-none gap-1 overflow-x-auto p-0">
-        {people.map((p) => {
-          const st = statusOf(p.id);
-          const state = st?.state ?? "unknown";
-          const quiet = state === "quiet";
-          return (
-            <li key={p.id} className="min-w-0 flex-1">
-              <button type="button" onClick={() => (quiet ? onWorry(p) : onTalk(p.id))} className="press flex w-full min-w-[150px] items-center gap-2.5 rounded-[18px] p-1.5 pr-3 text-left hover:bg-white/10" aria-label={`${callName(p)}: ${st ? statusText(st) : ALIVE_LOOK[state].word}`}>
-                <span className="relative shrink-0">
-                  <Avatar src={memberPhoto(p)} name={callName(p)} size={40} />
-                  <span className={cn("absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full ring-2 ring-black/30", state === "active" && "alive-breathe")} style={{ background: ALIVE_LOOK[state].dot, color: ALIVE_LOOK[state].dot }} />
-                </span>
-                <span className="min-w-0 leading-tight">
-                  <span className="block truncate text-[15px] font-semibold">{callName(p)}</span>
-                  <span className={cn("block truncate text-[12.5px]", quiet ? "text-[#ffd18a]" : "text-white/75")} suppressHydrationWarning>
-                    {st ? statusText(st) : "…"}
-                  </span>
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-      {checks.length > 0 && (
-        <ul className="m-0 mt-1 list-none space-y-1 border-t border-white/15 p-0 pt-1.5">
-          {checks.map(({ p, s }) => {
-            const alarm = s.tone === "overdue" || s.tone === "help";
-            return (
-              <li key={p.id}>
-                <a href="/safe" className={cn("flex items-center gap-2 rounded-[14px] px-2.5 py-1.5 text-[13px] text-white no-underline", alarm && "bg-[#e5484d]/85")}>
-                  <Icon name="shield" size={15} />
-                  <span className="min-w-0 flex-1 truncate">
-                    <b className="font-semibold">{callName(p)}</b> · {s.label}
-                    {s.tone === "pending" && "etaAt" in s ? ` · by ${timeIn(p.tz, new Date(s.etaAt))}` : ""}
-                  </span>
-                  <span className="shrink-0 text-white/70" suppressHydrationWarning>
-                    {ago(s.at)}
-                  </span>
-                </a>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-/* ------------------------------------------- what's waiting · their voice */
-/** One card: the thing waiting on you (if any) above their latest voice. Hidden when empty. */
-function NextOrVoice(props: Parameters<typeof NextStep>[0]) {
-  return (
-    <section aria-label="Waiting for you" className="lite-glass rounded-[22px] p-1 empty:hidden [&>*+*]:border-t [&>*+*]:border-white/15">
-      <NextStep {...props} />
-      {props.latestVoice && <VoiceRow card={props.latestVoice} />}
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------ the voice */
-function VoiceRow({ card }: { card: Card }) {
-  const { members } = useViewer();
-  const { play, current, isPlaying, toggle } = usePlayer();
-  const author = members.find((mm) => mm.id === card.authorId);
-  const playing = current?.id === card.id && isPlaying;
-  return (
-    <button type="button" onClick={() => (current?.id === card.id ? toggle() : play(card))} className="press flex w-full items-center gap-3 rounded-[18px] p-1.5 pr-3 text-left" aria-label={`${playing ? "Pause" : "Play"} ${callName(author)}'s voice note`}>
-      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white text-black">
-        <Icon name={playing ? "pause" : "play"} size={17} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="voice block truncate text-[15.5px]">{card.caption || `${callName(author)}'s voice`}</span>
-        <span className="mt-1 flex items-center gap-2 text-[11.5px] text-white/65">
-          <span className="min-w-0 flex-1 [&_span>span]:!bg-white/70">
-            <VoiceCode peaks={card.peaks} bars={28} className="h-3.5" />
-          </span>
-          <span className="shrink-0" suppressHydrationWarning>
-            {callName(author)} · {ago(card.takenAt)}
-          </span>
-        </span>
-      </span>
-    </button>
-  );
-}
-
-/* ------------------------------------------------------------- moments */
-/** Tell them what you're doing: one tap, both ways (parents and children alike). */
-function Moments() {
-  const { viewer } = useViewer();
-  const [sent, setSent] = useState<PresenceMoment | null>(null);
-  const picks = shareableFor(viewer.role)
-    .filter((mo) => MOMENT_ICON[mo])
-    .slice(0, 5);
-  return (
-    <div className="flex items-start justify-between gap-1 px-0.5 pt-1" role="group" aria-label="Tell them what you're doing">
-      {picks.map((mo) => (
-        <m.button
-          key={mo}
-          type="button"
-          whileTap={{ scale: 0.92 }}
-          aria-pressed={sent === mo}
-          aria-label={`Tell them: ${MOMENT_LABEL[mo].label}`}
-          onClick={async () => {
-            setSent(mo);
-            await postJson("/api/presence", { moment: mo });
-          }}
-          className="flex w-[64px] flex-col items-center gap-1"
-        >
-          <span className={cn("grid h-[46px] w-[46px] place-items-center rounded-full transition-colors", sent === mo ? "bg-white text-black" : "lite-glass")}>
-            <Icon name={sent === mo ? "check" : (MOMENT_ICON[mo] as IconName)} size={20} strokeWidth={1.8} />
-          </span>
-          <span className="max-w-full truncate text-[11px] text-white/80 [@media(max-height:720px)]:hidden">{SHORT[mo] ?? MOMENT_LABEL[mo].label}</span>
-        </m.button>
-      ))}
-    </div>
-  );
-}
-
 /* ------------------------------------------------------- empty window */
 /** Nobody from the other side has joined yet: the window waits, the invite is one tap. */
 function WaitingCard({ names }: { names: string }) {
   const [busy, setBusy] = useState(false);
+  const [sheet, setSheet] = useState(false);
   const send = async () => {
     setBusy(true);
-    let code: string | null = null;
-    try {
-      const res = await fetch("/api/invites", { cache: "no-store" });
-      const d = (await res.json()) as { invites?: { code: string; expiresAt: string }[] };
-      code = (d.invites ?? []).find((i) => Date.parse(i.expiresAt) > Date.now())?.code ?? null;
-      if (!code) {
-        const made = await postJson<{ invite?: { code: string } }>("/api/invites", {});
-        code = made?.invite?.code ?? null;
-      }
-    } catch {
-      code = null;
-    }
+    const code = await inviteCode();
     setBusy(false);
-    if (!code) return void (window.location.href = "/settings#invite");
+    // No code (or no right to make one): the invite sheet says why and lets them retry, in place.
+    if (!code) return setSheet(true);
     window.open(whatsappInvite(window.location.origin, code), "_blank", "noopener");
   };
   return (
@@ -631,6 +909,7 @@ function WaitingCard({ names }: { names: string }) {
       <button type="button" onClick={() => void send()} disabled={busy} className="press mt-4 flex h-12 items-center gap-2 rounded-full bg-white px-5 text-[15px] font-semibold text-black">
         <Icon name="send" size={17} /> {busy ? "Opening…" : "Send the invite again"}
       </button>
+      <InviteSheet open={sheet} onClose={() => setSheet(false)} />
     </section>
   );
 }
@@ -660,87 +939,12 @@ function WorrySheet({ person, status, onTalk, onCall, onClose }: { person: Membe
           <button type="button" onClick={onTalk} aria-label="Voice note" className="press grid h-16 w-16 place-items-center rounded-full bg-black/[.06] text-ink">
             <Icon name="mic" size={24} />
           </button>
-          <a href="/nearby" aria-label="Trusted nearby: who to call near them" className="press grid h-16 w-16 place-items-center rounded-full bg-black/[.06] text-ink no-underline">
+          <Link href="/nearby" aria-label="Trusted nearby: who to call near them" className="press grid h-16 w-16 place-items-center rounded-full bg-black/[.06] text-ink no-underline">
             <Icon name="gather" size={24} />
-          </a>
+          </Link>
         </div>
       </m.div>
     </div>
   );
 }
 
-/**
- * The one thing worth doing now: a quiet parent beats a live call, which
- * beats an unanswered voice, which beats today's question, which beats a
- * birthday soon. Rules, not a model: instant and predictable. Nothing when
- * nothing is waiting (the screen stays calm).
- */
-function NextStep({
-  people,
-  statusOf,
-  latestVoice,
-  viewerId,
-  cards,
-  onWorry,
-  onReply,
-  onWish,
-  knock,
-}: {
-  people: Member[];
-  statusOf: (id: string) => { lastActive: string | null; state: Alive } | undefined;
-  latestVoice: Card | undefined;
-  viewerId: string;
-  cards: Card[];
-  onWorry: (m: Member) => void;
-  onReply: (id: string) => void;
-  onWish: (id: string) => void;
-  knock: Knock | undefined;
-}) {
-  const router = useRouter();
-  const { members } = useViewer();
-  const { openAdd } = useShell();
-  const { data: today } = useToday();
-  const quiet = people.find((p) => statusOf(p.id)?.state === "quiet");
-  const myLastVoice = cards.find((c) => c.type === "audio" && c.authorId === viewerId);
-  const unanswered = latestVoice && (!myLastVoice || Date.parse(latestVoice.takenAt) > Date.parse(myLastVoice.takenAt)) ? members.find((mm) => mm.id === latestVoice.authorId) : undefined;
-  const task = today?.task;
-  const prompt = task?.side === "parents" ? task.forParents : task?.forChildren;
-  const otherIds = task ? (task.side === "parents" ? task.children : task.parents) : [];
-  const answeredBy = members.find((mm) => task?.sealedBy.includes(mm.id));
-  const occ = today?.occasion;
-  const occPerson = occ?.memberId ? members.find((mm) => mm.id === occ.memberId) : undefined;
-  const host = knock ? members.find((mm) => mm.id === knock.memberId) : undefined;
-
-  let step: { icon: IconName; title: string; line: string; go: () => void; label: string } | null = null;
-  if (quiet) {
-    const st = statusOf(quiet.id);
-    step = { icon: "phone", title: `Check on ${callName(quiet)}`, line: st ? statusText(st) : "", go: () => onWorry(quiet), label: `Check on ${callName(quiet)}` };
-  } else if (knock) {
-    step = { icon: "video", title: `${callName(host)} is on a video call`, line: "Tap to join", go: () => router.push(`/call/${knock.id}`), label: "Join the call" };
-  } else if (unanswered) {
-    step = { icon: "reply", title: `Reply to ${callName(unanswered)}`, line: "Their voice note is waiting", go: () => onReply(unanswered.id), label: `Reply to ${callName(unanswered)}` };
-  } else if (task?.side && !task.mine && prompt) {
-    step = {
-      icon: "mic",
-      title: answeredBy ? `${callName(answeredBy)} answered today's question` : "Today, for both homes",
-      line: answeredBy ? `Answer to hear it: ${prompt}` : prompt,
-      go: () => openAdd("voice", { kind: "today", taskId: task.id, prompt }, otherIds.filter((id) => id !== viewerId)),
-      label: "Answer today's question",
-    };
-  } else if (occ && occ.days <= 3 && occPerson && occPerson.id !== viewerId) {
-    step = { icon: "calendar", title: occ.days === 0 ? `${occ.title} is today` : `${occ.title} in ${occ.days} day${occ.days > 1 ? "s" : ""}`, line: "Record a wish", go: () => onWish(occPerson.id), label: "Record a wish" };
-  }
-  if (!step) return null;
-  return (
-    <button type="button" onClick={step.go} aria-label={step.label} className="press flex w-full items-center gap-3 rounded-[18px] p-1.5 pr-2 text-left">
-      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white text-black">
-        <Icon name={step.icon} size={18} strokeWidth={2.2} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] font-semibold">{step.title}</span>
-        <span className="block truncate text-[12.5px] text-white/70">{step.line}</span>
-      </span>
-      <Icon name="chevron" size={18} className="shrink-0 text-white/70" />
-    </button>
-  );
-}

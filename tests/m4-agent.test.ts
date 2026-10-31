@@ -40,8 +40,15 @@ describe("planRitualScan (pure)", () => {
     const plan = planRitualScan("2026-11-03T10:00:00.000Z", members, [], {}, { runs: [], wishes: [], roles: [] });
     expect(plan.ensureRuns).toEqual([{ slug: "birthday", occasionDate: "2026-11-09" }]);
     expect(plan.suggestions.length).toBeGreaterThan(0);
-    // Blessings come from elders (dadi), wishes from the rest (minus Leo).
-    expect(plan.suggestions.some((s) => String(s.goal).includes("Maa"))).toBe(true);
+    // Every grown-up is asked (elders for a blessing), never the child accounts or Leo.
+    const asked = plan.suggestions.map((s) => s.payload as { memberId?: string; kind?: string });
+    expect(asked.find((p) => p.memberId === "dadi")?.kind).toBe("blessing");
+    expect(asked.find((p) => p.memberId === "arjun")?.kind).toBe("wish");
+    expect(asked.some((p) => p.memberId === "leo" || p.memberId === "aria")).toBe(false);
+    expect(plan.suggestions[0].goal).toMatch(/^Record a (wish|blessing) for Vihaan's birthday$/);
+    // Still asked when the run is already open (the Occasions page opens runs early).
+    const run = { id: "birthday:2026-11-09", familyId: "demo-family", ritualSlug: "birthday", occasionDate: "2026-11-09", status: "open" as const, createdAt: "2026-11-01T00:00:00.000Z" };
+    expect(planRitualScan("2026-11-03T10:00:00.000Z", members, [], {}, { runs: [run], wishes: [], roles: [] }).suggestions.length).toBe(plan.suggestions.length);
     // Elder daily role for today.
     // Both grandparents get a daily role.
     expect(plan.roles.map((r) => r.memberId).sort()).toEqual(["dada", "dadi"]);
@@ -102,7 +109,7 @@ describe("ritual-scan + suggestions API (mock store)", () => {
     const approved = await approvePOST(
       new Request("http://test/api/approve", { method: "POST", headers: { cookie: sessionCookie() } }),
       {
-        params: { id: target.id },
+        params: Promise.resolve({ id: target.id }),
       },
     );
     expect(approved.status).toBe(200);
@@ -110,7 +117,7 @@ describe("ritual-scan + suggestions API (mock store)", () => {
     const again = await approvePOST(
       new Request("http://test/api/approve", { method: "POST", headers: { cookie: sessionCookie() } }),
       {
-        params: { id: target.id },
+        params: Promise.resolve({ id: target.id }),
       },
     );
     expect(again.status).toBe(409);

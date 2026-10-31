@@ -1,13 +1,18 @@
 /* Aangan tokens. See docs/DESIGN.md §3.
-   White ground; colour comes from the family's photos. Marigold is the only
-   brand colour and means "live": heard, playing, recording. */
+   Warm paper ground with white cards; colour comes from the family's photos.
+   Marigold is the only brand colour and means "live": heard, playing, recording. */
 
 :root {
-  --paper: #ffffff;
-  --surface: #f4f4f6;
+  /* 31 Oct: warm paper, white cards lifted by a soft shadow (was white on white). */
+  --paper: #f7f5f1;
+  --card: #ffffff;
+  --surface: #ffffff; /* filled blocks on the paper: cards, chips, inputs (a hairline lifts them) */
+  --surface-edge: 0 0 0 1px rgba(60, 42, 24, 0.05), 0 1px 2px rgba(60, 42, 24, 0.04);
+  --well: #f1eee9; /* fills inside a white card: icon wells, tracks, inputs */
+  --card-shadow: 0 1px 2px rgba(60, 42, 24, 0.05), 0 8px 24px -12px rgba(60, 42, 24, 0.16);
   --ink: rgba(0, 0, 0, 0.88);
-  --ink-soft: rgba(0, 0, 0, 0.56);
-  --ink-faint: rgba(0, 0, 0, 0.38);
+  --ink-soft: rgba(0, 0, 0, 0.6); /* ≥ 4.5:1 on paper, card and surface */
+  --ink-faint: rgba(0, 0, 0, 0.42);
   --line: rgba(0, 0, 0, 0.08);
   --accent: #1c1b1a;
   --accent-ink: #ffffff;
@@ -24,9 +29,9 @@
   --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.45);
   --glass-shadow: 0 20px 50px rgba(0, 0, 0, 0.18);
 
-  /* Glass over the white page (dock, sheets) */
-  --frost-bg: rgba(255, 255, 255, 0.72);
-  --frost-solid: #ffffff;
+  /* Glass over the page (dock, sheets): the same warm paper, so white blocks read as cards in a sheet too */
+  --frost-bg: rgba(247, 245, 241, 0.86);
+  --frost-solid: #f7f5f1;
   --frost-border: rgba(0, 0, 0, 0.06);
   --frost-shadow: 0 12px 40px rgba(0, 0, 0, 0.14);
 

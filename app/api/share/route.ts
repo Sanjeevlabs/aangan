@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isGrownUp } from "@/lib/permissions";
 import { requireSession } from "@/lib/auth";
 import { dbGetMember, dbListMembers } from "@/lib/db";
 import { getDoc } from "@/lib/family-docs";
@@ -24,7 +25,7 @@ export async function POST(req: Request): Promise<Response> {
   const body = Post.safeParse(await req.json().catch(() => null));
   if (!body.success) return Response.json({ error: "invalid-share" }, { status: 400 });
   const me = await dbGetMember(auth.memberId);
-  if (!me || me.access === "child") return Response.json({ error: "not-allowed" }, { status: 403 });
+  if (!me || !isGrownUp(me)) return Response.json({ error: "not-allowed" }, { status: 403 });
   const recipe = await getDoc(auth.familyId, "recipe", body.data.id);
   if (!recipe) return Response.json({ error: "unknown-recipe" }, { status: 404 });
   const cook = (await dbListMembers(auth.familyId)).find((m) => m.id === recipe.cookId);

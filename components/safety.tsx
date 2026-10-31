@@ -85,7 +85,7 @@ export function SafetyRow({ member, state, viewerTz, compact = false }: { member
 }
 
 /**
- * Kutumb block: only alerts (a missed arrival, a call for help) and your own
+ * Courtyard block: only alerts (a missed arrival, a call for help) and your own
  * open trip. Everyday "home safe" shows as the green dot on the window.
  */
 export function SafetyWatch() {

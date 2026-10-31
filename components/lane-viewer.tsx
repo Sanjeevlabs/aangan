@@ -3,23 +3,29 @@
 import { m } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { resolveMediaUrl } from "@/lib/media-session";
-import { callName, cardCover, cardDuration, formatDuration } from "@/lib/people";
+import { callName, cardCover } from "@/lib/people";
 import type { Card } from "@/lib/schemas";
 import { useDisplayText } from "@/lib/use-display-text";
 import { monthChip } from "@/lib/lane-groups";
 import { cn } from "@/lib/utils";
 import { CaptionEditor, CardActions } from "./memory-card";
-import { usePlayer } from "./player";
+import { usePlayer, VoiceControls } from "./player";
+import { PrintFrame } from "./print-frame";
 import { Icon, Photo } from "./ui/kit";
 import { useViewer } from "./viewer";
+import { museLabel } from "@/lib/muse-portrait";
 
 // Full-screen viewer for ONE kind of memory (photos, videos or voices):
 // swipe left/right (native scroll-snap), arrows on desktop, Esc to close.
+// Photos show as prints (when, where and a note in the sharer's hand); voices
+// get full controls (previous, back 10 s, play, forward 10 s, next, seek).
 // Edit / delete stay one tap away in the top bar.
 
-function Slide({ card, active }: { card: Card; active: boolean }) {
+/** A print as large as the screen allows, below the top bar. */
+const LANE_PRINT_W = "min(calc(100vw - 48px), 420px, calc((100dvh - 290px) * 0.8 + 24px))";
+
+function Slide({ card, active, queue, onPrev, onNext }: { card: Card; active: boolean; queue: Card[]; onPrev: (() => void) | null; onNext: (() => void) | null }) {
   const { members, displayLang } = useViewer();
-  const { play, current, isPlaying, toggle, collapse, currentTime, duration } = usePlayer();
   const words = card.type === "audio" ? card.transcript || card.caption : card.caption;
   const { text } = useDisplayText(words, card.type === "audio" && card.transcript ? card.transcriptLang : card.lang, displayLang);
   const author = members.find((m) => m.id === card.authorId);
@@ -29,7 +35,24 @@ function Slide({ card, active }: { card: Card; active: boolean }) {
   useEffect(() => {
     if (!active) video.current?.pause();
   }, [active]);
-  const playingThis = current?.id === card.id;
+
+  if (card.type === "photo") {
+    return (
+      <div className="relative h-full w-full shrink-0 snap-center snap-always overflow-hidden">
+        <div className="pointer-events-none absolute inset-[-40px]" aria-hidden="true" style={{ filter: "blur(44px) saturate(1.15) brightness(.45)" }}>
+          <Photo src={cover} alt="" sizes="200px" />
+        </div>
+        <div className="absolute inset-0 flex items-center justify-center px-6" style={{ paddingTop: "calc(64px + env(safe-area-inset-top))", paddingBottom: "calc(24px + env(safe-area-inset-bottom))" }}>
+          <PrintFrame card={card} author={author} src={cover} alt={text || "Family photo"} width={LANE_PRINT_W} signed share sizes="(max-width: 480px) 92vw, 440px" />
+        </div>
+        {museLabel(card.source) && (
+          <span className="absolute left-1/2 top-0 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 text-[12px] font-semibold text-[#1c1b1a]" style={{ marginTop: "calc(64px + env(safe-area-inset-top))" }}>
+            {museLabel(card.source)}
+          </span>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="relative h-full w-full shrink-0 snap-center snap-always overflow-hidden">
@@ -38,32 +61,16 @@ function Slide({ card, active }: { card: Card; active: boolean }) {
       ) : card.type === "audio" ? (
         <div className="absolute inset-0">
           <Photo src={cover} alt="" sizes="100vw" className="scale-110 opacity-40 blur-2xl" />
-          <div className="absolute inset-0 flex flex-col items-center justify-center px-8">
-            <div className="relative h-[220px] w-[220px] overflow-hidden rounded-[28px] shadow-2xl">
-              <Photo src={cover} alt="" sizes="440px" position="center 30%" />
+          <div className="absolute inset-0 flex flex-col items-center justify-center px-6 pb-24">
+            <div className="relative h-[200px] w-[200px] overflow-hidden rounded-[28px] shadow-2xl">
+              <Photo src={cover} alt="" sizes="400px" position="center 30%" />
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                if (playingThis) toggle();
-                else {
-                  play(card);
-                  collapse();
-                }
-              }}
-              aria-label={playingThis && isPlaying ? "Pause voice note" : `Play ${callName(author)}'s voice note`}
-              className="press mt-6 grid h-16 w-16 place-items-center rounded-full bg-white text-black"
-            >
-              <Icon name={playingThis && isPlaying ? "pause" : "play"} size={24} />
-            </button>
-            <span className="mt-4 h-[3px] w-[200px] overflow-hidden rounded-full bg-white/20" aria-hidden="true">
-              <span className="block h-full bg-white" style={{ width: `${playingThis && duration ? Math.min(100, (currentTime / duration) * 100) : 0}%` }} />
-            </span>
-            <span className="tnum mt-2 text-[13px] text-white/60">{formatDuration(cardDuration(card))}</span>
+            <p className="m-0 mt-4 text-[15px] font-semibold">{callName(author)}&rsquo;s voice note</p>
+            <VoiceControls card={card} queue={queue} onPrev={onPrev} onNext={onNext} className="mt-3 w-full max-w-[360px]" />
           </div>
         </div>
       ) : (
-        <Photo src={cover} alt={text || "Family photo"} sizes="100vw" className="!object-contain" />
+        <Photo src={cover} alt={text || "Family video"} sizes="100vw" className="!object-contain" />
       )}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-[linear-gradient(180deg,transparent,rgba(0,0,0,.72))] px-5 pt-16" style={{ paddingBottom: "calc(28px + env(safe-area-inset-bottom))" }}>
         <p className="m-0 text-[13px] text-white/70">
@@ -80,6 +87,7 @@ export function LaneViewer({ cards, start, title, onClose }: { cards: Card[]; st
   const [index, setIndex] = useState(Math.min(start, Math.max(0, cards.length - 1)));
   const [editing, setEditing] = useState(false);
   const card = cards[Math.min(index, cards.length - 1)];
+  const { play, collapse } = usePlayer();
 
   const go = useCallback(
     (to: number, smooth = true) => {
@@ -90,6 +98,16 @@ export function LaneViewer({ cards, start, title, onClose }: { cards: Card[]; st
     },
     [cards.length],
   );
+
+  // Previous / next from a voice's controls: move there, and keep listening if it's a voice.
+  const step = (to: number) => {
+    go(to);
+    const target = cards[to];
+    if (target?.type === "audio") {
+      play(target, cards);
+      collapse();
+    }
+  };
 
   // Open on the tapped item, lock the page behind.
   useEffect(() => {
@@ -134,7 +152,14 @@ export function LaneViewer({ cards, start, title, onClose }: { cards: Card[]; st
         }}
       >
         {cards.map((c, i) => (
-          <Slide key={c.id} card={c} active={i === index} />
+          <Slide
+            key={c.id}
+            card={c}
+            active={i === index}
+            queue={cards}
+            onPrev={i > 0 ? () => step(i - 1) : null}
+            onNext={i + 1 < cards.length ? () => step(i + 1) : null}
+          />
         ))}
       </div>
 

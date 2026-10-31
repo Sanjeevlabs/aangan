@@ -2,13 +2,20 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Member, Relationship } from "@/lib/schemas";
-import { Avatar, Button, EmptyLine, RoomHeader } from "@/components/ui/kit";
+import { Avatar, Button, EmptyLine, Icon, RoomHeader } from "@/components/ui/kit";
+import { ShareButton } from "@/components/share-sheet";
+import { constellation, familyStats } from "@/lib/constellation";
+import type { PosterPerson } from "@/lib/poster";
+import { treeCard } from "@/lib/share-cards";
+import { canShareTree } from "@/lib/share-rules";
+import { useJson } from "@/lib/use-json";
 import { callName, memberPhoto } from "@/lib/people";
 import { cn } from "@/lib/utils";
 import { useViewer } from "@/components/viewer";
 import { FamilyTree } from "@/components/family-tree";
 import { PetsSection } from "@/components/pets";
 import { BothSides } from "@/components/sides";
+import { InviteSheet } from "@/components/invite-sheet";
 import { FamilyCircles, FamilyHomes } from "@/components/family-homes";
 import { can } from "@/lib/permissions";
 import { ZONES, placeFromTz } from "@/lib/zones";
@@ -181,11 +188,44 @@ function GuidedAdd({ onAdded, anchor: preset }: { onAdded: () => void; anchor?: 
   );
 }
 
+/** The tree as a poster to share, and the family's faces as a sticker badge. Grown-ups only. */
+function TreeShare({ members, relationships }: { members: Member[]; relationships: Relationship[] }) {
+  const { viewer } = useViewer();
+  const sides = useJson<{ current: string; sides: { familyId: string; name: string }[] }>("/api/sides");
+  const name = sides.data?.sides.find((x) => x.familyId === sides.data?.current)?.name ?? "";
+  const family = name ? `The ${name} family` : "Our family";
+  const people = members.filter((m) => m.status !== "pending");
+  return (
+    <ShareButton
+      label="Share"
+      target={() => ({
+        title: "Share the family tree",
+        note: "A poster of your tree: faces, names and how you\u2019re related. Nothing else from the family.",
+        filename: `${(name || "family").toLowerCase().replace(/[^a-z0-9]+/g, "-")}-tree.png`,
+        text: family,
+        render: () => {
+          const c = constellation(people, relationships, viewer.id);
+          const stats = familyStats(c, people);
+          const map = new Map<string, PosterPerson>(people.map((m) => [m.id, { id: m.id, name: m.id === viewer.id ? "You" : callName(m), label: c.nodes.find((n) => n.id === m.id)?.label ?? "", photo: memberPhoto(m), ring: m.role === "elder" ? "#f2a516" : m.role === "child" ? "#7fb069" : "#2f5684" }]));
+          return treeCard(c, map, family, `${stats.people} people \u00b7 ${stats.generations} generations`);
+        },
+      })}
+      sticker={() => {
+        // Elders first, then the viewer's generation, then the children: up to 7 faces.
+        const order = { elder: 0, adult: 1, child: 2 } as const;
+        const faces = [...people].sort((a, b) => order[a.role] - order[b.role]).slice(0, 7).map((m) => ({ name: callName(m), photo: memberPhoto(m) }));
+        return { kind: "tree", title: "Family badge", familyName: name || "Our", faces };
+      }}
+    />
+  );
+}
+
 export default function BondPage() {
   const { viewer, refreshMembers } = useViewer();
   const [members, setMembers] = useState<Member[] | null>(null);
   const [relationships, setRelationships] = useState<Relationship[] | null>(null);
   const [failed, setFailed] = useState(false);
+  const [inviting, setInviting] = useState(false);
   const [anchor, setAnchor] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -208,7 +248,7 @@ export default function BondPage() {
 
   return (
     <div>
-      <RoomHeader title="Family tree" subtitle="Every generation, both sides, home by home" />
+      <RoomHeader title="Family tree" subtitle="Every generation, both sides, home by home" action={members && canShareTree(viewer) ? <TreeShare members={members} relationships={relationships ?? []} /> : undefined} />
       {failed && <EmptyLine>Couldn&rsquo;t load the family. Try again in a moment.</EmptyLine>}
       {members === null && !failed && <div className="skeleton h-[420px] rounded-card" aria-busy="true" aria-label="Loading family" />}
       {members && (
@@ -245,6 +285,19 @@ export default function BondPage() {
           ) : (
             <p className="m-0 mt-8 text-center text-[14px] text-ink-soft">Ask a grown-up in the family to add people.</p>
           )}
+          {can(viewer, "invite.create") && (
+            <button type="button" onClick={() => setInviting(true)} className="press mt-6 flex w-full items-center gap-3 rounded-card bg-card px-4 py-3 text-left text-ink shadow-card">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-well" aria-hidden="true">
+                <Icon name="plus" size={18} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[15px] font-semibold">Invite family</span>
+                <span className="block text-[13px] text-ink-soft">A sibling, a cousin, your in-laws</span>
+              </span>
+              <Icon name="chevron" size={17} className="text-ink-faint" />
+            </button>
+          )}
+          <InviteSheet open={inviting} onClose={() => setInviting(false)} />
         </>
       )}
     </div>

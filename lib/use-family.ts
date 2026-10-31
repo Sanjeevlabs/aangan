@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import type { Card } from "./schemas";
 
 // One shared, cached fetch of the family's cards. Every screen reads from the
@@ -9,7 +9,7 @@ import type { Card } from "./schemas";
 
 let cache: Card[] | null = null;
 let inflight: Promise<Card[]> | null = null;
-const listeners = new Set<(cards: Card[]) => void>();
+const listeners = new Set<() => void>();
 
 // The server already joins the demo shelf (demo family only) and holds back
 // today's sealed answers, so the client takes the list as given.
@@ -26,20 +26,28 @@ async function load(): Promise<Card[]> {
     .then((cards) => {
       cache = cards;
       inflight = null;
-      listeners.forEach((l) => l(cards));
+      listeners.forEach((l) => l());
       return cards;
     });
   return inflight;
 }
 
+function subscribe(onChange: () => void): () => void {
+  listeners.add(onChange);
+  return () => {
+    listeners.delete(onChange);
+  };
+}
+
+/**
+ * The cards, from the shared snapshot. While hydrating, React uses the server
+ * snapshot (null, as the server rendered it) even if the fetch already landed,
+ * so a page that hydrates late never mismatches (React error #418).
+ */
 export function useFamilyCards(refreshKey = 0): { cards: Card[] | null } {
-  const [cards, setCards] = useState<Card[] | null>(cache);
+  const cards = useSyncExternalStore(subscribe, () => cache, () => null);
   useEffect(() => {
-    listeners.add(setCards);
     void load();
-    return () => {
-      listeners.delete(setCards);
-    };
   }, [refreshKey]);
   return { cards };
 }

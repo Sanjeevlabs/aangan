@@ -24,12 +24,12 @@ export default function ProjectPage() {
   const [editingPlan, setEditingPlan] = useState(false);
   const p = data?.projects.find((x) => x.id === id);
 
-  if (failed && !data) return <div><RoomHeader title="Visits & holidays" /><EmptyLine>Couldn&rsquo;t load this plan. Try again in a moment.</EmptyLine></div>;
+  if (failed && !data) return <div><RoomHeader title="Plan" /><EmptyLine>Couldn&rsquo;t load this plan. Try again in a moment.</EmptyLine></div>;
   if (!data) return <div className="skeleton mt-16 h-[420px] rounded-card" aria-busy="true" />;
   if (!p) {
     return (
       <div>
-        <RoomHeader title="Visits & holidays" />
+        <RoomHeader title="Plan" />
         <EmptyLine>This plan isn&rsquo;t here anymore.</EmptyLine>
       </div>
     );
@@ -55,7 +55,7 @@ export default function ProjectPage() {
             actions={[
               { label: "Change dates or name", onSelect: () => setEditingPlan(true) },
               { label: p.status === "done" ? "Not done yet" : "Mark as done", onSelect: () => act({ action: "finish", done: p.status !== "done" }) },
-              ...(canChange(viewer, p.createdBy) ? [{ label: "Delete", danger: true, confirm: "Delete this plan and its list?", onSelect: async () => { await postJson("/api/together", { action: "delete", projectId: p.id }); router.replace("/together"); } }] : []),
+              ...(canChange(viewer, p.createdBy) ? [{ label: "Delete", danger: true, confirm: "Delete this plan and its list?", onSelect: async () => { await postJson("/api/together", { action: "delete", projectId: p.id }); router.replace(p.templateId === "holiday" ? "/together/holidays" : "/together/visits"); } }] : []),
             ]}
           />
         }

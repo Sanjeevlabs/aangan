@@ -1,0 +1,56 @@
+{
+  "_comment": "Curated Shopify gift stores. Each one was checked on 30 Oct 2026: its storefront reports Shopify.shop, and POST https://{domain}/api/ucp/mcp answered tools/list and search_catalog with no auth. 'samples' are real items and prices from that check, used only in MOCK mode (labelled Sample). Live mode always searches the store.",
+  "checkedAt": "2026-10-30",
+  "stores": [
+    {
+      "id": "bombay-sweet-shop",
+      "name": "Bombay Sweet Shop",
+      "domain": "bombaysweetshop.com",
+      "countries": ["IN"],
+      "queries": { "occasion": ["gift hamper", "mithai box"], "need": ["mithai box"] },
+      "samples": [
+        { "id": "gid://shopify/ProductVariant/41267251085472", "name": "Delight Gift Hamper", "price": 99000, "currency": "INR", "url": "https://bombaysweetshop.com/products/diwali-delight-gift-hamper", "image": "https://cdn.shopify.com/s/files/1/0301/1923/1620/files/BSS_2026_DIWALI_DIWALI-DELIGHT-HAZELNUTBAR-GIFT-HAMPER_1.1_1_34f9c06e-b749-4ecf-95b1-961a915502ea.jpg?v=1793019732", "tags": ["hamper", "sweets", "mithai", "gift"] }
+      ]
+    },
+    {
+      "id": "anand-sweets",
+      "name": "Anand Sweets",
+      "domain": "anandsweets.in",
+      "countries": ["IN"],
+      "queries": { "occasion": ["sweets gift box"], "need": ["sweets"] },
+      "samples": [
+        { "id": "gid://shopify/ProductVariant/44832728285399", "name": "Royal Delicacies Assorted Sweets Gift Box", "price": 59900, "currency": "INR", "url": "https://www.anandsweets.in/products/anand-royal-delicacies-assorted-sweets-gift-box-pure-ghee-indian-mithai-box-350g", "image": "https://cdn.shopify.com/s/files/1/0569/3456/4001/files/Gift_Box_4.png?v=1752813449", "tags": ["sweets", "mithai", "gift", "box"] }
+      ]
+    },
+    {
+      "id": "farmley",
+      "name": "Farmley",
+      "domain": "farmley.com",
+      "countries": ["IN"],
+      "queries": { "occasion": ["dry fruits gift box"], "need": ["dry fruits"] },
+      "samples": [
+        { "id": "gid://shopify/ProductVariant/41702868910245", "name": "Panchmeva Dry Fruits Mix (405 g)", "price": 46900, "currency": "INR", "url": "https://www.farmley.com/products/panchmeva-superfood", "image": "https://cdn.shopify.com/s/files/1/0597/7754/8453/files/Panchmeva_key_image.png?v=1769602146", "tags": ["dry fruits", "nuts", "gift"] }
+      ]
+    },
+    {
+      "id": "chumbak",
+      "name": "Chumbak",
+      "domain": "chumbak.com",
+      "countries": ["IN"],
+      "queries": { "occasion": ["gift set"], "need": [] },
+      "samples": [
+        { "id": "gid://shopify/ProductVariant/47744690323634", "name": "Jaipur Gardens Kulhad Gift Box, set of 4", "price": 119900, "currency": "INR", "url": "https://www.chumbak.com/products/jsipur-gsrdens-kulhsd-gift-box-set-of-4", "image": "https://cdn.shopify.com/s/files/1/0601/1093/0098/files/1_43404e6b-b5cc-40ae-9a1a-68915cff6ccd.jpg?v=1785223130", "tags": ["gift", "home", "tea", "kulhad"] }
+      ]
+    },
+    {
+      "id": "okhai",
+      "name": "Okhai",
+      "domain": "okhai.org",
+      "countries": ["IN"],
+      "queries": { "occasion": ["gift hamper"], "need": [] },
+      "samples": [
+        { "id": "gid://shopify/ProductVariant/50722887467201", "name": "Cozy Home Gift Hamper: ceramic mugs and block-print cushion covers", "price": 200000, "currency": "INR", "url": "https://okhai.org/products/indidhaage-cozy-home-gift-hamper-ceramic-mugs-block-print-cushion-covers", "image": "https://cdn.shopify.com/s/files/1/2116/1923/files/HPI0027-1.png?v=1791871227", "tags": ["gift", "hamper", "home"] }
+      ]
+    }
+  ]
+}

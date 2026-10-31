@@ -1,3 +1,4 @@
+import { withDemoShelf } from "@/lib/demo";
 import { z } from "zod";
 import { CreateReactionRequestSchema } from "@/lib/schemas";
 import { dbGetMember, dbListCards, dbListReactions, dbRemoveReaction, dbSetReaction } from "@/lib/db";
@@ -25,7 +26,7 @@ export async function POST(req: Request): Promise<Response> {
   }
   const ownership = requireMember(auth, parsed.data.memberId);
   if (ownership) return ownership;
-  const cards = await dbListCards(auth.familyId);
+  const cards = withDemoShelf(await dbListCards(auth.familyId), auth.familyId);
   if (!cards.some((c) => c.id === parsed.data.cardId)) {
     return Response.json({ error: "unknown-card" }, { status: 404 });
   }

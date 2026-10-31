@@ -9,7 +9,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 // shuffles process.env around is not a secret.
 const SECRET_PATTERNS = [/sk-[A-Za-z0-9]{8,}/, /AKIA[0-9A-Z]{16}/, /META_API_KEY\s*=\s*["'][A-Za-z0-9_\-]{8,}["']/];
 const FESTIVALS = ["diwali", "christmas", "eid", "hanukkah", "thanksgiving", "lunar new year"];
-const SKIP_DIRS = new Set(["node_modules", ".next", ".git", ".hg", ".sl", ".eden"]);
+const SKIP_DIRS = new Set([".claude", "node_modules", ".next", ".open-next", ".wrangler", ".git", ".hg", ".sl", ".eden"]);
 
 function files(dir) {
   const out = [];
@@ -47,8 +47,35 @@ for (const f of files(ROOT)) {
   }
 }
 
+// Public repo: no business strategy, money plans or competitor talk in tracked files.
+// (The private spec lives outside the repo; docs/private/ is gitignored.)
+const PRIVATE_TOPICS = /\b(commission|revenue|monetis|monetiz|competitor|investor|paywall|unit economics|go-to-market|family plus)\b|[₹$]\s?\d[\d,.]*\s?(\/|per |a )(month|year|mo|yr)\b/i;
+for (const f of files(ROOT)) {
+  const rel = f.replace(ROOT, "").replace(/^[\\/]/, "");
+  if (/^(docs[\\/]private|android|ios)[\\/]/.test(rel) || rel === "scripts/lint.mjs" || rel.includes(".env.local")) continue;
+  const lines = readFileSync(f, "utf8").split("\n");
+  lines.forEach((line, i) => {
+    if (PRIVATE_TOPICS.test(line)) {
+      console.error(`${rel}:${i + 1}: private topic in a public repo (strategy, money plans, competitors): ${line.trim().slice(0, 100)}`);
+      failures++;
+    }
+  });
+}
+
+// Dependency allowlist: a new package is a decision, not a side effect.
+const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
+const allow = JSON.parse(readFileSync(join(ROOT, "scripts/deps-allowlist.json"), "utf8"));
+for (const sec of ["dependencies", "devDependencies"]) {
+  for (const name of Object.keys(pkg[sec] ?? {})) {
+    if (!allow[sec]?.[name]) {
+      console.error(`package.json ${sec}: "${name}" is not in scripts/deps-allowlist.json (add it with the reason, or remove it)`);
+      failures++;
+    }
+  }
+}
+
 if (failures > 0) {
   console.error(`${failures} lint failure(s)`);
   process.exit(1);
 }
-console.log("lint ok: no secrets, no hard-coded festivals in app logic");
+console.log("lint ok: no secrets, no hard-coded festivals in app logic, dependencies on the allowlist, no private topics");

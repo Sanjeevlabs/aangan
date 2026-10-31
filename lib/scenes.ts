@@ -97,7 +97,8 @@ export interface AlbumSlide {
 /** The living album: the sky's photos, with a family photo every third slide. */
 export function livingAlbum(scenes: Scene[], family: { src: string; title: string; by: string }[]): AlbumSlide[] {
   const out: AlbumSlide[] = [];
-  const fam = [...family];
+  const seen = new Set<string>();
+  const fam = family.filter((f) => !seen.has(f.src) && (seen.add(f.src), true));
   scenes.forEach((sc, i) => {
     out.push({ ...sc, by: "", family: false });
     if (i % 2 === 1 && fam.length) out.push({ ...fam.shift()!, family: true });

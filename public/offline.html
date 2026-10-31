@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f6f3ee">
+<title>Aangan · Offline</title>
+<style>
+  :root { --ink: #1c1b1a; --paper: #f6f3ee; --soft: rgba(28, 27, 26, 0.6); }
+  @media (prefers-color-scheme: dark) { :root { --ink: #f6f3ee; --paper: #1c1b1a; --soft: rgba(246, 243, 238, 0.6); } }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--paper); color: var(--ink);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: grid; place-items: center; text-align: center;
+    padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
+  }
+  main { max-width: 320px; }
+  img { width: 96px; height: 96px; border-radius: 22px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14); }
+  h1 { font-size: 24px; font-weight: 400; letter-spacing: -0.01em; margin: 24px 0 8px; }
+  p { color: var(--soft); margin: 0 0 28px; font-family: Georgia, "Times New Roman", serif; font-style: italic; }
+  button {
+    min-height: 48px; padding: 0 28px; border: 0; border-radius: 999px;
+    background: var(--ink); color: var(--paper); font: inherit; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<main>
+  <img src="/icons/icon-192.png" alt="Aangan">
+  <h1>You're offline.</h1>
+  <p>Aangan will open when you're back online.</p>
+  <button type="button" id="retry">Try again</button>
+</main>
+<script>
+  // Go back to the live app as soon as the connection returns.
+  var home = (window.Capacitor && window.Capacitor.getServerUrl && window.Capacitor.getServerUrl()) || "/";
+  function retry() { if (navigator.onLine) location.replace(home); }
+  document.getElementById("retry").addEventListener("click", function () { location.replace(home); });
+  window.addEventListener("online", retry);
+</script>
+</body>
+</html>

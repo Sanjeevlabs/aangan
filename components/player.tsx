@@ -26,7 +26,12 @@ interface PlayerState {
   isPlaying: boolean;
   currentTime: number;
   duration: number;
-  play: (card: Card) => void;
+  /** Play a voice note; pass the list it sits in to get previous / next. */
+  play: (card: Card, queue?: Card[]) => void;
+  /** The list the current voice came from (empty when played on its own). */
+  queue: Card[];
+  playNext: (() => void) | null;
+  playPrev: (() => void) | null;
   toggle: () => void;
   seek: (seconds: number) => void;
   expand: () => void;
@@ -53,6 +58,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(12);
+  const [queue, setQueue] = useState<Card[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const analyserRef = useRef<{ ctx: AudioContext; analyser: AnalyserNode } | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -143,9 +149,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => stopWaves, [stopWaves]);
 
   const play = useCallback(
-    (card: Card) => {
+    (card: Card, list?: Card[]) => {
       stopSimulated();
       audioRef.current?.pause();
+      if (list) setQueue(list.filter((c) => c.type === "audio"));
+      else setQueue((q) => (q.some((c) => c.id === card.id) ? q : []));
       setCurrent(card);
       setCurrentTime(0);
       setDuration(Math.max(12, segmentsMax(card)));
@@ -192,6 +200,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     [duration, url],
   );
 
+  const at = current ? queue.findIndex((c) => c.id === current.id) : -1;
+  const playNext = useMemo(() => (at >= 0 && at + 1 < queue.length ? () => play(queue[at + 1]) : null), [at, queue, play]);
+  const playPrev = useMemo(() => (at > 0 ? () => play(queue[at - 1]) : null), [at, queue, play]);
+
   const expand = useCallback(() => setOpen(true), []);
   const collapse = useCallback(() => setOpen(false), []);
   const closePlayer = useCallback(() => {
@@ -219,13 +231,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       currentTime,
       duration,
       play,
+      queue,
+      playNext,
+      playPrev,
       toggle,
       seek,
       expand,
       collapse,
       closePlayer,
     }),
-    [current, open, isPlaying, currentTime, duration, play, toggle, seek, expand, collapse, closePlayer],
+    [current, open, isPlaying, currentTime, duration, play, queue, playNext, playPrev, toggle, seek, expand, collapse, closePlayer],
   );
 
   return (
@@ -446,7 +461,7 @@ function FullPlayer({
 }: {
   analyserRef: React.MutableRefObject<{ ctx: AudioContext; analyser: AnalyserNode } | null>;
 }) {
-  const { current, open, isPlaying, currentTime, duration, toggle, collapse } = usePlayer();
+  const { current, open, currentTime, duration, toggle, collapse, playNext, playPrev } = usePlayer();
   const { displayLang, members } = useViewer();
   const { openAdd } = useShell();
   const { translated } = useDisplayText(current?.caption ?? "", current?.lang, displayLang);
@@ -511,11 +526,11 @@ function FullPlayer({
                 <p className="m-0 truncate text-[24px] font-bold leading-tight">{callName(author)}</p>
                 <p className="m-0 mt-0.5 text-[15px] text-white/65">{translated ? "Translated for you" : "Voice note"}</p>
               </div>
-              <PlayButton playing={isPlaying} onClick={toggle} size={60} label={isPlaying ? "Pause" : "Play"} />
             </div>
 
             <div className="mt-4">
               <WaveScrubber card={current} analyserRef={analyserRef} />
+              <VoiceControls card={current} bar={false} onPrev={playPrev} onNext={playNext} className="mt-1" />
             </div>
 
             <div className="no-scrollbar mt-4 min-h-0 flex-1 overflow-y-auto">
@@ -534,5 +549,138 @@ function FullPlayer({
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+/* -------------------------------------------------------- voice controls */
+
+function SkipIcon({ dir }: { dir: "back" | "forward" }) {
+  // A circular arrow with "10" inside: back or forward ten seconds.
+  const flip = dir === "forward";
+  return (
+    <svg width="30" height="30" viewBox="0 0 30 30" fill="none" aria-hidden="true">
+      <g transform={flip ? "translate(30 0) scale(-1 1)" : undefined}>
+        <path d="M8.2 9.3A9.5 9.5 0 1 1 5.5 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <path d="M8.6 4.6v5h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </g>
+      <text x="15.5" y="19" textAnchor="middle" fontSize="8.5" fontWeight="700" fill="currentColor" fontFamily="system-ui, sans-serif">
+        10
+      </text>
+    </svg>
+  );
+}
+
+function StepIcon({ dir }: { dir: "prev" | "next" }) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+      <g transform={dir === "next" ? "translate(24 0) scale(-1 1)" : undefined}>
+        <rect x="4" y="5" width="2.6" height="14" rx="1.2" fill="currentColor" />
+        <path d="M19.2 5.6v12.8a1 1 0 0 1-1.55.83L8.3 12.83a1 1 0 0 1 0-1.66l9.35-6.4a1 1 0 0 1 1.55.83Z" fill="currentColor" />
+      </g>
+    </svg>
+  );
+}
+
+/** Same length the shared player assumes before real audio metadata arrives. */
+function expectedDuration(card: Card): number {
+  return Math.max(12, segmentsMax(card));
+}
+
+/**
+ * Clear controls for one voice note: a seek bar with elapsed and remaining
+ * time, then previous, back 10 s, play/pause, forward 10 s, next. Every target
+ * is at least 44 px, labelled, and keyboard reachable (the bar is a native
+ * range input under its drawing). Drives the shared player.
+ */
+export function VoiceControls({
+  card,
+  queue,
+  onPrev,
+  onNext,
+  bar = true,
+  className,
+}: {
+  card: Card;
+  /** The list this voice sits in, so the player can step through it. */
+  queue?: Card[];
+  onPrev?: (() => void) | null;
+  onNext?: (() => void) | null;
+  /** Draw the seek bar (off where a waveform already scrubs). */
+  bar?: boolean;
+  className?: string;
+}) {
+  const { current, isPlaying, currentTime, duration, play, toggle, seek, collapse } = usePlayer();
+  const ours = current?.id === card.id;
+  const total = ours ? duration : expectedDuration(card);
+  const now = ours ? Math.min(currentTime, total) : 0;
+  const playing = ours && isPlaying;
+  const pct = total > 0 ? (now / total) * 100 : 0;
+
+  const start = () => {
+    play(card, queue);
+    collapse();
+  };
+  const togglePlay = () => (ours ? toggle() : start());
+  const jump = (by: number) => {
+    if (!ours) {
+      start();
+      if (by > 0) window.setTimeout(() => seek(by), 0);
+      return;
+    }
+    seek(now + by);
+  };
+  const btn = "press grid h-12 w-12 shrink-0 place-items-center rounded-full text-white disabled:opacity-30";
+
+  return (
+    <div className={className}>
+      {bar && (
+        <div>
+          <div className="relative h-11">
+            <span className="pointer-events-none absolute inset-x-0 top-1/2 h-[5px] -translate-y-1/2 overflow-hidden rounded-full bg-white/25" aria-hidden="true">
+              <span className="block h-full rounded-full bg-white" style={{ width: `${pct}%` }} />
+            </span>
+            <span className="pointer-events-none absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow" style={{ left: `${pct}%` }} aria-hidden="true" />
+            <input
+              type="range"
+              min={0}
+              max={Math.max(1, Math.round(total * 10) / 10)}
+              step={0.1}
+              value={now}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                if (!ours) {
+                  start();
+                  window.setTimeout(() => seek(v), 0);
+                } else seek(v);
+              }}
+              aria-label="Seek"
+              aria-valuetext={`${formatDuration(now)} of ${formatDuration(total)}`}
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            />
+          </div>
+          <div className="-mt-1 flex justify-between text-[13px] tabular-nums text-white/75" aria-hidden="true">
+            <span>{formatDuration(now)}</span>
+            <span>-{formatDuration(Math.max(0, total - now))}</span>
+          </div>
+        </div>
+      )}
+      <div className="mt-1 flex items-center justify-between" role="group" aria-label="Voice note controls">
+        <button type="button" onClick={() => onPrev?.()} disabled={!onPrev} aria-label="Previous" className={btn}>
+          <StepIcon dir="prev" />
+        </button>
+        <button type="button" onClick={() => jump(-10)} aria-label="Back 10 seconds" className={btn}>
+          <SkipIcon dir="back" />
+        </button>
+        <button type="button" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"} className="press grid h-[72px] w-[72px] shrink-0 place-items-center rounded-full bg-white text-black shadow-xl">
+          <Icon name={playing ? "pause" : "play"} size={30} />
+        </button>
+        <button type="button" onClick={() => jump(10)} aria-label="Forward 10 seconds" className={btn}>
+          <SkipIcon dir="forward" />
+        </button>
+        <button type="button" onClick={() => onNext?.()} disabled={!onNext} aria-label="Next" className={btn}>
+          <StepIcon dir="next" />
+        </button>
+      </div>
+    </div>
   );
 }

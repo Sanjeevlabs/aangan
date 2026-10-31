@@ -103,6 +103,9 @@ export async function requireSession(req: Request, familyId?: string): Promise<S
   // Removing someone, or their leaving, ends their session on the next request.
   const member = await dbGetMember(session.memberId);
   if (!member || member.familyId !== session.familyId) return Response.json({ error: "unauthorized" }, { status: 401 });
+  // A joiner waiting for an admin has a session, but it only opens
+  // GET /api/session (the "waiting" screen). Everything else stays shut.
+  if (member.status === "pending") return Response.json({ error: "pending" }, { status: 403 });
   return session;
 }
 
@@ -134,6 +137,7 @@ const MODEL_ROUTES = new Set([
   "/api/weather",
   "/api/window",
   "/api/today",
+  "/api/partners/suggest",
 ]);
 
 const buckets = new Map<string, number[]>();

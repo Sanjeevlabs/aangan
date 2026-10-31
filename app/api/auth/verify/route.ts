@@ -2,13 +2,19 @@ import { z } from "zod";
 import { sessionCookieHeader, signSession } from "@/lib/auth";
 import { dbAddMember, dbCreateFamily, dbFindMemberByEmail, dbGetMember, dbListInvites, dbListMembers, dbListSides, dbUpdateMemberProfile } from "@/lib/db";
 import type { Member } from "@/lib/schemas";
-import { allowAuthAttempt, verifyCode } from "@/lib/otp";
+import { isAdmin } from "@/lib/permissions";
+import { familyFull, hostOf } from "@/lib/roles";
+import type { Invite } from "@/lib/db";
+import { allowAuthAttempt, identityFromToken, verifyCode } from "@/lib/otp";
 
 const Name = z.string().trim().min(1).max(40);
 const City = z.string().trim().max(60);
 const VerifySchema = z.object({
-  email: z.string().trim().toLowerCase().email().max(254),
-  code: z.string().trim().regex(/^\d{6}$/),
+  // Either an email + 6-digit code (mock and the server-sent code), or a
+  // Supabase Auth session token (Google, magic link, phone) verified here.
+  email: z.string().trim().toLowerCase().email().max(254).optional(),
+  code: z.string().trim().regex(/^\d{6}$/).optional(),
+  accessToken: z.string().min(20).max(4096).optional(),
   tz: z.string().max(64).default("UTC"),
   birthday: z.string().regex(/^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/).optional(),
   /** Where they live, in their words: the other home sees its sky. */
@@ -25,13 +31,23 @@ const VerifySchema = z.object({
 async function claimable(memberId: string | undefined, familyId: string): Promise<Member | undefined> {
   if (!memberId) return undefined;
   const m = await dbGetMember(memberId);
-  return m && m.familyId === familyId && !m.email && m.access === "member" && m.role !== "child" ? m : undefined;
+  return m && m.familyId === familyId && !m.email && m.access === "member" && m.status !== "pending" && m.role !== "child" ? m : undefined;
+}
+
+/**
+ * Joiners wait for an owner/admin, except when the family already made their
+ * place (claimMemberId) or an owner/admin made the code they used.
+ */
+async function joinStatus(invite: Invite, claimed: boolean): Promise<Member["status"]> {
+  if (claimed) return "active";
+  const by = invite.createdBy ? await dbGetMember(invite.createdBy) : undefined;
+  return by && by.familyId === invite.familyId && by.status !== "pending" && isAdmin(by) ? "active" : "pending";
 }
 
 /** "Welcome, Maa. Arjun's window is open." — shown once on the joiner's window. */
 async function welcomeLine(familyId: string, me: Member): Promise<string> {
   const others = (await dbListMembers(familyId)).filter((m) => m.id !== me.id && m.email);
-  const host = others.find((m) => m.access === "admin") ?? others[0];
+  const host = hostOf(others) ?? others[0];
   const you = me.displayName || me.firstName;
   return host ? `Welcome, ${you}. ${host.firstName}'s window is open.` : `Welcome, ${you}. Your window is open.`;
 }
@@ -57,9 +73,20 @@ export async function POST(req: Request): Promise<Response> {
   }
   const parsed = VerifySchema.safeParse(body);
   if (!parsed.success) return Response.json({ error: "invalid-request" }, { status: 400 });
-  const { email, code, intent } = parsed.data;
-  if (!allowAuthAttempt(`verify:${email}`, 8)) return Response.json({ error: "too-many-attempts" }, { status: 429 });
-  if (!(await verifyCode(email, code))) return Response.json({ error: "wrong-code" }, { status: 401 });
+  const { intent } = parsed.data;
+  let email: string;
+  if (parsed.data.accessToken) {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+    if (!allowAuthAttempt(`token:${ip}`, 20)) return Response.json({ error: "too-many-attempts" }, { status: 429 });
+    const who = await identityFromToken(parsed.data.accessToken);
+    if (!who) return Response.json({ error: "wrong-code" }, { status: 401 });
+    email = who;
+  } else {
+    if (!parsed.data.email || !parsed.data.code) return Response.json({ error: "invalid-request" }, { status: 400 });
+    email = parsed.data.email;
+    if (!allowAuthAttempt(`verify:${email}`, 8)) return Response.json({ error: "too-many-attempts" }, { status: 429 });
+    if (!(await verifyCode(email, parsed.data.code))) return Response.json({ error: "wrong-code" }, { status: 401 });
+  }
 
   const existing = await dbFindMemberByEmail(email);
   let familyId: string;
@@ -68,8 +95,10 @@ export async function POST(req: Request): Promise<Response> {
 
   if (intent.type === "signin") {
     if (!existing) return Response.json({ error: "no-family" }, { status: 404 });
-    familyId = existing.familyId;
-    memberId = existing.id;
+    // Still waiting in one family but already in another? Open the one you're in.
+    const here = existing.status === "pending" ? ((await dbListSides(existing)).find((m) => m.status !== "pending") ?? existing) : existing;
+    familyId = here.familyId;
+    memberId = here.id;
   } else if (intent.type === "join" && existing) {
     // Already in one Aangan, joining another (my wife's family, say): the same
     // person gets a place on both sides, linked by personId.
@@ -84,9 +113,13 @@ export async function POST(req: Request): Promise<Response> {
       welcome = await welcomeLine(familyId, there);
     } else {
       if (sides.length >= 4) return Response.json({ error: "too-many-sides" }, { status: 409 });
+      const place = await claimable(intent.claimMemberId, invite.familyId);
+      if (!place && (await familyFull(invite.familyId))) return Response.json({ error: "family-full" }, { status: 409 });
       const personId = existing.personId ?? `p-${crypto.randomUUID().slice(0, 16)}`;
       if (!existing.personId) await dbUpdateMemberProfile(existing.id, { personId });
-      const place = await claimable(intent.claimMemberId, invite.familyId);
+      // Being active in your own first family doesn't open the second one:
+      // you still wait there, unless its owner/admin made the code.
+      const status = await joinStatus(invite, Boolean(place));
       const member = place
         ? ((await dbUpdateMemberProfile(place.id, { email, personId, tz: existing.tz, ...(existing.birthday && !place.birthday ? { birthday: existing.birthday } : {}), ...(existing.city && !place.city ? { city: existing.city } : {}) })) ?? place)
         : await dbAddMember({
@@ -101,24 +134,28 @@ export async function POST(req: Request): Promise<Response> {
         city: existing.city,
         email,
         access: "member",
+        status,
         personId,
       });
       familyId = invite.familyId;
       memberId = member.id;
-      welcome = await welcomeLine(familyId, member);
+      if (member.status !== "pending") welcome = await welcomeLine(familyId, member);
     }
   } else {
     if (existing) return Response.json({ error: "already-member" }, { status: 409 });
+    let invite: Invite | undefined;
     if (intent.type === "create") {
       familyId = await dbCreateFamily(intent.familyName);
     } else {
       const now = Date.now();
-      const invite = (await dbListInvites()).find((i) => i.code.toUpperCase() === intent.inviteCode.toUpperCase() && new Date(i.expiresAt).getTime() > now);
+      invite = (await dbListInvites()).find((i) => i.code.toUpperCase() === intent.inviteCode.toUpperCase() && new Date(i.expiresAt).getTime() > now);
       if (!invite) return Response.json({ error: "invalid-invite" }, { status: 403 });
       familyId = invite.familyId;
     }
     const tz = validTz(parsed.data.tz);
     const place = intent.type === "join" ? await claimable(intent.claimMemberId, familyId) : undefined;
+    if (invite && !place && (await familyFull(familyId))) return Response.json({ error: "family-full" }, { status: 409 });
+    const status: Member["status"] = invite ? await joinStatus(invite, Boolean(place)) : "active";
     const member = place
       ? ((await dbUpdateMemberProfile(place.id, { email, tz, ...(parsed.data.birthday ? { birthday: parsed.data.birthday } : {}), ...(parsed.data.city ? { city: parsed.data.city } : {}) })) ?? place)
       : await dbAddMember({
@@ -132,14 +169,17 @@ export async function POST(req: Request): Promise<Response> {
           city: parsed.data.city ?? "",
           birthday: parsed.data.birthday ?? "",
           email,
-          // Whoever starts the family looks after it; people who join are members.
-          access: intent.type === "create" ? "admin" : "member",
+          // Whoever starts the family owns it; people who join are members
+          // (and wait for an owner/admin unless one of them invited them).
+          access: intent.type === "create" ? "owner" : "member",
+          status,
         });
     memberId = member.id;
-    if (intent.type === "join") welcome = await welcomeLine(familyId, member);
+    if (intent.type === "join" && member.status !== "pending") welcome = await welcomeLine(familyId, member);
   }
 
   const signed = signSession({ familyId, memberId });
   if (!signed) return Response.json({ error: "session-unavailable" }, { status: 500 });
-  return Response.json({ familyId, memberId, ...(welcome ? { welcome } : {}) }, { headers: { "set-cookie": sessionCookieHeader(signed) } });
+  const nowStatus = (await dbGetMember(memberId))?.status ?? "active";
+  return Response.json({ familyId, memberId, status: nowStatus, ...(welcome ? { welcome } : {}) }, { headers: { "set-cookie": sessionCookieHeader(signed) } });
 }

@@ -46,6 +46,8 @@ export const RecipeSchema = z.object({
   /** A video of it being made (a card), if any. */
   videoCardId: z.string().nullable().default(null),
   coverRef: z.string().nullable().default(null),
+  /** The photo of the recipe card it was read from ("In Maa's handwriting"), if scanned. */
+  scanRef: z.string().max(512).nullable().default(null),
   /** One line of why it matters: "Every Sunday in Kanpur, after the market." */
   memory: z.string().max(240).default(""),
   serves: z.string().max(40).default(""),
@@ -354,8 +356,14 @@ export const QuestionSchema = z.object({
   createdAt: iso,
 });
 
+export const WALLS = ["jodhpur", "jaipur", "chettinad", "goa", "kerala", "lime"] as const;
+
 // ---------- The window (LITE): what each person sees of the other home ----------
 export const WINDOW_LAYERS = ["steam", "rain", "leaves", "birds", "stars", "clouds", "lamp", "breeze"] as const;
+/** What you stand at when Aangan opens: a window, a balcony, or inside the courtyard. */
+export const FIRST_SCENES = ["window", "balcony", "courtyard"] as const;
+/** Flower pots on the sill, along the railing, or by the courtyard wall (up to three). */
+export const POTS = ["marigold", "rose", "jasmine", "geranium", "moneyplant", "succulent"] as const;
 export const WindowViewSchema = z.object({
   /** One per viewer: the son chooses what his window shows, the parents theirs. */
   id,
@@ -371,7 +379,62 @@ export const WindowViewSchema = z.object({
   madeBy: z.enum(["family", "muse"]).default("family"),
   /** Safe & sound: how long someone may be quiet (in their daytime) before their dot turns amber. */
   quietAfterHours: z.number().int().min(2).max(12).default(4),
+  /** Who's at your window: at most two people (default: the parents on the other side). */
+  people: z.array(id).max(2).default([]),
+  /** The colour of the wall around the window (SPEC §30.1). */
+  wall: z.enum(WALLS).default("jodhpur"),
+  /** The first screen: window (default), balcony or courtyard. */
+  scene: z.enum(FIRST_SCENES).default("window"),
+  /** Up to three flower pots, in the order chosen. */
+  pots: z.array(z.enum(POTS)).max(3).default([]),
+  /** A photo of their actual home (a media ref this family owns) as the view; null = the living album. */
+  homePhoto: z.string().max(300).nullable().default(null),
+  /** With a home photo: let family photos cross-fade in now and then. */
+  mixAlbum: z.boolean().default(true),
   updatedAt: iso,
+});
+
+// ---------- The light in the window (SPEC §30.1, §30.4): one per home ----------
+export const LampSchema = z.object({
+  /** The household id (lib/households.ts). */
+  id,
+  litAt: iso.nullable().default(null),
+  litBy: z.string().nullable().default(null),
+  /** Hold the lamp: a slow heartbeat sent to this home, played on their next open. */
+  beats: z.array(z.object({ from: id, at: iso })).max(20).default([]),
+  /** Per member: the last heartbeat they've felt. */
+  felt: z.record(z.string(), iso).default({}),
+  updatedAt: iso,
+});
+
+// ---------- Partner connections (Send something): sealed tokens, one per member + account ----------
+export const PartnerTokenSchema = z.object({
+  id,
+  memberId: id,
+  account: z.string().min(1).max(40),
+  /** AES-GCM sealed token set. Never returned to a client, never logged. */
+  sealed: z.string().min(1).max(8000),
+  connectedAt: iso,
+});
+
+// ---------- Chitthi: a voice note that arrives at their morning (SPEC §30.4) ----------
+export const ChitthiSchema = z.object({
+  /** The card id. Hidden from everyone but its author until deliverAt. */
+  id,
+  deliverAt: iso,
+  authorId: id,
+  createdAt: iso,
+});
+
+// ---------- A line about today: one short line on your own day, gone at your midnight ----------
+export const DayLineSchema = z.object({
+  /** The author's member id: one line per person, replaced when they write a new one. */
+  id,
+  memberId: id,
+  text: z.string().trim().min(1).max(80),
+  /** End of the author's local day; after this the line is no longer shown. */
+  until: iso,
+  createdAt: iso,
 });
 
 // ---------- Today: one shared task for both homes, done only when both answer ----------
@@ -405,6 +468,22 @@ export const MuseCallSchema = z.object({
   at: iso,
 });
 
+// ---------- Muse Image renders (portraits, restored photos) ----------
+/** One render, kept or not: the family's daily allowance counts these. */
+export const MuseImageRunSchema = z.object({
+  id,
+  kind: z.enum(["portrait", "restore"]),
+  by: id,
+  /** Who is in a portrait (member ids). Empty for a restore. */
+  people: z.array(id).max(10).default([]),
+  style: z.string().max(20).default(""),
+  /** A sample painted on the device because Muse was off (no model call). */
+  sample: z.boolean().default(false),
+  /** The card it became, once a person tapped Keep. */
+  keptCardId: z.string().nullable().default(null),
+  at: iso,
+});
+
 export const DOC_SCHEMAS = {
   recipe: RecipeSchema,
   attempt: AttemptSchema,
@@ -428,6 +507,11 @@ export const DOC_SCHEMAS = {
   muse_call: MuseCallSchema,
   window_view: WindowViewSchema,
   today_task: TodayTaskSchema,
+  lamp: LampSchema,
+  chitthi: ChitthiSchema,
+  partner_token: PartnerTokenSchema,
+  day_line: DayLineSchema,
+  muse_image_run: MuseImageRunSchema,
 } as const;
 
 export type DocKind = keyof typeof DOC_SCHEMAS;
@@ -458,5 +542,12 @@ export type Knock = DocOf<"knock">;
 export type Question = DocOf<"question">;
 export type MuseCall = DocOf<"muse_call">;
 export type WindowView = DocOf<"window_view">;
+export type Lamp = DocOf<"lamp">;
+export type Chitthi = DocOf<"chitthi">;
+export type DayLine = DocOf<"day_line">;
+export type MuseImageRun = DocOf<"muse_image_run">;
+export type Wall = (typeof WALLS)[number];
 export type WindowLayer = (typeof WINDOW_LAYERS)[number];
+export type FirstScene = (typeof FIRST_SCENES)[number];
+export type Pot = (typeof POTS)[number];
 export type TodayTask = DocOf<"today_task">;

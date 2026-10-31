@@ -41,3 +41,8 @@ export function waHref(raw: string): string {
 export function rankNearby<T extends { id: string; createdAt: string }>(people: T[]): T[] {
   return [...people].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
 }
+
+/** Local helpers (Care → Helpers): everyone who helps at home except the first-to-call list, which is Nearby's. */
+export function everydayHelpers<T extends { emergency: boolean }>(helpers: T[]): T[] {
+  return helpers.filter((h) => !h.emergency);
+}

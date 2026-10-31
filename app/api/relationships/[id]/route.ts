@@ -2,7 +2,8 @@ import { requireCan, requireSession } from "@/lib/auth";
 import { dbDeleteRelationship, dbListRelationships } from "@/lib/db";
 
 // Remove one link from the tree (a mistake, or a relation that's wrong).
-export async function DELETE(req: Request, { params }: { params: { id: string } }): Promise<Response> {
+export async function DELETE(req: Request, props: { params: Promise<{ id: string }> }): Promise<Response> {
+  const params = await props.params;
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const allowed = await requireCan(auth, "tree.edit");

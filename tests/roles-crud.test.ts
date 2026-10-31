@@ -18,12 +18,13 @@ import { sessionCookie } from "./auth-helper";
 const req = (url: string, member: string, body?: unknown, method = body === undefined ? "GET" : "POST") =>
   new Request(`http://test${url}`, { method, headers: { "content-type": "application/json", cookie: sessionCookie(member) }, body: body === undefined ? undefined : JSON.stringify(body) });
 const json = async <T = Record<string, unknown>>(r: Response | Promise<Response>) => (await (await r).json()) as T;
-const id = (x: string) => ({ params: { id: x } });
+const id = (x: string) => ({ params: Promise.resolve({ id: x }) });
 
 beforeEach(() => resetDemo());
 
 describe("access roles", () => {
-  it("the table: admin manages, member cares, child shares", () => {
+  it("the table: owner/admin manage, member cares, child shares", () => {
+    expect(can({ access: "owner" }, "roles.assign")).toBe(true);
     expect(can({ access: "admin" }, "roles.assign")).toBe(true);
     expect(can({ access: "member" }, "roles.assign")).toBe(false);
     expect(can({ access: "member" }, "care.manage")).toBe(true);
@@ -34,11 +35,11 @@ describe("access roles", () => {
     expect(canChange({ id: "a", access: "admin" }, "b", "edit")).toBe(false);
   });
 
-  it("only an admin assigns roles, and the family always keeps one admin", async () => {
+  it("only an owner/admin assigns roles; the owner's role moves only by handing over", async () => {
     expect((await memberPatch(req("/api/members/leo", "leo", { access: "admin" }, "PATCH"), id("leo"))).status).toBe(403);
     expect((await memberPatch(req("/api/members/arjun", "arjun", { access: "member" }, "PATCH"), id("arjun"))).status).toBe(409);
     expect((await memberPatch(req("/api/members/leo", "arjun", { access: "admin" }, "PATCH"), id("leo"))).status).toBe(200);
-    expect((await memberPatch(req("/api/members/arjun", "arjun", { access: "member" }, "PATCH"), id("arjun"))).status).toBe(200);
+    expect((await memberPatch(req("/api/members/leo", "arjun", { access: "member" }, "PATCH"), id("leo"))).status).toBe(200);
   });
 
   it("a child can't change the tree, invite, or run care", async () => {

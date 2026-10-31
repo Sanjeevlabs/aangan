@@ -3,28 +3,33 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import type { Knock, Sitting } from "@/lib/kinds";
+import type { CareSettings, Knock, Presence, Sitting } from "@/lib/kinds";
 import { callName, cardCover, memberPhoto, peopleByRecency, relativeDay } from "@/lib/people";
 import type { Card, Member } from "@/lib/schemas";
 import { useDisplayText } from "@/lib/use-display-text";
 import { useFamilyCards } from "@/lib/use-family";
 import { ago, postJson, useJson } from "@/lib/use-json";
+import { can } from "@/lib/permissions";
 import { isAwake, placeFromTz, timeIn } from "@/lib/zones";
 import { Carousel } from "./carousel";
-import { GiftsThisWeek, MyNeeds, MyQuestions, StoryDoor, VisitCountdown, useNextVisit } from "./home-presence";
+import { MyNeeds, MyQuestions, StoryDoor, VisitCountdown, useNextVisit } from "./home-presence";
+import { MuseSlide, useMuseSlot } from "./muse-slot";
 import { usePlayer } from "./player";
 import { VoiceCode } from "./plaque";
 import { useShell } from "./shell";
 import { SafetyWatch } from "./safety";
-import { SideSwitch } from "./sides";
+import { PersonDay, lampFor } from "./person-day";
+import { SideSwitch, useSides } from "./sides";
+import { EventPrompts } from "./event-prompts";
 import { TodayCard, useToday } from "./today";
 import { Avatar, Icon, Monogram, Photo } from "./ui/kit";
 import { useViewer } from "./viewer";
 
-// Kutumb (SPEC §29.3, revised 30 Oct): behind the door. Quiet and short:
-// today's question, then one swipeable row of what's alive now (a voice from
-// home, sitting together, a visit, a birthday, a memory), then everyone.
-// The rooms live behind the ⋯ in the dock, with the mic and the camera.
+// The courtyard (SPEC §30.2): behind the door. A real courtyard as the header, then
+// everyone with their lamp-glow ring (tap for their day), today's question,
+// and one swipeable row of what's alive now (a voice from home, sitting
+// together, a visit, a birthday, a memory).
+// The five rooms open from the house in the dock, beside the mic and the camera.
 
 const SLIDE_H = "h-[236px]";
 
@@ -89,9 +94,11 @@ function SitSlide() {
           <span className={`h-2 w-2 rounded-full ${knock ? "animate-pulse bg-[#3ccf7a]" : "bg-white/50"}`} />
           {knock ? "Live now" : "Sit together"}
         </p>
-        <Link href="/gather" aria-label="Plan a get-together" className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white no-underline">
-          <Icon name="calendar" size={17} />
-        </Link>
+        {can(viewer, "events.plan") && viewer.role !== "child" && (
+          <Link href="/gather" aria-label="Plan a celebration" className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white no-underline">
+            <Icon name="calendar" size={17} />
+          </Link>
+        )}
       </div>
       <div>
         <p className="m-0 text-[22px] font-light leading-tight">{knock ? `${host?.id === viewer.id ? "You're" : `${callName(host)} is`} on a video call` : awake.length > 1 ? `${awake.length} of you are awake now` : "Everyone's asleep somewhere"}</p>
@@ -126,7 +133,7 @@ function ComingUpSlide() {
     <article className={`relative ${SLIDE_H} overflow-hidden rounded-[26px] bg-surface`}>
       <Photo src={memberPhoto(who) ?? "/demo/family-group.webp"} alt="" sizes="440px" position="center 35%" />
       <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/75" aria-hidden="true" />
-      <Link href="/rituals" className="absolute inset-0" aria-label="Occasions" />
+      <Link href="/gather" className="absolute inset-0" aria-label="Coming up" />
       <div className="pointer-events-none absolute inset-x-4 bottom-4 flex items-end gap-3 text-white">
         <span className="min-w-0 flex-1">
           <span className="block text-[12px] uppercase tracking-[0.14em] text-white/70">{when}</span>
@@ -161,16 +168,46 @@ function YearsSlide({ card }: { card: Card }) {
   );
 }
 
-/* --------------------------------------------------------- the family shelf */
-function PersonChip({ member, latest }: { member: Member; latest: Card | undefined }) {
+/* ------------------------------------------------------------ everyone */
+// Each person's photo inside a lamp-glow ring: warm gold when they were
+// active or shared something today (their local day), a thin dim ring
+// otherwise. No ticks, no "seen".
+const LAMP_CSS = `
+@keyframes kutumb-lamp { 0%,100% { box-shadow: 0 0 0 2.5px #e9b44c, 0 0 14px 3px rgba(240,170,60,.55); } 50% { box-shadow: 0 0 0 2.5px #f3c76b, 0 0 22px 7px rgba(240,170,60,.75); } }
+.kutumb-lamp { box-shadow: 0 0 0 2.5px #e9b44c, 0 0 18px 5px rgba(240,170,60,.65); animation: kutumb-lamp 4.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .kutumb-lamp { animation: none; } }
+`;
+
+function PersonChip({ member, lamp, onOpen }: { member: Member; lamp: { glow: boolean; line: string }; onOpen: () => void }) {
   const photo = memberPhoto(member);
   return (
-    <li className="w-[84px] shrink-0 text-center" style={{ scrollSnapAlign: "start" }}>
-      <Link href={`/people/${member.id}`} className="block text-ink no-underline">
-        <div className="relative mx-auto h-[72px] w-[72px] overflow-hidden rounded-full bg-surface ring-1 ring-black/5">{photo ? <Photo src={photo} alt={callName(member)} sizes="160px" position="center 30%" /> : <Monogram name={callName(member)} size={72} />}</div>
-        <p className="m-0 mt-1.5 truncate text-[13.5px] font-semibold">{callName(member)}</p>
-        <p className="m-0 truncate text-[11.5px] text-ink-soft">{latest ? ago(latest.takenAt) : member.city || placeFromTz(member.tz)}</p>
-      </Link>
+    <li className="w-[92px] shrink-0 text-center" style={{ scrollSnapAlign: "start" }}>
+      <button type="button" onClick={onOpen} aria-label={`${callName(member)}'s day${lamp.glow ? ", lamp lit today" : ""}`} className="press block w-full text-ink">
+        <span className={`relative mx-auto block h-[68px] w-[68px] rounded-full ${lamp.glow ? "kutumb-lamp" : "ring-1 ring-black/15"}`}>
+          <span className="absolute inset-[3px] overflow-hidden rounded-full bg-surface">{photo ? <Photo src={photo} alt="" sizes="140px" position="center 30%" /> : <Monogram name={callName(member)} size={62} />}</span>
+        </span>
+        <span className="mt-2 block truncate text-[13.5px] font-semibold">{callName(member)}</span>
+        <span className="block truncate text-[11.5px] text-ink-soft">{lamp.line}</span>
+      </button>
+    </li>
+  );
+}
+
+/** You, first in the row: open your own day to add a photo, a voice note or a line about today. */
+function MyDayChip({ member, onOpen }: { member: Member; onOpen: () => void }) {
+  const photo = memberPhoto(member);
+  return (
+    <li className="w-[92px] shrink-0 text-center" style={{ scrollSnapAlign: "start" }}>
+      <button type="button" onClick={onOpen} aria-label="Your day: add a photo, a voice note or a line about today" className="press block w-full text-ink">
+        <span className="relative mx-auto block h-[68px] w-[68px] rounded-full ring-1 ring-black/15">
+          <span className="absolute inset-[3px] overflow-hidden rounded-full bg-surface">{photo ? <Photo src={photo} alt="" sizes="140px" position="center 30%" /> : <Monogram name={callName(member)} size={62} />}</span>
+          <span className="absolute -bottom-0.5 -right-0.5 grid h-6 w-6 place-items-center rounded-full bg-[#1c1b1a] text-white ring-2 ring-white" aria-hidden="true">
+            <Icon name="plus" size={14} />
+          </span>
+        </span>
+        <span className="mt-2 block truncate text-[13.5px] font-semibold">You</span>
+        <span className="block truncate text-[11.5px] text-ink-soft">Add to your day</span>
+      </button>
     </li>
   );
 }
@@ -178,11 +215,14 @@ function PersonChip({ member, latest }: { member: Member; latest: Card | undefin
 /* ----------------------------------------------------------------- page */
 export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
   const { viewer, members } = useViewer();
-  const { refreshKey, openRoom } = useShell();
+  const { refreshKey } = useShell();
   const { cards } = useFamilyCards(refreshKey);
+  const { sides, current } = useSides();
+  const pres = useJson<{ presence: Presence[]; settings: CareSettings[] }>("/api/presence");
   const elder = viewer.role === "elder";
   const visit = useNextVisit();
   const stories = useJson<{ stories: { id: string; tellerId: string; title: string }[] }>(viewer.role === "child" ? "/api/stories" : null);
+  const [dayOfId, setDayOfId] = useState<string | null>(null);
 
   const voice = useMemo(() => {
     const others = (cards ?? []).filter((c) => c.type === "audio" && c.authorId && c.authorId !== viewer.id);
@@ -190,32 +230,64 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
     return others.find((c) => members.find((mm) => mm.id === c.authorId)?.role === (elder ? "adult" : "elder")) ?? others[0];
   }, [cards, viewer.id, members, elder]);
   const people = useMemo(() => peopleByRecency(viewer.id, members, cards ?? []), [viewer.id, members, cards]);
-  const latestBy = (id: string) => (cards ?? []).find((c) => c.authorId === id);
   const thisYear = new Date().getFullYear();
   const yearsAgo = (cards ?? []).find((c) => c.type === "photo" && new Date(c.takenAt).getFullYear() < thisYear);
   const story = stories.data?.stories[0];
+  const familyName = sides.find((s) => s.familyId === current)?.name;
+  const lampData = { presence: pres.data?.presence ?? [], settings: pres.data?.settings ?? [], cards: cards ?? [] };
+  const dayPerson = members.find((mm) => mm.id === dayOfId);
+  const muse = useMuseSlot(cards ?? []);
 
   return (
     <div>
+      <style>{LAMP_CSS}</style>
       <header className="pt-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="m-0 text-[11.5px] uppercase tracking-[0.2em] text-ink-soft">Kutumb</p>
-            <h1 className="m-0 mt-0.5 truncate text-[28px] font-light leading-[1.1] tracking-[-0.01em]">{viewer.firstName}&rsquo;s family</h1>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <button type="button" onClick={onCloseDoor} aria-label="Close the door, back to the window" className="press grid h-11 w-11 place-items-center rounded-full bg-black/[.05] text-ink">
+        <div className="relative h-[150px] overflow-hidden rounded-[26px] bg-[#2a211b]">
+          <Photo src="/demo/courtyard.jpg" alt="" sizes="480px" priority position="center 55%" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/5 to-black/65" aria-hidden="true" />
+          <div className="absolute right-3 top-3 flex items-center gap-2">
+            <button type="button" onClick={onCloseDoor} aria-label="Close the door, back to the window" className="press glass grid h-11 w-11 place-items-center rounded-full text-white">
               <Icon name="doorClosed" size={20} strokeWidth={1.8} />
             </button>
-            <button type="button" onClick={() => openRoom("all")} aria-label="Everything, and your settings" className="press rounded-full">
+            <Link href="/settings" aria-label="You: settings and account" className="press rounded-full no-underline">
               <Avatar src={memberPhoto(viewer)} name={viewer.firstName} size={44} ring />
-            </button>
+            </Link>
+          </div>
+          <div className="absolute inset-x-4 bottom-3.5 text-white">
+            <h1 className="m-0 mt-0.5 truncate text-[26px] font-light leading-[1.1] tracking-[-0.01em]">{familyName ? `The ${familyName} family` : "Your family"}</h1>
           </div>
         </div>
         <SideSwitch />
       </header>
 
       <SafetyWatch />
+
+      {people.length > 0 && (
+        <section aria-label="Everyone" className="mt-5">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="m-0 text-[17px] font-semibold">Everyone</h2>
+            <Link href="/bond" aria-label="Family tree" className="grid h-9 w-9 place-items-center rounded-full text-ink-soft no-underline">
+              <Icon name="tree" size={18} />
+            </Link>
+          </div>
+          {cards === null || pres.data === null ? (
+            <div className="flex gap-3" aria-busy="true" aria-label="Loading">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="skeleton h-[68px] w-[68px] shrink-0 rounded-full" />
+              ))}
+            </div>
+          ) : (
+            <ul className="no-scrollbar -mx-5 m-0 flex list-none gap-2 overflow-x-auto px-5 pb-1 pt-2" style={{ scrollSnapType: "x mandatory", scrollPaddingInline: 20 }}>
+              <MyDayChip member={viewer} onOpen={() => setDayOfId(viewer.id)} />
+              {people.map((mm) => (
+                <PersonChip key={mm.id} member={mm} lamp={lampFor(mm, lampData)} onOpen={() => setDayOfId(mm.id)} />
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      <EventPrompts className="mt-4" />
       <TodayCard />
 
       {cards === null ? (
@@ -228,32 +300,18 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
           {visit && <VisitCountdown visit={visit} />}
           <ComingUpSlide />
           {yearsAgo && <YearsSlide card={yearsAgo} />}
+          {muse.slot && <MuseSlide slot={muse.slot} onDismiss={muse.dismiss} />}
         </Carousel>
       )}
 
       {elder && (
         <div className="mt-5 space-y-3">
           <MyQuestions />
-          <GiftsThisWeek />
           <MyNeeds />
         </div>
       )}
 
-      {people.length > 0 && (
-        <section aria-label="Everyone" className="mt-6">
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="m-0 text-[17px] font-semibold">Everyone</h2>
-            <Link href="/bond" aria-label="Family tree" className="grid h-9 w-9 place-items-center rounded-full text-ink-soft no-underline">
-              <Icon name="tree" size={18} />
-            </Link>
-          </div>
-          <ul className="no-scrollbar -mx-5 m-0 flex list-none gap-2 overflow-x-auto px-5 pb-1" style={{ scrollSnapType: "x mandatory", scrollPaddingInline: 20 }}>
-            {people.map((mm) => (
-              <PersonChip key={mm.id} member={mm} latest={latestBy(mm.id)} />
-            ))}
-          </ul>
-        </section>
-      )}
+      {dayPerson && <PersonDay member={dayPerson} cards={cards ?? []} onClose={() => setDayOfId(null)} />}
     </div>
   );
 }

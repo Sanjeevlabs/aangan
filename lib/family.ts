@@ -15,7 +15,10 @@ export const DEMO_FAMILY: DemoFamily = {
   defaultHomeImageRef: null,
 };
 
-export const DEMO_MEMBERS: Member[] = [
+type Seed = Omit<Member, "status">;
+const active = (rows: Seed[]): Member[] => rows.map((m) => ({ ...m, status: "active" }));
+
+export const DEMO_MEMBERS: Member[] = active([
   {
     id: "dadi",
     access: "member",
@@ -54,7 +57,7 @@ export const DEMO_MEMBERS: Member[] = [
   },
   {
     id: "arjun",
-    access: "admin",
+    access: "owner",
     personId: "p-arjun",
     photoRef: "/demo/portrait-dad.webp",
     email: null,
@@ -232,7 +235,7 @@ export const DEMO_MEMBERS: Member[] = [
     homeImageRef: null,
     homePalette: [],
   },
-];
+]);
 
 export const DEMO_IYER: DemoFamily = { id: "demo-iyer", name: "Iyer", defaultHomeImageRef: null };
 
@@ -241,6 +244,7 @@ export const DEMO_IYER: DemoFamily = { id: "demo-iyer", name: "Iyer", defaultHom
 const iyer = (id: string, firstName: string, displayName: string, role: Member["role"], access: Member["access"], tz: string, birthday: string, personId: string | null = null, photoRef: string | null = null, lang = "en", displayLang: Member["displayLang"] = "en", city = "Chennai"): Member => ({
   id,
   access,
+  status: "active",
   personId,
   photoRef,
   email: null,
@@ -258,7 +262,7 @@ const iyer = (id: string, firstName: string, displayName: string, role: Member["
 });
 
 export const DEMO_IYER_MEMBERS: Member[] = [
-  iyer("iyer-priya", "Priya", "Priya", "adult", "admin", "Asia/Kolkata", "05-02", "p-priya", null, "en", "en", "Bengaluru"),
+  iyer("iyer-priya", "Priya", "Priya", "adult", "owner", "Asia/Kolkata", "05-02", "p-priya", null, "en", "en", "Bengaluru"),
   iyer("iyer-arjun", "Arjun", "Arjun", "adult", "member", "Asia/Kolkata", "07-30", "p-arjun", "/demo/portrait-dad.webp", "en", "en", "Bengaluru"),
   iyer("iyer-leo", "Vihaan", "Vihaan", "child", "child", "Asia/Kolkata", "11-09", "p-leo", "/demo/portrait-leo.webp", "en", "en", "Bengaluru"),
   iyer("iyer-aria", "Anika", "Anika", "child", "child", "Asia/Kolkata", "03-14", "p-aria", "/demo/portrait-aria.webp", "en", "en", "Bengaluru"),

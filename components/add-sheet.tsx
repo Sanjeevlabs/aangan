@@ -9,7 +9,11 @@ import { blobToWav16k, extractVideoFrames, processImage, processVideo, processVo
 import { getSessionMedia } from "@/lib/media-session";
 import { callName, formatDuration, memberPhoto } from "@/lib/people";
 import type { TranscriptSegment } from "@/lib/schemas";
+import { CARD_NOTE_MAX, CARD_PLACE_MAX } from "@/lib/card-limits";
 import { cn } from "@/lib/utils";
+import { hourIn, placeFromTz } from "@/lib/zones";
+import { keepRender } from "@/lib/muse-canvas";
+import { RestoreOffer, type Restored } from "./muse-restore";
 import { useShell } from "./shell";
 import { Avatar, Button, Icon, LiveDot, PlayButton } from "./ui/kit";
 import { useViewer } from "./viewer";
@@ -58,10 +62,12 @@ export function purposeTitle(c: ReplyContribution | null): string | null {
 
 // Card upload carries the real bytes: `media` for the photo/video plus key
 // frames for video grounding. The server captions from these bytes only.
-async function postMoment(upload: ProcessedUpload, file: File | Blob, caption: string, lang: string, frames: Blob[] = []): Promise<boolean> {
+async function postMoment(upload: ProcessedUpload, file: File | Blob, caption: string, lang: string, frames: Blob[] = [], extra: { place?: string; note?: string } = {}): Promise<boolean> {
   const form = new FormData();
   form.append("type", upload.kind === "video" ? "video" : "photo");
   form.append("caption", caption);
+  if (extra.place) form.append("place", extra.place.slice(0, CARD_PLACE_MAX));
+  if (extra.note) form.append("note", extra.note.slice(0, CARD_NOTE_MAX));
   form.append("lang", lang);
   form.append("takenAt", upload.takenAt);
   form.append("source", upload.source);
@@ -217,6 +223,13 @@ function VoiceComposer({ addressee, contribution, onDone }: { addressee: string[
   const chunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const levels = useMicLevels(stream);
+  // Morning letter (SPEC §30.4): when it's night where they are, the note can
+  // wait in the envelope and arrive with their morning (7:30 AM their time).
+  const theirTz = members.find((m) => m.id === to[0])?.tz ?? null;
+  const theirHour = theirTz ? hourIn(theirTz, new Date()) : 12;
+  const nightThere = Boolean(theirTz && !contribution && (theirHour >= 21.5 || theirHour < 6));
+  const [letter, setLetter] = useState(true);
+  const morningAt = () => new Date(Date.now() + (((7.5 - theirHour + 24) % 24) * 3_600_000)).toISOString();
   // "Maa & Papa" when a whole home is chosen, otherwise the people's names.
   const toLabel = (() => {
     if (to.length === 0) return "";
@@ -321,6 +334,9 @@ function VoiceComposer({ addressee, contribution, onDone }: { addressee: string[
       setError("Couldn't send. Check your connection and try again.");
       setPhase("ready");
       return;
+    }
+    if (nightThere && letter && posted.id) {
+      await fetch("/api/letters", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cardId: posted.id, deliverAt: morningAt() }) }).catch(() => null);
     }
     if (contribution && posted.id) {
       const json = (url: string, body: unknown) =>
@@ -470,6 +486,18 @@ function VoiceComposer({ addressee, contribution, onDone }: { addressee: string[
         )}
       </div>
 
+      {phase === "ready" && nightThere && (
+        <button type="button" role="switch" aria-checked={letter} onClick={() => setLetter((v) => !v)} className="press mb-2 flex w-full items-center gap-3 rounded-[18px] border border-[var(--line)] px-3.5 py-3 text-left">
+          <Icon name="coffee" size={20} />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[15px] font-semibold">Morning letter</span>
+            <span className="block text-[12.5px] text-ink-soft">It&rsquo;s night there. Arrives at 7:30 AM their time.</span>
+          </span>
+          <span className={cn("relative h-[26px] w-[44px] shrink-0 rounded-full transition-colors", letter ? "bg-ink" : "bg-black/15")}>
+            <span className={cn("absolute top-[3px] h-5 w-5 rounded-full bg-white shadow transition-all", letter ? "left-[21px]" : "left-[3px]")} />
+          </span>
+        </button>
+      )}
       {phase === "ready" ? (
         <div className="flex gap-2">
           <Button variant="secondary" className="flex-1" onClick={discard}>
@@ -477,7 +505,7 @@ function VoiceComposer({ addressee, contribution, onDone }: { addressee: string[
           </Button>
           <Button className="flex-[1.4]" onClick={() => void send()}>
             <Icon name="send" size={18} />
-            {purpose ? purpose.cta : `Send${toLabel ? ` to ${toLabel}` : ""}`}
+            {purpose ? purpose.cta : nightThere && letter ? "Send for the morning" : `Send${toLabel ? ` to ${toLabel}` : ""}`}
           </Button>
         </div>
       ) : (
@@ -508,11 +536,18 @@ function MomentComposer({ onDone }: { onDone: () => void }) {
   const { viewer } = useViewer();
   const [files, setFiles] = useState<File[]>([]);
   const [note, setNote] = useState("");
+  // Written on the print: where (their home city to start with) and a short note.
+  const home = viewer.city || (placeFromTz(viewer.tz) === "Somewhere" ? "" : placeFromTz(viewer.tz));
+  const [where, setWhere] = useState(home);
+  const [printNote, setPrintNote] = useState("");
   // Glasses photos are recognised from the camera metadata itself (EXIF
   // Make/Model); there is no manual claim.
   const glasses = false;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Muse's one offer here: restore a single old photo (kept only if the person chooses it).
+  const [restored, setRestored] = useState<Restored | null>(null);
+  const single = files.length === 1 && files[0].type.startsWith("image/") ? files[0] : null;
   const inputRef = useRef<HTMLInputElement>(null);
   const previews = useMemo(() => files.map((f) => ({ url: URL.createObjectURL(f), video: f.type.startsWith("video/") })), [files]);
   useEffect(() => () => previews.forEach((p) => URL.revokeObjectURL(p.url)), [previews]);
@@ -527,9 +562,14 @@ function MomentComposer({ onDone }: { onDone: () => void }) {
         const upload = video
           ? await processVideo(file, { fromToday: true, fromGlassesToggle: glasses })
           : await processImage(file, { fromToday: true, fromGlassesToggle: glasses });
+        if (restored && file === single) {
+          // The restored picture becomes the card; the original travels with it.
+          if (!(await keepRender({ runId: restored.runId, blob: restored.blob, caption: note.trim(), takenAt: upload.takenAt, place: where.trim(), note: printNote.trim(), originalRef: upload.mediaRef }))) failed += 1;
+          continue;
+        }
         const stored = getSessionMedia(upload.mediaRef)?.blob ?? file;
         const frames = video ? await extractVideoFrames(file).catch(() => []) : [];
-        if (!(await postMoment(upload, stored, note.trim(), viewer.lang, frames))) failed += 1;
+        if (!(await postMoment(upload, stored, note.trim(), viewer.lang, frames, { place: where.trim(), note: printNote.trim() }))) failed += 1;
       } catch {
         failed += 1;
       }
@@ -548,7 +588,10 @@ function MomentComposer({ onDone }: { onDone: () => void }) {
         multiple
         className="hidden"
         aria-label="Choose photos or a video"
-        onChange={(e) => setFiles(Array.from(e.target.files ?? []).slice(0, 10))}
+        onChange={(e) => {
+          setRestored(null);
+          setFiles(Array.from(e.target.files ?? []).slice(0, 10));
+        }}
       />
       {files.length === 0 ? (
         <button
@@ -581,17 +624,46 @@ function MomentComposer({ onDone }: { onDone: () => void }) {
         </div>
       )}
 
+      {single && <RestoreOffer key={`${single.name}-${single.size}-${single.lastModified}`} file={single} onChange={setRestored} />}
+
       <label className="mt-4 block">
-        <span className="sr-only">Add a note</span>
+        <span className="sr-only">Caption</span>
         <input
           type="text"
           value={note}
           maxLength={280}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Add a note (optional)"
+          placeholder="Caption (optional)"
           className="h-[52px] w-full rounded-full bg-surface px-5 text-[16px] outline-none placeholder:text-ink-faint focus:ring-2 focus:ring-marigold"
         />
       </label>
+      <div className="mt-3 rounded-[22px] border border-[var(--line)] p-3">
+        <p className="m-0 px-1 text-[13px] font-medium text-ink-soft">Written on the print</p>
+        <label className="mt-2 flex items-center gap-3">
+          <span className="w-[64px] shrink-0 px-1 text-[15px] font-semibold">Where</span>
+          <input
+            type="text"
+            value={where}
+            maxLength={CARD_PLACE_MAX}
+            onChange={(e) => setWhere(e.target.value)}
+            placeholder="Amritsar"
+            autoComplete="off"
+            className="h-12 min-w-0 flex-1 rounded-[14px] bg-surface px-4 text-[16px] outline-none placeholder:text-ink-faint focus:ring-2 focus:ring-marigold"
+          />
+        </label>
+        <label className="mt-2 flex items-center gap-3">
+          <span className="w-[64px] shrink-0 px-1 text-[15px] font-semibold">A note</span>
+          <input
+            type="text"
+            value={printNote}
+            maxLength={CARD_NOTE_MAX}
+            onChange={(e) => setPrintNote(e.target.value)}
+            placeholder="Optional, in your words"
+            autoComplete="off"
+            className="h-12 min-w-0 flex-1 rounded-[14px] bg-surface px-4 font-hand text-[19px] outline-none placeholder:font-sans placeholder:text-[16px] placeholder:text-ink-faint focus:ring-2 focus:ring-marigold"
+          />
+        </label>
+      </div>
       {error && (
         <p className="m-0 mt-2 text-[14px] text-[#b42318]" role="alert">
           {error}

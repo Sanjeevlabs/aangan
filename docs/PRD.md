@@ -3,7 +3,7 @@
 ## Thesis
 "Far apart, still together." Most family apps make parents feel cared for; Aangan makes them feel NEEDED.
 Values, in priority order: Needed (elders give and have a role) · Heard (acknowledgement) · Present (together at the same time) · Remembered (memories) · Never watched (no monitoring, no guilt).
-For families anywhere in the world. Must NOT resemble Instagram, WhatsApp or Facebook: no stories, status, counts, comments or infinite feed.
+For families anywhere in the world. Calm by design: no stories, status, counts, comments or infinite feed.
 Brand: "Aangan: the family courtyard". Display languages: English · Hinglish (Hindi in English letters) · हिंदी (Devanagari). The viewer's display_lang drives UI strings, captions, transcripts, synced lyrics, role prompts, and kinship names (Grandma / Dadi / दादी for the same person). Seed data provides strings for all three display languages. Onboarding step (right after the home photo): "How should Aangan speak to you?" with three options, each shown in its own script: English · Hinglish (Hindi in English letters) · हिंदी. Changeable anytime in the profile menu. members.display_lang: 'en' | 'hi-latn' | 'hi-deva'. Default if unset: 'en'.
 
 ## Context
@@ -38,7 +38,7 @@ Solo entry, Meta Global AI Developer Hackathon. Deadline 4 Nov 2026, 9:00 PM ET.
 8. Care Board (Open -> Claimed -> Done, sibling claim) + spoken "Done" to the parent. Tasks only, never health advice.
 
 ## Roadmap (placeholders only, never build)
-Share a skill (profile menu, "Coming soon") · Meta glasses companion app (Wearables Device Access Toolkit) · paid AI family assistant · push notifications.
+Share a skill (profile menu, "Coming soon") · Meta glasses companion app (Wearables Device Access Toolkit) · AI family assistant · push notifications.
 
 ## Design system
 Light-first, dark supported. Sans UI; serif titles, captions and lyrics. Tokens in one file.

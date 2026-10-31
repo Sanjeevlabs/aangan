@@ -1,0 +1,10 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["REPLACE_TEAM_ID.app.aangan.family"],
+        "components": [{ "/": "/auth/callback*", "comment": "Sign-in returns into the app" }]
+      }
+    ]
+  }
+}

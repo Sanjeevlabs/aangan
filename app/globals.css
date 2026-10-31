@@ -53,6 +53,14 @@ button {
   cursor: pointer;
 }
 
+/* Filled blocks on the paper get a hairline edge. In the components layer, so
+   ring-*, shadow-* and focus rings on the same element still win. */
+@layer components {
+  .bg-surface {
+    box-shadow: var(--surface-edge);
+  }
+}
+
 /* Glass over imagery. Solid fallback first. */
 .glass {
   background: var(--glass-solid);
@@ -65,7 +73,7 @@ button {
 .frost {
   background: var(--frost-solid);
   border: 1px solid var(--frost-border);
-  box-shadow: var(--frost-shadow), inset 0 1px 0 #fff;
+  box-shadow: var(--frost-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 @supports (backdrop-filter: blur(20px)) or (-webkit-backdrop-filter: blur(20px)) {
@@ -100,7 +108,7 @@ button {
 
 .skeleton {
   border-radius: var(--radius-card);
-  background: linear-gradient(100deg, #f1f1f3 30%, #f8f8fa 50%, #f1f1f3 70%);
+  background: linear-gradient(100deg, #eeeae4 30%, #f6f3ee 50%, #eeeae4 70%);
   background-size: 300% 100%;
   min-height: 24px;
   animation: shimmer 1.4s ease-in-out infinite;
@@ -306,3 +314,249 @@ button {
   0%, 100% { box-shadow: 0 0 0 0 currentColor; }
   50% { box-shadow: 0 0 0 5px rgba(60, 207, 122, 0); opacity: 0.75; }
 }
+
+/* ------------------------------------------------ the light in the window */
+.lamp-halo {
+  mix-blend-mode: screen;
+  background: radial-gradient(circle, rgba(255, 214, 140, calc(0.95 * var(--g))) 0, rgba(255, 190, 100, calc(0.55 * var(--g))) 12%, rgba(255, 170, 80, calc(0.18 * var(--g))) 34%, rgba(255, 160, 60, 0) 60%);
+  animation: lamp-breathe 3.2s ease-in-out infinite;
+}
+@keyframes lamp-breathe {
+  50% { transform: translate(-50%, -50%) scale(1.06); opacity: 0.85; }
+}
+.lamp-flame {
+  transform-origin: 28px 30px;
+  animation: lamp-flick 1.4s ease-in-out infinite;
+}
+@keyframes lamp-flick {
+  30% { transform: scale(0.94, 1.06) translate(0.5px, -1px); }
+  60% { transform: scale(1.03, 0.97); }
+}
+.lamp-ring { animation: lamp-ring 1.4s ease-out; }
+@keyframes lamp-ring {
+  from { box-shadow: 0 0 0 0 rgba(255, 210, 130, 0.9); }
+  to { box-shadow: 0 0 0 160px rgba(255, 210, 130, 0); }
+}
+/* ------------------------------------------- a real window in a real wall */
+/* Light comes from above and slightly left. Paint colours live in
+   lib/walls.ts and arrive as --wall-top / --wall-bottom. The plaster and wood
+   are small procedural SVGs in public/window/ (no photos). */
+.wall-paint {
+  background:
+    radial-gradient(120% 60% at 42% -6%, rgba(255, 248, 232, 0.24), rgba(255, 248, 232, 0) 62%),
+    radial-gradient(140% 110% at 50% 38%, rgba(0, 0, 0, 0) 52%, rgba(30, 20, 10, 0.26) 100%),
+    linear-gradient(180deg, var(--wall-top), var(--wall-bottom));
+}
+/* Lime plaster: uneven wash and trowel marks, multiplied into the paint. */
+.wall-plaster {
+  background: url("/window/plaster.svg") 0 0 / 360px 360px;
+  mix-blend-mode: multiply;
+  opacity: 0.55;
+}
+/* The raised plaster surround (architrave) around the opening. */
+.win-surround {
+  border-radius: 999px 999px 6px 6px;
+  background:
+    linear-gradient(180deg, rgba(255, 250, 240, 0.12), rgba(255, 250, 240, 0.04) 50%, rgba(0, 0, 0, 0.05)),
+    url("/window/plaster.svg") 30px 40px / 360px 360px,
+    linear-gradient(180deg, var(--wall-top), var(--wall-bottom));
+  background-blend-mode: normal, multiply, normal;
+  box-shadow:
+    inset 0 2px 3px -1px rgba(255, 252, 245, 0.32),
+    inset 0 -2px 3px -1px rgba(0, 0, 0, 0.12),
+    0 0 0 0.5px rgba(20, 12, 4, 0.12),
+    0 1px 2px rgba(20, 12, 4, 0.16),
+    2px 9px 16px -6px rgba(20, 12, 4, 0.34);
+}
+/* The reveal: the thickness of the wall, shaded from the head down. */
+.win-reveal {
+  border-radius: 999px 999px 4px 4px;
+  background:
+    linear-gradient(180deg, rgba(18, 10, 4, 0.55), rgba(18, 10, 4, 0.32) 45%, rgba(18, 10, 4, 0.18) 85%, rgba(255, 245, 225, 0.06)),
+    url("/window/plaster.svg") 0 0 / 360px 360px,
+    linear-gradient(180deg, var(--wall-top), var(--wall-bottom));
+  background-blend-mode: normal, multiply, normal;
+  box-shadow:
+    inset 0 9px 12px -4px rgba(10, 5, 0, 0.6),
+    inset 5px 0 8px -4px rgba(10, 5, 0, 0.35),
+    inset -3px 0 6px -3px rgba(10, 5, 0, 0.25);
+}
+/* Oiled teak, carved: an outer bevel, a cut bead, then the rebate. */
+.win-wood {
+  background: url("/window/wood.svg") 0 0 / 240px 480px;
+  filter: saturate(0.82) brightness(0.96);
+}
+.win-wood-h {
+  background: url("/window/wood-h.svg") 0 0 / 480px 240px;
+  filter: saturate(0.82) brightness(0.96);
+}
+.win-frame {
+  border-radius: 999px 999px 3px 3px;
+  background:
+    linear-gradient(180deg, rgba(255, 228, 185, 0.14), rgba(255, 228, 185, 0) 35%, rgba(20, 8, 0, 0.16)),
+    url("/window/wood.svg") 0 0 / 240px 480px;
+  box-shadow:
+    inset 1.5px 2px 0 rgba(255, 226, 180, 0.38),
+    inset -1.5px -2px 1px rgba(20, 8, 0, 0.55),
+    inset 0 0 0 5px rgba(0, 0, 0, 0),
+    0 2px 2px rgba(10, 4, 0, 0.55),
+    2px 6px 10px -2px rgba(10, 4, 0, 0.45);
+}
+.win-bead {
+  border-radius: 999px 999px 2px 2px;
+  box-shadow:
+    0 0 0 1px rgba(25, 12, 2, 0.5),
+    0 1px 0 1.5px rgba(255, 220, 170, 0.18),
+    inset 1px 1.5px 0 rgba(255, 226, 180, 0.3),
+    inset -1px -1px 1px rgba(20, 8, 0, 0.4);
+}
+.win-rebate {
+  border-radius: 999px 999px 2px 2px;
+  background: #22140a;
+  box-shadow: 0 0 0 1px rgba(255, 220, 170, 0.14), inset 0 2px 3px rgba(0, 0, 0, 0.7);
+}
+/* Glazing bars: shaped wood with a soft shadow on what's behind the glass. */
+.win-bar {
+  box-shadow:
+    inset 1px 0 0 rgba(255, 226, 180, 0.35),
+    inset -1px 0 0 rgba(20, 8, 0, 0.5),
+    3px 4px 5px rgba(0, 0, 0, 0.42);
+}
+.win-bar-h {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 226, 180, 0.4),
+    inset 0 -1px 0 rgba(20, 8, 0, 0.55),
+    2px 5px 5px rgba(0, 0, 0, 0.4);
+}
+/* Old glass: a faint diagonal reflection, a sheen at the head, darker edges. */
+.win-glass {
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0) 14%, rgba(255, 255, 255, 0.13) 21%, rgba(255, 255, 255, 0.05) 27%, rgba(255, 255, 255, 0) 33%, rgba(255, 255, 255, 0) 58%, rgba(255, 255, 255, 0.07) 62%, rgba(255, 255, 255, 0.02) 66%, rgba(255, 255, 255, 0) 69%),
+    radial-gradient(60% 26% at 30% 0%, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 70%),
+    linear-gradient(180deg, rgba(120, 140, 130, 0.06), rgba(80, 100, 90, 0.08));
+  box-shadow:
+    inset 0 18px 22px -14px rgba(0, 0, 0, 0.55),
+    inset 0 0 26px rgba(0, 0, 0, 0.32),
+    inset 0 -10px 18px -10px rgba(0, 0, 0, 0.4);
+}
+/* The sill: a teak board with a lit top and a front face, casting onto the wall. */
+.win-sill-top {
+  border-radius: 2px 2px 0 0;
+  box-shadow: inset 0 1px 0 rgba(255, 230, 190, 0.45), inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+}
+.win-sill-face {
+  border-radius: 0 0 3px 3px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 226, 180, 0.25),
+    inset 0 -2px 2px rgba(0, 0, 0, 0.35),
+    0 2px 2px rgba(10, 4, 0, 0.45),
+    0 12px 12px -5px rgba(10, 4, 0, 0.5),
+    0 28px 30px -12px rgba(10, 4, 0, 0.38);
+}
+/* ------------------------------------------- the balcony and the courtyard */
+/* Planes of a CSS-3D room (components/window-scenes.tsx). Paint arrives as
+   --wall-top / --wall-bottom; textures are procedural SVGs in public/window/. */
+.yard-wall {
+  backface-visibility: hidden;
+}
+.yard-floor {
+  background: url("/window/terracotta.svg") 0 0 / 240px 240px, #9c4b2a;
+  filter: saturate(0.88);
+}
+.yard-plinth {
+  background: linear-gradient(180deg, rgba(255, 244, 228, 0.22) 0, rgba(255, 244, 228, 0.22) 3px, rgba(0, 0, 0, 0.18) 3px, rgba(0, 0, 0, 0) 9px), linear-gradient(180deg, rgba(92, 44, 24, 0.6), rgba(70, 32, 16, 0.68));
+  mix-blend-mode: multiply;
+}
+.yard-cap {
+  background: linear-gradient(0deg, rgba(255, 250, 240, 0.35), rgba(255, 250, 240, 0.2)), url("/window/plaster.svg") 0 0 / 360px 360px, linear-gradient(180deg, var(--wall-top), var(--wall-top));
+  background-blend-mode: normal, multiply, normal;
+}
+.yard-niche {
+  border-radius: 999px 999px 2px 2px;
+  background: linear-gradient(180deg, rgba(14, 7, 2, 0.62), rgba(14, 7, 2, 0.4));
+  box-shadow: inset 8px 12px 14px rgba(0, 0, 0, 0.55), inset -2px -2px 3px rgba(255, 245, 225, 0.12), 0 0 0 3px rgba(255, 248, 235, 0.12);
+}
+.yard-ledge {
+  background: rgba(255, 248, 235, 0.22);
+  box-shadow: 0 3px 4px rgba(0, 0, 0, 0.35);
+}
+.yard-door {
+  background: url("/window/wood.svg") 0 0 / 240px 480px;
+  filter: saturate(0.8) brightness(0.8);
+  box-shadow: inset 2px 2px 0 rgba(255, 226, 180, 0.3), 3px 0 6px rgba(10, 4, 0, 0.45);
+}
+.yard-door-leaf {
+  filter: brightness(0.82);
+  box-shadow: inset 0 0 0 1px rgba(10, 4, 0, 0.5), inset 3px 4px 8px rgba(0, 0, 0, 0.5);
+  background-image: linear-gradient(180deg, rgba(10, 4, 0, 0) 22%, rgba(10, 4, 0, 0.35) 22%, rgba(10, 4, 0, 0.35) 23%, rgba(10, 4, 0, 0) 23%, rgba(10, 4, 0, 0) 62%, rgba(10, 4, 0, 0.35) 62%, rgba(10, 4, 0, 0.35) 63%, rgba(10, 4, 0, 0) 63%), url("/window/wood.svg");
+  background-size: 100% 100%, 240px 480px;
+}
+.yard-door-split {
+  position: absolute;
+  inset: 0 auto 0 50%;
+  width: 1.5px;
+  background: rgba(8, 3, 0, 0.75);
+}
+.yard-ring {
+  position: absolute;
+  top: 48%;
+  width: 6px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid #b8914a;
+  box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
+}
+.yard-stone {
+  background: url("/window/stone.svg") 0 0 / 140px 140px, #7f877e;
+  filter: sepia(0.55) brightness(1.02);
+}
+.balc-floor {
+  background: url("/window/stone.svg") 0 0 / 220px 220px, #858e85;
+}
+.balc-ceiling {
+  background: url("/window/plaster.svg") 0 0 / 360px 360px, linear-gradient(180deg, #e4dccd, #d3c9b7);
+  background-blend-mode: multiply, normal;
+}
+.balc-fascia {
+  box-shadow: inset 0 -1.5px 0 rgba(255, 250, 240, 0.35), inset 0 2px 3px rgba(20, 10, 4, 0.35), 0 3px 6px rgba(10, 6, 2, 0.35);
+}
+.balc-kerb {
+  background: linear-gradient(180deg, rgba(255, 250, 240, 0.32) 0, rgba(255, 250, 240, 0.32) 1.5px, rgba(0, 0, 0, 0) 3px, rgba(0, 0, 0, 0.25)), url("/window/stone.svg") 0 0 / 160px 160px, #7f877e;
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.35);
+}
+.balc-hand-top {
+  filter: saturate(0.82) brightness(1.18);
+  border-radius: 3px 3px 0 0;
+  box-shadow: inset 0 1px 0 rgba(255, 232, 196, 0.5);
+}
+.balc-hand {
+  filter: saturate(0.82) brightness(0.86);
+  border-radius: 0 0 3px 3px;
+  box-shadow: inset 0 1px 0 rgba(255, 226, 180, 0.25), inset 0 -2px 2px rgba(0, 0, 0, 0.35), 0 3px 3px rgba(10, 4, 0, 0.45), 0 10px 14px -6px rgba(10, 4, 0, 0.4);
+}
+.balc-jamb {
+  filter: saturate(0.82) brightness(0.9);
+  box-shadow: inset 1.5px 0 0 rgba(255, 226, 180, 0.35), inset -2px 0 2px rgba(20, 8, 0, 0.5), 6px 0 14px rgba(10, 4, 0, 0.45), 2px 0 3px rgba(10, 4, 0, 0.5);
+}
+/* Scrim under the words at the top of an open-air scene. */
+.scene-scrim {
+  background: linear-gradient(180deg, rgba(10, 8, 6, 0.5), rgba(10, 8, 6, 0.18) 60%, rgba(10, 8, 6, 0));
+}
+/* Pots: a slow breeze through the leaves (off with reduced motion). */
+.pot-sway {
+  transform-box: view-box;
+  animation: pot-sway 7s ease-in-out infinite alternate;
+}
+@keyframes pot-sway {
+  from { transform: rotate(-1.3deg); }
+  to { transform: rotate(1.5deg); }
+}
+.lite-shimmer-dot { animation: lite-dot 1.6s ease-in-out infinite; }
+.lite-shimmer-dot:nth-child(2) { animation-delay: 0.2s; }
+.lite-shimmer-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes lite-dot {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+/* Slanted Arabic and Urdu read poorly: keep the human-voice serif upright in right-to-left scripts. */
+[dir="rtl"] .voice, .voice:lang(ar), .voice:lang(ur), .voice:lang(fa), .voice:lang(he) { font-style: normal; }

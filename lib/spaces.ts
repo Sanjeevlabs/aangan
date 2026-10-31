@@ -1,6 +1,6 @@
-// Tabs inside a room (SPEC §29.3): once you're in a room of the family
-// courtyard, its spaces show as tabs so you can move sideways without going
-// back to the courtyard. Derived from the four rooms in lib/menu.ts.
+// Tabs inside a room (SPEC §29.3): once you're in a room, its pages show as
+// tabs so you can move sideways without going back. Derived from the five
+// rooms in lib/menu.ts. A room with one page (Kitchen) has no tab row.
 import { roomsFor, type Room } from "./menu";
 
 export interface Space {
@@ -9,40 +9,40 @@ export interface Space {
   rooms: { href: string; title: string }[];
 }
 
-const SHORT: Record<string, string> = {
-  "/lane": "Memory Lane",
-  "/rituals": "Occasions",
-  "/reel": "Reel",
-  "/kitchen": "Kitchen",
-  "/stories": "Stories",
-  "/advice": "Advice",
-  "/care": "Care",
-  "/nearby": "Trusted nearby",
-  "/safe": "Safe & sound",
-  "/together": "Visits",
-  "/bond": "Family tree",
-  "/gather": "Sit together",
-};
-
-export function spacesFor(isParent: boolean): Space[] {
-  return roomsFor(isParent, "").map((r) => ({
-    id: r.id,
-    title: r.title,
-    // One tab per page (anchors like /care#helpers share their page's tab).
-    rooms: Array.from(new Set(r.items.map((i) => i.href.split("#")[0])))
-      .filter((h) => SHORT[h])
-      .map((href) => ({ href, title: SHORT[href] })),
-  }));
+export function spacesFor(isParent: boolean, canPortrait = true): Space[] {
+  return roomsFor(isParent, canPortrait).map((r) => ({ id: r.id, title: r.title, rooms: r.tabs.map((t) => ({ href: t.href, title: t.label })) }));
 }
 
 const ALL = spacesFor(false);
 
-/** The space a path belongs to, and which of its rooms is open. */
+/** The space a path belongs to, and which of its rooms is open (the longest matching page wins). */
 export function spaceFor(pathname: string): { space: Space; room: string } | null {
+  let best: { space: Space; room: string } | null = null;
   for (const space of ALL) {
     for (const r of space.rooms) {
-      if (pathname === r.href || pathname.startsWith(`${r.href}/`)) return { space, room: r.href };
+      if ((pathname === r.href || pathname.startsWith(`${r.href}/`)) && (!best || r.href.length > best.room.length)) best = { space, room: r.href };
     }
   }
-  return null;
+  return best;
+}
+
+const NO_PORTRAIT = spacesFor(false, false);
+
+/** The room a tab page belongs to, one-page rooms (Kitchen) included: the eyebrow above its title. */
+export function roomOf(pathname: string): Space | null {
+  const at = spaceFor(pathname);
+  return at && at.room === pathname ? at.space : null;
+}
+
+/**
+ * The tab row for a page: only on a room's own tab page, and only when the
+ * room has more than one. Children (`canPortrait` false) get the room without
+ * Portrait, and no row on a page that isn't one of their tabs.
+ */
+export function tabsFor(pathname: string, canPortrait = true): { space: Space; room: string } | null {
+  const at = spaceFor(pathname);
+  if (!at || at.room !== pathname) return null;
+  const space = canPortrait ? at.space : NO_PORTRAIT.find((s) => s.id === at.space.id);
+  if (!space || !space.rooms.some((r) => r.href === at.room)) return null;
+  return space.rooms.length > 1 ? { space, room: at.room } : null;
 }

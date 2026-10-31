@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { can } from "@/lib/permissions";
 import { ActionMenu, Avatar, Button, EmptyLine, Icon, RoomHeader } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
 import { householdName, households, type Household } from "@/lib/households";
@@ -53,7 +54,7 @@ export default function NearbyPage() {
 function HomeNearby({ home, helpers, onChange }: { home: Household; helpers: Helper[]; onChange: () => Promise<void> }) {
   const { viewer } = useViewer();
   const mine = home.members.some((m) => m.id === viewer.id);
-  const mayEdit = mine || viewer.access !== "child";
+  const mayEdit = can(viewer, "care.write");
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

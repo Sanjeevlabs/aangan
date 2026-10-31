@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { DEMO_INVITE_CODE, clearSessionCookieHeader, isDemoFamily, sessionCookieHeader, sessionFromRequest, signSession } from "@/lib/auth";
-import { dbGetMember, dbListInvites } from "@/lib/db";
+import { dbGetMember, dbListInvites, dbListMembers } from "@/lib/db";
+import { isAdmin } from "@/lib/permissions";
+import { hostOf } from "@/lib/roles";
 import { allowAuthAttempt } from "@/lib/otp";
 
 const ExchangeSchema = z.object({
@@ -32,7 +34,7 @@ export async function POST(req: Request): Promise<Response> {
   let ok = false;
   if (code === DEMO_INVITE_CODE && isDemoFamily(member.familyId)) {
     ok = true;
-  } else if (member.email || member.access === "admin") {
+  } else if (member.email || isAdmin(member)) {
     // An invite code lets someone take a place the family made for them. It
     // never opens a person who has their own account, or an admin: they sign
     // in with their email code.
@@ -52,11 +54,16 @@ export async function POST(req: Request): Promise<Response> {
   );
 }
 
-// Current session (who am I).
+// Current session (who am I). The one route a joiner who is still waiting
+// for an admin can use: it says whom they're waiting for (a first name only).
 export async function GET(req: Request): Promise<Response> {
   const session = sessionFromRequest(req);
   if (!session) return Response.json({ error: "unauthorized" }, { status: 401 });
-  return Response.json({ familyId: session.familyId, memberId: session.memberId });
+  const me = await dbGetMember(session.memberId);
+  if (!me || me.familyId !== session.familyId) return Response.json({ error: "unauthorized" }, { status: 401 });
+  if (me.status !== "pending") return Response.json({ familyId: session.familyId, memberId: session.memberId, status: "active" });
+  const host = hostOf(await dbListMembers(session.familyId));
+  return Response.json({ familyId: session.familyId, memberId: session.memberId, status: "pending", waitingFor: host ? host.firstName : null });
 }
 
 // Log out: clear the cookie.

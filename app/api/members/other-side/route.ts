@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { familyFull } from "@/lib/roles";
 import { isDemoFamily, requireCan, requireSession } from "@/lib/auth";
 import { dbAddRelationship, dbLinkMembers, dbListMembers, dbUpdateMemberProfile } from "@/lib/db";
 import { allowAuthAttempt } from "@/lib/otp";
@@ -49,6 +50,7 @@ export async function POST(req: Request): Promise<Response> {
   const taken = new Set((await dbListMembers(auth.familyId)).map((m) => m.displayName.toLowerCase()));
   const fresh = people.filter((p) => !taken.has(p.callName.toLowerCase()));
   if (fresh.length === 0) return Response.json({ error: "duplicate-member" }, { status: 409 });
+  if (await familyFull(auth.familyId, fresh.length)) return Response.json({ error: "family-full" }, { status: 409 });
 
   // Their generation follows how they're related to me; mine follows theirs.
   const role: Member["role"] = they === "children" ? "adult" : "elder";

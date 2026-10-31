@@ -50,18 +50,18 @@ describe("family tree: add, edit, remove", () => {
   });
 
   it("edits a person's name, place and birthday; rejects an unknown zone", async () => {
-    const ok = await editMember(call("PATCH", "dadi", { displayName: "Nani", tz: "Asia/Kolkata", birthday: "02-10" }), { params: { id: "dadi" } });
+    const ok = await editMember(call("PATCH", "dadi", { displayName: "Nani", tz: "Asia/Kolkata", birthday: "02-10" }), { params: Promise.resolve({ id: "dadi" }) });
     expect(ok.status).toBe(200);
     expect((await members()).find((m) => m.id === "dadi")).toMatchObject({ displayName: "Nani", birthday: "02-10" });
-    const bad = await editMember(call("PATCH", "dadi", { tz: "Mars/Base" }), { params: { id: "dadi" } });
+    const bad = await editMember(call("PATCH", "dadi", { tz: "Mars/Base" }), { params: Promise.resolve({ id: "dadi" }) });
     expect(bad.status).toBe(400);
   });
 
   it("removes a person and their edges; you can't remove yourself here", async () => {
-    const gone = await removeMember(call("DELETE", "aria"), { params: { id: "aria" } });
+    const gone = await removeMember(call("DELETE", "aria"), { params: Promise.resolve({ id: "aria" }) });
     expect(gone.status).toBe(200);
     expect((await members()).some((m) => m.id === "aria")).toBe(false);
-    const self = await removeMember(call("DELETE", "leo"), { params: { id: "leo" } });
+    const self = await removeMember(call("DELETE", "leo"), { params: Promise.resolve({ id: "leo" }) });
     expect(self.status).toBe(409);
   });
 });

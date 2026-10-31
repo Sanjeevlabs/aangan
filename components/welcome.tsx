@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { greetingForHour } from "@/lib/i18n";
+import { useDocumentLang, useT } from "@/lib/use-t";
 import { resolveMediaUrl } from "@/lib/media-session";
 import { Button, Icon, Photo } from "./ui/kit";
 import { useViewer } from "./viewer";
@@ -27,21 +28,24 @@ export function EntryFrame({ image = COURTYARD, children }: { image?: string; ch
 /** Signed out: one promise, and the four ways in. */
 export function Landing({ onDemo }: { onDemo: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
+  const t = useT();
+  useDocumentLang();
   return (
     <EntryFrame>
-      <h1 className="m-0 text-[30px] leading-[1.1] text-white">A window into your parents&rsquo; home, and theirs into yours.</h1>
+      <h1 className="m-0 text-[30px] leading-[1.1] text-white">{t("landing.tagline")}</h1>
+      <p className="voice m-0 mt-2 text-[18px] leading-snug text-white/85">{t("landing.sub")}</p>
       <div className="mt-6 grid grid-cols-2 gap-2.5">
         <Link href="/create" className="press flex h-[52px] items-center justify-center rounded-full bg-white text-[16px] font-semibold text-black no-underline">
-          Create
+          {t("landing.create")}
         </Link>
         <Link href="/join" className="press flex h-[52px] items-center justify-center gap-2 rounded-full bg-white/15 text-[16px] font-semibold text-white no-underline">
           <Icon name="key" size={18} />
-          Join with code
+          {t("landing.join")}
         </Link>
       </div>
       <div className="mt-3 flex items-center justify-between px-1 text-[15px]">
         <Link href="/signin" className="flex h-11 items-center font-medium text-white no-underline">
-          Sign in
+          {t("landing.signin")}
         </Link>
         <button
           type="button"
@@ -53,8 +57,8 @@ export function Landing({ onDemo }: { onDemo: () => Promise<void> }) {
           }}
           className="flex h-11 items-center gap-1 font-medium text-white/80"
         >
-          {busy ? "Opening…" : "Try the demo"}
-          {!busy && <Icon name="chevron" size={16} />}
+          {busy ? t("landing.opening") : t("landing.demo")}
+          {!busy && <Icon name="chevron" size={16} className="rtl:-scale-x-100" />}
         </button>
       </div>
     </EntryFrame>
@@ -66,13 +70,15 @@ export function Welcome({ onEnter }: { onEnter: () => void }) {
   const { viewer, signalLine } = useViewer();
   const [hour] = useState(() => new Date().getHours());
   const home = resolveMediaUrl(viewer.homeImageRef) ?? COURTYARD;
+  const t = useT();
+  useDocumentLang();
   return (
     <EntryFrame image={home}>
-      <p className="m-0 text-[15px] text-white/80">Good {greetingForHour(hour)}</p>
-      <h1 className="m-0 mt-1 text-[32px] leading-[1.05] text-white">Welcome to {viewer.firstName}&rsquo;s Aangan</h1>
+      <p className="m-0 text-[15px] text-white/80">{t(`welcome.${greetingForHour(hour)}`)}</p>
+      <h1 className="m-0 mt-1 text-[32px] leading-[1.05] text-white">{t("welcome.title", { name: viewer.firstName })}</h1>
       {signalLine && <p className="voice m-0 mt-3 text-[18px] leading-snug text-white/90">{signalLine}</p>}
       <Button className="mt-6 w-full !bg-white !text-black" onClick={onEnter}>
-        Step inside
+        {t("welcome.enter")}
       </Button>
     </EntryFrame>
   );

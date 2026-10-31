@@ -62,6 +62,29 @@ create index if not exists members_person_idx on members (person_id) where perso
 drop index if exists members_email_idx;
 create unique index if not exists members_email_family_idx on members (lower(email), family_id) where email is not null;
 
+-- Roles v2 (owner | admin | member | teen | child) and joiners who wait.
+-- owner: exactly one per family (the creator); admins: up to 3 with the
+-- owner (enforced in lib/roles.ts); teen 13-17; child 0-12, a profile only.
+alter table members drop constraint if exists members_access_check;
+alter table members add constraint members_access_check check (access in ('owner', 'admin', 'member', 'teen', 'child'));
+-- Joining with a code waits for an owner/admin ("pending") unless the family
+-- made the place, or an owner/admin made the code.
+alter table members add column if not exists status text not null default 'active';
+alter table members drop constraint if exists members_status_check;
+alter table members add constraint members_status_check check (status in ('active', 'pending'));
+-- Existing families: the first admin (oldest, then by id) becomes the owner.
+update members m set access = 'owner'
+from (
+  select distinct on (family_id) id
+  from members
+  where access = 'admin'
+    and family_id is not null
+    and family_id not in (select family_id from members where access = 'owner' and family_id is not null)
+  order by family_id, created_at asc nulls last, id asc
+) first_admin
+where m.id = first_admin.id;
+create unique index if not exists members_one_owner_idx on members (family_id) where access = 'owner';
+
 -- ------------------------------------------------------------ relationships
 -- Guided Bond adds, e.g. ('arjun','dadi','parent'). No culture in logic:
 -- relation is a free-text edge label resolved by the M3 kinship resolver.
@@ -88,7 +111,7 @@ create table if not exists cards (
   lang text default 'en',
   taken_at timestamptz not null,
   ritual_slug text,
-  source text default 'upload' check (source in ('upload', 'today', 'glasses', 'ritual', 'agent')),
+  source text default 'upload' check (source in ('upload', 'today', 'glasses', 'ritual', 'agent', 'muse-portrait', 'muse-restored')),
   media_path text,
   thumbnail_path text,
   media_ref text,
@@ -100,6 +123,9 @@ create table if not exists cards (
   created_at timestamptz default now()
 );
 alter table cards add column if not exists source text default 'upload' check (source in ('upload', 'today', 'glasses', 'ritual', 'agent'));
+-- Muse-made cards are labelled by their source (Painted by Muse, Restored by Muse).
+alter table cards drop constraint if exists cards_source_check;
+alter table cards add constraint cards_source_check check (source in ('upload', 'today', 'glasses', 'ritual', 'agent', 'muse-portrait', 'muse-restored'));
 alter table cards add column if not exists media_ref text;
 alter table cards add column if not exists peaks jsonb default '[]';
 alter table cards add column if not exists palette text[] default '{}';
@@ -109,6 +135,9 @@ alter table cards add column if not exists segments jsonb default '[]';
 alter table cards add column if not exists author_id text references members(id) on delete set null;
 alter table cards add column if not exists cover_ref text;
 alter table cards add column if not exists addressed_to text references members(id) on delete set null;
+-- The printed-photo frame: where it was taken and a short note (both optional).
+alter table cards add column if not exists place text not null default '';
+alter table cards add column if not exists note text not null default '';
 
 -- ------------------------------------------------------------------- media
 -- Private-bucket objects referenced by cards. storage_path is the object key
@@ -269,6 +298,21 @@ create table if not exists invites (
   created_at timestamptz default now()
 );
 
+-- ---------------------------------------------------------------- consents
+-- A parent saying yes to their teen's account (lib/roles.ts). For now the
+-- acting owner/admin's signed-in session is the verification
+-- ('parent-session-code'); a DigiLocker check comes later.
+create table if not exists consents (
+  id text primary key,
+  family_id text not null references families(id) on delete cascade,
+  member_id text not null references members(id) on delete cascade,
+  parent_member_id text references members(id) on delete set null,
+  kind text not null check (kind in ('teen-account')),
+  method text not null check (method in ('parent-session-code')),
+  created_at timestamptz not null default now()
+);
+create index if not exists consents_family_member_idx on consents (family_id, member_id, created_at desc);
+
 -- Legacy Day-1 model cache table; kept untouched for backward compatibility.
 create table if not exists llm_cache (
   key text primary key,
@@ -296,6 +340,7 @@ alter table llm_calls enable row level security;
 alter table kinship_cache enable row level security;
 alter table invites enable row level security;
 alter table llm_cache enable row level security;
+alter table consents enable row level security;
 
 -- Server-only model: RLS stays ENABLED everywhere, but NO policy grants
 -- anything to anon/authenticated, so direct client access is denied by
@@ -319,6 +364,12 @@ drop policy if exists "no direct cache access" on llm_calls;
 drop policy if exists "kinship read" on kinship_cache;
 drop policy if exists "no direct invite access" on invites;
 drop policy if exists "no direct cache access" on llm_cache;
+-- Consents: RLS by family. Grants nothing today (no request carries a
+-- family_id claim; the server uses the service role); scopes reads to the
+-- caller's own family once Supabase Auth JWTs carry one.
+drop policy if exists "family scope" on consents;
+create policy "family scope" on consents for select to authenticated
+  using (family_id = (auth.jwt() ->> 'family_id'));
 
 -- Sole exception: static festival guides are public-read.
 drop policy if exists "read configs" on ritual_configs;
@@ -350,7 +401,7 @@ create table if not exists family_docs (
 );
 -- Kinds are validated by lib/kinds.ts; the check keeps junk out of the table.
 alter table family_docs drop constraint if exists family_docs_kind_check;
-alter table family_docs add constraint family_docs_kind_check check (kind in ('recipe','attempt','presence','care_settings','need','helper','rota','duty','pet','sitting','knock','question','muse_call','safety_checkin','safety_settings','post','order','story','project','album','place','game','ritual_settings'));
+alter table family_docs add constraint family_docs_kind_check check (kind in ('recipe','attempt','presence','care_settings','need','helper','rota','duty','pet','sitting','knock','question','muse_call','safety_checkin','safety_settings','post','order','story','project','album','place','game','ritual_settings','window_view','today_task','lamp','chitthi','partner_token','event','event_dismiss','day_line','muse_image_run'));
 create index if not exists family_docs_family_kind_idx on family_docs (family_id, kind, created_at desc);
 alter table family_docs enable row level security;
 
@@ -377,6 +428,21 @@ $$;
 revoke execute on function bump_share_views(text) from public, anon, authenticated;
 grant execute on function bump_share_views(text) to service_role;
 
+-- One running total of model spend for every server instance (the USD cap).
+create table if not exists spend_total (
+  id smallint primary key default 1 check (id = 1),
+  usd numeric not null default 0,
+  updated_at timestamptz not null default now()
+);
+alter table spend_total enable row level security;
+create or replace function add_spend(c numeric) returns numeric language sql security definer set search_path = public as $$
+  insert into spend_total (id, usd) values (1, greatest(c, 0))
+  on conflict (id) do update set usd = spend_total.usd + greatest(excluded.usd, 0), updated_at = now()
+  returning usd;
+$$;
+revoke execute on function add_spend(numeric) from public, anon, authenticated;
+grant execute on function add_spend(numeric) to service_role;
+
 -- -------------------------------------------------------------------- seed
 insert into families (id, name) values ('demo-family', 'Sharma')
 on conflict (id) do nothing;
@@ -395,7 +461,10 @@ values
 on conflict (id) do nothing;
 
 -- Demo portraits and the demo family graph (idempotent).
-update members set access = 'admin' where id = 'arjun' and family_id = 'demo-family';
+-- Arjun owns the demo family (only if it has no owner yet, e.g. after a handover).
+update members set access = 'owner'
+where id = 'arjun' and family_id = 'demo-family'
+  and not exists (select 1 from members where family_id = 'demo-family' and access = 'owner');
 update members set access = 'child' where id in ('aria', 'anaya') and family_id = 'demo-family';
 update members set photo_ref = '/demo/portrait-dadi.webp' where id = 'dadi' and photo_ref is null;
 update members set photo_ref = '/demo/portrait-dad.webp' where id = 'arjun' and photo_ref is null;

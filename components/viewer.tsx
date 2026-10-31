@@ -4,11 +4,14 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { DEFAULT_VIEWER_ID, DEMO_FAMILY, DEMO_MEMBERS, signalLineFor } from "@/lib/family";
 import { normalizeDisplayLang, type SupportedLang } from "@/lib/i18n";
 import type { Member, Relationship } from "@/lib/schemas";
+import { Waiting } from "@/components/waiting";
 
 interface ViewerState {
   /** True once the session and family have loaded (or there is no session). */
   ready: boolean;
   signedIn: boolean;
+  /** Joined, but an owner/admin hasn't let them in yet (whom they wait for). */
+  waiting: { hostName: string | null } | null;
   viewer: Member;
   members: Member[];
   /** How everyone is related (households, the tree, the dock). */
@@ -45,6 +48,7 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
   const [viewerId, setViewerIdState] = useState<string>(DEFAULT_VIEWER_ID);
   const [ready, setReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
+  const [waiting, setWaiting] = useState<{ hostName: string | null } | null>(null);
 
   // Viewer switcher keeps the httpOnly session in sync: the server mints a
   // fresh cookie for the same family (no invite code needed twice).
@@ -76,7 +80,15 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await fetch("/api/session", { cache: "no-store" });
       if (res.ok) {
-        const s = (await res.json()) as { memberId: string };
+        const s = (await res.json()) as { memberId: string; status?: "active" | "pending"; waitingFor?: string | null };
+        if (s.status === "pending") {
+          // Every other API is shut until an admin lets them in.
+          setViewerIdState(s.memberId);
+          setWaiting({ hostName: s.waitingFor ?? null });
+          setSignedIn(true);
+          return;
+        }
+        setWaiting(null);
         const [fresh, rels] = await Promise.all([fetchMembers().catch(() => [] as Member[]), fetchRelationships().catch(() => [] as Relationship[])]);
         if (fresh.length > 0) setMembers(fresh);
         setRelationships(rels);
@@ -84,6 +96,7 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
         setSignedIn(true);
       } else {
         setSignedIn(false);
+        setWaiting(null);
       }
     } catch {
       setSignedIn(false);
@@ -123,6 +136,7 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
     return {
       ready,
       signedIn,
+      waiting,
       viewer,
       members,
       relationships,
@@ -133,9 +147,10 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
       setDisplayLang,
       refreshMembers,
     };
-  }, [members, relationships, viewerId, ready, signedIn, refreshMembers, setDisplayLang, setViewerId]);
+  }, [members, relationships, viewerId, ready, signedIn, waiting, refreshMembers, setDisplayLang, setViewerId]);
 
-  return <ViewerContext.Provider value={value}>{children}</ViewerContext.Provider>;
+  // The gate for joiners who are still waiting: one calm screen, app-wide.
+  return <ViewerContext.Provider value={value}>{waiting ? <Waiting hostName={waiting.hostName} onCheck={syncSession} /> : children}</ViewerContext.Provider>;
 }
 
 export function useViewer(): ViewerState {

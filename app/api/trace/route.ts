@@ -1,3 +1,4 @@
+import { traceVisible } from "@/app/trace/visible";
 import { dbListAgentRuns, dbListSuggestions } from "@/lib/db";
 import { serverLedger } from "@/lib/llm-server";
 import { requireSession } from "@/lib/auth";
@@ -9,6 +10,7 @@ import { listDocs } from "@/lib/family-docs";
 export async function GET(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
+  if (!traceVisible()) return Response.json({ error: "not-found" }, { status: 404 });
   const [runs, suggestions, museCalls] = await Promise.all([dbListAgentRuns(auth.familyId), dbListSuggestions(undefined, auth.familyId), listDocs(auth.familyId, "muse_call")]);
   return Response.json({
     runs: runs.slice(0, 50),

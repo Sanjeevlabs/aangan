@@ -1,12 +1,7 @@
-import { keptFestivals } from "@/lib/occasion-settings";
 import { askWeeklyQuestions } from "@/lib/keeper";
-import { readFileSync } from "fs";
-import { join } from "path";
 import { planRitualScan } from "@/lib/ritual-agent";
-import { dbAddAgentRun, dbAddSuggestion, dbAssignDailyRole, dbEnsureRitualRun, dbGetMovableDate, dbListFamilyIds, dbListDailyRoles, dbListMembers, dbListRitualRuns, dbListWishes, dbSetMovableDate, dbSetRitualRunStatus } from "@/lib/db";
-import { resolveMovableDates } from "@/lib/movable-dates";
-import { serverLedger, serverStore } from "@/lib/llm-server";
-import { loadRitualConfig } from "@/lib/rituals";
+import { dbAddAgentRun, dbAddSuggestion, dbAssignDailyRole, dbEnsureRitualRun, dbListFamilyIds, dbListDailyRoles, dbListMembers, dbListRitualRuns, dbListSuggestions, dbListWishes, dbSetRitualRunStatus } from "@/lib/db";
+import { familyHolidays } from "@/lib/occasions-server";
 import { cronAuthorized, requireSession } from "@/lib/auth";
 
 // Daily ritual/role scan. Vercel Cron (GET, see vercel.json) hits this with
@@ -38,44 +33,31 @@ async function runScan(familyId: string): Promise<Response> {
   const members = await dbListMembers(familyId);
   const [runs, wishes, roles] = await Promise.all([dbListRitualRuns(familyId), dbListWishes(undefined, familyId), dbListDailyRoles(familyId)]);
 
-  const kept = await keptFestivals(familyId);
-  const configs: { slug: string; title: string }[] = [];
-  try {
-    const { readdirSync } = await import("fs");
-    for (const name of readdirSync(join(process.cwd(), "rituals"))) {
-      if (!name.endsWith(".json")) continue;
-      const c = loadRitualConfig(JSON.parse(readFileSync(join(process.cwd(), "rituals", name), "utf8")));
-      // Only festivals this family keeps (Occasions → festivals we keep); birthdays always.
-      if (c.slug === "birthday" || kept.includes(c.slug)) configs.push({ slug: c.slug, title: c.title });
-    }
-  } catch {
-    // Configs optional; birthdays still scan.
+  // Festivals of the traditions this family celebrates (+ manual overrides);
+  // national days are on the calendar but nobody is asked for a wish.
+  const fam = await familyHolidays(familyId, members).catch(() => null);
+  const festivals = (fam?.visible ?? []).filter((h) => h.kind === "festival");
+  const configs = festivals.map((h) => ({ slug: h.key, title: h.title }));
+  const movable: Record<string, string> = {};
+  for (const h of festivals) {
+    // The nearest date per festival from today on (a key can recur yearly).
+    if (h.date >= nowISO.slice(0, 10) && (!movable[h.key] || h.date < movable[h.key])) movable[h.key] = h.date;
   }
-  let fixture: Record<string, string> = {};
-  try {
-    fixture = (JSON.parse(readFileSync(join(process.cwd(), "data", "movable-dates.json"), "utf8")) as { dates: Record<string, string> }).dates ?? {};
-  } catch {
-    fixture = {};
-  }
-  const { dates: movable } = await resolveMovableDates(
-    configs.filter((c) => c.slug !== "birthday"),
-    now,
-    {
-      store: serverStore,
-      ledger: serverLedger,
-      getPersistent: (slug, year) => dbGetMovableDate(slug, year),
-      setPersistent: (slug, year, date, sources) => dbSetMovableDate(slug, year, date, sources),
-      fixture: (slug) => fixture[slug] ?? null,
-    },
-  );
 
   const plan = planRitualScan(nowISO, members, configs, movable, { runs, wishes, roles }, familyId);
 
   for (const r of plan.ensureRuns) await dbEnsureRitualRun(r.slug, r.occasionDate, familyId);
   for (const id of plan.deliverRuns) await dbSetRitualRunStatus(id, "delivered", familyId);
   for (const role of plan.roles) await dbAssignDailyRole(role.memberId, role.prompt, role.roleDate, familyId);
+  // Idempotent: a suggestion already made (same goal and payload) is not made again.
+  const sig = (goal: string, payload: unknown) => `${goal}|${JSON.stringify(payload ?? {})}`;
+  const made = new Set((await dbListSuggestions(undefined, familyId)).map((x) => sig(x.goal, x.payload)));
   const created = [];
-  for (const s of plan.suggestions) created.push(await dbAddSuggestion({ goal: s.goal, payload: s.payload, familyId }));
+  for (const s of plan.suggestions) {
+    if (made.has(sig(s.goal, s.payload))) continue;
+    made.add(sig(s.goal, s.payload));
+    created.push(await dbAddSuggestion({ goal: s.goal, payload: s.payload, familyId }));
+  }
   // Story keeper: one gentle question per elder per week (idempotent).
   const questions = await askWeeklyQuestions(familyId, members, now).catch(() => []);
   await dbAddAgentRun({

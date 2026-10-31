@@ -154,8 +154,8 @@ export async function getMovableDate(
       const { text, citations, cost } = await fetchGrounded(groundingPrompt(title, year));
       const date = parseGroundedDate(text, year);
       if (date) {
-        if (ledger.canSpend(cost)) {
-          ledger.record(cost);
+        if ((await ledger.check(cost))) {
+          await ledger.commit(cost);
           store.set(key, date);
           await deps.setPersistent?.(slug, year, date, citations).catch(() => undefined);
           return { date, source: "live", cached: false, cost, citations };

@@ -1,0 +1,20 @@
+{
+  // Cloudflare Workers config for the OpenNext build (npm run cf:build).
+  // Secrets and variables are NOT kept here: set them with `wrangler secret put`
+  // or in the dashboard. See docs/DEPLOY.md.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "aangan",
+  // cf-worker.mjs wraps .open-next/worker.js and adds the cron handler.
+  "main": "cf-worker.mjs",
+  "compatibility_date": "2026-10-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  // Daily ritual/role scan (was vercel.json "crons"), 09:00 UTC.
+  "triggers": { "crons": ["0 9 * * *"] },
+  "observability": { "enabled": true },
+  // Production origin (DNS on Cloudflare). Must match APP_ORIGIN and CAP_SERVER_URL.
+  "routes": [{ "pattern": "aangan.sanjeevlabs.com", "custom_domain": true }]
+}

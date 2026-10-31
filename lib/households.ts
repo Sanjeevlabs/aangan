@@ -85,6 +85,20 @@ export function householdOf(memberId: string, homes: Household[]): Household | u
   return homes.find((h) => h.members.some((m) => m.id === memberId));
 }
 
+/**
+ * Who you might send something to (Care → Send something), in order: the
+ * grown-ups in other homes first (a parent sees their children's homes first;
+ * everyone else sees the grandparents first), then anyone in your own home.
+ * The first one is the default when no one is named.
+ */
+export function sendOrder(viewer: Member, members: Member[], relationships: Relationship[]): Member[] {
+  const mine = new Set((householdOf(viewer.id, households(members, relationships))?.members ?? []).map((m) => m.id));
+  const first = viewer.role === "elder" ? "adult" : "elder";
+  return members
+    .filter((m) => m.id !== viewer.id && m.role !== "child" && m.status !== "pending")
+    .sort((a, b) => Number(mine.has(a.id)) - Number(mine.has(b.id)) || Number(b.role === first) - Number(a.role === first));
+}
+
 /** "Maa & Papa", "Dadi, Dada & Meera", or "Arjun's home" when it's bigger. */
 export function householdName(home: Household, call: (m: Member) => string, excludeId?: string): string {
   const people = home.members.filter((m) => m.id !== excludeId);

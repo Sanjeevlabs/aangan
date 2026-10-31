@@ -1,9 +1,11 @@
 import { z } from "zod";
 import { checkRateLimit, requireSession } from "@/lib/auth";
-import { dbListCards } from "@/lib/db";
+import { dbListCards, dbListMembers } from "@/lib/db";
 import { getDoc, putDoc } from "@/lib/family-docs";
-import { composeWindow, photoRefFor, windowState } from "@/lib/window-server";
+import { composeWindow, defaultView, homePhotoOk, photoRefFor, windowState } from "@/lib/window-server";
 import { withDemoShelf } from "@/lib/demo";
+import { FIRST_SCENES, POTS, WALLS } from "@/lib/kinds";
+import { can } from "@/lib/permissions";
 
 // The window (LITE): your view into the other home. Each person sets their
 // own: a family photo, still or living. Muse composes the living motion.
@@ -22,6 +24,13 @@ const Choose = z.object({
 });
 const Compose = z.object({ action: z.literal("compose") });
 const Quiet = z.object({ action: z.literal("quiet"), hours: z.number().int().min(2).max(12) });
+const Wall = z.object({ action: z.literal("wall"), wall: z.enum(WALLS) });
+const People = z.object({ action: z.literal("people"), people: z.array(z.string().min(1).max(64)).max(2) });
+const Scene = z.object({ action: z.literal("scene"), scene: z.enum(FIRST_SCENES) });
+const Pots = z.object({ action: z.literal("pots"), pots: z.array(z.enum(POTS)).max(3) });
+const HomePhoto = z
+  .object({ action: z.literal("homePhoto"), ref: z.string().min(1).max(300).nullable().optional(), mix: z.boolean().optional() })
+  .refine((b) => b.ref !== undefined || b.mix !== undefined);
 
 export async function POST(req: Request): Promise<Response> {
   const auth = await requireSession(req);
@@ -36,7 +45,7 @@ export async function POST(req: Request): Promise<Response> {
     const imageRef = choose.data.cardId ? await photoRefFor(auth.familyId, choose.data.cardId) : null;
     if (choose.data.cardId && !imageRef) return Response.json({ error: "unknown-photo" }, { status: 404 });
     const view = await putDoc(auth.familyId, "window_view", {
-      ...(mine ?? {}),
+      ...(mine ?? defaultView(auth.familyId, auth.memberId)),
       id: auth.memberId,
       memberId: auth.memberId,
       cardId: choose.data.cardId,
@@ -48,10 +57,35 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ view });
   }
 
+  const base = mine ?? defaultView(auth.familyId, auth.memberId);
+  const keep = mine?.updatedAt ?? now;
+  const wall = Wall.safeParse(body);
+  if (wall.success) return Response.json({ view: await putDoc(auth.familyId, "window_view", { ...base, wall: wall.data.wall, updatedAt: keep }) });
+  const pick = Scene.safeParse(body);
+  if (pick.success) return Response.json({ view: await putDoc(auth.familyId, "window_view", { ...base, scene: pick.data.scene, updatedAt: keep }) });
+  const pots = Pots.safeParse(body);
+  if (pots.success) return Response.json({ view: await putDoc(auth.familyId, "window_view", { ...base, pots: Array.from(new Set(pots.data.pots)), updatedAt: keep }) });
+  const home = HomePhoto.safeParse(body);
+  if (home.success) {
+    const { ref, mix } = home.data;
+    // Only this family's own photo: its uploads, or one of its photo cards.
+    if (ref && !(await homePhotoOk(auth.familyId, ref))) return Response.json({ error: "unknown-photo" }, { status: 404 });
+    const next = { ...base, ...(ref !== undefined ? { homePhoto: ref } : {}), ...(mix !== undefined ? { mixAlbum: mix } : {}), updatedAt: keep };
+    return Response.json({ view: await putDoc(auth.familyId, "window_view", next) });
+  }
+  const people = People.safeParse(body);
+  if (people.success) {
+    const members = await dbListMembers(auth.familyId);
+    // Teens (and children) are never at someone's window.
+    if (people.data.people.some((id) => { const m = members.find((x) => x.id === id); return m && !can(m, "window.at"); })) return Response.json({ error: "not-at-window" }, { status: 403 });
+    const ids = Array.from(new Set(people.data.people)).filter((id) => id !== auth.memberId && members.some((m) => m.id === id));
+    return Response.json({ view: await putDoc(auth.familyId, "window_view", { ...base, people: ids, updatedAt: mine?.updatedAt ?? now }) });
+  }
+
   const quiet = Quiet.safeParse(body);
   if (quiet.success) {
     const view = await putDoc(auth.familyId, "window_view", {
-      ...(mine ?? { id: auth.memberId, memberId: auth.memberId, cardId: null, imageRef: null, style: "living" }),
+      ...base,
       quietAfterHours: quiet.data.hours,
       updatedAt: mine?.updatedAt ?? now,
     });
@@ -64,7 +98,7 @@ export async function POST(req: Request): Promise<Response> {
     const caption = state.view?.cardId ? (withDemoShelf(await dbListCards(auth.familyId), auth.familyId).find((c) => c.id === state.view?.cardId)?.caption ?? "") : "";
     const scene = await composeWindow(auth.familyId, { ...state, layers: state.layers }, caption);
     const view = await putDoc(auth.familyId, "window_view", {
-      ...(mine ?? { id: auth.memberId, memberId: auth.memberId, cardId: null, imageRef: null, style: "living" }),
+      ...base,
       layers: scene.layers,
       line: scene.line,
       madeBy: scene.source === "muse" ? "muse" : "family",

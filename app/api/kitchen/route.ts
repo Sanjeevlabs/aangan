@@ -30,7 +30,8 @@ const Fields = {
 
 const Body = z.discriminatedUnion("action", [
   // Typed by hand: "my palak paneer", or writing down Maa's for her (cookId).
-  z.object({ action: z.literal("create"), cookId: z.string().min(1).optional(), ...Fields }),
+  // scanRef: the photo of the recipe card Muse read it from (kept on the recipe).
+  z.object({ action: z.literal("create"), cookId: z.string().min(1).optional(), scanRef: z.string().min(1).max(512).nullable().optional(), ...Fields }),
   z.object({ action: z.literal("teach"), cardId: z.string().min(1), title: z.string().trim().max(80).optional(), questionId: z.string().optional() }),
   z.object({ action: z.literal("attempt"), recipeId: z.string().min(1), photoRef: z.string().max(512).nullable().optional(), note: z.string().trim().max(240).default("") }),
   z.object({ action: z.literal("bless"), attemptId: z.string().min(1) }),
@@ -96,9 +97,11 @@ export async function POST(req: Request): Promise<Response> {
     const cards = body.voiceCardId || body.videoCardId ? await dbListCards(auth.familyId) : [];
     const own = (cardId: string | null | undefined, type: "audio" | "video") => !cardId || cards.some((c) => c.id === cardId && c.type === type);
     if (!own(body.voiceCardId, "audio") || !own(body.videoCardId, "video")) return Response.json({ error: "unknown-card" }, { status: 404 });
-    const { action: _a, cookId: _c, ...fields } = body;
+    const { action: _a, cookId: _c, scanRef: _s, ...fields } = body;
     void _a;
     void _c;
+    void _s;
+    const scanRef = body.scanRef && !/^(https?:)?\/\//i.test(body.scanRef) ? body.scanRef : null;
     const recipe = await putDoc(auth.familyId, "recipe", {
       id: newId("recipe"),
       ...fields,
@@ -106,9 +109,10 @@ export async function POST(req: Request): Promise<Response> {
       videoCardId: body.videoCardId ?? null,
       cookId,
       addedBy: cookId === auth.memberId ? null : auth.memberId,
-      coverRef: null,
+      coverRef: scanRef,
+      scanRef,
       lang: family.find((m) => m.id === auth.memberId)?.lang ?? "en",
-      madeBy: "family",
+      madeBy: scanRef ? "muse" : "family",
       createdAt: now,
     });
     return Response.json({ recipe }, { status: 201 });

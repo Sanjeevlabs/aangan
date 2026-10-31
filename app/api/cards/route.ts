@@ -13,10 +13,13 @@ import { withDemoShelf } from "@/lib/demo";
 export async function GET(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
-  const [stored, tasks] = await Promise.all([dbListCards(auth.familyId), listDocs(auth.familyId, "today_task")]);
+  const [stored, tasks, letters] = await Promise.all([dbListCards(auth.familyId), listDocs(auth.familyId, "today_task"), listDocs(auth.familyId, "chitthi")]);
   const cards = withDemoShelf(stored, auth.familyId);
   // Today's answers from the other home stay sealed until you add yours.
   const sealed = sealedCardIds(tasks, auth.memberId);
+  // Morning letters stay in the envelope until their morning (the author can always see theirs).
+  const now = Date.now();
+  for (const l of letters) if (l.authorId !== auth.memberId && Date.parse(l.deliverAt) > now) sealed.add(l.id);
   return Response.json({ familyId: auth.familyId, cards: sealed.size ? cards.filter((c) => !sealed.has(c.id)) : cards });
 }
 
@@ -32,6 +35,8 @@ const MultipartFieldsSchema = z.object({
   transcriptLang: z.string().min(2).max(8).default("en"),
   segments: z.string().default("[]"),
   taggedNames: z.string().default("[]"),
+  place: z.string().trim().max(60).default(""),
+  note: z.string().trim().max(140).default(""),
 });
 
 function parseJsonArray(raw: string): unknown[] {
@@ -80,6 +85,8 @@ async function postMultipart(req: Request, familyId: string, authorId: string): 
     transcriptLang: form.get("transcriptLang") ?? undefined,
     segments: form.get("segments") ?? undefined,
     taggedNames: form.get("taggedNames") ?? undefined,
+    place: form.get("place") ?? undefined,
+    note: form.get("note") ?? undefined,
   });
   if (!fields.success) {
     return Response.json({ error: "invalid-card" }, { status: 400 });
@@ -141,6 +148,8 @@ async function postMultipart(req: Request, familyId: string, authorId: string): 
     transcript: f.transcript.slice(0, 2000),
     transcriptLang: f.transcriptLang,
     segments: segments.slice(0, 64) as { start: number; end: number; text: string }[],
+    place: f.place,
+    note: f.note,
   });
   const album = await fileIntoAlbum(familyId, card, event);
   return Response.json({ card, album }, { status: 201 });

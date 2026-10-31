@@ -20,7 +20,7 @@ Read docs/PRD.md before any task; it overrides earlier instructions; build only 
 - `npm run typecheck` — `tsc --noEmit`.
 - `npm run test:mock` — mock-mode unit + smoke tests.
 - `npm run eval:golden` — manual live golden eval. Needs `META_API_KEY`. Never in CI.
-- Deploy: `vercel --prod` on 27 Oct, then redeploy daily. Vercel project links to this repo.
+- Deploy: Cloudflare Workers via OpenNext, `npm run cf:deploy` (see docs/DEPLOY.md).
 
 ## Conventions
 

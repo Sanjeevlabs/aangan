@@ -29,7 +29,8 @@ its controls (play, scrub, lyrics) and its tone (warm, intimate, never a feed).
 
 ## 3. Visual tokens
 
-- **Ground:** `#FFFFFF`. Text: `rgba(0,0,0,.88)` primary, `.56` secondary, `.38` tertiary. Hairline `rgba(0,0,0,.08)`.
+- **Ground:** warm paper `#F7F5F1` (`--paper`); cards are white (`--card`, `--surface`) lifted by a soft shadow (`--card-shadow`) or a hairline (`--surface-edge`); fills inside a white card use `--well` `#F1EEE9`. Sheets and the dock are paper too, so white blocks read as cards everywhere. Text: `rgba(0,0,0,.88)` primary, `.60` secondary (≥ 4.5:1 on paper and white), `.42` tertiary (icons, decoration). Hairline `rgba(0,0,0,.08)`.
+- **Rooms:** 20px side gutter, cards full width or a 2-column grid that fills the row, body text ≥ 15px. A room with nothing in it shows an empty state (a calm photo band, one line of why, one action) and what it can start next, never a lone sentence on blank paper.
 - **Signal:** marigold `#F5A524`, used only for live states: heard, playing now, recording. Never decorative.
 - **Per-card colour:** each photo card derives its tint and its shadow (`0 24px 50px -18px <dominant colour>`) from the photo, so the page gets colour from the family, not from the brand.
 - **Glass:** `rgba(255,255,255,.16)`, `backdrop-filter: blur(22px) saturate(1.7)`, `1px rgba(255,255,255,.32)` border, `inset 0 1px 0 rgba(255,255,255,.45)` highlight. Dock variant on white: `rgba(255,255,255,.62)`, hairline border, `0 12px 40px rgba(0,0,0,.14)`. Max two glass layers on screen at once (performance and legibility).
@@ -42,16 +43,26 @@ its controls (play, scrub, lyrics) and its tone (warm, intimate, never a feed).
 A floating glass **dock** at the bottom of Home:
 
 ```
-[ ● Talk to <person> ]  [ camera ]  [ ⋯ ]
+[ ● Talk to <person> ]  [ camera ]  [ house ]
 ```
 
 - **Talk to `<person>`.** The primary action, voice-first. `<person>` is the viewer-relative kinship name of whoever you last heard from (Maa, Papa, Dadi, Nani, Aria). Tap opens the recorder with that person pre-selected and others one tap away. A brand-new family with nobody else yet sees **Invite family** instead.
 - **Camera.** Share a photo or a short video from today.
-- **⋯ Rooms.** A glass sheet with the four other places: Memory Lane, Occasions, Gather, Family tree, plus Settings.
+- **House (Rooms).** A glass sheet with the five rooms of the house and nothing nested: Memories, Kitchen, Care, Family, Celebrations. A tile opens the room on its first page; inside, the tab row is the only way sideways. Settings sit behind your own photo.
+
+| Room | Tabs, in order (route) |
+|---|---|
+| Memories | Memory Lane `/lane` · Stories `/stories` |
+| Kitchen | Recipes `/kitchen` (one page: no tab row) |
+| Care | Send something `/send` · Care tasks `/care` · Helpers `/care/helpers` · Nearby `/nearby` |
+| Family | Family tree `/bond` · The Book `/book` · Advice `/advice` · Portrait `/portrait` (grown-ups only) |
+| Celebrations | Coming up `/gather` · Occasions `/rituals` · Visits `/together/visits` · Holidays `/together/holidays` · Play `/gather/play` |
+
+`lib/menu.ts` is the single source. Each tab is its own page with its own content, and no card shows on two tab pages: Memory Lane is the everyday photos and voices; what an occasion, a story, the Book or Advice holds stays there. Its title is the tab label (or a fuller one: Helpers → "Local helpers", Nearby → "Trusted nearby"), with the room's name above it (Kitchen too: KITCHEN over "Recipes"). The open tab always scrolls into view. Invite family opens a sheet in place; Settings is only behind your own photo. Pages outside the rooms (Safe & sound, Settings, a person, an event, an album) have no tab row.
 
 **Why not tabs.** Tabs give five destinations equal weight and turn the app into a utility. Aangan has one loop, so it gets one big button.
 
-**What it costs.** Rooms are one extra tap away. Mitigation: each room surfaces on Home as content with a door into it (the next occasion, the next gathering, a memory from years ago).
+**What it costs.** Rooms are one extra tap away. Mitigation: each room surfaces on Home as content with a door into it (the next occasion, the next celebration, a memory from years ago).
 
 Inside a room: a large title, a back chevron, no dock. Rooms are places you visit, then return to the courtyard from.
 
@@ -69,10 +80,10 @@ Inside a room: a large title, a back chevron, no dock. Rooms are places you visi
 | **Now playing** | Hear one voice fully | Reply | Full-screen, blurred art backdrop, waveform scrubber, lyrics transcript, reactions (Love, Laugh, Bless) + Reply |
 | **Recorder** (Talk to) | Answer by voice | Record / Send | Recipient chips, large record button, live waveform, review then send. Consent prompt the first time |
 | **Photo composer** | Share a moment | Share | Pick or shoot, optional note, recipients default to everyone |
-| **Memory Lane** | Walk back through time | Open a memory | Chapters by season, one column of photo cards with glass captions |
-| **Occasions** | What is coming, and your part in it | Add your wish | Next occasion as a large photo card, then a quiet list; Birthday Reel when the day arrives |
+| **Memory Lane** | Everyday photos and voices, by the years | Open a memory | One row each for albums, photos, videos and voices. Occasion, story, Book and Advice cards stay on their own tabs |
+| **Occasions** (Celebrations) | Every occasion's photos and voices, together | Open a photo, play a voice | One group per occasion (birthdays, weddings, anniversaries, festivals), newest first: prints and voices; on the day, the celebration with the Chorus on top. What is coming up lives on Coming up |
 | **Birthday Reel** | The family's gift, played in order | Play | Full-screen, segmented progress, petals once |
-| **Gather** | Plan an evening together | Plan evening | Date and time shown in every member's local time, playlist the agent prepared, Start together |
+| **Coming up** (Celebrations) | What is ahead, and planning it | Plan | Date and time shown in every member's local time, playlist the agent prepared, Start together |
 | **Family tree** | See and grow the family | Add someone | Generational tree with portraits, guided add |
 | **Settings** | Set once, forget | — | Profile, language and script (English default), time zone, home photo, notifications, invite family, privacy and data, sign out |
 

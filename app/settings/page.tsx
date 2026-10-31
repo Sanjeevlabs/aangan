@@ -14,61 +14,158 @@ import { resolveMediaUrl } from "@/lib/media-session";
 import { memberPhoto } from "@/lib/people";
 import { resetFamilyCards } from "@/lib/use-family";
 import { useLargeText } from "@/lib/use-large-text";
-import { ACCESS_LABEL, can } from "@/lib/permissions";
+import { ACCESS_LABEL, ACCESS_ORDER, can, isGrownUp } from "@/lib/permissions";
+import type { Member } from "@/lib/schemas";
 import { callName } from "@/lib/people";
 import { cn } from "@/lib/utils";
 import { WindowSettings } from "@/components/window-settings";
+import { WindowOptions } from "./window-options";
+import { ConnectedApps } from "@/components/connected-apps";
+import { useDocumentLang, useT } from "@/lib/use-t";
+import { hasUiCatalogue, translate } from "@/lib/ui-strings";
 
 interface Invite {
   code: string;
   expiresAt: string;
 }
 
-/** Who's who, and (for admins) who may do what. */
-function PeopleAndRoles({ onMessage }: { onMessage: (m: string) => void }) {
-  const { viewer, members, refreshMembers } = useViewer();
-  const admin = can(viewer, "roles.assign");
-  const order: Record<string, number> = { admin: 0, member: 1, child: 2 };
-  const people = [...members].sort((a, b) => order[a.access] - order[b.access] || callName(a).localeCompare(callName(b)));
+const ROLE_ERROR: Record<string, string> = {
+  "admins-full": "A family can have up to 3 admins, the owner included.",
+  "needs-parent": "Only their parent can make this a teen account.",
+  "has-account": "They have their own account, so they can't be a child profile.",
+  "owner-use-transfer": "Hand the family over to change the owner's role.",
+  "needs-account": "They need their own account before they can own the family.",
+  "family-full": "A family can have up to 50 people.",
+  "grown-ups-only": "Only a grown-up can own the family.",
+};
+
+/** Joiners waiting for an owner/admin, at the top of the Family tab. */
+function WaitingToJoin({ onMessage }: { onMessage: (m: string) => void }) {
+  const { viewer, refreshMembers } = useViewer();
+  const allowed = can(viewer, "members.approve");
+  const { data, failed, reload } = useJson<{ pending: Member[] }>(allowed ? "/api/members" : null);
+  const [busy, setBusy] = useState<string | null>(null);
+  if (!allowed) return null;
+  if (failed) return <p className="m-0 mt-6 rounded-[22px] bg-surface p-4 text-[14px] text-ink-soft">Couldn&rsquo;t check who&rsquo;s waiting. Pull to try again.</p>;
+  if (!data) return <div className="mt-6 h-[72px] animate-pulse rounded-[22px] bg-surface" aria-busy="true" aria-label="Checking who's waiting" />;
+  if (data.pending.length === 0) return null;
+  const decide = async (m: Member, decision: "approve" | "decline") => {
+    if (decision === "decline" && !window.confirm(`Decline ${callName(m)}? Their place will be removed.`)) return;
+    setBusy(m.id);
+    const res = await fetch(`/api/members/${encodeURIComponent(m.id)}/approve`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ decision }) }).catch(() => null);
+    const body = (await res?.json().catch(() => null)) as { error?: string } | null;
+    setBusy(null);
+    if (res?.ok) onMessage(decision === "approve" ? `${callName(m)} is in.` : `${callName(m)} was declined.`);
+    else onMessage(ROLE_ERROR[body?.error ?? ""] ?? "Couldn't do that. Try again.");
+    await Promise.all([reload(), refreshMembers()]);
+  };
   return (
-    <div>
+    <section aria-label="Waiting to join" className="mt-9">
+      <h2 className="m-0 mb-3 text-[20px]">Waiting to join</h2>
       <ul className="m-0 list-none divide-y divide-[var(--line)] rounded-[22px] bg-surface p-0 px-4">
-        {people.map((m) => (
+        {data.pending.map((m) => (
           <li key={m.id} className="flex items-center gap-3 py-3">
             <Avatar src={memberPhoto(m)} name={callName(m)} size={40} />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[16px] font-semibold">
-                {callName(m)}
-                {m.id === viewer.id ? " (you)" : ""}
-              </span>
-              <span className="block text-[13px] text-ink-soft">{m.email ? "Has their own account" : "Added by family"}</span>
+              <span className="block truncate text-[16px] font-semibold">{callName(m)}</span>
+              <span className="block text-[13px] text-ink-soft">{m.city ? `Joined with a code · ${m.city}` : "Joined with a code"}</span>
             </span>
-            {admin ? (
-              <select
-                aria-label={`${callName(m)}'s role`}
-                value={m.access}
-                onChange={async (e) => {
-                  const res = await fetch(`/api/members/${encodeURIComponent(m.id)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ access: e.target.value }) });
-                  if (res.status === 409) onMessage("The family needs at least one admin.");
-                  else if (res.ok) onMessage(`${callName(m)} is now ${ACCESS_LABEL[e.target.value as keyof typeof ACCESS_LABEL].label.toLowerCase()}.`);
-                  await refreshMembers();
-                }}
-                className="h-10 rounded-full bg-white px-3 text-[14px] font-semibold"
-              >
-                {(["admin", "member", "child"] as const).map((a) => (
-                  <option key={a} value={a}>
-                    {ACCESS_LABEL[a].label}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <span className="rounded-full bg-white px-3 py-1.5 text-[13px] font-semibold">{ACCESS_LABEL[m.access].label}</span>
-            )}
+            <button type="button" aria-label={`Decline ${callName(m)}`} disabled={busy === m.id} onClick={() => void decide(m, "decline")} className="press grid h-11 w-11 place-items-center rounded-full bg-white text-ink disabled:opacity-40">
+              <Icon name="close" size={20} />
+            </button>
+            <button type="button" aria-label={`Let ${callName(m)} in`} disabled={busy === m.id} onClick={() => void decide(m, "approve")} className="press grid h-11 w-11 place-items-center rounded-full bg-ink text-white disabled:opacity-40">
+              <Icon name="check" size={20} />
+            </button>
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+/** Who's who, and (for owners/admins) who may do what: one chip per role. */
+function PeopleAndRoles({ onMessage }: { onMessage: (m: string) => void }) {
+  const { viewer, members, refreshMembers } = useViewer();
+  const admin = can(viewer, "roles.assign");
+  const owner = can(viewer, "owner.transfer");
+  const [busy, setBusy] = useState<string | null>(null);
+  const rank = (a: Member["access"]) => ACCESS_ORDER.indexOf(a);
+  const people = [...members].sort((a, b) => rank(a.access) - rank(b.access) || callName(a).localeCompare(callName(b)));
+  const send = async (m: Member, url: string, init: RequestInit, ok: string) => {
+    setBusy(m.id);
+    const res = await fetch(url, { headers: { "content-type": "application/json" }, ...init }).catch(() => null);
+    const body = (await res?.json().catch(() => null)) as { error?: string } | null;
+    setBusy(null);
+    onMessage(res?.ok ? ok : (ROLE_ERROR[body?.error ?? ""] ?? "Couldn't change that. Try again."));
+    await refreshMembers();
+  };
+  const pick = (m: Member, to: Member["access"]) => {
+    if (to === m.access) return;
+    if (to === "owner") {
+      if (!window.confirm(`Hand the family over to ${callName(m)}? You'll stay an admin.`)) return;
+      return void send(m, `/api/members/${encodeURIComponent(m.id)}/owner`, { method: "POST", body: "{}" }, `${callName(m)} owns the family now.`);
+    }
+    void send(m, `/api/members/${encodeURIComponent(m.id)}`, { method: "PATCH", body: JSON.stringify({ access: to }) }, `${callName(m)} is now ${ACCESS_LABEL[to].label.toLowerCase()}.`);
+  };
+  const remove = (m: Member) => {
+    if (!window.confirm(`Remove ${callName(m)} from the family? What they shared stays.`)) return;
+    void send(m, `/api/members/${encodeURIComponent(m.id)}`, { method: "DELETE" }, `${callName(m)} was removed.`);
+  };
+  /** Chips this viewer may tap for this person. */
+  const choices = (m: Member): Member["access"][] => {
+    if (!admin || m.access === "owner") return [];
+    return ACCESS_ORDER.filter((a) => (a === "owner" ? owner && (m.access === "admin" || m.access === "member") : a === "child" ? !m.email : true));
+  };
+  return (
+    <div>
+      <ul className="m-0 list-none divide-y divide-[var(--line)] rounded-[22px] bg-surface p-0 px-4">
+        {people.map((m) => {
+          const options = choices(m);
+          const removable = m.id !== viewer.id && m.access !== "owner" && can(viewer, m.email || m.access === "admin" || m.access === "teen" ? "tree.remove-account" : "tree.remove");
+          return (
+            <li key={m.id} className="py-3">
+              <div className="flex items-center gap-3">
+                <Avatar src={memberPhoto(m)} name={callName(m)} size={40} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[16px] font-semibold">
+                    {callName(m)}
+                    {m.id === viewer.id ? " (you)" : ""}
+                  </span>
+                  <span className="block text-[13px] text-ink-soft">{m.email ? "Has their own account" : "Added by family"}</span>
+                </span>
+                {options.length === 0 && <span className="rounded-full bg-white px-3 py-1.5 text-[13px] font-semibold">{ACCESS_LABEL[m.access].label}</span>}
+                {removable && (
+                  <button type="button" aria-label={`Remove ${callName(m)}`} disabled={busy === m.id} onClick={() => remove(m)} className="press grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink-soft disabled:opacity-40">
+                    <Icon name="trash" size={18} />
+                  </button>
+                )}
+              </div>
+              {options.length > 0 && (
+                <div role="radiogroup" aria-label={`${callName(m)}'s role`} className="no-scrollbar -mx-1 mt-2.5 flex gap-1.5 overflow-x-auto px-1">
+                  {options.map((a) => {
+                    const on = a === m.access;
+                    return (
+                      <button
+                        key={a}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        disabled={busy === m.id}
+                        onClick={() => pick(m, a)}
+                        className={cn("press h-9 shrink-0 rounded-full px-3 text-[13px] font-semibold disabled:opacity-40", on ? "bg-ink text-white" : "bg-white text-ink")}
+                      >
+                        {ACCESS_LABEL[a].label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
       <ul className="m-0 mt-3 list-none space-y-1 p-0 text-[13px] text-ink-soft">
-        {(["admin", "member", "child"] as const).map((a) => (
+        {ACCESS_ORDER.map((a) => (
           <li key={a}>
             <span className="font-semibold text-ink">{ACCESS_LABEL[a].label}</span> · {ACCESS_LABEL[a].note}
           </li>
@@ -92,8 +189,45 @@ function LargeTextToggle() {
   );
 }
 
-/** Searchable picker: 29 languages would be a wall of radio buttons. */
+/**
+ * Privacy (SPEC §30.2): the lamp-glow ring and "active 2 h ago" in Kutumb,
+ * and the status on the window. Stored as care_settings.shareVisits; the
+ * other care settings are kept as they are.
+ */
+function LampToggle({ onMessage }: { onMessage: (m: string) => void }) {
+  const { viewer } = useViewer();
+  const { data, reload } = useJson<{ settings: { memberId: string; quietAlert: boolean; tellMemberId: string | null; graceHours: number; shareVisits: boolean }[] }>("/api/presence");
+  const mine = data?.settings.find((s) => s.memberId === viewer.id);
+  const on = mine?.shareVisits ?? true;
+  const [busy, setBusy] = useState(false);
+  const set = async (next: boolean) => {
+    setBusy(true);
+    const res = await fetch("/api/presence", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ quietAlert: mine?.quietAlert ?? false, tellMemberId: mine?.tellMemberId ?? null, graceHours: mine?.graceHours ?? 3, shareVisits: next }),
+    }).catch(() => null);
+    setBusy(false);
+    if (res?.ok) {
+      await reload();
+      onMessage(next ? "Your lamp shows to family again." : "Your lamp and activity are private now.");
+    } else onMessage("Couldn't save that. Try again.");
+  };
+  return (
+    <label className="mt-4 flex items-center justify-between gap-3 rounded-[22px] bg-surface px-4 py-4">
+      <span>
+        <span className="block text-[16px] font-medium">Show my lamp and activity to family</span>
+        <span className="block text-[13px] text-ink-soft">When it&rsquo;s off, nobody sees when you were last in Aangan.</span>
+      </span>
+      <input type="checkbox" className="h-6 w-6 shrink-0 accent-black" checked={on} disabled={data === null || busy} onChange={(e) => void set(e.target.checked)} />
+    </label>
+  );
+}
+
+/** Searchable picker: dozens of languages would be a wall of radio buttons. */
 function LanguagePicker({ value, onPick }: { value: SupportedLang; onPick: (code: SupportedLang) => void }) {
+  const t = useT();
+  useDocumentLang();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const current = language(value);
@@ -105,24 +239,24 @@ function LanguagePicker({ value, onPick }: { value: SupportedLang; onPick: (code
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="press flex w-full items-center justify-between rounded-[20px] bg-surface px-4 py-3.5 text-left"
+        className="press flex w-full items-center justify-between rounded-[20px] bg-surface px-4 py-3.5 text-start"
       >
         <span>
           <span className="block text-[17px] font-semibold">{current.native}</span>
           <span className="block text-[14px] text-ink-soft">{current.name}</span>
         </span>
-        <span className="text-[15px] font-medium text-ink-soft">{open ? "Done" : "Change"}</span>
+        <span className="text-[15px] font-medium text-ink-soft">{open ? t("settings.done") : t("settings.change")}</span>
       </button>
       {open && (
         <div className="mt-2 rounded-[20px] bg-surface p-2">
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search languages"
-            aria-label="Search languages"
+            placeholder={t("settings.search")}
+            aria-label={t("settings.search")}
             className="h-11 w-full rounded-full bg-white px-4 text-[16px] outline-none focus:ring-2 focus:ring-marigold"
           />
-          <ul role="radiogroup" aria-label="Language" className="m-0 mt-2 max-h-[320px] list-none overflow-y-auto p-0">
+          <ul role="radiogroup" aria-label={t("settings.language")} className="m-0 mt-2 max-h-[320px] list-none overflow-y-auto p-0">
             {list.map((l) => (
               <li key={l.code}>
                 <button
@@ -134,16 +268,19 @@ function LanguagePicker({ value, onPick }: { value: SupportedLang; onPick: (code
                     setOpen(false);
                     setQ("");
                   }}
-                  className={cn("press flex h-12 w-full items-center justify-between rounded-[14px] px-3 text-left", l.code === value && "bg-black text-white")}
+                  className={cn("press flex h-12 w-full items-center justify-between rounded-[14px] px-3 text-start", l.code === value && "bg-black text-white")}
                 >
                   <span className="text-[16px] font-medium" dir={"rtl" in l && l.rtl ? "rtl" : undefined}>
                     {l.native}
                   </span>
-                  <span className={cn("text-[13px]", l.code === value ? "text-white/70" : "text-ink-soft")}>{l.name}</span>
+                  <span className={cn("flex items-center gap-1.5 text-[13px]", l.code === value ? "text-white/70" : "text-ink-soft")}>
+                    {hasUiCatalogue(l.code) && <Icon name="check" size={13} />}
+                    {l.name}
+                  </span>
                 </button>
               </li>
             ))}
-            {list.length === 0 && <li className="px-3 py-3 text-[15px] text-ink-soft">No match. Try the English name.</li>}
+            {list.length === 0 && <li className="px-3 py-3 text-[15px] text-ink-soft">{t("settings.noMatch")}</li>}
           </ul>
         </div>
       )}
@@ -151,6 +288,27 @@ function LanguagePicker({ value, onPick }: { value: SupportedLang; onPick: (code
   );
 }
 
+
+/** Settings → Language: one choice drives the app's words and the family's translations. */
+function LanguageSection({ value, onPick, onMessage }: { value: SupportedLang; onPick: (code: SupportedLang) => void; onMessage: (m: string) => void }) {
+  const t = useT();
+  return (
+    <Group title={t("settings.language")}>
+      <LanguagePicker
+        value={value}
+        onPick={(code) => {
+          onPick(code);
+          onMessage(translate(code, "settings.languageUpdated"));
+        }}
+      />
+      <p className="m-0 mt-2 text-[13px] text-ink-faint">{t("settings.languageNote")}</p>
+      <p className="m-0 mt-1.5 flex items-center gap-1.5 text-[13px] text-ink-faint">
+        <Icon name="check" size={13} />
+        {t("settings.appSpeaks")}
+      </p>
+    </Group>
+  );
+}
 
 function Group({ title, id, children }: { title: string; id?: string; children: React.ReactNode }) {
   return (
@@ -163,7 +321,7 @@ function Group({ title, id, children }: { title: string; id?: string; children: 
 
 const TABS = [
   ["you", "You"],
-  ["family", "Family"],
+  ["family", "People & invites"],
   ["privacy", "Privacy"],
 ] as const;
 
@@ -329,19 +487,14 @@ export default function SettingsPage() {
 
       {tab === "you" && (
         <>
-      <Group title="Your window" id="window">
+      <Group title="Your first screen" id="window">
+        <WindowOptions />
         <WindowSettings />
       </Group>
-      <Group title="Hear the family in">
-        <LanguagePicker
-          value={displayLang}
-          onPick={(code) => {
-            void setDisplayLang(code);
-            flash("Language updated");
-          }}
-        />
-        <p className="m-0 mt-2 text-[13px] text-ink-faint">Everything the family shares (voices, recipes, notes) is translated into your language. The app itself stays in English. Names stay as the family says them.</p>
+      <Group title="Connected apps" id="connected-apps">
+        <ConnectedApps />
       </Group>
+      <LanguageSection value={displayLang} onPick={(code) => void setDisplayLang(code)} onMessage={flash} />
 
       <Group title="Reading">
         <LargeTextToggle />
@@ -392,6 +545,7 @@ export default function SettingsPage() {
 
       {tab === "family" && (
         <>
+      <WaitingToJoin onMessage={flash} />
       <Group title="Invite family" id="invite">
         {!can(viewer, "invite.create") ? (
           <p className="m-0 text-[15px] text-ink-soft">Ask a grown-up in the family to invite people.</p>
@@ -440,7 +594,8 @@ export default function SettingsPage() {
           <li>Voices are never cloned. No face recognition, and no tagging of children.</li>
           <li>Demo mode: Meta&rsquo;s AI models process content to caption, transcribe and translate.</li>
         </ul>
-        {viewer.access !== "child" && (
+        <LampToggle onMessage={flash} />
+        {isGrownUp(viewer) && (
           <div className="mt-4 overflow-hidden rounded-[22px] bg-surface">
             <a href="/api/export" download className="press flex w-full items-center justify-between px-4 py-4 text-left text-[16px] font-medium text-ink no-underline">
               <span>
@@ -480,6 +635,7 @@ export default function SettingsPage() {
         </div>
       </Group>
 
+      {process.env.NODE_ENV !== "production" && (
       <Group title="Muse">
         <Link href="/trace" className="press flex items-center justify-between rounded-[22px] bg-surface px-4 py-4 text-[16px] font-medium text-ink no-underline">
           <span>
@@ -489,6 +645,7 @@ export default function SettingsPage() {
           <Icon name="chevron" size={18} className="text-ink-faint" />
         </Link>
       </Group>
+      )}
         </>
       )}
 

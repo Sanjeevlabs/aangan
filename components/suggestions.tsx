@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { strings } from "@/lib/i18n";
 import type { Suggestion } from "@/lib/schemas";
+import { useShell } from "./shell";
 import { useViewer } from "./viewer";
 
 // "Aangan suggests · Review / Approve" — flat surface card. Actions execute
@@ -13,6 +14,7 @@ export function Suggestions({ compact }: { compact?: boolean }) {
   const [items, setItems] = useState<Suggestion[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const { openAdd } = useShell();
 
   const load = useCallback(async () => {
     setFailed(false);
@@ -30,6 +32,17 @@ export function Suggestions({ compact }: { compact?: boolean }) {
   }, [load]);
 
   const act = async (id: string, approve: boolean) => {
+    // "Record a wish": open the recorder for this occasion. The wish is saved when you send it.
+    const sug = items?.find((x) => x.id === id);
+    const p = (sug?.payload ?? {}) as { action?: string; ritualRunId?: string; kind?: string; prompt?: string };
+    if (approve && p.action === "request_wish" && p.ritualRunId) {
+      openAdd("voice", { kind: p.kind === "blessing" ? "blessing" : "wish", runId: p.ritualRunId } as Parameters<typeof openAdd>[1]);
+      setBusyId(id);
+      await fetch(`/api/suggestions/${id}/approve`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ decision: "reject" }) }).catch(() => null);
+      await load();
+      setBusyId(null);
+      return;
+    }
     setBusyId(id);
     try {
       await fetch(`/api/suggestions/${id}/approve`, {
@@ -54,11 +67,7 @@ export function Suggestions({ compact }: { compact?: boolean }) {
     <section aria-label="Aangan suggests" className="mb-6">
       <ul className="m-0 list-none space-y-2 p-0">
         {items.map((s) => (
-          <li key={s.id} className="rounded-[22px] bg-[#fff6e6] px-4 py-3.5">
-            <p className="m-0 flex items-center gap-2 text-[13px] font-semibold text-[#8a4b00]">
-              <span className="inline-block h-[7px] w-[7px] rounded-full bg-marigold" aria-hidden="true" />
-              Aangan suggests
-            </p>
+          <li key={s.id} className="rounded-[22px] bg-black/[.04] px-4 py-3.5">
             <p className="m-0 mt-1 text-[16px] leading-snug text-ink">{s.goal}</p>
             <div className="mt-3 flex gap-2">
               <button

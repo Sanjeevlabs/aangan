@@ -4,7 +4,7 @@
 
 Values, in priority order: **Needed** (elders give and have a role) · **Heard** (acknowledgement) · **Present** (together at the same time) · **Remembered** (memories) · **Never watched** (no monitoring, no guilt).
 
-Aangan is deliberately not Instagram/WhatsApp/Facebook: no stories, status, counts, comments, or infinite feed. **WhatsApp moves messages. Aangan keeps a family going:** what elders know is passed down, things are done together across continents, and aging parents are cared for without being watched.
+Aangan is calm by design: no stories, status, counts, comments, or infinite feed. **Aangan keeps a family going:** what elders know is passed down, things are done together across continents, and aging parents are cared for without being watched.
 
 The app itself is in English. What the family shares (voices, recipes, questions, care notes) reaches each person in their own language: 29 languages, including Hindi, Hinglish, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi, Urdu, Spanish, Arabic, Chinese and more (`lib/languages.ts`).
 
@@ -12,13 +12,15 @@ The app itself is in English. What the family shares (voices, recipes, questions
 
 **Aangan keeps your parents needed.** Older adults who rarely feel useful to others have about three times the odds of disability and death over seven years (Gruenewald et al., MacArthur Study, 2007); grandparents who only *receive* help have the most depressive symptoms, those who give have the fewest (Moorman & Stokes, 2013). So every screen either lets the family **ask** a parent for what only they have, lets the parent **give** and see that it landed, or keeps them **able to give**.
 
-| Space | For children and grandchildren | For the parent |
-|---|---|---|
-| **Home** | Their day, their door, the latest voice; share your day with them; ask strip | What the family asked of you · what you gave this week ("Priya cooked your dal") · your family today · share your day · ask for help |
-| **Ask** | A recipe, a story, their advice or a blessing; what's waiting, what's answered | — |
-| **Library** | Everything they've given: recipes, stories, advice & blessings | What you've given |
-| **Care** | Help at their home, local helpers, safe and sound | Ask for help; your helpers |
-| **Family** | Home by home (pots), how we're related, both sides, Together (visits, birthdays, Ludo), Occasions, Memories | Same |
+The first screen is the window onto the parents' home (safe & sound, a voice note, a video call, send them something). Slide the key and you're in the courtyard; the house in the dock opens the five rooms:
+
+| Room | Tabs |
+|---|---|
+| **Memories** | Memory Lane (everyday photos and voices) · Stories |
+| **Kitchen** | Recipes |
+| **Care** | Send something (their apps by category, plus Muse's ideas) · Care tasks · Helpers · Nearby |
+| **Family** | Family tree · The Book · Advice · Portrait |
+| **Celebrations** | Coming up · Occasions (photos and voices from every birthday, wedding and festival) · Visits · Holidays · Play |
 
 ### Two courtyards, one door
 
@@ -28,7 +30,7 @@ Every family keeps its own Aangan. A married couple and their children belong to
 
 Solo Indie-track entry, Meta Global AI Developer Hackathon. Deadline 4 Nov 2026, 9:00 PM ET.
 
-Everything in this repo was built during the event window (27 Oct – 4 Nov 2026); see [BUILD_LOG.md](BUILD_LOG.md) for the day-by-day record. Stack: Next.js 14 PWA on Vercel, Supabase (Postgres + private Storage + RLS by `family_id`), one Next.js app, no queues or workers. Sign-in is an email code; invite codes let someone take a place the family made for them. Two synthetic demo families (`demo-family` = Sharma, `demo-iyer` = Iyer) open with the public demo code.
+Everything in this repo was built during the event window (27 Oct – 4 Nov 2026); see [BUILD_LOG.md](BUILD_LOG.md) for the day-by-day record. Stack: Next.js 16 PWA on Cloudflare Workers (OpenNext; see [docs/DEPLOY.md](docs/DEPLOY.md)), Supabase (Postgres + private Storage + RLS by `family_id`), one Next.js app, no queues or workers. Sign-in is an email code; invite codes let someone take a place the family made for them. Two synthetic demo families (`demo-family` = Sharma, `demo-iyer` = Iyer) open with the public demo code.
 
 Run it:
 
@@ -58,7 +60,12 @@ Every model called at runtime is a Meta model. Muse is the family's helper, but 
 | | **Care**: a spoken need → a task; a reassurance note for the parent in their language (`lib/care.ts`) |
 | | **Translation into 29 languages**: voices, recipes (the whole card at once), questions, notes |
 | | Memory-card captions incl. video understanding, kinship terms, Gather playlists, the ritual agent's tool-calling loop, search-grounded movable festival dates |
-| `muse-image-1.0` | Seed script only: fallback courtyard + demo-family photos in `public/demo/` (labelled AI-generated; never inside real cards) |
+| `muse-image-1.0` | **Family portrait**: one painted group portrait from the family's own photos (watercolour, oil, pencil, festive), marked "Painted by Muse" in the pixels, kept only on Keep (`lib/muse-image.ts`, `/portrait`) |
+| | **Restore an old photo** from the add sheet, side by side with the original, marked "Restored by Muse" |
+| | Seed script: fallback courtyard + demo-family photos in `public/demo/` (labelled AI-generated; never inside real cards) |
+| `muse-spark-1.3` · vision | **Scan a recipe card**: a handwritten or printed card in any language → the recipe editor for checking (`lib/recipe-scan.ts`) |
+
+Every place Muse appears, and the rule of one offer per screen: [docs/MUSE.md](docs/MUSE.md).
 
 How it is kept safe and cheap:
 

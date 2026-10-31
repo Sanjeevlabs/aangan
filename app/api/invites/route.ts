@@ -22,7 +22,7 @@ export async function POST(req: Request): Promise<Response> {
   const parsed = z.object({ familyId: z.string().optional() }).safeParse(body);
   if (!parsed.success) return Response.json({ error: "invalid-invite" }, { status: 400 });
   if (parsed.data.familyId && parsed.data.familyId !== auth.familyId) return Response.json({ error: "forbidden-family" }, { status: 403 });
-  const invite = await dbCreateInvite(auth.familyId);
+  const invite = await dbCreateInvite(auth.familyId, auth.memberId);
   return Response.json({ invite }, { status: 201 });
 }
 
