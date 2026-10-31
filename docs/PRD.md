@@ -38,7 +38,7 @@ Solo entry, Meta Global AI Developer Hackathon. Deadline 4 Nov 2026, 9:00 PM ET.
 8. Care Board (Open -> Claimed -> Done, sibling claim) + spoken "Done" to the parent. Tasks only, never health advice.
 
 ## Roadmap (placeholders only, never build)
-Share a skill (profile menu, "Coming soon") · Meta glasses companion app (Wearables Device Access Toolkit) · paid AI family assistant · push notifications.
+Share a skill (profile menu, "Coming soon") · Meta glasses companion app (Wearables Device Access Toolkit) · AI family assistant · push notifications.
 
 ## Design system
 Light-first, dark supported. Sans UI; serif titles, captions and lyrics. Tokens in one file.

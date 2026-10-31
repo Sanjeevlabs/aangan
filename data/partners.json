@@ -8,7 +8,7 @@
       "scope": "mcp:tools",
       "clientIdEnv": "SWIGGY_CLIENT_ID",
       "envFlag": "PARTNER_SWIGGY",
-      "note": "OAuth 2.1 + PKCE (S256). Free on localhost; production needs Swiggy to review the app and allowlist the redirect URI (builders@swiggy.in)."
+      "note": "OAuth 2.1 + PKCE (S256)."
     },
     {
       "id": "zomato",
@@ -17,7 +17,7 @@
       "scope": "mcp:tools",
       "clientIdEnv": "ZOMATO_CLIENT_ID",
       "envFlag": "PARTNER_ZOMATO",
-      "note": "OAuth + PKCE (S256). Redirect URIs must be allowlisted by Zomato. Payment is a UPI QR code."
+      "note": "OAuth + PKCE (S256)."
     }
   ],
   "partners": [
