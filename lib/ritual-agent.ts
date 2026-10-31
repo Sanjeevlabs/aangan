@@ -3,12 +3,15 @@
 // blessing), voice or photo; day 3 -> remind the missing; occasion morning -> assemble the
 // reel for 8am recipient delivery. Also assigns elder daily roles.
 // Festival dates come from the family's holiday calendar (lib/holidays.ts).
+import { pickLead } from "./festival-week";
 import { ritualRunId } from "./rituals";
 import type { DailyRole, Member, RitualRun, Wish } from "./schemas";
 
 export interface RitualConfigRef {
   slug: string;
   title: string;
+  /** The ritual config this occasion follows (rituals/*.json), when it has steps to teach. */
+  ritual?: string | null;
 }
 
 export interface PlannedSuggestion {
@@ -121,6 +124,8 @@ export function planRitualScan(
     title: string;
     date: Date;
     birthdayMember?: Member;
+    /** Has a ritual guide with steps: its lead is asked to teach them. */
+    teachable?: boolean;
     /** The day it is "today" for the celebrant (UTC midnight); UTC for festivals. */
     today: Date;
   }
@@ -138,7 +143,7 @@ export function planRitualScan(
     if (!iso) continue;
     const date = new Date(`${iso}T00:00:00.000Z`);
     if (Number.isNaN(date.getTime())) continue;
-    occasions.push({ slug: c.slug, title: c.title.split(/\s+[—-]\s+/)[0].trim(), date, today: localDay(now, undefined) });
+    occasions.push({ slug: c.slug, title: c.title.split(/\s+[—-]\s+/)[0].trim(), date, today: localDay(now, undefined), teachable: Boolean(c.ritual) });
   }
 
   for (const occ of occasions) {
@@ -163,6 +168,15 @@ export function planRitualScan(
       continue;
     }
     if (days <= 7 && days > 3) {
+      // The lead (eldest elder, else the host) is asked to teach the steps.
+      // Deterministic: no model call. Only for the lead, so only they see it.
+      const leadId = occ.teachable ? pickLead(members) : null;
+      if (leadId) {
+        plan.suggestions.push({
+          goal: `You lead ${occ.title} this year: record how your family does it`,
+          payload: { action: "request_lead", ritualRunId: runId, memberId: leadId, occasionDate },
+        });
+      }
       // 7-day window: every grown-up (not child accounts) is asked for a
       // wish, elders for a blessing, voice or photo. The scan route skips a
       // suggestion it has already made, so this stays idempotent.

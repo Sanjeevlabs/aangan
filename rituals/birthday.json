@@ -1,6 +1,8 @@
 {
   "slug": "birthday",
   "title": "Birthday — family guide",
+  "accent": "#C9577A",
+  "greeting": "Happy birthday",
   "cultureNotes": "Universal. Use the family's own birthday customs and songs.",
   "steps": [
     {

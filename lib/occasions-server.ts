@@ -28,7 +28,16 @@ export function ritualConfigs(): ServerRitualConfig[] {
   for (const { name, json } of [...RITUAL_FILES].sort((a, b) => a.name.localeCompare(b.name))) {
     try {
       const c = loadRitualConfig(json);
-      out.push({ slug: c.slug, title: c.title, cultureNotes: c.cultureNotes, steps: c.steps, ...(c.lampHour !== undefined ? { lampHour: c.lampHour } : {}) });
+      out.push({
+        slug: c.slug,
+        title: c.title,
+        cultureNotes: c.cultureNotes,
+        steps: c.steps,
+        ...(c.lampHour !== undefined ? { lampHour: c.lampHour } : {}),
+        ...(c.accent ? { accent: c.accent } : {}),
+        ...(c.lampAccent ? { lampAccent: c.lampAccent } : {}),
+        ...(c.greeting ? { greeting: c.greeting } : {}),
+      });
     } catch {
       console.error("[occasions] skipped invalid ritual config", name);
     }

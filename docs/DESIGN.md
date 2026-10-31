@@ -75,7 +75,7 @@ Inside a room: a large title, a back chevron, no dock. Rooms are places you visi
 | **Create family** | Start a courtyard | Create | Family name, your first name, your relation (e.g. son) |
 | **Join family** | Join with a code from a relative | Join | Invite code, then "Who are you?": pick yourself or add yourself |
 | **Home photo** (onboarding) | Make it yours | Use this photo | "The home you miss: a courtyard, a window, a doorway". Skippable |
-| **Home** (the courtyard) | Feel someone today | Play the hero | Hero now-playing card (latest voice from family), heard line, **Your family** row (one album per person), next occasion, next gathering, one memory from years ago |
+| **Home** (the courtyard) | Feel someone today | Play the hero | In the seven days before a festival the family keeps, a Festival Week card sits on top (the ritual JSON's colour, greeting and steps; the family's own photos from earlier years; one role line: the elder leads and teaches the steps, a child asks them, a grown-up records a wish) and the lamp rings glow in the ritual's colour. Hero now-playing card (latest voice from family), heard line, **Your family** row (one album per person), next occasion, next gathering, one memory from years ago |
 | **Person** (album) | Everything from one person | Talk to them | Big portrait, their voices as a track list, their photos, relation line ("Your grandmother · Pune") |
 | **Now playing** | Hear one voice fully | Reply | Full-screen, blurred art backdrop, waveform scrubber, lyrics transcript, reactions (Love, Laugh, Bless) + Reply |
 | **Recorder** (Talk to) | Answer by voice | Record / Send | Recipient chips, large record button, live waveform, review then send. Consent prompt the first time |

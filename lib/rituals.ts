@@ -5,7 +5,16 @@ import { RitualConfigSchema as BaseRitualConfigSchema } from "./schemas";
 // in this module; all specifics live in the JSON configs.
 // `lampHour`: the local hour every home lights its lamp on the day
 // (festivals; unset = the default, 19:00).
-export const RitualConfigSchema = BaseRitualConfigSchema.extend({ lampHour: z.number().int().min(0).max(23).optional() });
+// `accent`: the festival's colour (#rrggbb), the tint of its Festival Week card.
+// `lampAccent`: the glow colour of the lamp rings that week (default: accent).
+// `greeting`: the festival's own greeting, shown on the card.
+const HEX = /^#[0-9a-fA-F]{6}$/;
+export const RitualConfigSchema = BaseRitualConfigSchema.extend({
+  lampHour: z.number().int().min(0).max(23).optional(),
+  accent: z.string().regex(HEX).optional(),
+  lampAccent: z.string().regex(HEX).optional(),
+  greeting: z.string().trim().min(1).max(60).optional(),
+});
 export type RitualConfig = z.infer<typeof RitualConfigSchema>;
 
 export function loadRitualConfig(json: unknown): RitualConfig {
