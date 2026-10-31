@@ -6,7 +6,8 @@ import { adminCount } from "@/lib/roles";
 // Hand the family over: the owner makes someone else the owner and becomes
 // an admin. Owner only. The new owner must be an active grown-up (admin or
 // member) with their own account, and the admin cap (3, owner included) holds.
-export async function POST(req: Request, { params }: { params: { id: string } }): Promise<Response> {
+export async function POST(req: Request, props: { params: Promise<{ id: string }> }): Promise<Response> {
+  const params = await props.params;
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const me = await requireCan(auth, "owner.transfer");

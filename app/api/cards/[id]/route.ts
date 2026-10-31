@@ -16,7 +16,8 @@ async function load(req: Request, id: string) {
   return { auth, card, me };
 }
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }): Promise<Response> {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }): Promise<Response> {
+  const params = await props.params;
   const t = await load(req, params.id);
   if (t instanceof Response) return t;
   if (!canChange(t.me, t.card.authorId, "edit")) return Response.json({ error: "not-yours" }, { status: 403 });
@@ -29,7 +30,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   return card ? Response.json({ card }) : Response.json({ error: "update-failed" }, { status: 500 });
 }
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }): Promise<Response> {
+export async function DELETE(req: Request, props: { params: Promise<{ id: string }> }): Promise<Response> {
+  const params = await props.params;
   const t = await load(req, params.id);
   if (t instanceof Response) return t;
   if (!canChange(t.me, t.card.authorId, "delete")) return Response.json({ error: "not-yours" }, { status: 403 });

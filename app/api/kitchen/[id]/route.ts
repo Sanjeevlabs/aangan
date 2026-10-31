@@ -5,7 +5,8 @@ import { toLangCode } from "@/lib/languages";
 
 // One recipe, in the reader's language (Muse translates the whole card once
 // per language and caches it), with everyone's attempts.
-export async function GET(req: Request, { params }: { params: { id: string } }): Promise<Response> {
+export async function GET(req: Request, props: { params: Promise<{ id: string }> }): Promise<Response> {
+  const params = await props.params;
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const recipe = await getDoc(auth.familyId, "recipe", params.id);

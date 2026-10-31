@@ -92,7 +92,7 @@ export function Icon({ name, size = 22, className, strokeWidth = 2 }: { name: Ic
 }
 
 /* ---------------------------------------------------------------- photo */
-// next/image for bundled demo art (optimised, AVIF/WebP); plain passthrough for
+// next/image for bundled demo art (served as-is: see next.config.mjs); plain passthrough for
 // signed/session URLs that the optimiser can't fetch.
 export function Photo({
   src,

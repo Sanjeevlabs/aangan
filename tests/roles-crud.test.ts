@@ -18,7 +18,7 @@ import { sessionCookie } from "./auth-helper";
 const req = (url: string, member: string, body?: unknown, method = body === undefined ? "GET" : "POST") =>
   new Request(`http://test${url}`, { method, headers: { "content-type": "application/json", cookie: sessionCookie(member) }, body: body === undefined ? undefined : JSON.stringify(body) });
 const json = async <T = Record<string, unknown>>(r: Response | Promise<Response>) => (await (await r).json()) as T;
-const id = (x: string) => ({ params: { id: x } });
+const id = (x: string) => ({ params: Promise.resolve({ id: x }) });
 
 beforeEach(() => resetDemo());
 

@@ -9,7 +9,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 // shuffles process.env around is not a secret.
 const SECRET_PATTERNS = [/sk-[A-Za-z0-9]{8,}/, /AKIA[0-9A-Z]{16}/, /META_API_KEY\s*=\s*["'][A-Za-z0-9_\-]{8,}["']/];
 const FESTIVALS = ["diwali", "christmas", "eid", "hanukkah", "thanksgiving", "lunar new year"];
-const SKIP_DIRS = new Set(["node_modules", ".next", ".git", ".hg", ".sl", ".eden"]);
+const SKIP_DIRS = new Set(["node_modules", ".next", ".open-next", ".wrangler", ".git", ".hg", ".sl", ".eden"]);
 
 function files(dir) {
   const out = [];

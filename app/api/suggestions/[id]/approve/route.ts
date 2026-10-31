@@ -5,7 +5,8 @@ import { requireSession } from "@/lib/auth";
 // Review / Approve: the ONLY place agent proposals become actions.
 // Payload actions: create_card | assign_daily_role | request_wish |
 // schedule_notification (acknowledge) | create_gather_session | assemble_reel.
-export async function POST(req: Request, { params }: { params: { id: string } }): Promise<Response> {
+export async function POST(req: Request, props: { params: Promise<{ id: string }> }): Promise<Response> {
+  const params = await props.params;
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const all = await dbListSuggestions(undefined, auth.familyId);

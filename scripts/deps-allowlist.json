@@ -11,6 +11,7 @@
     "@capacitor/share": "native share sheet",
     "@capacitor/splash-screen": "native splash (configured in capacitor.config.ts, no JS import)",
     "@capacitor/status-bar": "status bar style",
+    "@opennextjs/cloudflare": "Cloudflare Workers adapter (npm run cf:build); runtime helpers are bundled into the worker",
     "@supabase/supabase-js": "Postgres, Auth, Storage",
     "clsx": "class names",
     "exifr": "photo date from EXIF, then stripped",
@@ -34,6 +35,7 @@
     "postcss": "CSS",
     "tailwindcss": "CSS",
     "typescript": "typecheck",
-    "vitest": "tests"
+    "vitest": "tests",
+    "wrangler": "Cloudflare CLI: local Workers preview, secrets, deploy"
   }
 }

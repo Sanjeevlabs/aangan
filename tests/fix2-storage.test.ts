@@ -53,9 +53,9 @@ describe("signed-URL storage (mock backend)", () => {
     ).json()) as { ref: string; path: string; uploadUrl: string };
     // Before any bytes exist the proxy 404s; the mapping itself is stable.
     expect(resolveMediaUrl(ref)).toMatch(/^\/api\/media\/demo-family\/uploads\//);
-    const proxied = await mediaProxy(authed("http://test/api/media/x"), { params: { path: ["..", "x"] } });
+    const proxied = await mediaProxy(authed("http://test/api/media/x"), { params: Promise.resolve({ path: ["..", "x"] }) });
     expect(proxied.status).toBe(400);
-    const unknown = await mediaProxy(authed("http://test/api/media/nope"), { params: { path: ["demo-family", "nope"] } });
+    const unknown = await mediaProxy(authed("http://test/api/media/nope"), { params: Promise.resolve({ path: ["demo-family", "nope"] }) });
     expect(unknown.status).toBe(404);
   });
 

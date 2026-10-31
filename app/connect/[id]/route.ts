@@ -8,7 +8,8 @@ import { saveToken } from "@/lib/partners/tokens";
 // signed-in member; the token is stored server-side, never sent on.
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request, { params }: { params: { id: string } }): Promise<Response> {
+export async function GET(req: Request, props: { params: Promise<{ id: string }> }): Promise<Response> {
+  const params = await props.params;
   const acct = /^[a-z0-9-]{1,32}$/.test(params.id) ? getAccount(params.id) : undefined;
   const finish = (status: "ok" | "error" | "denied") =>
     new Response(null, { status: 302, headers: { location: new URL(`/connect/${acct?.id ?? "partner"}/done?status=${status}`, req.url).toString(), "set-cookie": clearFlowCookie(), "cache-control": "no-store" } });

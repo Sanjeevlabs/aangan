@@ -109,7 +109,7 @@ describe("ritual-scan + suggestions API (mock store)", () => {
     const approved = await approvePOST(
       new Request("http://test/api/approve", { method: "POST", headers: { cookie: sessionCookie() } }),
       {
-        params: { id: target.id },
+        params: Promise.resolve({ id: target.id }),
       },
     );
     expect(approved.status).toBe(200);
@@ -117,7 +117,7 @@ describe("ritual-scan + suggestions API (mock store)", () => {
     const again = await approvePOST(
       new Request("http://test/api/approve", { method: "POST", headers: { cookie: sessionCookie() } }),
       {
-        params: { id: target.id },
+        params: Promise.resolve({ id: target.id }),
       },
     );
     expect(again.status).toBe(409);

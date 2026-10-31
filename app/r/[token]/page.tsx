@@ -9,7 +9,8 @@ import { countView, getShare } from "@/lib/shares";
 
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata({ params }: { params: { token: string } }): Promise<Metadata> {
+export async function generateMetadata(props: { params: Promise<{ token: string }> }): Promise<Metadata> {
+  const params = await props.params;
   const share = await getShare(params.token);
   if (!share) return { title: "Aangan", robots: { index: false } };
   const r = share.snapshot;
@@ -21,7 +22,8 @@ export async function generateMetadata({ params }: { params: { token: string } }
   };
 }
 
-export default async function SharedRecipe({ params }: { params: { token: string } }) {
+export default async function SharedRecipe(props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const share = await getShare(params.token);
   if (!share) {
     return (

@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "lib": ["dom", "dom.iterable", "es2022"],
+    "target": "ES2017",
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -10,12 +11,12 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "incremental": true,
     "plugins": [{ "name": "next" }],
     "paths": { "@/*": ["./*"] },
     "types": ["vitest/globals", "node"]
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "scripts/*.mjs"],
-  "exclude": ["node_modules", "android", "ios"]
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", ".next/dev/types/**/*.ts", "scripts/*.mjs"],
+  "exclude": ["node_modules", "android", "ios", ".open-next", ".wrangler"]
 }

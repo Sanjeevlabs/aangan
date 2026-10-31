@@ -23,7 +23,8 @@ async function target(req: Request, id: string): Promise<{ auth: { familyId: str
   return { auth, member, me };
 }
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }): Promise<Response> {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }): Promise<Response> {
+  const params = await props.params;
   const t = await target(req, params.id);
   if (t instanceof Response) return t;
   let body: unknown;
@@ -61,7 +62,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   return Response.json({ member, ...(consent ? { consent } : {}) });
 }
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }): Promise<Response> {
+export async function DELETE(req: Request, props: { params: Promise<{ id: string }> }): Promise<Response> {
+  const params = await props.params;
   const t = await target(req, params.id);
   if (t instanceof Response) return t;
   if (t.member.id === t.me.id) return Response.json({ error: "use-leave-family" }, { status: 409 });

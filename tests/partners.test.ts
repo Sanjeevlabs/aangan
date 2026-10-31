@@ -20,7 +20,7 @@ const post = (url: string, member: string, body: unknown) =>
   new Request(`http://test${url}`, { method: "POST", headers: { "content-type": "application/json", cookie: sessionCookie(member) }, body: JSON.stringify(body) });
 const get = (url: string, member: string, extraCookie = "") => new Request(`http://test${url}`, { headers: { cookie: [sessionCookie(member), extraCookie].filter(Boolean).join("; ") } });
 const json = async <T = Record<string, unknown>>(r: Response | Promise<Response>) => (await (await r).json()) as T;
-const ctx = (id: string) => ({ params: { id } });
+const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
 
 type S = { id: string; partnerId: string; via: string; kind: string; name: string; price: number; sample: boolean };
 

@@ -2,8 +2,7 @@
 // logic), member birthdays, national days, and the festivals of the
 // traditions this family celebrates (lib/holidays.ts). Birthdays always
 // count. Server only.
-import { readFileSync, readdirSync } from "fs";
-import { join } from "path";
+import { RITUAL_FILES } from "@/rituals";
 import { daysUntilBirthday } from "./family";
 import { countryForZones, holidaysFor, DEFAULT_LAMP_HOUR, type HolidayItem, type HolidayDeps, type HolidaySource } from "./holidays";
 import { cleanTitle, visibleHolidays, type CalHoliday, type OccasionConfig } from "./occasion-calendar";
@@ -23,22 +22,15 @@ export interface ServerRitualConfig extends OccasionConfig {
   lampHour?: number;
 }
 
-/** Every valid config in rituals/*.json; a bad file is skipped, not fatal. */
+/** Every valid config in rituals/*.json (bundled); a bad file is skipped, not fatal. */
 export function ritualConfigs(): ServerRitualConfig[] {
-  const dir = join(process.cwd(), "rituals");
-  let names: string[] = [];
-  try {
-    names = readdirSync(dir).filter((n) => n.endsWith(".json")).sort();
-  } catch {
-    return [];
-  }
   const out: ServerRitualConfig[] = [];
-  for (const n of names) {
+  for (const { name, json } of [...RITUAL_FILES].sort((a, b) => a.name.localeCompare(b.name))) {
     try {
-      const c = loadRitualConfig(JSON.parse(readFileSync(join(dir, n), "utf8")));
+      const c = loadRitualConfig(json);
       out.push({ slug: c.slug, title: c.title, cultureNotes: c.cultureNotes, steps: c.steps, ...(c.lampHour !== undefined ? { lampHour: c.lampHour } : {}) });
     } catch {
-      console.error("[occasions] skipped invalid ritual config", n);
+      console.error("[occasions] skipped invalid ritual config", name);
     }
   }
   return out;

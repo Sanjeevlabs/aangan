@@ -64,7 +64,7 @@ describe("kitchen", () => {
     const blessed = await json<{ attempt: { blessedBy: string[] } }>(kitchenPost(req("/api/kitchen", "dadi", { action: "bless", attemptId: cooked.attempt.id })));
     expect(blessed.attempt.blessedBy).toEqual(["dadi"]);
 
-    const page = await json<{ recipe: { id: string }; translated: boolean; attempts: unknown[] }>(recipeGet(req(`/api/kitchen/${taught.recipe.id}?lang=en`), { params: { id: taught.recipe.id } }));
+    const page = await json<{ recipe: { id: string }; translated: boolean; attempts: unknown[] }>(recipeGet(req(`/api/kitchen/${taught.recipe.id}?lang=en`), { params: Promise.resolve({ id: taught.recipe.id }) }));
     expect(page.translated).toBe(false);
     expect(page.attempts).toHaveLength(1);
   });

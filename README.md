@@ -28,7 +28,7 @@ Every family keeps its own Aangan. A married couple and their children belong to
 
 Solo Indie-track entry, Meta Global AI Developer Hackathon. Deadline 4 Nov 2026, 9:00 PM ET.
 
-Everything in this repo was built during the event window (27 Oct – 4 Nov 2026); see [BUILD_LOG.md](BUILD_LOG.md) for the day-by-day record. Stack: Next.js 14 PWA on Vercel, Supabase (Postgres + private Storage + RLS by `family_id`), one Next.js app, no queues or workers. Sign-in is an email code; invite codes let someone take a place the family made for them. Two synthetic demo families (`demo-family` = Sharma, `demo-iyer` = Iyer) open with the public demo code.
+Everything in this repo was built during the event window (27 Oct – 4 Nov 2026); see [BUILD_LOG.md](BUILD_LOG.md) for the day-by-day record. Stack: Next.js 16 PWA on Cloudflare Workers (OpenNext; see [docs/DEPLOY.md](docs/DEPLOY.md)), Supabase (Postgres + private Storage + RLS by `family_id`), one Next.js app, no queues or workers. Sign-in is an email code; invite codes let someone take a place the family made for them. Two synthetic demo families (`demo-family` = Sharma, `demo-iyer` = Iyer) open with the public demo code.
 
 Run it:
 

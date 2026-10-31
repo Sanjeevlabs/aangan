@@ -15,7 +15,8 @@ function account(id: string) {
   return a && isEnabled({ envFlag: a.envFlag, defaultOn: false }) ? a : undefined;
 }
 
-export async function GET(req: Request, { params }: { params: { id: string } }): Promise<Response> {
+export async function GET(req: Request, props: { params: Promise<{ id: string }> }): Promise<Response> {
+  const params = await props.params;
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const acct = account(params.id);
@@ -37,7 +38,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }):
   }
 }
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }): Promise<Response> {
+export async function DELETE(req: Request, props: { params: Promise<{ id: string }> }): Promise<Response> {
+  const params = await props.params;
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const acct = /^[a-z0-9-]{1,32}$/.test(params.id) ? getAccount(params.id) : undefined;

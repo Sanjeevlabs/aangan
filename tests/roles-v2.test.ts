@@ -30,7 +30,7 @@ const F = "demo-family";
 const req = (url: string, member: string, body?: unknown, method = body === undefined ? "GET" : "POST", familyId = F) =>
   new Request(`http://test${url}`, { method, headers: { "content-type": "application/json", cookie: sessionCookie(member, familyId) }, body: body === undefined ? undefined : JSON.stringify(body) });
 const json = async <T = Record<string, unknown>>(r: Response | Promise<Response>) => (await (await r).json()) as T;
-const id = (x: string) => ({ params: { id: x } });
+const id = (x: string) => ({ params: Promise.resolve({ id: x }) });
 const setRole = (actor: string, who: string, access: Member["access"]) => memberPatch(req(`/api/members/${who}`, actor, { access }, "PATCH"), id(who));
 const cookieOf = (res: Response) => (res.headers.get("set-cookie") ?? "").split(";")[0];
 let seq = 0;

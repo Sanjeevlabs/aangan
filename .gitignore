@@ -35,3 +35,7 @@ docs/private/
 
 # Local agent worktrees
 .claude/
+# Cloudflare (OpenNext) build output and local state
+.open-next/
+.wrangler/
+.dev.vars

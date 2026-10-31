@@ -12,7 +12,8 @@ const Body = z.object({
   access: z.enum(["member", "teen"]).default("member"),
 });
 
-export async function POST(req: Request, { params }: { params: { id: string } }): Promise<Response> {
+export async function POST(req: Request, props: { params: Promise<{ id: string }> }): Promise<Response> {
+  const params = await props.params;
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const me = await requireCan(auth, "members.approve");

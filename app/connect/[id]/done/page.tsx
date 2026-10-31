@@ -4,7 +4,11 @@ import { getAccount } from "@/lib/partners/registry";
 // Where a partner connection lands: a calm confirmation, then back to Settings.
 export const dynamic = "force-dynamic";
 
-export default function ConnectDone({ params, searchParams }: { params: { id: string }; searchParams: { status?: string } }) {
+export default async function ConnectDone(
+  props: { params: Promise<{ id: string }>; searchParams: Promise<{ status?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const name = getAccount(params.id)?.name ?? "The app";
   const status = searchParams.status === "ok" ? "ok" : searchParams.status === "denied" ? "denied" : "error";
   const title = status === "ok" ? `${name} is connected` : status === "denied" ? "Not connected" : "Couldn't connect";

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, use } from "react";
 import { AvailabilityPicker } from "@/components/event-availability";
 import { AvatarStack, comingIds, EventTimes, JoinButton } from "@/components/event-card";
 import { EventSections } from "@/components/event-sections";
@@ -15,7 +15,8 @@ import { callName } from "@/lib/people";
 
 type Tab = "plan" | "tasks" | "playlist";
 
-export default function EventPage({ params }: { params: { id: string } }) {
+export default function EventPage(props: { params: Promise<{ id: string }> }) {
+  const params = use(props.params);
   const { viewer, members } = useViewer();
   const router = useRouter();
   const { data, failed, reload } = useEvents();
