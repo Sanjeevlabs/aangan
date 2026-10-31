@@ -70,6 +70,8 @@ async function postMoment(upload: ProcessedUpload, file: File | Blob, caption: s
   if (extra.note) form.append("note", extra.note.slice(0, CARD_NOTE_MAX));
   form.append("lang", lang);
   form.append("takenAt", upload.takenAt);
+  form.append("takenAtSource", upload.takenAtSource);
+  form.append("mediaRef", upload.mediaRef);
   form.append("source", upload.source);
   form.append("peaks", JSON.stringify(upload.peaks));
   form.append("palette", JSON.stringify(upload.palette));

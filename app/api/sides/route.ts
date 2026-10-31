@@ -5,6 +5,7 @@ import { allowAuthAttempt } from "@/lib/otp";
 import type { Member } from "@/lib/schemas";
 import { isAdmin, isGrownUp } from "@/lib/permissions";
 import { recordTeenConsent } from "@/lib/roles";
+import { guardWrites } from "@/lib/api-guard";
 
 // Two courtyards, one door. Each family keeps its own Aangan; a married couple
 // and their children belong to both. Nothing crosses between Aangans: this
@@ -51,7 +52,7 @@ function newPersonId(): string {
   return `p-${crypto.randomUUID().slice(0, 16)}`;
 }
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const me = await dbGetMember(auth.memberId);
@@ -59,7 +60,7 @@ export async function GET(req: Request): Promise<Response> {
   return Response.json({ current: auth.familyId, sides: await sidesOf(me) });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const parsed = Body.safeParse(await req.json().catch(() => null));
@@ -144,3 +145,6 @@ export async function POST(req: Request): Promise<Response> {
   if (!signed) return Response.json({ error: "session-unavailable" }, { status: 500 });
   return Response.json({ familyId, memberId: self.id, invite }, { headers: { "set-cookie": sessionCookieHeader(signed) } });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

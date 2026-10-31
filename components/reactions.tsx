@@ -1,13 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { strings } from "@/lib/i18n";
 import { REACTION_EMOJI, REACTION_ORDER, REACTION_WORD, toggleReaction } from "@/lib/reaction-names";
 import { memberPhoto } from "@/lib/people";
 import { Avatar, Icon } from "./ui/kit";
 import type { Member, Play, Reaction } from "@/lib/schemas";
 import { cn } from "@/lib/utils";
-import { useShell } from "./shell";
 import { useViewer } from "./viewer";
 import { heardLine } from "@/lib/voice";
 
@@ -79,10 +78,8 @@ export async function sendBlessing(cardId: string, memberId: string): Promise<bo
 // Long-press on Bless replies by voice.
 export function ReactionBar({ cardId, tone = "light", onReply }: { cardId: string; compact?: boolean; tone?: "light" | "glass"; onReply?: () => void }) {
   const { viewer, displayLang } = useViewer();
-  const { openAdd } = useShell();
   const t = strings(displayLang);
   const [reactions, setReactions] = useState<Reaction[] | null>(null);
-  const pressTimer = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -121,17 +118,6 @@ export function ReactionBar({ cardId, tone = "light", onReply }: { cardId: strin
     }
   };
 
-  const beginPress = () => {
-    if (pressTimer.current) window.clearTimeout(pressTimer.current);
-    pressTimer.current = window.setTimeout(() => openAdd("voice"), 550);
-  };
-  const endPress = () => {
-    if (pressTimer.current) {
-      window.clearTimeout(pressTimer.current);
-      pressTimer.current = null;
-    }
-  };
-
   const labelFor = (kind: (typeof KINDS)[number]): string =>
     kind === "love" ? t.reactions.love : kind === "laugh" ? t.reactions.laugh : t.reactions.bless;
 
@@ -154,10 +140,7 @@ export function ReactionBar({ cardId, tone = "light", onReply }: { cardId: strin
               type="button"
               aria-pressed={on}
               onClick={() => void react(kind)}
-              onPointerDown={kind === "bless" ? beginPress : undefined}
-              onPointerUp={kind === "bless" ? endPress : undefined}
-              onPointerLeave={kind === "bless" ? endPress : undefined}
-              title={kind === "bless" ? `${labelFor(kind)} · hold to bless by voice` : labelFor(kind)}
+              title={labelFor(kind)}
               className={cn(
                 "press flex h-12 flex-1 items-center justify-center gap-1.5 rounded-full text-[15px] font-medium",
                 on ? (glass ? "bg-white text-black" : "bg-black text-white") : glass ? "text-white" : "text-ink",

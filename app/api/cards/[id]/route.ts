@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireSession } from "@/lib/auth";
 import { dbDeleteCard, dbGetMember, dbListCards, dbUpdateCard } from "@/lib/db";
 import { canChange } from "@/lib/permissions";
+import { guardWrites } from "@/lib/api-guard";
 
 // One voice note, photo or video: the author can fix the caption or delete
 // it; an admin can delete anything (moderation). Deleting removes its plays,
@@ -16,7 +17,7 @@ async function load(req: Request, id: string) {
   return { auth, card, me };
 }
 
-export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }): Promise<Response> {
+async function patchHandler(req: Request, props: { params: Promise<{ id: string }> }): Promise<Response> {
   const params = await props.params;
   const t = await load(req, params.id);
   if (t instanceof Response) return t;
@@ -30,7 +31,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
   return card ? Response.json({ card }) : Response.json({ error: "update-failed" }, { status: 500 });
 }
 
-export async function DELETE(req: Request, props: { params: Promise<{ id: string }> }): Promise<Response> {
+async function deleteHandler(req: Request, props: { params: Promise<{ id: string }> }): Promise<Response> {
   const params = await props.params;
   const t = await load(req, params.id);
   if (t instanceof Response) return t;
@@ -38,3 +39,6 @@ export async function DELETE(req: Request, props: { params: Promise<{ id: string
   const ok = await dbDeleteCard(t.card.id, t.auth.familyId);
   return ok ? Response.json({ deleted: t.card.id }) : Response.json({ error: "delete-failed" }, { status: 500 });
 }
+
+export const PATCH = guardWrites(patchHandler);
+export const DELETE = guardWrites(deleteHandler);

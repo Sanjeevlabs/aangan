@@ -30,8 +30,16 @@ export function upcomingOccasion(o: { slug: string; kind: "birthday" | "festival
   return { key: occasionEventKey(o.slug, o.date, o.memberId), slug: o.slug, kind: o.kind, type: typeForOccasion(o.slug, o.kind), date: o.date, days, label, memberId: o.memberId };
 }
 
+/** "2026-11-09" -> "9 Nov". */
+export function shortDate(iso: string): string {
+  const d = new Date(`${iso}T12:00:00Z`);
+  return Number.isNaN(d.getTime()) ? "" : `${d.getUTCDate()} ${d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })}`;
+}
+
 export function suggestText(o: UpcomingOccasion): string {
-  return o.kind === "birthday" ? `Plan ${o.label} celebration?` : `Plan a ${o.label} celebration?`;
+  const q = o.kind === "birthday" ? `Plan ${o.label} celebration?` : `Plan a ${o.label} celebration?`;
+  const when = shortDate(o.date);
+  return when ? `${q} \u00b7 ${when}` : q;
 }
 
 export function buildPrompts(input: {

@@ -6,6 +6,7 @@ import { STORY_AGES, STORY_THEMES } from "@/lib/kinds";
 import { canChange } from "@/lib/permissions";
 import { labelStory } from "@/lib/stories";
 import { ideaFor } from "@/lib/story-ideas";
+import { guardWrites } from "@/lib/api-guard";
 
 // Stories, the kids' corner.
 // GET  → stories + open story requests
@@ -21,7 +22,7 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("withdraw"), questionId: z.string().min(1) }),
 ]);
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const [stories, questions] = await Promise.all([listDocs(auth.familyId, "story"), listDocs(auth.familyId, "question")]);
@@ -30,7 +31,7 @@ export async function GET(req: Request): Promise<Response> {
   return Response.json({ stories, requests: questions.filter((q) => q.topic === "story" && q.askedBy && !q.answeredCardId), idea });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   if (!checkRateLimit(auth, "/api/stories")) return Response.json({ error: "rate-limited" }, { status: 429 });
@@ -92,3 +93,6 @@ export async function POST(req: Request): Promise<Response> {
   });
   return Response.json({ question }, { status: 201 });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

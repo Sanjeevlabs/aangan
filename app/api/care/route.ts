@@ -8,6 +8,7 @@ import { HELPER_ROLES, NEED_KINDS, NEED_STATUSES, PRIORITIES, RECURRENCE, type H
 import { isDialable, MAX_NEARBY, normalizePhone, rankNearby } from "@/lib/nearby";
 import { can } from "@/lib/permissions";
 import type { Member } from "@/lib/schemas";
+import { guardWrites } from "@/lib/api-guard";
 
 // Care board: tasks for each home (open → assigned → in progress → done,
 // or cancelled) and the home's local helpers. A helper marked `emergency` is
@@ -71,7 +72,7 @@ function rankedNearby(helpers: Helper[], homeIds: Set<string>): Helper[] {
   return rankNearby(helpers.filter((h) => h.emergency && homeIds.has(h.forMemberId)));
 }
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const [needs, helpers] = await Promise.all([listDocs(auth.familyId, "need"), listDocs(auth.familyId, "helper")]);
@@ -87,7 +88,7 @@ function nextDue(from: string | null, recurring: Need["recurring"]): string | nu
   return d.toISOString();
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   if (!checkRateLimit(auth, "/api/care")) return Response.json({ error: "rate-limited" }, { status: 429 });
@@ -280,3 +281,6 @@ export async function POST(req: Request): Promise<Response> {
     }
   }
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

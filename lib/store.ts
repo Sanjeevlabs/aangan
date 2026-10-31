@@ -1,3 +1,4 @@
+import { weekStartOf } from "./week";
 import { seedDemoRooms } from "./demo-rooms";
 import { resetDocs } from "./family-docs";
 import type { z } from "zod";
@@ -221,11 +222,7 @@ export function seedDemo(): void {
   photo("demo-wed-silk", "priya", "2025-12-06T09:10:00.000Z", "/demo/family-dadi.webp", "Maa in the silk she wore at her own wedding.", { place: "Jaipur" });
   photo("demo-wed-mehendi", "priya", "2025-12-05T14:00:00.000Z", "/demo/portrait-aria.webp", "Anika's first mehendi, drying in the sun.", { place: "Jaipur" });
   photo("demo-wed-baraat", "arjun", "2025-12-06T15:45:00.000Z", "/demo/portrait-dad.webp", "Dancing in the baraat till the band gave up.", { place: "Jaipur" });
-}
 
-export function resetDemo(): void {
-  members = [...DEMO_MEMBERS, ...DEMO_IYER_MEMBERS].map((m) => MemberSchema.parse(m));
-  clearPlays();
   // A few real-looking listens so a parent's "your gifts this week" isn't empty
   // in the demo: each is someone hearing something Maa or Papa gave.
   const h = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
@@ -236,6 +233,27 @@ export function resetDemo(): void {
     ["play-priya-morning", "demo-from-dadi-1", "priya", h(3)],
   ] as const)
     addPlay({ id, familyId: "demo-family", cardId, memberId, playedAt: at });
+
+  // This week's letter from the courtyard, waiting for a grown-up (invented; only the family's names).
+  addSuggestion({
+    id: "demo-weekly-letter",
+    familyId: "demo-family",
+    createdAt: new Date().toISOString(),
+    goal: "Send this week's letter?",
+    payload: {
+      action: "weekly_letter",
+      title: "A letter from the courtyard",
+      body: "Dear family,\n\nMaa's voice note about the rain reached you all, and Priya and Arjun both stopped to listen. Papa told Vihaan and Anika a story, and Kavya and Rohan asked for it again.\n\nThe lamp was lit and the courtyard was full of you, even from far away.\n\nWith love, from all of us at home.",
+      lang: "en",
+      weekStart: weekStartOf(),
+      factCount: 8,
+    },
+  });
+}
+
+export function resetDemo(): void {
+  members = [...DEMO_MEMBERS, ...DEMO_IYER_MEMBERS].map((m) => MemberSchema.parse(m));
+  clearPlays();
   clearReactions();
   clearRelationships();
   kinshipCache.clear();

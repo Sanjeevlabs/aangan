@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth";
 import { dbListMembers } from "@/lib/db";
 import { deleteDoc, getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
 import { SITTING_REASONS } from "@/lib/kinds";
+import { guardWrites } from "@/lib/api-guard";
 
 // Sit together: planned sittings with a reason, and "come sit" knocks.
 const Body = z.discriminatedUnion("action", [
@@ -22,7 +23,7 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("unknock") }),
 ]);
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const now = Date.now();
@@ -34,7 +35,7 @@ export async function GET(req: Request): Promise<Response> {
   });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const parsed = Body.safeParse(await req.json().catch(() => null));
@@ -80,3 +81,6 @@ export async function POST(req: Request): Promise<Response> {
   const knock = await putDoc(auth.familyId, "knock", { id: newId("knock"), memberId: auth.memberId, note: body.note, at: now.toISOString(), until: new Date(now.getTime() + body.minutes * 60_000).toISOString() });
   return Response.json({ knock }, { status: 201 });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

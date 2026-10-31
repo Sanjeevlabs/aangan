@@ -1,9 +1,12 @@
 import { z } from "zod";
 import { DEMO_INVITE_CODE, clearSessionCookieHeader, isDemoFamily, sessionCookieHeader, sessionFromRequest, signSession } from "@/lib/auth";
-import { dbGetMember, dbListInvites, dbListMembers } from "@/lib/db";
-import { isAdmin } from "@/lib/permissions";
+import { dbFindInvite, dbGetMember, dbListMembers } from "@/lib/db";
+import { isAdmin, isClaimable } from "@/lib/permissions";
 import { hostOf } from "@/lib/roles";
-import { allowAuthAttempt } from "@/lib/otp";
+import { allowAuthAttempt, callerKey } from "@/lib/otp";
+import { dbFor, dbLive } from "@/lib/family-db";
+import { isSeedFamily } from "@/lib/family";
+import { createSandbox, sandboxId, visitorOf } from "@/lib/demo-sandbox";
 
 const ExchangeSchema = z.object({
   inviteCode: z.string().min(1).max(64),
@@ -22,12 +25,16 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: "invalid-json" }, { status: 400 });
   }
   // Slow down guessing: per caller address and per target member.
-  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "local";
+  const ip = callerKey(req) ?? "local";
   const claimed = (body as { memberId?: unknown } | null)?.memberId;
-  if (!allowAuthAttempt(`session:${ip}`, 20) || (typeof claimed === "string" && !allowAuthAttempt(`session-member:${claimed}`, 10))) return Response.json({ error: "too-many-attempts" }, { status: 429 });
+  const demoCode = (body as { inviteCode?: unknown } | null)?.inviteCode === DEMO_INVITE_CODE;
+  // The per-member limit slows invite-code guessing; the public demo code has
+  // nothing to guess, and every demo visitor asks for the same seed member.
+  if (!allowAuthAttempt(`session:${ip}`, 20) || (!demoCode && typeof claimed === "string" && !allowAuthAttempt(`session-member:${claimed}`, 10))) return Response.json({ error: "too-many-attempts" }, { status: 429 });
   const parsed = ExchangeSchema.safeParse(body);
   if (!parsed.success) return Response.json({ error: "invalid-session" }, { status: 400 });
   const code = parsed.data.inviteCode.trim();
+  if (code === DEMO_INVITE_CODE && dbLive()) return enterDemo(req, parsed.data.memberId);
   const member = await dbGetMember(parsed.data.memberId);
   if (!member) return Response.json({ error: "unknown-member" }, { status: 404 });
 
@@ -39,10 +46,14 @@ export async function POST(req: Request): Promise<Response> {
     // never opens a person who has their own account, or an admin: they sign
     // in with their email code.
     return Response.json({ error: "sign-in-with-email" }, { status: 403 });
+  } else if (!isClaimable(member)) {
+    // Same rule as joining by email: a code opens only a grown-up's open
+    // place, never a child's or teen's profile.
+    return Response.json({ error: "not-claimable" }, { status: 403 });
   } else {
-    const now = Date.now();
-    const invites = await dbListInvites();
-    ok = invites.some((i) => i.code === code && i.familyId === member.familyId && new Date(i.expiresAt).getTime() > now);
+    // Codes are stored upper-case; typing them any case works.
+    const invite = await dbFindInvite(code);
+    ok = Boolean(invite && invite.familyId === member.familyId);
   }
   if (!ok) return Response.json({ error: "invalid-invite" }, { status: 403 });
 
@@ -52,6 +63,33 @@ export async function POST(req: Request): Promise<Response> {
     { familyId: member.familyId, memberId: member.id },
     { headers: { "set-cookie": sessionCookieHeader(signed) } },
   );
+}
+
+// The public demo with the database live: each visitor gets their own copy of
+// the seed (lib/demo-sandbox.ts), reused while their cookie lasts, so what
+// they add survives reloads and nobody sees anyone else's uploads.
+async function enterDemo(req: Request, seedMemberId: string): Promise<Response> {
+  const seedMember = await dbGetMember(seedMemberId);
+  if (!seedMember || !isSeedFamily(seedMember.familyId)) return Response.json({ error: "unknown-member" }, { status: 404 });
+  let memberId: string | null = null;
+  const current = sessionFromRequest(req);
+  const vid = current ? visitorOf(current.familyId) : null;
+  if (vid) {
+    const again = await dbGetMember(sandboxId(seedMemberId, vid));
+    if (again && visitorOf(again.familyId) === vid) memberId = again.id;
+  }
+  if (!memberId) {
+    const sb = dbFor(null);
+    if (!sb) return Response.json({ error: "session-unavailable" }, { status: 503 });
+    const made = await createSandbox(sb, callerKey(req));
+    if (!made.ok) return Response.json({ error: made.error === "busy" ? "demo-busy" : "demo-unavailable" }, { status: 503 });
+    memberId = made.idMap.get(seedMemberId) ?? null;
+  }
+  const member = memberId ? await dbGetMember(memberId) : undefined;
+  if (!member) return Response.json({ error: "demo-unavailable" }, { status: 503 });
+  const signed = signSession({ familyId: member.familyId, memberId: member.id });
+  if (!signed) return Response.json({ error: "session-unavailable" }, { status: 500 });
+  return Response.json({ familyId: member.familyId, memberId: member.id }, { headers: { "set-cookie": sessionCookieHeader(signed) } });
 }
 
 // Current session (who am I). The one route a joiner who is still waiting

@@ -28,6 +28,15 @@ export interface AgentResult {
   status: string;
 }
 
+// A tool may hand back a ready suggestion ({ suggestion: { goal, payload } });
+// otherwise the result is wrapped with the tool name and args. draft:false = nothing to propose.
+function draftFrom(goal: string, name: string, args: Record<string, unknown>, out: unknown): AgentSuggestionDraft | null {
+  const o = out as { draft?: unknown; suggestion?: AgentSuggestionDraft } | null;
+  if (o && o.draft === false) return null;
+  if (o?.suggestion && typeof o.suggestion.goal === "string") return o.suggestion;
+  return { goal, payload: { action: name, args, result: out } };
+}
+
 // Mock planner: deterministic keyword -> tool mapping, no model. The live
 // path below uses real tool calling; both end in suggestions, never actions.
 async function mockPlan(goal: string, tools: AgentTool[]): Promise<AgentResult> {
@@ -40,9 +49,12 @@ async function mockPlan(goal: string, tools: AgentTool[]): Promise<AgentResult> 
     if (!tool) return;
     toolCalls.push({ name, args });
     const out = await tool.run(args);
-    suggestions.push({ goal, payload: { action: name, args, result: out } });
+    const d = draftFrom(goal, name, args, out);
+    if (d) suggestions.push(d);
   };
-  if (/role|teach|bless.*exam|ikigai/.test(g)) {
+  if (/letter/.test(g)) {
+    await pick("draft_weekly_letter", {});
+  } else if (/role|teach|bless.*exam|ikigai/.test(g)) {
     await pick("assign_daily_role", { goal });
   } else if (/wish|birthday|blessing|reel/.test(g)) {
     await pick("request_wish", { goal });
@@ -120,7 +132,8 @@ async function liveLoop(
       }
       toolCalls.push({ name, args });
       const out = await tool.run(args);
-      suggestions.push({ goal, payload: { action: name, args, result: out } });
+      const d = draftFrom(goal, name, args, out);
+      if (d) suggestions.push(d);
       messages.push({ role: "user", content: `Tool ${name} returned: ${JSON.stringify(out).slice(0, 2000)}` });
     }
     if (toolCalls.length > 0) break;

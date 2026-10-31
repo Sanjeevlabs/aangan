@@ -1,7 +1,7 @@
 import { traceVisible } from "@/app/trace/visible";
 import { dbListAgentRuns, dbListSuggestions } from "@/lib/db";
 import { serverLedger } from "@/lib/llm-server";
-import { requireSession } from "@/lib/auth";
+import { isDemoFamily, requireSession } from "@/lib/auth";
 import { listDocs } from "@/lib/family-docs";
 
 // Minimal agent trace: recent runs + suggestions + cumulative spend.
@@ -16,7 +16,7 @@ export async function GET(req: Request): Promise<Response> {
     runs: runs.slice(0, 50),
     suggestions: suggestions.slice(0, 50),
     museCalls: museCalls.slice(0, 60),
-    demo: auth.familyId === "demo-family",
+    demo: isDemoFamily(auth.familyId),
     spendTotalUsd: Math.round(serverLedger.total * 100) / 100,
   });
 }

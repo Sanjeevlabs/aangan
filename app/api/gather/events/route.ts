@@ -12,6 +12,7 @@ import { addDays, cleanTitle, daysBetween, occasionsInRange } from "@/lib/occasi
 import { familyHolidays } from "@/lib/occasions-server";
 import { callName } from "@/lib/people";
 import type { Member } from "@/lib/schemas";
+import { guardWrites } from "@/lib/api-guard";
 
 // Family events: Muse plans the gathering (run of show, tasks, playlist),
 // proposes three times that work in every home, each person taps what works,
@@ -37,7 +38,7 @@ function visible(events: FamilyEvent[], now = Date.now()): FamilyEvent[] {
   });
 }
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const [members, me, all, dismissed] = await Promise.all([dbListMembers(auth.familyId), dbGetMember(auth.memberId), listEvents(auth.familyId), listDismissed(auth.familyId, auth.memberId)]);
@@ -91,7 +92,7 @@ async function lock(familyId: string, e: FamilyEvent, slotId: string): Promise<F
   return putEvent(familyId, { ...e, status: "locked", lockedSlotId: slot.id, sittingId: sitting.id });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const parsed = Body.safeParse(await req.json().catch(() => null));
@@ -191,3 +192,6 @@ export async function POST(req: Request): Promise<Response> {
   if (e.sittingId) await deleteDoc(auth.familyId, "sitting", e.sittingId);
   return Response.json({ event: await putEvent(auth.familyId, { ...e, status: "cancelled" }) });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

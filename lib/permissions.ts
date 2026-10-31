@@ -66,6 +66,15 @@ export function isGrownUp(who: Pick<Member, "access"> | undefined | null): boole
   return who?.access === "owner" || who?.access === "admin" || who?.access === "member";
 }
 
+/**
+ * A place the family made for someone who hasn't joined yet: no account, not
+ * an admin, not a teen or child, not waiting for approval. An invite code may
+ * open only this kind of place ("I'm Maa"), never a child's profile.
+ */
+export function isClaimable(m: Pick<Member, "email" | "access" | "status" | "role">): boolean {
+  return !m.email && m.access === "member" && m.status !== "pending" && m.role !== "child";
+}
+
 /** Authors manage their own things; admins may remove anything in the family. */
 export function canChange(who: Pick<Member, "id" | "access"> | undefined | null, ownerId: string | null | undefined, mode: "edit" | "delete" = "delete"): boolean {
   if (!who) return false;

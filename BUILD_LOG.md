@@ -283,3 +283,10 @@
 - Safe & sound dots on the window (green / amber after a chosen 2–8 h in their day / asleep at night) + a Next step line.
 - Kutumb: five tiles, sheets per room, profile photo opens everything + settings; dock voice button with picker; confusing rows removed.
 - Muse made invisible on everyday screens; story ideas to retell; "Trusted nearby" (was local circle).
+
+## 31 Oct 2026 · Stage 21: the demo keeps what you add
+- Root cause of "uploads don't work" on the live demo: demo writes lived in Worker memory, and Cloudflare serves requests from different isolates.
+- Each demo visitor now gets their own copy of the seed in the database (both sides, `demo-v-<id>`), reused while their cookie lasts; uploads go to the private bucket under that family. Strangers never see each other's uploads. A cookie on the seed itself is sent back to the door. Copies are capped per hour and purged with their media after 48 h by the daily cron.
+- One place per job: removed the You chip's photo/voice buttons (the dock does that), the 550 ms recorder on a held Bless, and the courtyard's second "record a wish" (Coming up keeps it).
+- CI: a navigation walk in Chromium visits every room tab as a parent, an adult child and a child (scripts/walk.py).
+- Tests: 431 (sandbox ids, copy integrity, enter/reuse/switch, purge). Copy rows checked against schema.sql on a local Postgres.

@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { requireCan, requireSession } from "@/lib/auth";
 import { dbLinkMembers, dbListMembers, dbListRelationships } from "@/lib/db";
+import { guardWrites } from "@/lib/api-guard";
 
 // Link two people who are already in the family ("Papa is Maa's husband").
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const allowed = await requireCan(auth, "tree.add");
@@ -19,3 +20,5 @@ export async function POST(req: Request): Promise<Response> {
   const relationship = await dbLinkMembers({ familyId: auth.familyId, ...parsed.data });
   return Response.json({ relationship }, { status: 201 });
 }
+
+export const POST = guardWrites(postHandler);

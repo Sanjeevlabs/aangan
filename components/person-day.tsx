@@ -286,10 +286,6 @@ export function PersonDay({ member, cards, onClose }: { member: Member; cards: C
   );
 
   const close = () => onClose();
-  const add = (tab: "photos" | "voice") => {
-    close();
-    openAdd(tab);
-  };
   const author = members.find((m) => m.id === card?.authorId) ?? member;
   const cover = card ? cardCover(card, members) : "";
   const videoSrc = card?.type === "video" ? resolveMediaUrl(card.mediaRef) : null;
@@ -406,16 +402,6 @@ export function PersonDay({ member, cards, onClose }: { member: Member; cards: C
                   <Icon name="edit" size={18} />
                   {line ? "Change today's line" : "A line about today"}
                 </button>
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => add("photos")} className="press flex h-12 flex-1 items-center justify-center gap-2 rounded-full bg-white text-[16px] font-semibold text-black">
-                    <Icon name="image" size={18} />
-                    Add a photo
-                  </button>
-                  <button type="button" onClick={() => add("voice")} className="press flex h-12 flex-1 items-center justify-center gap-2 rounded-full bg-white text-[16px] font-semibold text-black">
-                    <Icon name="mic" size={18} />
-                    Add a voice note
-                  </button>
-                </div>
               </div>
             )
           ) : (

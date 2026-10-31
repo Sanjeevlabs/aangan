@@ -18,6 +18,9 @@ create table if not exists families (
   default_home_image_ref text,
   created_at timestamptz default now()
 );
+-- Demo copies: hash of the caller that made them (per-caller hourly brake).
+alter table families add column if not exists demo_caller text;
+create index if not exists families_demo_caller_idx on families (demo_caller, created_at desc);
 
 -- ---------------------------------------------------------------- members
 -- PRD: members(+home_image, lang, display_lang, tz). Legacy `language`
@@ -209,14 +212,18 @@ alter table ritual_configs add column if not exists culture_notes text default '
 alter table ritual_configs add column if not exists steps jsonb not null default '[]';
 
 -- -------------------------------------------------------------- ritual_runs
+-- Occasion slugs come from the family graph (birthdays) and rituals/*.json,
+-- not from ritual_configs rows (nothing seeds that table), so the slug is a
+-- plain column: the old foreign key made every live insert fail silently.
 create table if not exists ritual_runs (
   id text primary key,
   family_id text references families(id) on delete cascade,
-  ritual_slug text references ritual_configs(slug),
+  ritual_slug text,
   occasion_date date,
   status text default 'open' check (status in ('open', 'collecting', 'delivered', 'done')),
   created_at timestamptz default now()
 );
+alter table ritual_runs drop constraint if exists ritual_runs_ritual_slug_fkey;
 
 -- ------------------------------------------------------------------ wishes
 -- Wishes AND blessings from members/elders (kind: wish|blessing).
@@ -281,11 +288,14 @@ create table if not exists llm_calls (
 -- the model runs only on a cache miss (M3). Terms are generic kinship words.
 create table if not exists kinship_cache (
   path text not null,
-  display_lang text not null default 'en' check (display_lang in ('en', 'hi-latn', 'hi-deva')),
+  display_lang text not null default 'en',
   terms jsonb default '{}',
   created_at timestamptz default now(),
   primary key (path, display_lang)
 );
+-- Any language the app supports can be cached, so no fixed list. Databases
+-- made earlier have the old inline check (Postgres names it like this); drop it.
+alter table kinship_cache drop constraint if exists kinship_cache_display_lang_check;
 
 -- ----------------------------------------------------------------- invites
 -- Expiring invite codes (7 days). Service-role only until M5 privacy set.
@@ -320,6 +330,14 @@ create table if not exists llm_cache (
   cost_usd numeric default 0,
   created_at timestamptz default now()
 );
+
+-- Cron cursors (service role only): where the daily ritual scan stopped.
+create table if not exists cron_state (
+  id text primary key,
+  value jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+alter table cron_state enable row level security;
 
 -- --------------------------------------------------------------------- RLS
 alter table families enable row level security;

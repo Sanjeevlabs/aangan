@@ -127,7 +127,7 @@ export default function GatherPage() {
         </Link>
       )}
 
-      <ComingUp occasions={upcoming} members={members} viewerId={viewer.id} canPlan={canPlan} onPlan={(o) => setSheet({ occasion: o })} />
+      <ComingUp occasions={upcoming} members={members} canPlan={canPlan} onPlan={(o) => setSheet({ occasion: o })} />
 
       <PlanSheet
         open={sheet !== null}
@@ -146,7 +146,7 @@ export default function GatherPage() {
 }
 
 /* ------------------------------------------- occasions not planned yet */
-function ComingUp({ occasions, members, viewerId, canPlan, onPlan }: { occasions: UpcomingOccasion[]; members: Member[]; viewerId: string; canPlan: boolean; onPlan: (o: UpcomingOccasion) => void }) {
+function ComingUp({ occasions, members, canPlan, onPlan }: { occasions: UpcomingOccasion[]; members: Member[]; canPlan: boolean; onPlan: (o: UpcomingOccasion) => void }) {
   if (!occasions.length) return null;
   return (
     <section aria-label="Birthdays and festivals ahead">
@@ -155,8 +155,6 @@ function ComingUp({ occasions, members, viewerId, canPlan, onPlan }: { occasions
         {occasions.map((o) => {
           const d = new Date(`${o.date}T12:00:00Z`);
           const who = o.memberId ? members.find((m) => m.id === o.memberId) : undefined;
-          // A small second action on a person's day: send them something (Plan stays the main one).
-          const sendable = who && who.id !== viewerId && (o.kind === "birthday" || o.type === "anniversary");
           return (
             <li key={o.key} className="flex items-center gap-3 p-3 pl-4">
               <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[14px] bg-well text-center leading-none" aria-hidden="true">
@@ -166,15 +164,10 @@ function ComingUp({ occasions, members, viewerId, canPlan, onPlan }: { occasions
                 </span>
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[16px] font-semibold leading-tight">{o.label}</span>
+                <span className="line-clamp-2 block text-[16px] font-semibold leading-tight">{o.label}</span>
                 <span className="mt-0.5 block text-[14px] text-ink-soft">{o.days === 0 ? "Today" : `In ${o.days} day${o.days > 1 ? "s" : ""}`}</span>
               </span>
               {who && <Avatar src={memberPhoto(who)} name={callName(who)} size={32} />}
-              {sendable && (
-                <Link href={`/send?for=${encodeURIComponent(who.id)}&kind=occasion&title=${encodeURIComponent(o.label)}`} aria-label={`Send something for ${o.label}`} title="Send something" className="press grid h-11 w-11 shrink-0 place-items-center rounded-full bg-well text-ink no-underline">
-                  <Icon name="gift" size={18} />
-                </Link>
-              )}
               {canPlan && (
                 <button type="button" onClick={() => onPlan(o)} aria-label={`Plan ${o.label}`} className="press h-11 shrink-0 rounded-full bg-[#1c1b1a] px-4 text-[15px] font-semibold text-white">
                   Plan

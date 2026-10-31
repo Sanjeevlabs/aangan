@@ -3,15 +3,16 @@ import { z } from "zod";
 import { CreateReactionRequestSchema } from "@/lib/schemas";
 import { dbGetMember, dbListCards, dbListReactions, dbRemoveReaction, dbSetReaction } from "@/lib/db";
 import { requireMember, requireSession } from "@/lib/auth";
+import { guardWrites } from "@/lib/api-guard";
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const { searchParams } = new URL(req.url);
   return Response.json({ reactions: await dbListReactions(searchParams.get("cardId") ?? undefined, auth.familyId) });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   let body: unknown;
@@ -39,7 +40,7 @@ export async function POST(req: Request): Promise<Response> {
 }
 
 // Take your reaction back (tap it again).
-export async function DELETE(req: Request): Promise<Response> {
+async function deleteHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const parsed = z.object({ cardId: z.string().min(1) }).safeParse(await req.json().catch(() => null));
@@ -47,3 +48,7 @@ export async function DELETE(req: Request): Promise<Response> {
   await dbRemoveReaction(parsed.data.cardId, auth.memberId);
   return Response.json({ removed: true });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);
+export const DELETE = guardWrites(deleteHandler);

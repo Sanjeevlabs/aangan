@@ -3,25 +3,38 @@ import { planRitualScan } from "@/lib/ritual-agent";
 import { dbAddAgentRun, dbAddSuggestion, dbAssignDailyRole, dbEnsureRitualRun, dbListFamilyIds, dbListDailyRoles, dbListMembers, dbListRitualRuns, dbListSuggestions, dbListWishes, dbSetRitualRunStatus } from "@/lib/db";
 import { familyHolidays } from "@/lib/occasions-server";
 import { cronAuthorized, requireSession } from "@/lib/auth";
+import { purgeSandboxes } from "@/lib/demo-sandbox";
+import { dbFor } from "@/lib/family-db";
+import { getCronState, pageFamilies, setCronState } from "@/lib/cron-state";
+import { guardWrites } from "@/lib/api-guard";
+import { letterLang } from "@/lib/weekly-letter";
+import { draftWeeklyLetter } from "@/lib/weekly-letter-run";
 
 // Daily ritual/role scan. Vercel Cron (GET, see vercel.json) hits this with
 // Authorization: Bearer CRON_SECRET; manual callers use POST with a session.
 // Idempotent — safe to call repeatedly.
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   if (!cronAuthorized(req)) return Response.json({ error: "unauthorized-cron" }, { status: 401 });
-  // Cron covers every family; one family's failure never blocks the others.
+  // Demo visitors' copies expire after 48 hours (rows and media).
+  const sb = dbFor(null);
+  const purged = sb ? await purgeSandboxes(sb).catch((e: unknown) => ({ error: String(e) })) : null;
+  // Cron covers one page of families per invocation (a cursor in cron_state
+  // moves on each day); one family's failure never blocks the others.
+  const cursor = String((await getCronState("ritual-scan")).lastFamilyId ?? "");
+  const { batch, next } = pageFamilies(await dbListFamilyIds(), cursor);
+  await setCronState("ritual-scan", { lastFamilyId: next });
   const results = [];
-  for (const familyId of await dbListFamilyIds()) {
+  for (const familyId of batch) {
     try {
       results.push({ familyId, ...(await (await runScan(familyId)).json()) });
     } catch {
       results.push({ familyId, error: "scan-failed" });
     }
   }
-  return Response.json({ families: results });
+  return Response.json({ families: results, purged });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   return runScan(auth.familyId);
@@ -46,6 +59,21 @@ async function runScan(familyId: string): Promise<Response> {
 
   const plan = planRitualScan(nowISO, members, configs, movable, { runs, wishes, roles }, familyId);
 
+  // Once a week: Muse drafts the family's letter (a suggestion; a grown-up approves it).
+  const keeper = members.find((m) => m.access === "owner") ?? members.find((m) => m.access === "admin") ?? members[0];
+  const letter = await draftWeeklyLetter(familyId, { lang: letterLang(keeper?.displayLang), by: "scan" }).catch(() => ({ status: "skipped" as const }));
+  const letterDrafted = letter.status === "created" ? 1 : 0;
+
+  // Nothing within the next 7 days and no elder to ask: no writes at all.
+  if (plan.ensureRuns.length === 0 && plan.deliverRuns.length === 0 && plan.suggestions.length === 0 && !members.some((m) => m.role === "elder")) {
+    console.log("[ritual-scan] skipped", familyId);
+    return Response.json({ date: nowISO.slice(0, 10), skipped: true, runsEnsured: 0, runsDelivered: 0, rolesAssigned: 0, suggestions: 0, questionsAsked: 0, letters: letterDrafted });
+  }
+
+  // TODO(batch): these helpers write one row per call (dbEnsureRitualRun also re-lists the
+  // runs, dbAssignDailyRole upserts one role, dbAddSuggestion inserts one suggestion). lib/db.ts
+  // needs array variants (dbEnsureRitualRuns / dbAssignDailyRoles / dbAddSuggestions) to make
+  // each loop a single insert.
   for (const r of plan.ensureRuns) await dbEnsureRitualRun(r.slug, r.occasionDate, familyId);
   for (const id of plan.deliverRuns) await dbSetRitualRunStatus(id, "delivered", familyId);
   for (const role of plan.roles) await dbAssignDailyRole(role.memberId, role.prompt, role.roleDate, familyId);
@@ -73,5 +101,9 @@ async function runScan(familyId: string): Promise<Response> {
     rolesAssigned: plan.roles.length,
     suggestions: created.length,
     questionsAsked: questions.length,
+    letters: letterDrafted,
   });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

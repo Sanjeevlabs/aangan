@@ -1,4 +1,4 @@
-// Live database for real families; the demo always stays in memory.
+// Live database for real families and demo copies; the seed stays in memory.
 // Tests run with MOCK=true, so "live" is simulated: MOCK is switched off,
 // a dummy model key is set, and lib/supabase is replaced by a recording fake
 // client. Nothing here touches the network.
@@ -184,20 +184,15 @@ describe("storage: demo uploads use the in-memory store", () => {
     expect(h.state.calls).toEqual(["storage:upload", "storage:download"]);
   });
 
-  it("mock routes serve demo paths with the database live, and refuse real ones", async () => {
+  it("with the database live, a session on the seed is refused (visitors get their own copy instead)", async () => {
     const demoPath = storagePath("demo-family", "a.jpg");
     const put = await mockUpload(new Request(`http://test/api/media/mock-upload?path=${encodeURIComponent(demoPath)}&mime=image/jpeg`, { method: "PUT", headers: { cookie: sessionCookie() }, body: new Uint8Array([7, 8, 9]) as unknown as BodyInit }));
-    expect(put.status).toBe(200);
-    const got = await mockBytes(new Request(`http://test/api/media/mock-bytes?path=${encodeURIComponent(demoPath)}`, { headers: { cookie: sessionCookie() } }));
-    expect(new Uint8Array(await got.arrayBuffer())).toEqual(new Uint8Array([7, 8, 9]));
+    expect(put.status).toBe(401);
     const realPath = storagePath(REAL, "a.jpg");
     const cookie = sessionCookie("m-real", REAL);
     const refusedPut = await mockUpload(new Request(`http://test/api/media/mock-upload?path=${encodeURIComponent(realPath)}&mime=image/jpeg`, { method: "PUT", headers: { cookie }, body: new Uint8Array([1]) as unknown as BodyInit }));
     expect(refusedPut.status).toBe(404);
     const refusedGet = await mockBytes(new Request(`http://test/api/media/mock-bytes?path=${encodeURIComponent(realPath)}`, { headers: { cookie } }));
     expect(refusedGet.status).toBe(404);
-    // Still family-scoped: a demo session can't write another family's path.
-    const foreign = await mockUpload(new Request(`http://test/api/media/mock-upload?path=${encodeURIComponent(storagePath("demo-iyer", "a.jpg"))}&mime=image/jpeg`, { method: "PUT", headers: { cookie: sessionCookie() }, body: new Uint8Array([1]) as unknown as BodyInit }));
-    expect(foreign.status).toBe(403);
   });
 });

@@ -20,8 +20,10 @@ import { useShell } from "./shell";
 import { SafetyWatch } from "./safety";
 import { PersonDay, lampFor } from "./person-day";
 import { SideSwitch, useSides } from "./sides";
+import { GiftsShelf } from "./gifts-shelf";
 import { EventPrompts } from "./event-prompts";
 import { TodayCard, useToday } from "./today";
+import { CourtyardLetter } from "./courtyard-letter";
 import { Avatar, Icon, Monogram, Photo } from "./ui/kit";
 import { useViewer } from "./viewer";
 
@@ -123,7 +125,6 @@ function SitSlide() {
 /* --------------------------------------------------------------- coming up */
 function ComingUpSlide() {
   const { members } = useViewer();
-  const { openAdd } = useShell();
   const { data } = useToday();
   const occ = data?.occasion;
   if (!occ) return null;
@@ -139,11 +140,6 @@ function ComingUpSlide() {
           <span className="block text-[12px] uppercase tracking-[0.14em] text-white/70">{when}</span>
           <span className="block truncate text-[19px] font-semibold">{occ.title}</span>
         </span>
-        {who && (
-          <button type="button" onClick={() => openAdd("voice", null, who.id)} aria-label={`Record a wish for ${callName(who)}`} className="press pointer-events-auto grid h-12 w-12 place-items-center rounded-full bg-white text-black">
-            <Icon name="mic" size={19} />
-          </button>
-        )}
       </div>
     </article>
   );
@@ -218,7 +214,7 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
   const { refreshKey } = useShell();
   const { cards } = useFamilyCards(refreshKey);
   const { sides, current } = useSides();
-  const pres = useJson<{ presence: Presence[]; settings: CareSettings[] }>("/api/presence");
+  const pres = useJson<{ presence: Presence[]; settings: CareSettings[] }>("/api/presence", { every: 60_000 });
   const elder = viewer.role === "elder";
   const visit = useNextVisit();
   const stories = useJson<{ stories: { id: string; tellerId: string; title: string }[] }>(viewer.role === "child" ? "/api/stories" : null);
@@ -289,6 +285,7 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
 
       <EventPrompts className="mt-4" />
       <TodayCard />
+      <CourtyardLetter />
 
       {cards === null ? (
         <div className={`skeleton mt-5 ${SLIDE_H} rounded-[26px]`} aria-busy="true" aria-label="Loading" />
@@ -306,6 +303,7 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
 
       {elder && (
         <div className="mt-5 space-y-3">
+          <GiftsShelf />
           <MyQuestions />
           <MyNeeds />
         </div>
