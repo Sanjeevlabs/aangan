@@ -7,6 +7,8 @@ import { purgeSandboxes } from "@/lib/demo-sandbox";
 import { dbFor } from "@/lib/family-db";
 import { getCronState, pageFamilies, setCronState } from "@/lib/cron-state";
 import { guardWrites } from "@/lib/api-guard";
+import { letterLang } from "@/lib/weekly-letter";
+import { draftWeeklyLetter } from "@/lib/weekly-letter-run";
 
 // Daily ritual/role scan. Vercel Cron (GET, see vercel.json) hits this with
 // Authorization: Bearer CRON_SECRET; manual callers use POST with a session.
@@ -57,10 +59,15 @@ async function runScan(familyId: string): Promise<Response> {
 
   const plan = planRitualScan(nowISO, members, configs, movable, { runs, wishes, roles }, familyId);
 
+  // Once a week: Muse drafts the family's letter (a suggestion; a grown-up approves it).
+  const keeper = members.find((m) => m.access === "owner") ?? members.find((m) => m.access === "admin") ?? members[0];
+  const letter = await draftWeeklyLetter(familyId, { lang: letterLang(keeper?.displayLang), by: "scan" }).catch(() => ({ status: "skipped" as const }));
+  const letterDrafted = letter.status === "created" ? 1 : 0;
+
   // Nothing within the next 7 days and no elder to ask: no writes at all.
   if (plan.ensureRuns.length === 0 && plan.deliverRuns.length === 0 && plan.suggestions.length === 0 && !members.some((m) => m.role === "elder")) {
     console.log("[ritual-scan] skipped", familyId);
-    return Response.json({ date: nowISO.slice(0, 10), skipped: true, runsEnsured: 0, runsDelivered: 0, rolesAssigned: 0, suggestions: 0, questionsAsked: 0 });
+    return Response.json({ date: nowISO.slice(0, 10), skipped: true, runsEnsured: 0, runsDelivered: 0, rolesAssigned: 0, suggestions: 0, questionsAsked: 0, letters: letterDrafted });
   }
 
   // TODO(batch): these helpers write one row per call (dbEnsureRitualRun also re-lists the
@@ -94,6 +101,7 @@ async function runScan(familyId: string): Promise<Response> {
     rolesAssigned: plan.roles.length,
     suggestions: created.length,
     questionsAsked: questions.length,
+    letters: letterDrafted,
   });
 }
 
