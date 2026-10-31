@@ -68,7 +68,7 @@ const field = "h-12 w-full rounded-[14px] bg-well px-4 text-[16px] outline-none 
 
 export function CareView({ tab }: { tab: "tasks" | "helpers" }) {
   const pageTitle = tab === "tasks" ? "Care tasks" : "Local helpers";
-  const { viewer, members, relationships } = useViewer();
+  const { viewer, members, relationships, ready } = useViewer();
   // Times and "2 h ago" differ between server and client render: client only.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -78,7 +78,8 @@ export function CareView({ tab }: { tab: "tasks" | "helpers" }) {
   const [chosen, setChosen] = useState<string | null>(null);
   const home = homes.find((h) => h.id === chosen) ?? (viewer.role === "elder" ? householdOf(viewer.id, homes) : undefined) ?? homes.find((h) => !h.members.some((x) => x.id === viewer.id)) ?? homes[0];
 
-  if (!mounted)
+  // Until the family has loaded, homes come from the seeded demo people and the home switcher would appear, then go.
+  if (!mounted || !ready)
     return (
       <div>
         <RoomHeader title={pageTitle} />
