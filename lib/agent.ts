@@ -87,7 +87,7 @@ async function liveLoop(
     { role: "user", content: goal },
   ];
   for (let step = 0; step < Math.min(6, Math.max(1, maxSteps)); step++) {
-    if (!ledger.canSpend(0.01)) break;
+    if (!(await ledger.check(0.01))) break;
     const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
@@ -125,7 +125,7 @@ async function liveLoop(
     }
     if (toolCalls.length > 0) break;
   }
-  ledger.record(cost);
+  await ledger.commit(cost);
   void store;
   return { suggestions, toolCalls, cached: false, cost, status: "done" };
 }

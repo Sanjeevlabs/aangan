@@ -59,7 +59,7 @@ export async function museJson<T>(opts: {
     }
   }
   const estimated = isMockMode() ? 0 : 0.01;
-  if (!serverLedger.canSpend(estimated)) {
+  if (!(await serverLedger.check(estimated))) {
     await log(false, false, 0);
     return { data: opts.fallback, source: "fallback", cached: false, cost: 0, model };
   }
@@ -69,7 +69,7 @@ export async function museJson<T>(opts: {
       const parsed = opts.schema.safeParse(out.json);
       if (!parsed.success) continue;
       if (opts.accept && !opts.accept(parsed.data)) continue;
-      serverLedger.record(out.cost);
+      await serverLedger.commit(out.cost);
       serverStore.set(key, JSON.stringify(parsed.data));
       await log(true, false, out.cost);
       return { data: parsed.data, source: "muse", cached: false, cost: out.cost, model };

@@ -40,6 +40,18 @@ export class SpendLedger {
     this.total += cost;
     this.store.set("spend:total", String(this.total));
   }
+  /** Shared total from durable storage, where there is one (see lib/llm-server.ts). */
+  protected async sync(_delta: number): Promise<void> {}
+  /** Refresh the shared total, then check the cap. Use this before every paid call. */
+  async check(cost: number): Promise<boolean> {
+    await this.sync(0);
+    return this.canSpend(cost);
+  }
+  /** Record a call's cost locally and in the shared total. */
+  async commit(cost: number): Promise<void> {
+    this.record(cost);
+    await this.sync(cost);
+  }
 }
 
 export function cacheKey(model: string, input: string, mediaId: string): string {
@@ -168,7 +180,7 @@ export async function captionCard(
   }
 
   const estimatedCost = isMockMode() ? 0 : 0.01;
-  if (!ledger.canSpend(estimatedCost)) {
+  if (!(await ledger.check(estimatedCost))) {
     return { caption: FALLBACK_CAPTION, cached: false, cost: 0 };
   }
 
@@ -185,7 +197,7 @@ export async function captionCard(
       const parsed = CaptionSchema.safeParse(out.json);
       if (!parsed.success) continue;
       parsed.data.language = normalizeLangCode(parsed.data.language, "en");
-      ledger.record(out.cost);
+      await ledger.commit(out.cost);
       store.set(key, JSON.stringify(parsed.data));
       return { caption: parsed.data, cached: false, cost: out.cost };
     } catch {
@@ -502,7 +514,7 @@ export async function transcribeVoice(
   });
   if (!input.audioBytes || input.audioBytes.length === 0) return unavailable();
   const estimatedCost = isMockMode() ? 0 : 0.01;
-  if (!ledger.canSpend(estimatedCost)) return unavailable();
+  if (!(await ledger.check(estimatedCost))) return unavailable();
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       if (isMockMode()) {
@@ -515,7 +527,7 @@ export async function transcribeVoice(
       const { json, cost } = await liveTranscribe(input.audioBytes, { langHint, keywords: input.keywords });
       const parsed = parseTranscribeResponse(json, langHint);
       if (!parsed) continue;
-      ledger.record(cost);
+      await ledger.commit(cost);
       if (key) store.set(key, JSON.stringify(parsed));
       return { transcript: parsed, cached: false, cost, unavailable: false };
     } catch {
@@ -583,7 +595,7 @@ export async function suggestQuestions(
     if (parsed.success) return { questions: parsed.data.questions, cached: true, cost: 0 };
   }
   const estimatedCost = isMockMode() ? 0 : 0.01;
-  if (!ledger.canSpend(estimatedCost)) {
+  if (!(await ledger.check(estimatedCost))) {
     return { questions: MOCK_SUGGESTIONS[lang] ?? MOCK_SUGGESTIONS.en, cached: false, cost: 0 };
   }
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -599,7 +611,7 @@ export async function suggestQuestions(
           );
       const parsed = SuggestSchema.safeParse(out.json);
       if (!parsed.success) continue;
-      ledger.record(out.cost);
+      await ledger.commit(out.cost);
       store.set(key, JSON.stringify(parsed.data));
       return { questions: parsed.data.questions, cached: false, cost: out.cost };
     } catch {
@@ -627,7 +639,7 @@ export async function curatePlaylist(
     if (parsed.success) return { tracks: parsed.data.tracks, cached: true, cost: 0 };
   }
   const estimatedCost = isMockMode() ? 0 : 0.01;
-  if (!ledger.canSpend(estimatedCost) || cards.length === 0) {
+  if (!(await ledger.check(estimatedCost)) || cards.length === 0) {
     return { tracks: [], cached: false, cost: 0 };
   }
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -651,7 +663,7 @@ export async function curatePlaylist(
       const known = new Set(cards.map((c) => c.id));
       const tracks = parsed.data.tracks.filter((t) => known.has(t.cardId));
       if (tracks.length === 0) continue;
-      ledger.record(out.cost);
+      await ledger.commit(out.cost);
       store.set(key, JSON.stringify({ tracks }));
       return { tracks, cached: false, cost: out.cost };
     } catch {
@@ -681,7 +693,7 @@ export async function translateText(
     if (parsed.success) return { translation: parsed.data, cached: true, cost: 0 };
   }
   const estimatedCost = isMockMode() ? 0 : 0.01;
-  if (!ledger.canSpend(estimatedCost)) {
+  if (!(await ledger.check(estimatedCost))) {
     return { translation: { ...FALLBACK_TRANSLATION, language: target }, cached: false, cost: 0 };
   }
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -692,7 +704,7 @@ export async function translateText(
       const parsed = TranslationSchema.safeParse(out.json);
       if (!parsed.success) continue;
       parsed.data.language = normalizeLangCode(parsed.data.language, target);
-      ledger.record(out.cost);
+      await ledger.commit(out.cost);
       store.set(key, JSON.stringify(parsed.data));
       return { translation: parsed.data, cached: false, cost: out.cost };
     } catch {

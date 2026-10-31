@@ -422,6 +422,21 @@ $$;
 revoke execute on function bump_share_views(text) from public, anon, authenticated;
 grant execute on function bump_share_views(text) to service_role;
 
+-- One running total of model spend for every server instance (the USD cap).
+create table if not exists spend_total (
+  id smallint primary key default 1 check (id = 1),
+  usd numeric not null default 0,
+  updated_at timestamptz not null default now()
+);
+alter table spend_total enable row level security;
+create or replace function add_spend(c numeric) returns numeric language sql security definer set search_path = public as $$
+  insert into spend_total (id, usd) values (1, greatest(c, 0))
+  on conflict (id) do update set usd = spend_total.usd + greatest(excluded.usd, 0), updated_at = now()
+  returning usd;
+$$;
+revoke execute on function add_spend(numeric) from public, anon, authenticated;
+grant execute on function add_spend(numeric) to service_role;
+
 -- -------------------------------------------------------------------- seed
 insert into families (id, name) values ('demo-family', 'Sharma')
 on conflict (id) do nothing;

@@ -88,7 +88,7 @@ Native builds: `CAP_SERVER_URL=https://<your-domain> npm run cap:sync` (see docs
 
 - **In-memory state is per isolate.** Cloudflare runs many short-lived isolates, so anything kept in module memory is not shared and can reset at any time:
   - the **mock store** (`MOCK=true`): a demo still opens (every isolate seeds the same synthetic families), but writes made in one request may be missing in the next;
-  - the **USD 120 spend ledger** and the **model cache** (`lib/llm-server.ts`): the cap is enforced per isolate, not globally, and cached outputs may be recomputed. Keep a provider-side budget/alert on the Meta, Baseten and Modal keys as the hard stop;
+  - the **USD 120 spend ledger** and the **model cache** (`lib/llm-server.ts`): with a live database the cap is global (`spend_total` + `add_spend` in `supabase/schema.sql`, re-read at most every 10 s, so overshoot is at most a few calls); cached outputs may be recomputed per isolate. Keep a provider-side budget alert on each model key as a second stop;
   - **rate limits** (OTP and per-session model routes, `lib/auth.ts`) and the partner OAuth hand-off map (`lib/partners/oauth.ts`) are also per isolate.
   Moving these to KV/Durable Objects/Supabase is a later change; nothing was redesigned for this port.
 - **No filesystem at runtime.** Ritual configs are bundled through `rituals/index.ts` (a test keeps it in step with `rituals/*.json`).
