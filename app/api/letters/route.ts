@@ -14,8 +14,11 @@ const MAX_AHEAD = 36 * 3_600_000;
 async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
-  const letters = (await listDocs(auth.familyId, "chitthi")).filter((l) => l.authorId === auth.memberId && Date.parse(l.deliverAt) > Date.now());
-  return Response.json({ letters });
+  const all = await listDocs(auth.familyId, "chitthi");
+  const letters = all.filter((l) => l.kind !== "letter" && l.authorId === auth.memberId && Date.parse(l.deliverAt) > Date.now());
+  // Written letters to the whole family (A letter from the courtyard), newest first.
+  const written = all.filter((l) => l.kind === "letter" && Date.parse(l.deliverAt) <= Date.now()).slice(0, 5);
+  return Response.json({ letters, written });
 }
 
 async function postHandler(req: Request): Promise<Response> {

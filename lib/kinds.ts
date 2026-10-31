@@ -424,6 +424,11 @@ export const ChitthiSchema = z.object({
   deliverAt: iso,
   authorId: id,
   createdAt: iso,
+  /** "letter" = a written letter to the whole family (A letter from the courtyard): no card, the words are here. */
+  kind: z.enum(["voice", "letter"]).default("voice"),
+  title: z.string().max(60).optional(),
+  body: z.string().max(900).optional(),
+  lang: z.enum(["en", "hi"]).optional(),
 });
 
 // ---------- A line about today: one short line on your own day, gone at your midnight ----------

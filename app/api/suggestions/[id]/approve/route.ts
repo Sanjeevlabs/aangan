@@ -3,10 +3,12 @@ import { isGrownUp } from "@/lib/permissions";
 import { requireSession } from "@/lib/auth";
 import { DbWriteError } from "@/lib/family-db";
 import { guardWrites } from "@/lib/api-guard";
+import { newId, putDoc } from "@/lib/family-docs";
+import { WeeklyLetterSchema } from "@/lib/weekly-letter";
 
 // Review / Approve: the ONLY place agent proposals become actions.
 // Payload actions: create_card | assign_daily_role | request_wish |
-// schedule_notification (acknowledge) | create_gather_session | assemble_reel.
+// schedule_notification (acknowledge) | create_gather_session | assemble_reel | weekly_letter.
 async function postHandler(req: Request, props: { params: Promise<{ id: string }> }): Promise<Response> {
   const params = await props.params;
   const auth = await requireSession(req);
@@ -85,6 +87,11 @@ async function postHandler(req: Request, props: { params: Promise<{ id: string }
         title: String(args.title ?? result.title ?? "Family evening").slice(0, 80),
         startsAt: String(args.startsAt ?? result.startsAt ?? new Date(Date.now() + 86400000).toISOString()),
       });
+    } else if (action === "weekly_letter") {
+      // Stored as a written chitthi (no voice card), to the whole family, delivered now.
+      const letter = WeeklyLetterSchema.safeParse(payload);
+      if (!letter.success) return refuse("invalid-letter");
+      await putDoc(familyId, "chitthi", { id: newId("letter"), kind: "letter", ...letter.data, authorId: auth.memberId, deliverAt: new Date().toISOString(), createdAt: new Date().toISOString() });
     } else if (action === "assemble_reel") {
       const ritualRunId = String((payload.ritualRunId as string | undefined) ?? "");
       if (ritualRunId && !ownRun(ritualRunId)) return refuse("unknown-run");
