@@ -21,6 +21,11 @@ import { createDownloadUrl } from "./storage";
 import { sinceLines } from "./since";
 import { describeLang } from "./languages";
 import { isMockMode } from "./config";
+import { awakeNow, callTile, nextUp, waitingForYou, type Glance } from "./glance";
+import { listEvents } from "./gather-store";
+import { familyHolidays } from "./occasions-server";
+import { occasionsInRange, addDays } from "./occasion-calendar";
+import { dateIn } from "./today";
 
 export interface WindowState {
   view: WindowView | null;
@@ -54,6 +59,8 @@ export interface WindowState {
   scene: FirstScene;
   /** Flower pots on the sill / railing / courtyard floor (up to three). */
   pots: Pot[];
+  /** Four 3-second answers about the whole family (the strip under Safe & sound). */
+  glance: Glance;
   /** A photo of their actual home as the view (a media ref), else null: the living album. */
   homePhoto: string | null;
   /** With a home photo: family photos cross-fade in now and then. */
@@ -204,10 +211,46 @@ export async function windowState(familyId: string, viewerId: string, now = new 
     sky: skyOver(weather, now),
     call: callHint(tz, viewer?.tz ?? tz, home?.members.filter((m) => m.role !== "child").map((m) => m.displayName || m.firstName) ?? [], now),
     joined: (home?.members ?? []).some((m) => m.role !== "child" && (Boolean(m.email) || lastSeen(m.id) !== null)),
+    glance: await glanceFor(familyId, viewerId, members, home?.tz ?? null, cards, now),
     scene: own.scene,
     pots: own.pots,
     homePhoto: own.homePhoto,
     mixAlbum: own.mixAlbum,
+  };
+}
+
+/**
+ * The glance strip: who is awake, what waits for the viewer, what is next, and
+ * the weekly call in both zones. Never throws: a failed source just empties its tile.
+ */
+async function glanceFor(familyId: string, viewerId: string, members: Member[], theirTz: string | null, cards: Awaited<ReturnType<typeof dbListCards>>, now: Date): Promise<Glance> {
+  const viewer = members.find((m) => m.id === viewerId);
+  const myTz = viewer?.tz ?? "UTC";
+  const names = Object.fromEntries(members.map((m) => [m.id, m.displayName || m.firstName]));
+  const safe = async <T,>(p: Promise<T>, fallback: T): Promise<T> => p.catch(() => fallback);
+  const today = dateIn(myTz, now);
+  const [plays, questions, tasks, needs, events, call, hol] = await Promise.all([
+    safe(dbListPlays(undefined, familyId), []),
+    safe(listDocs(familyId, "question"), []),
+    safe(listDocs(familyId, "today_task"), []),
+    safe(listDocs(familyId, "need"), []),
+    safe(listEvents(familyId), []),
+    safe(getDoc(familyId, "weekly_call", "weekly-call"), undefined),
+    safe(familyHolidays(familyId, members).then((h) => h.visible), []),
+  ]);
+  return {
+    awake: awakeNow(members, viewerId, now),
+    waiting: waitingForYou({ viewerId, now, names, cards: withDemoShelf(cards, familyId), plays, questions, today: tasks.slice(0, 4), needs }),
+    next: nextUp({
+      today,
+      now,
+      tz: myTz,
+      viewerId,
+      names,
+      events: events.map((e) => ({ id: e.id, title: e.title, date: e.date, status: e.status, occasionKey: e.occasionKey, forMemberId: e.forMemberId, startsAt: e.status === "locked" ? (e.slots.find((sl) => sl.id === e.lockedSlotId)?.startsAt ?? null) : null })),
+      occasions: occasionsInRange(members, hol, today, addDays(today, 120)),
+    }),
+    call: callTile(call, myTz, theirTz, now),
   };
 }
 

@@ -442,6 +442,17 @@ export const DayLineSchema = z.object({
   createdAt: iso,
 });
 
+// ---------- The family's fixed weekly call: one doc ("weekly-call"), weekday and time in the zone it was set in ----------
+export const WeeklyCallSchema = z.object({
+  id: z.literal("weekly-call"),
+  /** 0 = Sunday … 6 = Saturday, in `tz`. */
+  weekday: z.number().int().min(0).max(6),
+  hour: z.number().int().min(0).max(23),
+  minute: z.number().int().min(0).max(59),
+  tz: z.string().min(1).max(64),
+  hostId: id,
+});
+
 // ---------- Today: one shared task for both homes, done only when both answer ----------
 export const TodayAnswerSchema = z.object({ memberId: id, cardId: z.string().min(1), at: iso });
 export const TodayTaskSchema = z.object({
@@ -516,6 +527,7 @@ export const DOC_SCHEMAS = {
   chitthi: ChitthiSchema,
   partner_token: PartnerTokenSchema,
   day_line: DayLineSchema,
+  weekly_call: WeeklyCallSchema,
   muse_image_run: MuseImageRunSchema,
 } as const;
 
@@ -550,6 +562,7 @@ export type WindowView = DocOf<"window_view">;
 export type Lamp = DocOf<"lamp">;
 export type Chitthi = DocOf<"chitthi">;
 export type DayLine = DocOf<"day_line">;
+export type WeeklyCall = DocOf<"weekly_call">;
 export type MuseImageRun = DocOf<"muse_image_run">;
 export type Wall = (typeof WALLS)[number];
 export type WindowLayer = (typeof WINDOW_LAYERS)[number];

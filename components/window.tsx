@@ -12,6 +12,7 @@ import { callName, cardCover, memberPhoto } from "@/lib/people";
 import { stateOf, type SafetyState } from "@/lib/safety";
 import { livingAlbum, scenesFor, type AlbumSlide } from "@/lib/scenes";
 import type { Card, Member } from "@/lib/schemas";
+import { awakeCities, type Glance } from "@/lib/glance";
 import { moonShadowPath } from "@/lib/sky";
 import type { DayRhythm } from "@/lib/rhythm";
 import { ALIVE_LOOK, type Alive } from "@/lib/status";
@@ -59,6 +60,7 @@ interface WindowData {
   wall: Wall;
   sky: { sun: { x: number; y: number } | null; moon: { illumination: number; waxing: boolean; name: string } };
   call: { good: boolean; text: string };
+  glance?: Glance;
   scene?: FirstScene;
   pots?: Pot[];
   homePhoto?: string | null;
@@ -592,6 +594,73 @@ function StatusLine({ p, st, check, onWorry }: { p: Member; st: WindowData["peop
   );
 }
 
+/* ------------------------------------------------------- the glance strip */
+// Four 3-second answers across the whole family. Words, never counts. Every
+// tile is the same height as its skeleton, so nothing jumps when it loads.
+const TILE = "flex h-[80px] w-[164px] flex-none snap-start flex-col justify-between rounded-[18px] bg-surface px-3 py-2";
+const TILE_EDGE = { boxShadow: "var(--surface-edge)" } as const;
+
+function Tile({ href, label, aria, children }: { href: string; label: string; aria: string; children: React.ReactNode }) {
+  return (
+    <Link href={href} aria-label={aria} className={cn(TILE, "press text-ink no-underline")} style={TILE_EDGE}>
+      <span className="truncate text-[15px] font-medium leading-[1.2] text-ink-soft">{label}</span>
+      {children}
+    </Link>
+  );
+}
+
+const detail = "line-clamp-2 text-[15px] font-semibold leading-[1.2]";
+
+function GlanceStrip({ glance, members }: { glance: Glance | null; members: Member[] }) {
+  if (!glance)
+    return (
+      <div className="-mx-5 flex gap-2 overflow-hidden px-5" aria-busy="true" aria-label="Looking across the family">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className={cn(TILE, "animate-pulse")} style={TILE_EDGE} />
+        ))}
+      </div>
+    );
+  const faces = glance.awake.slice(0, 5).map((a) => ({ a, m: members.find((mm) => mm.id === a.id) }));
+  const cities = awakeCities(glance.awake);
+  const who = faces.map((f) => callName(f.m)).filter(Boolean).join(", ");
+  return (
+    <nav aria-label="Across the family" className="-mx-5 flex snap-x gap-2 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <Tile href="/" label="Awake now" aria={glance.awake.length ? `Awake now: ${who}${cities ? `, in ${cities}` : ""}` : "Everyone's asleep"}>
+        {glance.awake.length ? (
+          <span className="block min-w-0">
+            <span className="flex items-center" aria-hidden="true">
+              {faces.map(({ a, m }, i) => (
+                <span key={a.id} className={cn("rounded-full ring-2 ring-white", i > 0 && "-ml-1.5")}>
+                  <Avatar src={memberPhoto(m)} name={callName(m)} size={22} />
+                </span>
+              ))}
+              {glance.awake.length > faces.length && <span className="ml-1 text-[15px] leading-none text-ink-soft">…</span>}
+            </span>
+            <span className="block truncate text-[15px] font-semibold leading-[1.2]">{cities}</span>
+          </span>
+        ) : (
+          <span className={detail}>Everyone&apos;s asleep</span>
+        )}
+      </Tile>
+      {glance.waiting && (
+        <Tile href={glance.waiting.href} label="Waiting for you" aria={`Waiting for you: ${glance.waiting.text}`}>
+          <span className={detail}>{glance.waiting.text}</span>
+        </Tile>
+      )}
+      {glance.next && (
+        <Tile href={glance.next.href} label="Next" aria={`Next: ${glance.next.text}`}>
+          <span className={detail}>{glance.next.text}</span>
+        </Tile>
+      )}
+      <Tile href={glance.call.href} label="Our call" aria={`Our call: ${glance.call.text}`}>
+        <span className={cn(detail, !glance.call.set && "font-medium text-ink-soft")} suppressHydrationWarning>
+          {glance.call.text}
+        </span>
+      </Tile>
+    </nav>
+  );
+}
+
 /* ---------------------------------------------------------------- the screen */
 export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
   const router = useRouter();
@@ -842,6 +911,7 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
             {atWindow.map((p) => (
               <StatusLine key={p.id} p={p} st={statusOf(p.id)} check={checkOf(p.id)} onWorry={() => setWorry(p)} />
             ))}
+            {(data?.glance || !data) && !win.failed && <GlanceStrip glance={data?.glance ?? null} members={members} />}
             {data?.since?.at && data.since.lines.length > 0 && (
               <div aria-label="Since you were here">
                 <p className="m-0 text-[12px] font-medium text-ink-soft">{sinceLabel(data.since.at, new Date(), viewer.tz)}</p>
