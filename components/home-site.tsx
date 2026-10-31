@@ -95,7 +95,7 @@ export function HomeSite({ onDemo }: { onDemo: () => Promise<void> }) {
 
       {/* Why it exists */}
       <section className="mx-auto max-w-[760px] px-8 py-20 text-center">
-        <p className="voice m-0 text-[26px] leading-snug">Millions of parents live far from their children. A call a week isn&rsquo;t enough, and a group chat isn&rsquo;t a home. Aangan is the courtyard the family shares again.</p>
+        <p className="voice m-0 text-[26px] leading-snug">Millions of parents live far from their children. A call a week isn&rsquo;t enough. Aangan is the courtyard the family shares again.</p>
         <p className="m-0 mt-6 text-[15px] text-ink-soft">Free for every family. 55 languages. Built with Muse on Meta&rsquo;s models.</p>
       </section>
 

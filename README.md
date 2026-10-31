@@ -4,7 +4,7 @@
 
 Values, in priority order: **Needed** (elders give and have a role) · **Heard** (acknowledgement) · **Present** (together at the same time) · **Remembered** (memories) · **Never watched** (no monitoring, no guilt).
 
-Aangan is deliberately not Instagram/WhatsApp/Facebook: no stories, status, counts, comments, or infinite feed. **WhatsApp moves messages. Aangan keeps a family going:** what elders know is passed down, things are done together across continents, and aging parents are cared for without being watched.
+Aangan is calm by design: no stories, status, counts, comments, or infinite feed. **Aangan keeps a family going:** what elders know is passed down, things are done together across continents, and aging parents are cared for without being watched.
 
 The app itself is in English. What the family shares (voices, recipes, questions, care notes) reaches each person in their own language: 29 languages, including Hindi, Hinglish, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi, Urdu, Spanish, Arabic, Chinese and more (`lib/languages.ts`).
 
