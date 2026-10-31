@@ -5,6 +5,7 @@ import { familyHolidays } from "@/lib/occasions-server";
 import { cronAuthorized, requireSession } from "@/lib/auth";
 import { purgeSandboxes } from "@/lib/demo-sandbox";
 import { dbFor } from "@/lib/family-db";
+import { getCronState, pageFamilies, setCronState } from "@/lib/cron-state";
 
 // Daily ritual/role scan. Vercel Cron (GET, see vercel.json) hits this with
 // Authorization: Bearer CRON_SECRET; manual callers use POST with a session.
@@ -14,9 +15,13 @@ export async function GET(req: Request): Promise<Response> {
   // Demo visitors' copies expire after 48 hours (rows and media).
   const sb = dbFor(null);
   const purged = sb ? await purgeSandboxes(sb).catch((e: unknown) => ({ error: String(e) })) : null;
-  // Cron covers every family; one family's failure never blocks the others.
+  // Cron covers one page of families per invocation (a cursor in cron_state
+  // moves on each day); one family's failure never blocks the others.
+  const cursor = String((await getCronState("ritual-scan")).lastFamilyId ?? "");
+  const { batch, next } = pageFamilies(await dbListFamilyIds(), cursor);
+  await setCronState("ritual-scan", { lastFamilyId: next });
   const results = [];
-  for (const familyId of await dbListFamilyIds()) {
+  for (const familyId of batch) {
     try {
       results.push({ familyId, ...(await (await runScan(familyId)).json()) });
     } catch {
@@ -51,6 +56,16 @@ async function runScan(familyId: string): Promise<Response> {
 
   const plan = planRitualScan(nowISO, members, configs, movable, { runs, wishes, roles }, familyId);
 
+  // Nothing within the next 7 days and no elder to ask: no writes at all.
+  if (plan.ensureRuns.length === 0 && plan.deliverRuns.length === 0 && plan.suggestions.length === 0 && !members.some((m) => m.role === "elder")) {
+    console.log("[ritual-scan] skipped", familyId);
+    return Response.json({ date: nowISO.slice(0, 10), skipped: true, runsEnsured: 0, runsDelivered: 0, rolesAssigned: 0, suggestions: 0, questionsAsked: 0 });
+  }
+
+  // TODO(batch): these helpers write one row per call (dbEnsureRitualRun also re-lists the
+  // runs, dbAssignDailyRole upserts one role, dbAddSuggestion inserts one suggestion). lib/db.ts
+  // needs array variants (dbEnsureRitualRuns / dbAssignDailyRoles / dbAddSuggestions) to make
+  // each loop a single insert.
   for (const r of plan.ensureRuns) await dbEnsureRitualRun(r.slug, r.occasionDate, familyId);
   for (const id of plan.deliverRuns) await dbSetRitualRunStatus(id, "delivered", familyId);
   for (const role of plan.roles) await dbAssignDailyRole(role.memberId, role.prompt, role.roleDate, familyId);

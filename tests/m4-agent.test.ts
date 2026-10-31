@@ -73,6 +73,19 @@ describe("planRitualScan (pure)", () => {
     expect(today.suggestions.some((s) => String((s.payload as { action?: string }).action) === "assemble_reel")).toBe(true);
   });
 
+  it("counts 'today' in the celebrant's own timezone", () => {
+    const run = { id: "birthday:2026-11-09", familyId: "demo-family", ritualSlug: "birthday", occasionDate: "2026-11-09", status: "collecting" as const, createdAt: "2026-11-06T00:00:00.000Z" };
+    const at = "2026-11-09T06:00:00.000Z"; // 11:30 on the 9th in Kolkata, 20:00 on the 8th at UTC-10
+    const kolkata = planRitualScan(at, members, [], {}, { runs: [run], wishes: [], roles: [] });
+    expect(kolkata.deliverRuns).toEqual(["birthday:2026-11-09"]);
+    const honolulu = members.map((m) => (m.id === "leo" ? { ...m, tz: "Pacific/Honolulu" } : m));
+    const plan = planRitualScan(at, honolulu, [], {}, { runs: [run], wishes: [], roles: [] });
+    expect(plan.deliverRuns).toEqual([]); // still the 8th for Vihaan: not the reel yet
+    expect(plan.suggestions.some((s) => String((s.payload as { action?: string }).action) === "assemble_reel")).toBe(false);
+    // The next day's scan at the same hour is his birthday.
+    expect(planRitualScan("2026-11-09T12:00:00.000Z", honolulu, [], {}, { runs: [run], wishes: [], roles: [] }).deliverRuns).toEqual(["birthday:2026-11-09"]);
+  });
+
   it("uses the movable-date fixture for config occasions", () => {
     const plan = planRitualScan(
       "2026-11-03T10:00:00.000Z",

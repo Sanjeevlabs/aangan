@@ -66,11 +66,23 @@ function toISODate(d: Date): string {
 }
 
 function nextBirthdayDate(mmdd: string, now: Date): Date {
+  // `now` is a UTC-midnight day (the celebrant's local day).
   const [m, d] = mmdd.split("-").map(Number);
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   let next = new Date(Date.UTC(now.getUTCFullYear(), (m || 1) - 1, d || 1));
   if (next < start) next = new Date(Date.UTC(now.getUTCFullYear() + 1, (m || 1) - 1, d || 1));
   return next;
+}
+
+/** The calendar day it is for someone in `tz`, as a UTC-midnight Date (a bad zone falls back to UTC). */
+export function localDay(now: Date, tz: string | undefined): Date {
+  let iso = toISODate(now);
+  try {
+    if (tz) iso = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(now);
+  } catch {
+    // unknown zone: keep the UTC day
+  }
+  return new Date(`${iso}T00:00:00.000Z`);
 }
 
 export interface ScanState {
@@ -109,12 +121,16 @@ export function planRitualScan(
     title: string;
     date: Date;
     birthdayMember?: Member;
+    /** The day it is "today" for the celebrant (UTC midnight); UTC for festivals. */
+    today: Date;
   }
   const occasions: Occasion[] = [];
   for (const m of members) {
     if (!m.birthday) continue;
-    const date = nextBirthdayDate(m.birthday, now);
-    occasions.push({ slug: "birthday", title: `${m.displayName}'s birthday`, date, birthdayMember: m });
+    // Today is the celebrant's own local day, not the server's UTC day.
+    const today = localDay(now, m.tz);
+    const date = nextBirthdayDate(m.birthday, today);
+    occasions.push({ slug: "birthday", title: `${m.displayName}'s birthday`, date, birthdayMember: m, today });
   }
   for (const c of configs) {
     if (c.slug === "birthday") continue; // birthdays come from the graph
@@ -122,11 +138,11 @@ export function planRitualScan(
     if (!iso) continue;
     const date = new Date(`${iso}T00:00:00.000Z`);
     if (Number.isNaN(date.getTime())) continue;
-    occasions.push({ slug: c.slug, title: c.title.split(/\s+[—-]\s+/)[0].trim(), date });
+    occasions.push({ slug: c.slug, title: c.title.split(/\s+[—-]\s+/)[0].trim(), date, today: localDay(now, undefined) });
   }
 
   for (const occ of occasions) {
-    const days = Math.round((Date.UTC(occ.date.getUTCFullYear(), occ.date.getUTCMonth(), occ.date.getUTCDate()) - Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())) / 86400000);
+    const days = Math.round((occ.date.getTime() - occ.today.getTime()) / 86400000);
     if (days < 0 || days > 7) continue;
     const occasionDate = toISODate(occ.date);
     const runId = ritualRunId(familyId, occ.slug, occasionDate);

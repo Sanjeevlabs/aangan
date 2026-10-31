@@ -328,6 +328,14 @@ create table if not exists llm_cache (
   created_at timestamptz default now()
 );
 
+-- Cron cursors (service role only): where the daily ritual scan stopped.
+create table if not exists cron_state (
+  id text primary key,
+  value jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+alter table cron_state enable row level security;
+
 -- --------------------------------------------------------------------- RLS
 alter table families enable row level security;
 alter table members enable row level security;
