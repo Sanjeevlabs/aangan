@@ -3,7 +3,7 @@
   "types": {
     "birthday": {
       "label": "Birthday",
-      "titleFor": "{name}'s birthday get-together",
+      "titleFor": "{name}'s birthday gathering",
       "sittingReason": "birthday",
       "minutes": 45,
       "runOfShow": [

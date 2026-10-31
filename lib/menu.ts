@@ -75,12 +75,12 @@ export function roomsFor(isParent: boolean, _parentNames = ""): Room[] {
     },
     {
       id: "sit",
-      title: "Get-together",
+      title: "Gathering",
       note: "Calls, visits, holidays, play",
       icon: "video",
       tone: ["#f1f0ee", "#1c1b1a"],
       items: [
-        { href: "/gather", title: "Plan a get-together", note: "A family call with a reason", icon: "video" },
+        { href: "/gather", title: "Plan a gathering", note: "A family call with a reason", icon: "video" },
         { href: "/together/visits", title: "Visits", note: "A visit home: dates, tickets, a countdown", icon: "village" },
         { href: "/together/holidays", title: "Family holidays", note: "Somewhere together, with a countdown", icon: "send" },
         { href: "/gather/play", title: "Play together", note: "Something to do on a call, right now", icon: "sparkle" },

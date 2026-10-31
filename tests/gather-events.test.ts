@@ -107,7 +107,7 @@ function event(over: Partial<FamilyEvent> = {}): FamilyEvent {
   return {
     id: "event-1",
     type: "birthday",
-    title: "Maa's birthday get-together",
+    title: "Maa's birthday gathering",
     forMemberId: "maa",
     occasionKey: "birthday",
     date: "2026-11-09",
@@ -150,14 +150,14 @@ describe("in-app prompts", () => {
 
   it("asks invitees to pick a time, then says it starts in an hour", () => {
     const voting = buildPrompts({ viewerId: "papa", canPlan: true, events: [event()], occasions: [], dismissed: [], now });
-    expect(voting[0]).toMatchObject({ kind: "pick", text: "Join Maa's birthday get-together: pick a time" });
+    expect(voting[0]).toMatchObject({ kind: "pick", text: "Join Maa's birthday gathering: pick a time" });
     const locked = event({ status: "locked", lockedSlotId: "s1", answered: ["papa"] });
     const soon = buildPrompts({ viewerId: "papa", canPlan: true, events: [locked], occasions: [], dismissed: [], now });
-    expect(soon[0]).toMatchObject({ kind: "soon", text: "Maa's birthday get-together · Starts in 1 hour" });
+    expect(soon[0]).toMatchObject({ kind: "soon", text: "Maa's birthday gathering · Starts in 1 hour" });
   });
 
   it("suggests planning 10 days before, once, to grown-ups other than the honoree", () => {
-    expect(buildPrompts({ viewerId: "arjun", canPlan: true, events: [], occasions: [occ(10)], dismissed: [], now })[0]).toMatchObject({ kind: "suggest", text: "Plan Maa's birthday get-together?" });
+    expect(buildPrompts({ viewerId: "arjun", canPlan: true, events: [], occasions: [occ(10)], dismissed: [], now })[0]).toMatchObject({ kind: "suggest", text: "Plan Maa's birthday gathering?" });
     expect(buildPrompts({ viewerId: "arjun", canPlan: true, events: [], occasions: [occ(11)], dismissed: [], now })).toHaveLength(0);
     expect(buildPrompts({ viewerId: "maa", canPlan: true, events: [], occasions: [occ(5)], dismissed: [], now })).toHaveLength(0);
     expect(buildPrompts({ viewerId: "kid", canPlan: false, events: [], occasions: [occ(5)], dismissed: [], now })).toHaveLength(0);
@@ -167,7 +167,7 @@ describe("in-app prompts", () => {
 });
 
 describe("/api/gather/events (mock)", () => {
-  it("drafts, collects one tap each, locks into a get-together session with a room", async () => {
+  it("drafts, collects one tap each, locks into a gathering session with a room", async () => {
     const date = addDays(new Date().toISOString().slice(0, 10), 5);
     const created = await POST(req("arjun", { action: "create", type: "custom", title: "Papa's retirement", forMemberId: "dada", date }));
     expect(created.status).toBe(201);
@@ -208,6 +208,6 @@ describe("/api/gather/events (mock)", () => {
     const a = await json<{ event: FamilyEvent }>(POST(req("arjun", body)));
     const b = await json<{ event: FamilyEvent }>(POST(req("priya", body)));
     expect(b.event.id).toBe(a.event.id);
-    expect(a.event.title).toBe("Maa's birthday get-together");
+    expect(a.event.title).toBe("Maa's birthday gathering");
   });
 });

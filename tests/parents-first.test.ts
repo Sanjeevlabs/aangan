@@ -40,7 +40,7 @@ describe("parents first", () => {
 
   it("keeps every family feature in five rooms, with no duplicate Ask", () => {
     const kid = roomsFor(false);
-    expect(kid.map((r) => r.title)).toEqual(["Memories", "Kitchen", "Care", "Family", "Get-together"]);
+    expect(kid.map((r) => r.title)).toEqual(["Memories", "Kitchen", "Care", "Family", "Gathering"]);
     const hrefs = kid.flatMap((r) => r.items.map((i) => i.href));
     for (const h of ["/care", "/care/helpers", "/nearby", "/kitchen", "/stories", "/advice", "/bond", "/lane", "/rituals", "/book", "/send", "/together/visits", "/together/holidays", "/gather", "/gather/play"]) expect(hrefs).toContain(h);
     expect(hrefs).not.toContain("/ask");

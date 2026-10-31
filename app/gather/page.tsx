@@ -53,7 +53,7 @@ export default function GatherPage() {
   if (!mounted || (!data && !failed)) {
     return (
       <div>
-        <RoomHeader title="Get-together" action={plus} />
+        <RoomHeader title="Gathering" action={plus} />
         <div className="skeleton h-[230px] rounded-[28px]" aria-busy="true" aria-label="Loading" />
         <div className="skeleton mt-3 h-16 rounded-[22px]" />
       </div>
@@ -62,9 +62,9 @@ export default function GatherPage() {
   if (!data) {
     return (
       <div>
-        <RoomHeader title="Get-together" />
+        <RoomHeader title="Gathering" />
         <div className="rounded-[28px] bg-black/[.04] p-5" role="alert">
-          <p className="m-0 text-[17px] font-semibold">Couldn&rsquo;t load your get-togethers.</p>
+          <p className="m-0 text-[17px] font-semibold">Couldn&rsquo;t load your gatherings.</p>
           <Button variant="secondary" className="mt-3 !bg-white" onClick={() => void reload()}>
             Try again
           </Button>
@@ -77,7 +77,7 @@ export default function GatherPage() {
   const rest = data.events.filter((e) => e.id !== next?.id);
   return (
     <div>
-      <RoomHeader title="Get-together" subtitle="Plan a family video call with a reason." action={plus} />
+      <RoomHeader title="Gathering" subtitle="Plan a family video call with a reason." action={plus} />
       <EventPrompts prompts={data.prompts.filter((p) => p.kind !== "pick" || p.eventId !== next?.id)} onChange={() => void reload()} className="mb-4" />
 
       {next ? (

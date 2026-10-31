@@ -47,7 +47,7 @@ describe("the five rooms", () => {
     expect(spaceFor("/gather/play")?.room).toBe("/gather/play");
     expect(tabs("/kitchen")).toEqual([]);
     expect(tabs("/safe")).toEqual([]);
-    // An event page inside Get-together is not a tab of its own.
+    // An event page inside Gathering is not a tab of its own.
     expect(tabs("/gather/ev_123")).toEqual([]);
   });
 });

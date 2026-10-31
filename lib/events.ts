@@ -1,4 +1,4 @@
-// Family events (Get-together): the plan Muse drafts for an occasion, the
+// Family events (Gathering): the plan Muse drafts for an occasion, the
 // three time slots that work across every home, one-tap availability, and
 // the lock rule. Pure and client-safe: no fs, no fetch. Event specifics (run
 // of show, tasks, songs) are data in data/event-templates.json.
@@ -78,7 +78,7 @@ export const EventSchema = z.object({
   answered: z.array(id).default([]),
   status: z.enum(["voting", "locked", "cancelled"]).default("voting"),
   lockedSlotId: z.string().nullable().default(null),
-  /** The get-together session (a sitting with its Jitsi room) once locked. */
+  /** The gathering session (a sitting with its Jitsi room) once locked. */
   sittingId: z.string().nullable().default(null),
   plan: EventPlanSchema,
   planSource: z.enum(["muse", "fallback"]).default("fallback"),

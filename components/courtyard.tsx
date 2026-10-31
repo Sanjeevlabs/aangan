@@ -92,7 +92,7 @@ function SitSlide() {
           <span className={`h-2 w-2 rounded-full ${knock ? "animate-pulse bg-[#3ccf7a]" : "bg-white/50"}`} />
           {knock ? "Live now" : "Sit together"}
         </p>
-        <Link href="/gather" aria-label="Plan a get-together" className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white no-underline">
+        <Link href="/gather" aria-label="Plan a gathering" className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white no-underline">
           <Icon name="calendar" size={17} />
         </Link>
       </div>

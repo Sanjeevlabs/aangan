@@ -7,7 +7,7 @@ import { EventPlanSchema, fallbackPlan, familyLangs, planMentionsPurchase, templ
 import type { Member } from "./schemas";
 
 const SYSTEM =
-  "You plan a 30 to 60 minute family video get-together for a family living in different homes. " +
+  "You plan a 30 to 60 minute family video gathering for a family living in different homes. " +
   "Reply with JSON only: {runOfShow:[{id,title,minutes,ownerId,note}], tasks:[{id,text,ownerId,done:false}], playlist:[{title,artist,why}]}. " +
   "The plan is about wishes and togetherness: voice and video wishes, songs, GIFs, the family's real photos and their voices. " +
   "runOfShow: 4 to 6 short steps, in this order where they fit: a welcome, the Chorus of wishes (everyone wishes in turn), a story from an elder, " +

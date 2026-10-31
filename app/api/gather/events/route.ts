@@ -13,9 +13,9 @@ import { familyHolidays } from "@/lib/occasions-server";
 import { callName } from "@/lib/people";
 import type { Member } from "@/lib/schemas";
 
-// Family events: Muse plans the get-together (run of show, tasks, playlist),
+// Family events: Muse plans the gathering (run of show, tasks, playlist),
 // proposes three times that work in every home, each person taps what works,
-// and the most-picked slot locks into a get-together session (a sitting with
+// and the most-picked slot locks into a gathering session (a sitting with
 // its own video room).
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -70,7 +70,7 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("dismiss"), key: z.string().min(1).max(160) }),
 ]);
 
-/** Lock a slot: create the get-together session (a sitting with its video room). */
+/** Lock a slot: create the gathering session (a sitting with its video room). */
 async function lock(familyId: string, e: FamilyEvent, slotId: string): Promise<FamilyEvent> {
   const slot = e.slots.find((s) => s.id === slotId);
   if (!slot) return e;

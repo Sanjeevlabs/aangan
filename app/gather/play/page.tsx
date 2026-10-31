@@ -27,7 +27,6 @@ const ACTIVITIES: Activity[] = [
   { id: "story", title: "Story night", line: "A grandparent tells one, the children listen.", note: "Story night, come listen", icon: "moon", minutes: 30 },
   { id: "song", title: "Song game", line: "Sing a line; the next song starts where it ended.", note: "Song game, come sing", icon: "music", minutes: 45 },
   { id: "quiz", title: "Family quiz", line: "Who said it, where was this photo, whose recipe.", note: "Family quiz, come play", icon: "sparkle", minutes: 30 },
-  { id: "walk", title: "Walk together", line: "Phones in pockets, everyone on their own street.", note: "A walk together, come along", icon: "walk", minutes: 30 },
 ];
 
 export default function PlayPage() {

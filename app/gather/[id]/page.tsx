@@ -37,7 +37,7 @@ export default function EventPage(props: { params: Promise<{ id: string }> }) {
   if (!mounted || (!data && !failed)) {
     return (
       <div aria-busy="true" aria-label="Loading">
-        <RoomHeader title="Get-together" />
+        <RoomHeader title="Gathering" />
         <div className="skeleton h-[150px] rounded-[28px]" />
         <div className="skeleton mt-4 h-10 rounded-full" />
         <div className="skeleton mt-4 h-[260px] rounded-[22px]" />
@@ -47,9 +47,9 @@ export default function EventPage(props: { params: Promise<{ id: string }> }) {
   if (!e) {
     return (
       <div>
-        <RoomHeader title="Get-together" />
+        <RoomHeader title="Gathering" />
         <div className="rounded-[28px] bg-black/[.04] p-5" role={failed ? "alert" : undefined}>
-          <p className="m-0 text-[17px] font-semibold">{failed ? "Couldn't load this get-together." : "This get-together has ended or was cancelled."}</p>
+          <p className="m-0 text-[17px] font-semibold">{failed ? "Couldn't load this gathering." : "This gathering has ended or was cancelled."}</p>
           <div className="mt-3 flex gap-2">
             {failed && (
               <Button variant="secondary" className="!bg-white" onClick={() => void reload()}>
@@ -57,7 +57,7 @@ export default function EventPage(props: { params: Promise<{ id: string }> }) {
               </Button>
             )}
             <Link href="/gather" className="press flex h-[52px] items-center rounded-full px-5 text-[16px] font-semibold text-ink no-underline">
-              All get-togethers
+              All gatherings
             </Link>
           </div>
         </div>
@@ -89,7 +89,7 @@ export default function EventPage(props: { params: Promise<{ id: string }> }) {
     ...(isHost
       ? [
           {
-            label: "Cancel the get-together",
+            label: "Cancel the gathering",
             danger: true,
             confirm: "Cancel it for everyone?",
             onSelect: async () => {

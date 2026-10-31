@@ -67,7 +67,7 @@ function RoomsSheet({ room, onClose }: { room: Room["id"] | "all" | null; onClos
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Memories, kitchen, care, family, get-together">
+        <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Memories, kitchen, care, family, gathering">
           <m.button type="button" aria-label="Close" className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
           <m.nav
             className="frost relative w-full max-w-[480px] overflow-y-auto rounded-t-[32px] px-4 pt-3"
@@ -129,7 +129,7 @@ function RoomsSheet({ room, onClose }: { room: Room["id"] | "all" | null; onClos
 }
 
 // The dock: a voice note (to anyone; it says who is waiting for your reply),
-// a photo, and ⋯ for the rooms (Memories, Kitchen, Care, Family, Get-together).
+// a photo, and ⋯ for the rooms (Memories, Kitchen, Care, Family, Gathering).
 function Dock() {
   const { openAdd, openRoom, refreshKey, chromeHidden } = useShell();
   const { viewer, members, relationships } = useViewer();
@@ -182,7 +182,7 @@ function Dock() {
               <button type="button" onClick={() => openAdd("photos")} aria-label="Share a photo or video" className="press grid h-14 w-14 place-items-center rounded-full text-ink">
                 <Icon name="camera" size={23} strokeWidth={1.9} />
               </button>
-              <button type="button" onClick={() => openRoom("all")} aria-label="Memories, kitchen, care, family, get-together" className="press grid h-14 w-14 place-items-center rounded-full text-ink">
+              <button type="button" onClick={() => openRoom("all")} aria-label="Memories, kitchen, care, family, gathering" className="press grid h-14 w-14 place-items-center rounded-full text-ink">
                 <Icon name="more" size={24} strokeWidth={2} />
               </button>
             </div>
