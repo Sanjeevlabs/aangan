@@ -32,13 +32,13 @@ export function EventPrompts({ prompts, onChange, className }: { prompts?: Event
         const dark = p.kind === "live" || p.kind === "soon";
         const body = (
           <>
-            <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-full", dark ? "bg-white/10" : "bg-white")}>
+            <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-full", dark ? "bg-white/10" : "bg-well")}>
               {p.kind === "live" ? <span className="h-2.5 w-2.5 rounded-full bg-[#ffb84d]" style={{ boxShadow: "0 0 0 4px rgba(255,184,77,.25)" }} aria-hidden="true" /> : <Icon name={ICON[p.kind]} size={18} />}
             </span>
             <span className="min-w-0 flex-1 text-[15px] font-semibold leading-snug">{p.text}</span>
           </>
         );
-        const row = cn("flex items-center gap-3 rounded-[22px] p-2 pr-2", dark ? "bg-[#1c1b1a] text-white" : "bg-black/[.04] text-ink");
+        const row = cn("flex items-center gap-3 rounded-[22px] p-2 pr-2", dark ? "bg-[#1c1b1a] text-white" : "bg-surface text-ink");
         if (p.kind !== "suggest") {
           return (
             <li key={p.id}>

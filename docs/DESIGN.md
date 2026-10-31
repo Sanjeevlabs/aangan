@@ -29,7 +29,8 @@ its controls (play, scrub, lyrics) and its tone (warm, intimate, never a feed).
 
 ## 3. Visual tokens
 
-- **Ground:** `#FFFFFF`. Text: `rgba(0,0,0,.88)` primary, `.56` secondary, `.38` tertiary. Hairline `rgba(0,0,0,.08)`.
+- **Ground:** warm paper `#F7F5F1` (`--paper`); cards are white (`--card`, `--surface`) lifted by a soft shadow (`--card-shadow`) or a hairline (`--surface-edge`); fills inside a white card use `--well` `#F1EEE9`. Sheets and the dock are paper too, so white blocks read as cards everywhere. Text: `rgba(0,0,0,.88)` primary, `.60` secondary (≥ 4.5:1 on paper and white), `.42` tertiary (icons, decoration). Hairline `rgba(0,0,0,.08)`.
+- **Rooms:** 20px side gutter, cards full width or a 2-column grid that fills the row, body text ≥ 15px. A room with nothing in it shows an empty state (a calm photo band, one line of why, one action) and what it can start next, never a lone sentence on blank paper.
 - **Signal:** marigold `#F5A524`, used only for live states: heard, playing now, recording. Never decorative.
 - **Per-card colour:** each photo card derives its tint and its shadow (`0 24px 50px -18px <dominant colour>`) from the photo, so the page gets colour from the family, not from the brand.
 - **Glass:** `rgba(255,255,255,.16)`, `backdrop-filter: blur(22px) saturate(1.7)`, `1px rgba(255,255,255,.32)` border, `inset 0 1px 0 rgba(255,255,255,.45)` highlight. Dock variant on white: `rgba(255,255,255,.62)`, hairline border, `0 12px 40px rgba(0,0,0,.14)`. Max two glass layers on screen at once (performance and legibility).

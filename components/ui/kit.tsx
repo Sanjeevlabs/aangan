@@ -212,7 +212,7 @@ export function LiveDot({ className }: { className?: string }) {
 export function Avatar({ src, name, size = 40, ring = false }: { src: string | null; name: string; size?: number; ring?: boolean }) {
   return (
     <span
-      className="relative inline-block shrink-0 overflow-hidden rounded-full bg-surface"
+      className="relative inline-block shrink-0 overflow-hidden rounded-full bg-well"
       style={{ width: size, height: size, boxShadow: ring ? "0 0 0 2px #fff, 0 0 0 3px var(--line)" : undefined }}
     >
       {src ? <Photo src={src} alt={name} sizes={`${size * 2}px`} position="center 30%" /> : <Monogram name={name} size={size} />}
@@ -254,8 +254,8 @@ export function Monogram({ name, size }: { name: string; size: number }) {
 export function RoomHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) {
   const router = useRouter();
   return (
-    <header className="mb-6">
-      <div className="mb-3 flex h-11 items-center justify-between">
+    <header className="mb-5">
+      <div className="mb-1 flex h-11 items-center justify-between">
         <button
           type="button"
           onClick={() => (window.history.length > 1 ? router.back() : router.push("/"))}
@@ -266,7 +266,7 @@ export function RoomHeader({ title, subtitle, action }: { title: string; subtitl
         </button>
         {action}
       </div>
-      <h1 className="m-0 text-[30px] font-light leading-[1.05] tracking-[-0.01em]">{title}</h1>
+      <h1 className="m-0 text-[32px] font-light leading-[1.05] tracking-[-0.015em]">{title}</h1>
       {/* Subtitles stay in the code for screen readers only: the page says it, the header doesn't repeat it. */}
       {subtitle && <p className="sr-only">{subtitle}</p>}
       <SpaceTabs />
@@ -280,7 +280,7 @@ function SpaceTabs() {
   const at = spaceFor(pathname);
   if (!at || at.room !== pathname || at.space.rooms.length < 2) return null;
   return (
-    <nav aria-label={at.space.title} className="no-scrollbar -mx-5 mt-4 flex gap-1.5 overflow-x-auto px-5">
+    <nav aria-label={at.space.title} className="no-scrollbar -mx-5 mt-4 flex gap-2 overflow-x-auto px-5 py-1">
       {at.space.rooms.map((r) => (
         <Link
           key={r.href}
@@ -288,8 +288,9 @@ function SpaceTabs() {
           replace
           aria-current={r.href === at.room ? "page" : undefined}
           className={cn(
-            "press flex h-9 shrink-0 items-center rounded-full px-4 text-[14px] font-semibold no-underline",
-            r.href === at.room ? "bg-ink text-white" : "bg-surface text-ink-soft",
+            // 40px pill, 44px hit area (the ::before reaches 2px past it, top and bottom).
+            "press relative flex h-10 shrink-0 items-center rounded-full px-4 text-[15px] font-semibold no-underline before:absolute before:inset-x-0 before:-inset-y-0.5 before:content-['']",
+            r.href === at.room ? "bg-ink text-white" : "bg-card text-ink-soft shadow-card",
           )}
         >
           {r.title}
@@ -360,6 +361,72 @@ export function MuseMark({ children = "powered by Muse", tone = "soft", classNam
       <Icon name="sparkle" size={13} strokeWidth={1.8} />
       {children}
     </span>
+  );
+}
+
+/**
+ * A room with nothing in it yet: a calm photo band, one line of why, one
+ * clear action. Suggestions (what the code can already start) go underneath.
+ */
+export function EmptyState({
+  photo = "/demo/courtyard.jpg",
+  position = "center",
+  title,
+  line,
+  action,
+  children,
+  className,
+}: {
+  photo?: string;
+  position?: string;
+  title: React.ReactNode;
+  line: React.ReactNode;
+  action?: React.ReactNode;
+  children?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={cn("overflow-hidden rounded-card bg-card shadow-card", className)}>
+      <div className="relative h-[152px]">
+        <Photo src={photo} sizes="(max-width: 480px) 100vw, 480px" position={position} />
+        <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[var(--card)] to-transparent" aria-hidden="true" />
+      </div>
+      <div className="px-5 pb-5">
+        <p className="m-0 text-[21px] font-semibold leading-tight tracking-[-0.01em]">{title}</p>
+        <p className="m-0 mt-1.5 text-[15px] leading-snug text-ink-soft">{line}</p>
+        {action && <div className="mt-4">{action}</div>}
+        {children}
+      </div>
+    </section>
+  );
+}
+
+/** A suggestion the page can already start: an icon, a name, one line. Fills a 2-column grid. */
+export function SuggestionTile({ icon, title, line, onClick, href, disabled }: { icon: IconName; title: string; line?: string; onClick?: () => void; href?: string; disabled?: boolean }) {
+  // With a line: icon above, two lines of words. Name only: one compact row.
+  const cls = cn(
+    "press flex h-full w-full rounded-[22px] bg-card p-4 text-left text-ink no-underline shadow-card disabled:opacity-60",
+    line ? "min-h-[120px] flex-col items-start gap-3" : "min-h-[64px] items-center gap-3 py-3 pl-3",
+  );
+  const body = (
+    <>
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-well">
+        <Icon name={icon} size={19} strokeWidth={1.8} />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[15px] font-semibold leading-tight">{title}</span>
+        {line && <span className="mt-1 block text-[14px] leading-snug text-ink-soft">{line}</span>}
+      </span>
+    </>
+  );
+  return href ? (
+    <Link href={href} className={cls}>
+      {body}
+    </Link>
+  ) : (
+    <button type="button" onClick={onClick} disabled={disabled} className={cls}>
+      {body}
+    </button>
   );
 }
 

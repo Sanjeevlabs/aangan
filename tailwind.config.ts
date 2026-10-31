@@ -7,6 +7,8 @@ const config: Config = {
     extend: {
       colors: {
         paper: "var(--paper)",
+        card: "var(--card)",
+        well: "var(--well)",
         surface: "var(--surface)",
         ink: "var(--ink)",
         "ink-soft": "var(--ink-soft)",
@@ -31,6 +33,7 @@ const config: Config = {
       },
       boxShadow: {
         glass: "var(--glass-shadow)",
+        card: "var(--card-shadow)",
         frost: "var(--frost-shadow)",
       },
     },

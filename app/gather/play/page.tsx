@@ -53,11 +53,11 @@ export default function PlayPage() {
       {open.map((k) => {
         const who = members.find((m) => m.id === k.memberId);
         return (
-          <button key={k.id} type="button" onClick={() => router.push(`/call/${k.id}`)} className="press mb-3 flex w-full items-center gap-3 rounded-[22px] bg-[#1c1b1a] p-3 text-left text-white">
+          <button key={k.id} type="button" onClick={() => router.push(`/call/${k.id}`)} className="press mb-3 flex min-h-[72px] w-full items-center gap-3 rounded-card bg-[#1c1b1a] p-3 pl-4 text-left text-white shadow-card">
             <Avatar src={memberPhoto(who)} name={callName(who)} size={44} />
             <span className="min-w-0 flex-1">
               <span className="block text-[15px] font-semibold">{callName(who)}&rsquo;s door is open</span>
-              <span className="block truncate text-[14px] text-white/70">{k.note || "Come sit with me"}</span>
+              <span className="block truncate text-[15px] text-white/75">{k.note || "Come sit with me"}</span>
             </span>
             <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white text-[#1c1b1a]">
               <Icon name="video" size={20} />
@@ -66,29 +66,34 @@ export default function PlayPage() {
         );
       })}
 
-      <ul className="m-0 list-none space-y-2 p-0" aria-label="Things to do together">
+      <ul className="m-0 grid list-none gap-3 p-0" aria-label="Things to do together">
         {ACTIVITIES.map((a) => (
           <li key={a.id}>
-            <button type="button" disabled={busy !== null} onClick={() => void start(a)} className="press flex w-full items-center gap-3.5 rounded-[22px] bg-surface p-3 text-left text-ink disabled:opacity-60">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white">
-                <Icon name={a.icon} size={21} strokeWidth={1.8} />
+            <button type="button" disabled={busy !== null} onClick={() => void start(a)} className="press flex min-h-[88px] w-full items-center gap-4 rounded-card bg-card p-4 text-left text-ink shadow-card disabled:opacity-60">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-well">
+                <Icon name={a.icon} size={22} strokeWidth={1.8} />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-[16px] font-semibold leading-tight">{a.title}</span>
-                <span className="mt-0.5 block text-[13.5px] leading-snug text-ink-soft">{a.line}</span>
+                <span className="block text-[17px] font-semibold leading-tight">{a.title}</span>
+                <span className="mt-1 block text-[15px] leading-snug text-ink-soft">{a.line}</span>
               </span>
-              <span className="flex h-10 shrink-0 items-center rounded-full bg-[#1c1b1a] px-4 text-[14px] font-semibold text-white">{busy === a.id ? "…" : "Start"}</span>
+              <span className="flex h-11 shrink-0 items-center rounded-full bg-[#1c1b1a] px-4 text-[15px] font-semibold text-white">{busy === a.id ? "…" : "Start"}</span>
             </button>
           </li>
         ))}
       </ul>
 
       {error && (
-        <p className="m-0 mt-3 text-center text-[14px] text-[#b42318]" role="alert">
+        <p className="m-0 mt-3 text-center text-[15px] text-[#b42318]" role="alert">
           Couldn&rsquo;t open the call. Try again.
         </p>
       )}
-      <p className="m-0 mt-4 text-center text-[13px] text-ink-soft">Starting one opens your door for the family to join.</p>
+      <div className="mt-6 flex items-center gap-3 rounded-card bg-well p-4">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-card">
+          <Icon name="door" size={19} strokeWidth={1.8} />
+        </span>
+        <p className="m-0 text-[15px] leading-snug text-ink-soft">Starting one opens your door for the family to join.</p>
+      </div>
     </div>
   );
 }

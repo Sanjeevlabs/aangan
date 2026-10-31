@@ -5,7 +5,7 @@ import { isGrownUp } from "@/lib/permissions";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { PlanBadge, countdownWords, daysUntil } from "@/components/together-art";
-import { Avatar, Button, EmptyLine, Icon, RoomHeader, SectionTitle } from "@/components/ui/kit";
+import { Avatar, Button, EmptyLine, EmptyState, Icon, RoomHeader, SectionTitle, SuggestionTile } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
 import type { Project } from "@/lib/kinds";
 import { callName, memberPhoto } from "@/lib/people";
@@ -35,43 +35,72 @@ export function TogetherPlans({ kind }: { kind: TogetherTemplate["id"] }) {
   const done = projects.filter((p) => p.status === "done");
   const child = !isGrownUp(viewer);
 
+  const tmpl = data?.templates[0];
+  // The sibling page and a gathering: both already exist, so the page never ends in white.
+  const other = kind === "holiday" ? { href: "/together/visits", icon: "village" as const, title: "A visit home", line: "Dates, tickets, what to bring." } : { href: "/together/holidays", icon: "sun" as const, title: "A family holiday", line: "Somewhere together." };
+  const next = child ? { href: "/gather/play", icon: "music" as const, title: "Play together", line: "Something to do on a call, right now." } : { href: "/gather?plan=1", icon: "calendar" as const, title: "Plan a gathering", line: "A family call with a reason." };
+
   return (
     <div>
       <RoomHeader title={copy.title} subtitle={copy.subtitle} />
 
       {failed && (
-        <div className="text-center">
+        <div className="rounded-card bg-card px-5 py-6 text-center shadow-card">
           <EmptyLine>Couldn&rsquo;t load your plans.</EmptyLine>
-          <Button variant="secondary" className="mx-auto" onClick={() => void reload()}>
+          <Button variant="secondary" className="mx-auto !bg-well" onClick={() => void reload()}>
             Try again
           </Button>
         </div>
       )}
-      {data === null && !failed && <div className="skeleton h-[180px] rounded-card" aria-busy="true" aria-label="Loading plans" />}
+      {data === null && !failed && <div className="skeleton h-[280px] rounded-card" aria-busy="true" aria-label="Loading plans" />}
 
       {data && (
         <>
           {active.length > 0 ? (
-            <ul className="no-scrollbar -mx-5 m-0 flex list-none snap-x snap-mandatory gap-3 overflow-x-auto px-5 p-0" aria-label="Coming up">
+            <ul className="m-0 grid list-none gap-3 p-0" aria-label="Coming up">
               {active.map((p) => (
-                <li key={p.id} className="w-[78%] max-w-[320px] shrink-0 snap-start">
+                <li key={p.id}>
                   <PlanCard project={p} />
                 </li>
               ))}
             </ul>
           ) : (
-            <EmptyLine>{copy.empty}</EmptyLine>
+            <EmptyState
+              position={kind === "holiday" ? "center 85%" : "center 40%"}
+              title={copy.empty}
+              line={tmpl?.blurb ?? copy.subtitle}
+              action={
+                !child && tmpl ? (
+                  <Button className="w-full" onClick={() => setOpen(tmpl)}>
+                    <Icon name="plus" size={18} />
+                    Plan {tmpl.title.charAt(0).toLowerCase() + tmpl.title.slice(1)}
+                  </Button>
+                ) : undefined
+              }
+            >
+              {tmpl && (
+                <ul className="m-0 mt-5 grid list-none gap-2 border-t border-[var(--line)] p-0 pt-4" aria-label="On the list">
+                  {tmpl.tasks.map((task) => (
+                    <li key={task} className="flex items-center gap-3 text-[15px] text-ink-soft">
+                      <span className="h-[18px] w-[18px] shrink-0 rounded-full border-2 border-black/15" aria-hidden="true" />
+                      {task}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </EmptyState>
           )}
 
-          {!child && (
-            <div className="mt-4 grid gap-2">
+          {!child && active.length > 0 && (
+            <div className="mt-3 grid gap-3">
               {data.templates.map((t) => (
-                <button key={t.id} type="button" onClick={() => setOpen(t)} className="press frost flex items-center gap-3 rounded-card p-3 text-left">
-                  <PlanBadge holiday={t.id === "holiday"} size={40} />
-                  <span className="min-w-0">
-                    <span className="block text-[15px] font-semibold leading-tight">{t.title}</span>
-                    <span className="block text-[12.5px] text-ink-soft">Plan it</span>
+                <button key={t.id} type="button" onClick={() => setOpen(t)} className="press flex min-h-[64px] w-full items-center gap-3 rounded-card bg-card p-3 pr-4 text-left shadow-card">
+                  <PlanBadge holiday={t.id === "holiday"} size={44} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[16px] font-semibold leading-tight">{t.title}</span>
+                    <span className="mt-0.5 block text-[14px] text-ink-soft">Plan it</span>
                   </span>
+                  <Icon name="plus" size={20} className="text-ink-soft" />
                 </button>
               ))}
             </div>
@@ -83,7 +112,7 @@ export function TogetherPlans({ kind }: { kind: TogetherTemplate["id"] }) {
               <ul className="no-scrollbar -mx-5 m-0 flex list-none gap-2 overflow-x-auto px-5 p-0">
                 {done.map((p) => (
                   <li key={p.id} className="shrink-0">
-                    <Link href={`/together/${p.id}`} className="press flex h-11 items-center gap-2 rounded-full bg-surface pl-1.5 pr-4 text-[14px] font-medium text-ink no-underline">
+                    <Link href={`/together/${p.id}`} className="press flex h-11 items-center gap-2 rounded-full bg-card pl-1.5 pr-4 text-[15px] font-medium text-ink no-underline shadow-card">
                       <PlanBadge holiday={p.templateId === "holiday"} size={32} />
                       {p.title}
                     </Link>
@@ -92,6 +121,14 @@ export function TogetherPlans({ kind }: { kind: TogetherTemplate["id"] }) {
               </ul>
             </section>
           )}
+
+          <section aria-label="More together">
+            <SectionTitle>More together</SectionTitle>
+            <div className="grid grid-cols-2 gap-3">
+              <SuggestionTile href={other.href} icon={other.icon} title={other.title} line={other.line} />
+              <SuggestionTile href={next.href} icon={next.icon} title={next.title} line={next.line} />
+            </div>
+          </section>
         </>
       )}
       {open && <PlanSheet t={open} onClose={() => setOpen(null)} />}
@@ -103,23 +140,46 @@ function PlanCard({ project }: { project: Project }) {
   const { members } = useViewer();
   const days = daysUntil(project.dueAt);
   const done = project.tasks.filter((t) => t.done).length;
+  const total = project.tasks.length;
+  const open = project.tasks.filter((t) => !t.done).slice(0, 3);
   const people = [project.visitorId, ...project.hostIds].map((id) => members.find((m) => m.id === id)).filter((m): m is Member => Boolean(m));
+  const when = project.dueAt ? new Date(project.dueAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : null;
   return (
-    <Link href={`/together/${project.id}`} className="press flex h-full flex-col rounded-card bg-surface p-4 text-ink no-underline">
+    <Link href={`/together/${project.id}`} className="press flex h-full flex-col rounded-card bg-card p-5 text-ink no-underline shadow-card">
       <div className="flex items-start justify-between gap-2">
-        <span className="tnum text-[44px] font-bold leading-none">{days !== null && days > 0 ? days : days === 0 ? "Today" : "–"}</span>
-        <PlanBadge holiday={project.templateId === "holiday"} size={36} />
+        <span>
+          <span className="tnum block text-[48px] font-bold leading-none tracking-[-0.02em]">{days !== null && days > 0 ? days : days === 0 ? "Today" : "–"}</span>
+          <span className="mt-1 block text-[14px] text-ink-soft">
+            {days !== null && days > 0 ? `day${days > 1 ? "s" : ""} to go` : days === 0 ? "it's today" : "no date yet"}
+            {when ? ` · ${when}` : ""}
+          </span>
+        </span>
+        <PlanBadge holiday={project.templateId === "holiday"} size={44} />
       </div>
-      <span className="mt-1 block text-[13px] text-ink-soft">{days !== null && days > 0 ? `day${days > 1 ? "s" : ""} to go` : days === 0 ? "it's today" : "no date yet"}</span>
-      <span className="mt-3 block truncate text-[16px] font-semibold">{project.title}</span>
-      <span className="mt-2 flex items-center justify-between">
-        <span className="flex -space-x-2">
-          {people.slice(0, 4).map((m) => (
-            <Avatar key={m.id} src={memberPhoto(m)} name={callName(m)} size={28} ring />
+      <span className="mt-4 block text-[18px] font-semibold leading-snug">{project.title}</span>
+      {open.length > 0 && (
+        <span className="mt-3 grid gap-2 border-t border-[var(--line)] pt-3">
+          {open.map((t) => (
+            <span key={t.id} className="flex items-center gap-3 text-[15px] text-ink-soft">
+              <span className="h-[18px] w-[18px] shrink-0 rounded-full border-2 border-black/15" aria-hidden="true" />
+              <span className="min-w-0 truncate">{t.text}</span>
+            </span>
           ))}
         </span>
-        <span className="tnum text-[13px] text-ink-soft">
-          {done}/{project.tasks.length}
+      )}
+      <span className="mt-4 flex items-center justify-between gap-3">
+        <span className="flex -space-x-2">
+          {people.slice(0, 4).map((m) => (
+            <Avatar key={m.id} src={memberPhoto(m)} name={callName(m)} size={32} ring />
+          ))}
+        </span>
+        <span className="flex min-w-0 flex-1 items-center justify-end gap-2.5">
+          <span className="h-1.5 w-full max-w-[120px] overflow-hidden rounded-full bg-well" aria-hidden="true">
+            <span className="block h-full rounded-full bg-ink" style={{ width: `${total ? Math.round((done / total) * 100) : 0}%` }} />
+          </span>
+          <span className="tnum text-[14px] text-ink-soft" aria-label={`${done} of ${total} done`}>
+            {done}/{total}
+          </span>
         </span>
       </span>
     </Link>

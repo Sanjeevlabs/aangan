@@ -4,7 +4,7 @@ import { AnimatePresence, m } from "framer-motion";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useShell } from "@/components/shell";
 import { Translated } from "@/components/translated";
-import { ActionMenu, Avatar, Button, EmptyLine, Icon, MuseMark, RoomHeader, SectionTitle } from "@/components/ui/kit";
+import { ActionMenu, Avatar, Button, EmptyLine, Icon, MuseMark, RoomHeader, SectionTitle, SuggestionTile, type IconName } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
 import { householdName, householdOf, households, type Household } from "@/lib/households";
 import { HELPER_ROLES, NEED_KINDS, PRIORITIES, RECURRENCE } from "@/lib/kind-values";
@@ -48,7 +48,22 @@ const PRIORITY_LABEL: Record<(typeof PRIORITIES)[number], string> = { normal: "N
 const REPEAT_LABEL: Record<(typeof RECURRENCE)[number], string> = { none: "Once", weekly: "Weekly", monthly: "Monthly" };
 const STATUS_LABEL: Record<Need["status"], string> = { open: "To do", claimed: "Assigned", progress: "In progress", done: "Done", cancelled: "Cancelled" };
 const FILTER_LABEL: Record<Filter, string> = { all: "All", mine: "Mine", unassigned: "Unassigned", urgent: "Urgent" };
-const field = "h-12 w-full rounded-[14px] bg-white px-4 text-[16px] outline-none ring-1 ring-black/5 focus:ring-2 focus:ring-black/30";
+/** The asks families make most: each opens a new task of that kind. */
+const QUICK_KINDS: { kind: Kind; icon: IconName }[] = [
+  { kind: "groceries", icon: "basket" },
+  { kind: "repair", icon: "wrench" },
+  { kind: "ride", icon: "car" },
+  { kind: "health", icon: "care" },
+];
+const ROLE_ICON: Partial<Record<Helper["role"], IconName>> = { groceries: "basket", driver: "car", cook: "utensils", plumber: "wrench", electrician: "plug", repairs: "wrench", caregiver: "care", "house help": "village", "gas booking": "pot", neighbour: "village" };
+/** Who a home usually needs nearby, offered when they aren't in the book yet. */
+const ROLE_SUGGEST: Helper["role"][] = ["groceries", "driver", "plumber", "electrician", "cook", "caregiver"];
+const chip = (on: boolean) =>
+  cn(
+    "press relative h-10 shrink-0 rounded-full px-4 text-[15px] font-medium before:absolute before:inset-x-0 before:-inset-y-0.5 before:content-['']",
+    on ? "bg-black text-white" : "bg-card shadow-card",
+  );
+const field = "h-12 w-full rounded-[14px] bg-well px-4 text-[16px] outline-none ring-1 ring-black/5 focus:ring-2 focus:ring-black/30";
 
 export function CareView({ tab }: { tab: "tasks" | "helpers" }) {
   const pageTitle = tab === "tasks" ? "Care tasks" : "Local helpers";
@@ -67,7 +82,7 @@ export function CareView({ tab }: { tab: "tasks" | "helpers" }) {
     return (
       <div>
         <RoomHeader title={pageTitle} />
-        <div className="rounded-card bg-surface px-6 py-10 text-center">
+        <div className="rounded-card bg-card px-6 py-10 text-center shadow-card">
           <p className="m-0 text-[18px] font-semibold">Add a parent or grandparent first</p>
           <p className="mx-auto mt-2 max-w-[300px] text-[15px] text-ink-soft">Care forms around the homes of the elders in your family tree.</p>
         </div>
@@ -87,9 +102,9 @@ export function CareView({ tab }: { tab: "tasks" | "helpers" }) {
       <RoomHeader title={pageTitle} subtitle={`${isParent ? "Your home" : householdName(home, (x) => callName(x))} · ${timeIn(home.tz)} in ${placeFromTz(home.tz)}`} />
 
       {!isParent && homes.length > 1 && (
-        <div className="no-scrollbar -mx-5 mb-3 flex gap-2 overflow-x-auto px-5">
+        <div className="no-scrollbar -mx-5 mb-4 flex gap-2 overflow-x-auto px-5 py-1">
           {homes.map((h) => (
-            <button key={h.id} type="button" onClick={() => setChosen(h.id)} aria-pressed={h.id === home.id} className={cn("press flex h-11 shrink-0 items-center gap-2 rounded-full pl-1 pr-4 text-[15px] font-medium", h.id === home.id ? "bg-black text-white" : "bg-surface")}>
+            <button key={h.id} type="button" onClick={() => setChosen(h.id)} aria-pressed={h.id === home.id} className={cn("press flex h-11 shrink-0 items-center gap-2 rounded-full pl-1 pr-4 text-[15px] font-medium", h.id === home.id ? "bg-black text-white" : "bg-card shadow-card")}>
               <span className="flex -space-x-2">
                 {h.members.slice(0, 2).map((x) => (
                   <Avatar key={x.id} src={memberPhoto(x)} name={callName(x)} size={30} />
@@ -102,9 +117,9 @@ export function CareView({ tab }: { tab: "tasks" | "helpers" }) {
       )}
 
       {care.failed && !data ? (
-        <div className="rounded-card bg-surface px-5 py-8 text-center">
+        <div className="rounded-card bg-card px-5 py-8 text-center shadow-card">
           <p className="m-0 text-[15px] text-ink-soft">Couldn&rsquo;t load care right now.</p>
-          <Button variant="secondary" className="mx-auto mt-3 !h-11 !bg-white" onClick={() => void care.reload()}>
+          <Button variant="secondary" className="mx-auto mt-3 !h-11 !bg-well" onClick={() => void care.reload()}>
             Try again
           </Button>
         </div>
@@ -129,7 +144,9 @@ function Tasks({ home, parent, isParent, needs, helpers, pets, onChange }: { hom
   const [filter, setFilter] = useState<Filter>("all");
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [showDone, setShowDone] = useState(false);
+  const [draftKind, setDraftKind] = useState<Kind | undefined>(undefined);
+  // null = not chosen yet: open by default while the open list is short, so the page isn't half empty.
+  const [showDoneChoice, setShowDone] = useState<boolean | null>(null);
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -143,6 +160,7 @@ function Tasks({ home, parent, isParent, needs, helpers, pets, onChange }: { hom
   const done = needs.filter((n) => n.status === "done" && Date.parse(n.doneAt ?? n.createdAt) > weekAgo).filter(passes);
   const counts: Record<Filter, number> = { all: live.length, mine: live.filter((n) => n.claimedBy === viewer.id).length, unassigned: live.filter((n) => !n.claimedBy).length, urgent: live.filter((n) => n.priority === "urgent").length };
   const selected = needs.find((n) => n.id === openId);
+  const showDone = showDoneChoice ?? todo.length + doing.length <= 3;
 
   const quickAdd = async () => {
     const t = title.trim();
@@ -163,7 +181,7 @@ function Tasks({ home, parent, isParent, needs, helpers, pets, onChange }: { hom
   return (
     <section aria-label="Tasks">
       {mayAdd && (
-        <div className="frost flex items-center gap-2 rounded-[24px] p-2">
+        <div className="flex items-center gap-2 rounded-[24px] bg-card p-2 shadow-card">
           <button type="button" onClick={() => openAdd("voice", { kind: "need", forMemberId: parent.id })} aria-label="Say a task" className="press grid h-14 w-14 shrink-0 place-items-center rounded-full bg-black text-white">
             <Icon name="mic" size={24} />
           </button>
@@ -175,18 +193,18 @@ function Tasks({ home, parent, isParent, needs, helpers, pets, onChange }: { hom
             aria-label="New task"
             className="h-12 min-w-0 flex-1 bg-transparent px-1 text-[16px] outline-none placeholder:text-ink-faint"
           />
-          <button type="button" disabled={busy} onClick={() => void quickAdd()} aria-label={title.trim().length >= 3 ? "Add task" : "New task with details"} className="press grid h-11 w-11 shrink-0 place-items-center rounded-full bg-surface disabled:opacity-40">
+          <button type="button" disabled={busy} onClick={() => void quickAdd()} aria-label={title.trim().length >= 3 ? "Add task" : "New task with details"} className="press grid h-11 w-11 shrink-0 place-items-center rounded-full bg-well disabled:opacity-40">
             <Icon name="plus" size={20} />
           </button>
         </div>
       )}
       {err && <p className="m-0 mt-2 px-2 text-[13px] text-[#a3271b]" role="alert">{err}</p>}
 
-      <div className="no-scrollbar -mx-5 mt-3 flex gap-1.5 overflow-x-auto px-5" role="radiogroup" aria-label="Filter">
+      <div className="no-scrollbar -mx-5 mt-4 flex gap-2 overflow-x-auto px-5 py-1" role="radiogroup" aria-label="Filter">
         {(["all", "mine", "unassigned", "urgent"] as const).map((f) => (
-          <button key={f} type="button" role="radio" aria-checked={filter === f} onClick={() => setFilter(f)} className={cn("press h-9 shrink-0 rounded-full px-3.5 text-[14px] font-medium", filter === f ? "bg-black text-white" : "bg-surface")}>
+          <button key={f} type="button" role="radio" aria-checked={filter === f} onClick={() => setFilter(f)} className={chip(filter === f)}>
             {FILTER_LABEL[f]}
-            {counts[f] ? <span className={cn("ml-1.5 tnum", filter === f ? "text-white/70" : "text-ink-faint")}>{counts[f]}</span> : null}
+            {counts[f] ? <span className={cn("ml-1.5 tnum", filter === f ? "text-white/70" : "text-ink-soft")}>{counts[f]}</span> : null}
           </button>
         ))}
       </div>
@@ -194,13 +212,32 @@ function Tasks({ home, parent, isParent, needs, helpers, pets, onChange }: { hom
       <Lane title="Open" items={todo} onOpen={setOpenId} manage={manage} act={act} empty={live.length === 0 ? (mayAdd ? "Nothing to do. Say or type the next thing." : "Nothing to do right now.") : "Nothing here with this filter."} />
       {doing.length > 0 && <Lane title="In progress" items={doing} onOpen={setOpenId} manage={manage} act={act} />}
       {done.length > 0 && (
-        <div className="mt-4">
-          <button type="button" onClick={() => setShowDone((v) => !v)} aria-expanded={showDone} className="flex h-10 items-center gap-1.5 text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-faint">
+        <div className="mt-5">
+          <button type="button" onClick={() => setShowDone(!showDone)} aria-expanded={showDone} className="flex h-11 items-center gap-1.5 text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-soft">
             Done this week · {done.length}
             <Icon name="down" size={16} className={cn("transition-transform", showDone && "rotate-180")} />
           </button>
           {showDone && <Lane items={done} onOpen={setOpenId} manage={manage} act={act} muted />}
         </div>
+      )}
+
+      {mayAdd && (
+        <section aria-label="Start a task">
+          <SectionTitle>Start a task</SectionTitle>
+          <div className="grid grid-cols-2 gap-3">
+            {QUICK_KINDS.map((q) => (
+              <SuggestionTile
+                key={q.kind}
+                icon={q.icon}
+                title={KIND_LABEL[q.kind]}
+                onClick={() => {
+                  setDraftKind(q.kind);
+                  setCreating(true);
+                }}
+              />
+            ))}
+          </div>
+        </section>
       )}
 
       <AnimatePresence>
@@ -210,12 +247,14 @@ function Tasks({ home, parent, isParent, needs, helpers, pets, onChange }: { hom
             need={selected}
             home={home}
             draft={creating ? title : ""}
+            draftKind={creating ? draftKind : undefined}
             helpers={helpers}
             pets={pets}
             onClose={() => {
               setOpenId(null);
               if (creating) setTitle("");
               setCreating(false);
+              setDraftKind(undefined);
             }}
             onChange={onChange}
           />
@@ -231,15 +270,15 @@ function rank(p: Need["priority"]): number {
 
 function Lane({ title, items, onOpen, manage, act, empty, muted }: { title?: string; items: Need[]; onOpen: (id: string) => void; manage: boolean; act: (body: Record<string, unknown>) => Promise<void>; empty?: string; muted?: boolean }) {
   return (
-    <div className={title ? "mt-4" : "mt-1"}>
+    <div className={title ? "mt-5" : "mt-1"}>
       {title && (
-        <p className="m-0 mb-1.5 text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-faint">
+        <p className="m-0 mb-2 text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-soft">
           {title} · {items.length}
         </p>
       )}
-      {items.length === 0 && empty ? <p className="m-0 rounded-card bg-surface px-4 py-5 text-center text-[15px] text-ink-soft">{empty}</p> : null}
+      {items.length === 0 && empty ? <p className="m-0 rounded-card bg-card px-4 py-6 text-center text-[15px] text-ink-soft shadow-card">{empty}</p> : null}
       {items.length > 0 && (
-        <ul className="m-0 list-none divide-y divide-[var(--line)] overflow-hidden rounded-card bg-surface p-0">
+        <ul className="m-0 list-none divide-y divide-[var(--line)] overflow-hidden rounded-card bg-card p-0 shadow-card">
           {items.map((n) => (
             <TaskRow key={n.id} need={n} onOpen={() => onOpen(n.id)} manage={manage} act={act} muted={muted} />
           ))}
@@ -262,31 +301,31 @@ function TaskRow({ need, onOpen, manage, act, muted }: { need: Need; onOpen: () 
     setBusy(false);
   };
   return (
-    <li className="flex items-center gap-2 pr-2">
-      <button type="button" onClick={onOpen} className="press flex min-w-0 flex-1 items-center gap-2.5 py-2.5 pl-3.5 text-left">
+    <li className="flex items-center gap-1.5 pr-2">
+      <button type="button" onClick={onOpen} className="press flex min-h-[64px] min-w-0 flex-1 items-center gap-3 py-3 pl-4 text-left">
         <span className={cn("h-2 w-2 shrink-0 rounded-full", need.priority === "urgent" ? "bg-[#d92d20]" : need.priority === "soon" ? "bg-[#d99a1e]" : "bg-black/15")} aria-label={`${PRIORITY_LABEL[need.priority]} priority`} />
         <span className="min-w-0 flex-1">
-          <span className={cn("block truncate text-[15px] font-semibold", muted && "text-ink-soft line-through decoration-black/20")}>
+          <span className={cn("line-clamp-2 block text-[15px] font-semibold leading-snug", muted && "text-ink-soft line-through decoration-black/20")}>
             <Translated text={need.title} />
           </span>
-          <span className="block truncate text-[12.5px] text-ink-soft">
+          <span className="mt-0.5 block truncate text-[14px] text-ink-soft">
             {[who ? (who.id === viewer.id ? "You" : callName(who)) : "Unassigned", due, forWhom ? `for ${callName(forWhom)}` : "", need.recurring !== "none" ? REPEAT_LABEL[need.recurring].toLowerCase() : ""].filter(Boolean).join(" · ")}
           </span>
         </span>
       </button>
       {who && <Avatar src={memberPhoto(who)} name={who.id === viewer.id ? "You" : callName(who)} size={28} />}
       {manage && live && need.claimedBy !== viewer.id && (
-        <button type="button" disabled={busy} onClick={() => void run({ action: "claim", needId: need.id })} aria-label={`Pick up: ${need.title}`} className="press grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white disabled:opacity-40">
+        <button type="button" disabled={busy} onClick={() => void run({ action: "claim", needId: need.id })} aria-label={`Pick up: ${need.title}`} className="press grid h-11 w-11 shrink-0 place-items-center rounded-full bg-well disabled:opacity-40">
           <Icon name="pickUp" size={18} />
         </button>
       )}
       {live && (
-        <a href={`/send?for=${encodeURIComponent(need.forMemberId)}&kind=need&title=${encodeURIComponent(need.title)}`} aria-label={`Send something for: ${need.title}`} className="press grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-ink no-underline">
+        <a href={`/send?for=${encodeURIComponent(need.forMemberId)}&kind=need&title=${encodeURIComponent(need.title)}`} aria-label={`Send something for: ${need.title}`} className="press grid h-11 w-11 shrink-0 place-items-center rounded-full bg-well text-ink no-underline">
           <Icon name="send" size={17} />
         </a>
       )}
       {manage && live && (
-        <button type="button" disabled={busy} onClick={() => void run({ action: "done", needId: need.id })} aria-label={`Mark done: ${need.title}`} className="press grid h-10 w-10 shrink-0 place-items-center rounded-full bg-black text-white disabled:opacity-40">
+        <button type="button" disabled={busy} onClick={() => void run({ action: "done", needId: need.id })} aria-label={`Mark done: ${need.title}`} className="press grid h-11 w-11 shrink-0 place-items-center rounded-full bg-black text-white disabled:opacity-40">
           <Icon name="check" size={18} />
         </button>
       )}
@@ -303,14 +342,14 @@ function dueLabel(iso: string): string {
 
 /* -------------------------------------------------------------- task sheet */
 /** Edit, assign, change status, delete, and the timeline. Also "new task with details". */
-function TaskSheet({ need, home, draft, helpers, pets, onClose, onChange }: { need?: Need; home: Household; draft: string; helpers: Helper[]; pets: Pet[]; onClose: () => void; onChange: () => void }) {
+function TaskSheet({ need, home, draft, draftKind, helpers, pets, onClose, onChange }: { need?: Need; home: Household; draft: string; draftKind?: Kind; helpers: Helper[]; pets: Pet[]; onClose: () => void; onChange: () => void }) {
   const { viewer, members } = useViewer();
   const manage = can(viewer, "care.manage");
   const elders = home.members.filter((x) => x.role === "elder");
   const family = members.filter((x) => can(x, "care.write")).sort((a, b) => Number(b.id === viewer.id) - Number(a.id === viewer.id));
   const mayEdit = !need || manage || need.askedBy === viewer.id || need.forMemberId === viewer.id;
   const [title, setTitle] = useState(need?.title ?? draft);
-  const [kind, setKind] = useState<Kind>(need?.kind ?? "other");
+  const [kind, setKind] = useState<Kind>(need?.kind ?? draftKind ?? "other");
   const [priority, setPriority] = useState<Need["priority"]>(need?.priority ?? "normal");
   const [recurring, setRecurring] = useState<Need["recurring"]>(need?.recurring ?? "none");
   const [due, setDue] = useState(need?.dueAt ? toLocalInput(need.dueAt) : "");
@@ -568,30 +607,37 @@ function Segmented<T extends string>({ value, options, labels, onChange }: { val
  */
 function Helpers({ parent, helpers, needs, canManage, onChange }: { parent: Member; helpers: Helper[]; needs: Need[]; canManage: boolean; onChange: () => void }) {
   const [adding, setAdding] = useState(false);
+  const [addRole, setAddRole] = useState<Helper["role"] | undefined>(undefined);
+  const missing = ROLE_SUGGEST.filter((r) => !helpers.some((h) => h.role === r)).slice(0, 4);
   const [editing, setEditing] = useState<string | null>(null);
   const shown = useMemo(() => [...helpers].sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name)), [helpers]);
   const jobs = (id: string) => needs.filter((n) => n.helperId === id && n.status === "done").length;
   return (
     <section aria-label="Local helpers">
-      {helpers.length === 0 && !adding && <EmptyLine>No one yet. Start with whoever delivers groceries.</EmptyLine>}
+      {helpers.length === 0 && !adding && (
+        <div className="rounded-card bg-card px-4 shadow-card">
+          <EmptyLine>No one yet. Start with whoever delivers groceries.</EmptyLine>
+        </div>
+      )}
       {shown.length > 0 && (
-        <ul className="m-0 list-none divide-y divide-[var(--line)] rounded-card bg-surface p-0 px-3">
+        <ul className="m-0 list-none divide-y divide-[var(--line)] rounded-card bg-card p-0 px-4 shadow-card">
           {shown.map((h) => {
             const done = jobs(h.id);
             const meta = [h.role, h.hours, h.emergency ? "trusted nearby" : "", done ? `helped ${done}×` : ""].filter(Boolean).join(" · ");
             return (
               <Fragment key={h.id}>
-                <li className="flex items-center gap-2.5 py-2">
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-semibold">{h.name}</span>
-                    <span className="block truncate text-[12.5px] text-ink-soft first-letter:uppercase">{meta}</span>
+                <li className="flex min-h-[68px] items-center gap-2 py-3">
+                  <Avatar src={null} name={h.name} size={40} />
+                  <span className="ml-1 min-w-0 flex-1">
+                    <span className="block truncate text-[16px] font-semibold leading-tight">{h.name}</span>
+                    <span className="mt-0.5 block truncate text-[14px] text-ink-soft first-letter:uppercase">{meta}</span>
                   </span>
                   {h.phone && (
                     <>
-                      <a href={waHref(h.phone)} target="_blank" rel="noreferrer" aria-label={`WhatsApp ${h.name}`} className="press grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-ink">
+                      <a href={waHref(h.phone)} target="_blank" rel="noreferrer" aria-label={`WhatsApp ${h.name}`} className="press grid h-11 w-11 shrink-0 place-items-center rounded-full bg-well text-ink">
                         <Icon name="whatsapp" size={17} />
                       </a>
-                      <a href={telHref(h.phone)} aria-label={`Call ${h.name}`} className="press grid h-10 w-10 shrink-0 place-items-center rounded-full bg-black text-white">
+                      <a href={telHref(h.phone)} aria-label={`Call ${h.name}`} className="press grid h-11 w-11 shrink-0 place-items-center rounded-full bg-black text-white">
                         <Icon name="phone" size={16} />
                       </a>
                     </>
@@ -618,15 +664,41 @@ function Helpers({ parent, helpers, needs, canManage, onChange }: { parent: Memb
       )}
       {canManage &&
         (adding ? (
-          <div className="mt-2">
-            <HelperForm forMemberId={parent.id} onDone={() => { setAdding(false); onChange(); }} />
+          <div className="mt-3">
+            <HelperForm key={addRole ?? "any"} role={addRole} forMemberId={parent.id} onDone={() => { setAdding(false); setAddRole(undefined); onChange(); }} />
           </div>
         ) : (
-          <button type="button" onClick={() => setAdding(true)} className="press mt-2 flex h-11 items-center gap-1.5 text-[15px] font-semibold">
-            <Icon name="plus" size={18} />
-            Add a local helper
-          </button>
+          <>
+            <button type="button" onClick={() => setAdding(true)} className="press mt-3 flex h-14 w-full items-center justify-center gap-2 rounded-card border-2 border-dashed border-black/[.12] text-[15px] font-semibold text-ink">
+              <Icon name="plus" size={18} />
+              Add a local helper
+            </button>
+            {missing.length > 0 && (
+              <section aria-label="Add someone who helps">
+                <SectionTitle>Add someone who helps</SectionTitle>
+                <div className="grid grid-cols-2 gap-3">
+                  {missing.map((r) => (
+                    <SuggestionTile
+                      key={r}
+                      icon={ROLE_ICON[r] ?? "contacts"}
+                      title={r.charAt(0).toUpperCase() + r.slice(1)}
+                      onClick={() => {
+                        setAddRole(r);
+                        setAdding(true);
+                      }}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+          </>
         ))}
+      <div className="mt-6 flex items-center gap-3 rounded-card bg-well p-4">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-card">
+          <Icon name="phone" size={18} strokeWidth={1.8} />
+        </span>
+        <p className="m-0 text-[15px] leading-snug text-ink-soft">One contact book for the family: whoever picks up a task can call the right person.</p>
+      </div>
     </section>
   );
 }
@@ -640,9 +712,9 @@ function canPickContacts(): boolean {
   return typeof navigator !== "undefined" && "contacts" in navigator && typeof (navigator as Navigator & { contacts?: { select?: unknown } }).contacts?.select === "function";
 }
 
-function HelperForm({ helper, forMemberId, onDone }: { helper?: Helper; forMemberId: string; onDone: () => void }) {
+function HelperForm({ helper, role: preset, forMemberId, onDone }: { helper?: Helper; role?: Helper["role"]; forMemberId: string; onDone: () => void }) {
   const [name, setName] = useState(helper?.name ?? "");
-  const [role, setRole] = useState<Helper["role"]>(helper?.role ?? "groceries");
+  const [role, setRole] = useState<Helper["role"]>(helper?.role ?? preset ?? "groceries");
   const [phone, setPhone] = useState(helper?.phone ?? "");
   const [hours, setHours] = useState(helper?.hours ?? "");
   const [note, setNote] = useState(helper?.note ?? "");
@@ -660,9 +732,9 @@ function HelperForm({ helper, forMemberId, onDone }: { helper?: Helper; forMembe
     }
   };
   return (
-    <div className="space-y-2 rounded-[18px] bg-surface p-3">
+    <div className="space-y-2 rounded-[22px] bg-card p-4 shadow-card">
       {picker && !helper && (
-        <button type="button" onClick={() => void pick()} className="press flex h-11 w-full items-center justify-center gap-1.5 rounded-full bg-white text-[15px] font-semibold">
+        <button type="button" onClick={() => void pick()} className="press flex h-11 w-full items-center justify-center gap-1.5 rounded-full bg-well text-[15px] font-semibold">
           <Icon name="contacts" size={16} />
           Pick from my contacts
         </button>
@@ -694,7 +766,7 @@ function HelperForm({ helper, forMemberId, onDone }: { helper?: Helper; forMembe
         >
           {helper ? "Save" : "Add"}
         </Button>
-        <Button variant="secondary" className="h-11 flex-1 !bg-white text-[15px]" onClick={onDone}>
+        <Button variant="secondary" className="h-11 flex-1 !bg-well text-[15px]" onClick={onDone}>
           Cancel
         </Button>
       </div>

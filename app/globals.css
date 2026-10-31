@@ -53,6 +53,14 @@ button {
   cursor: pointer;
 }
 
+/* Filled blocks on the paper get a hairline edge. In the components layer, so
+   ring-*, shadow-* and focus rings on the same element still win. */
+@layer components {
+  .bg-surface {
+    box-shadow: var(--surface-edge);
+  }
+}
+
 /* Glass over imagery. Solid fallback first. */
 .glass {
   background: var(--glass-solid);
@@ -65,7 +73,7 @@ button {
 .frost {
   background: var(--frost-solid);
   border: 1px solid var(--frost-border);
-  box-shadow: var(--frost-shadow), inset 0 1px 0 #fff;
+  box-shadow: var(--frost-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 @supports (backdrop-filter: blur(20px)) or (-webkit-backdrop-filter: blur(20px)) {
@@ -100,7 +108,7 @@ button {
 
 .skeleton {
   border-radius: var(--radius-card);
-  background: linear-gradient(100deg, #f1f1f3 30%, #f8f8fa 50%, #f1f1f3 70%);
+  background: linear-gradient(100deg, #eeeae4 30%, #f6f3ee 50%, #eeeae4 70%);
   background-size: 300% 100%;
   min-height: 24px;
   animation: shimmer 1.4s ease-in-out infinite;

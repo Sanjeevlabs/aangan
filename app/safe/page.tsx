@@ -29,7 +29,7 @@ export default function SafePage() {
   const sos = emergencyFor(viewer.tz);
 
   return (
-    <main className="px-5 pb-32 pt-4">
+    <div>
       <RoomHeader title="Safe & sound" subtitle="Let the people you choose know you got home. Not tracking: you tell them." />
       {!data ? (
         <div className="skeleton h-40 rounded-card" aria-busy="true" />
@@ -68,7 +68,7 @@ export default function SafePage() {
           </a>
         </>
       )}
-    </main>
+    </div>
   );
 }
 

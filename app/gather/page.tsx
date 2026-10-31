@@ -6,10 +6,11 @@ import { Carousel } from "@/components/carousel";
 import { EventHero, EventMini } from "@/components/event-card";
 import { PlanSheet, type PlanPreset } from "@/components/event-plan-sheet";
 import { EventPrompts } from "@/components/event-prompts";
-import { Avatar, Button, Icon, RoomHeader, SectionTitle } from "@/components/ui/kit";
+import { Avatar, Button, EmptyState, Icon, RoomHeader, SectionTitle } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
-import { fmtIn } from "@/lib/events";
+import { fmtIn, occasionEventKey } from "@/lib/events";
 import { nextEvent, useEvents } from "@/lib/gather-client";
+import type { UpcomingOccasion } from "@/lib/gather-prompts";
 import type { Knock, Recipe } from "@/lib/kinds";
 import { roomUrl } from "@/lib/overlap";
 import { callName, memberPhoto } from "@/lib/people";
@@ -63,9 +64,9 @@ export default function GatherPage() {
     return (
       <div>
         <RoomHeader title="Gathering" />
-        <div className="rounded-[28px] bg-black/[.04] p-5" role="alert">
+        <div className="rounded-[28px] bg-card p-5 shadow-card" role="alert">
           <p className="m-0 text-[17px] font-semibold">Couldn&rsquo;t load your gatherings.</p>
-          <Button variant="secondary" className="mt-3 !bg-white" onClick={() => void reload()}>
+          <Button variant="secondary" className="mt-3 !bg-well" onClick={() => void reload()}>
             Try again
           </Button>
         </div>
@@ -75,6 +76,13 @@ export default function GatherPage() {
 
   const next = nextEvent(data.events);
   const rest = data.events.filter((e) => e.id !== next?.id);
+  // Occasions not planned yet (the one the prompt above already offers is left out).
+  const planned = new Set(data.events.filter((e) => e.status !== "cancelled").map((e) => occasionEventKey(e.occasionKey, e.date, e.forMemberId)));
+  const prompted = new Set(data.prompts.flatMap((p) => (p.kind === "suggest" ? [p.occasion.key] : [])));
+  const upcoming = data.occasions
+    .filter((o) => o.days >= 0 && (o.kind !== "national" || o.days <= 30) && !planned.has(o.key) && !prompted.has(o.key))
+    .sort((a, b) => a.days - b.days)
+    .slice(0, 3);
   return (
     <div>
       <RoomHeader title="Gathering" subtitle="Plan a family video call with a reason." action={plus} />
@@ -83,16 +91,19 @@ export default function GatherPage() {
       {next ? (
         <EventHero e={next} members={members} viewer={viewer} />
       ) : (
-        <div className="rounded-[28px] p-6 text-white" style={{ background: "#1c1b1a" }}>
-          <p className="voice m-0 text-[22px] leading-snug">Nothing planned yet.</p>
-          <p className="m-0 mt-1 text-[14px] text-white/60">A birthday, a festival, a visit home.</p>
-          {canPlan && (
-            <button type="button" onClick={() => setSheet({})} className="press mt-5 flex h-11 items-center gap-2 rounded-full bg-white px-5 text-[15px] font-semibold text-[#1c1b1a]">
-              <Icon name="plus" size={18} />
-              Plan an event
-            </button>
-          )}
-        </div>
+        <EmptyState
+          position="center 45%"
+          title="Nothing planned yet."
+          line="A birthday, a festival, a visit home."
+          action={
+            canPlan ? (
+              <Button className="w-full" onClick={() => setSheet({})}>
+                <Icon name="plus" size={18} />
+                Plan an event
+              </Button>
+            ) : undefined
+          }
+        />
       )}
 
       {rest.length > 0 && (
@@ -105,6 +116,8 @@ export default function GatherPage() {
           </Carousel>
         </>
       )}
+
+      <ComingUp occasions={upcoming} members={members} canPlan={canPlan} onPlan={(o) => setSheet({ occasion: o })} />
 
       <Knocks members={members} viewer={viewer} />
 
@@ -124,6 +137,42 @@ export default function GatherPage() {
   );
 }
 
+/* ------------------------------------------- occasions not planned yet */
+function ComingUp({ occasions, members, canPlan, onPlan }: { occasions: UpcomingOccasion[]; members: Member[]; canPlan: boolean; onPlan: (o: UpcomingOccasion) => void }) {
+  if (!occasions.length) return null;
+  return (
+    <section aria-label="Coming up">
+      <SectionTitle>Coming up</SectionTitle>
+      <ul className="m-0 list-none divide-y divide-[var(--line)] overflow-hidden rounded-card bg-card p-0 shadow-card">
+        {occasions.map((o) => {
+          const d = new Date(`${o.date}T12:00:00Z`);
+          const who = o.memberId ? members.find((m) => m.id === o.memberId) : undefined;
+          return (
+            <li key={o.key} className="flex items-center gap-3 p-3 pl-4">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[14px] bg-well text-center leading-none" aria-hidden="true">
+                <span>
+                  <span className="tnum block text-[18px] font-bold">{d.getUTCDate()}</span>
+                  <span className="mt-0.5 block text-[11px] font-semibold uppercase tracking-[0.04em] text-ink-soft">{d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })}</span>
+                </span>
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[16px] font-semibold leading-tight">{o.label}</span>
+                <span className="mt-0.5 block text-[14px] text-ink-soft">{o.days === 0 ? "Today" : `In ${o.days} day${o.days > 1 ? "s" : ""}`}</span>
+              </span>
+              {who && <Avatar src={memberPhoto(who)} name={callName(who)} size={32} />}
+              {canPlan && (
+                <button type="button" onClick={() => onPlan(o)} aria-label={`Plan ${o.label}`} className="press h-11 shrink-0 rounded-full bg-[#1c1b1a] px-4 text-[15px] font-semibold text-white">
+                  Plan
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 /* --------------------------------------------- come sit with me (no plan) */
 function Knocks({ members, viewer }: { members: Member[]; viewer: Member }) {
   const { data, reload } = useJson<{ knocks: Knock[] }>("/api/sit");
@@ -138,7 +187,7 @@ function Knocks({ members, viewer }: { members: Member[]; viewer: Member }) {
       {others.map((k) => {
         const who = members.find((m) => m.id === k.memberId);
         return (
-          <div key={k.id} className="mb-2 flex items-center gap-3 rounded-[22px] bg-black/[.04] p-3">
+          <div key={k.id} className="mb-3 flex items-center gap-3 rounded-[22px] bg-card p-3 shadow-card">
             <Avatar src={memberPhoto(who)} name={callName(who)} size={44} ring />
             <div className="min-w-0 flex-1">
               <p className="m-0 text-[15px] font-semibold">{callName(who)}&rsquo;s door is open</p>
@@ -150,8 +199,8 @@ function Knocks({ members, viewer }: { members: Member[]; viewer: Member }) {
           </div>
         );
       })}
-      <div className="flex items-center gap-2 rounded-[22px] bg-black/[.04] p-2">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white">
+      <div className="flex items-center gap-2 rounded-[22px] bg-card p-2 shadow-card">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-well">
           <Icon name={mine ? "door" : "doorClosed"} size={20} />
         </span>
         <p className="m-0 min-w-0 flex-1 text-[15px] font-semibold">{mine ? `Door open till ${fmtIn(viewer.tz, mine.until, { hour: "numeric", minute: "2-digit" })}` : "I'm free, come sit"}</p>
@@ -160,7 +209,7 @@ function Knocks({ members, viewer }: { members: Member[]; viewer: Member }) {
             <a href={roomUrl(mine.id)} target="_blank" rel="noreferrer" aria-label="Go sit" className="press grid h-11 w-11 place-items-center rounded-full bg-[#1c1b1a] text-white no-underline">
               <Icon name="video" size={20} />
             </a>
-            <button type="button" aria-label="Close the door" disabled={busy} onClick={async () => { setBusy(true); await postJson("/api/sit", { action: "unknock" }); setBusy(false); void reload(); }} className="press grid h-11 w-11 place-items-center rounded-full bg-white">
+            <button type="button" aria-label="Close the door" disabled={busy} onClick={async () => { setBusy(true); await postJson("/api/sit", { action: "unknock" }); setBusy(false); void reload(); }} className="press grid h-11 w-11 place-items-center rounded-full bg-well">
               <Icon name="close" size={18} />
             </button>
           </>
@@ -168,7 +217,7 @@ function Knocks({ members, viewer }: { members: Member[]; viewer: Member }) {
           <>
             <div className="flex gap-1" role="radiogroup" aria-label="For how long">
               {[30, 45, 90].map((m) => (
-                <button key={m} type="button" role="radio" aria-checked={minutes === m} onClick={() => setMinutes(m)} className={cn("press tnum h-9 rounded-full px-2.5 text-[13px] font-semibold", minutes === m ? "bg-white" : "text-ink-soft")}>
+                <button key={m} type="button" role="radio" aria-checked={minutes === m} onClick={() => setMinutes(m)} className={cn("press tnum h-11 rounded-full px-2.5 text-[14px] font-semibold", minutes === m ? "bg-well" : "text-ink-soft")}>
                   {m}′
                 </button>
               ))}
