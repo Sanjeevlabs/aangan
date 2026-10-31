@@ -49,7 +49,13 @@ export async function listDocs<K extends DocKind>(familyId: string, kind: K): Pr
 }
 
 export async function getDoc<K extends DocKind>(familyId: string, kind: K, id: string): Promise<DocOf<K> | undefined> {
-  return (await listDocs(familyId, kind)).find((d) => (d as { id: string }).id === id);
+  const sb = dbFor(familyId);
+  if (!sb) return memList(familyId, kind).find((d) => (d as { id: string }).id === id);
+  // One row by its key, not the newest 500 filtered in code (older docs would vanish).
+  const { data, error } = await sb.from("family_docs").select("data").eq("id", `${familyId}:${id}`).eq("kind", kind).maybeSingle();
+  if (error) return memList(familyId, kind).find((d) => (d as { id: string }).id === id);
+  if (!data) return undefined;
+  return parse(kind, (data as { data: unknown }).data) ?? undefined;
 }
 
 /** Insert or replace by id. Throws on schema violation (callers validate input first). */
