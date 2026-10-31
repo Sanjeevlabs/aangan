@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, m } from "framer-motion";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { EVENT_LABEL, albumDates, cardImage } from "@/components/albums";
 import { useShell } from "@/components/shell";
@@ -19,6 +19,8 @@ import { cn } from "@/lib/utils";
 export default function AlbumPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  // Opened from Occasions (?from=rituals): leaving goes back there, not to Memory Lane.
+  const home = useSearchParams().get("from") === "rituals" ? "/rituals" : "/lane";
   const { refreshKey } = useShell();
   const { cards } = useFamilyCards(refreshKey);
   const { data, reload } = useJson<{ albums: Album[] }>("/api/albums");
@@ -43,7 +45,7 @@ export default function AlbumPage() {
   }
   const act = async (body: Record<string, unknown>) => {
     const out = await postJson<{ deleted?: string }>("/api/albums", { albumId: album.id, ...body });
-    if (out?.deleted) router.replace("/lane");
+    if (out?.deleted) router.replace(home);
     else await reload();
   };
 
@@ -95,7 +97,7 @@ export default function AlbumPage() {
           <ul className="m-0 list-none space-y-1.5 p-0">
             {others.map((o) => (
               <li key={o.id}>
-                <button type="button" onClick={async () => { await postJson("/api/albums", { action: "merge", albumId: album.id, intoAlbumId: o.id }); router.replace(`/lane/album/${o.id}`); }} className="press flex h-11 w-full items-center justify-between rounded-[14px] bg-white px-4 text-left text-[15px]">
+                <button type="button" onClick={async () => { await postJson("/api/albums", { action: "merge", albumId: album.id, intoAlbumId: o.id }); router.replace(`/lane/album/${o.id}${home === "/rituals" ? "?from=rituals" : ""}`); }} className="press flex h-11 w-full items-center justify-between rounded-[14px] bg-white px-4 text-left text-[15px]">
                   {o.title}
                   <span className="text-[13px] text-ink-faint">{albumDates(o)}</span>
                 </button>

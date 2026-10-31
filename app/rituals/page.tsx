@@ -47,6 +47,12 @@ function dayLabel(iso: string): string {
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 }
 
+/** "20 Oct": an unnamed birthday's day. */
+function shortDay(iso: string): string {
+  const d = new Date(`${iso.slice(0, 10)}T12:00:00Z`);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+}
+
 function Group({ g, members, albums, onOpen }: { g: OccasionGroup; members: Member[]; albums: Album[]; onOpen: (g: OccasionGroup, index: number) => void }) {
   const { current, isPlaying, play, toggle } = usePlayer();
   const album = g.albumId ? albums.find((a) => a.id === g.albumId) : undefined;
@@ -62,8 +68,13 @@ function Group({ g, members, albums, onOpen }: { g: OccasionGroup; members: Memb
           </p>
         </div>
         {album && (
-          <Link href={`/lane/album/${album.id}`} className="-my-2 flex min-h-[44px] shrink-0 items-center gap-0.5 text-[13.5px] font-medium text-ink-soft no-underline">
+          <Link href={`/lane/album/${album.id}?from=rituals`} className="-my-2 flex min-h-[44px] shrink-0 items-center gap-0.5 text-[13.5px] font-medium text-ink-soft no-underline">
             Album <Icon name="chevron" size={14} />
+          </Link>
+        )}
+        {g.runId && g.voices.length > 0 && (
+          <Link href={`/reel/${encodeURIComponent(g.runId)}`} className="-my-2 flex min-h-[44px] shrink-0 items-center gap-1 text-[13.5px] font-medium text-ink-soft no-underline">
+            <Icon name="play" size={12} /> Play the reel
           </Link>
         )}
       </div>
@@ -74,6 +85,7 @@ function Group({ g, members, albums, onOpen }: { g: OccasionGroup; members: Memb
               key={c.id}
               type="button"
               onClick={() => onOpen(g, i)}
+              data-card={c.id}
               aria-label={c.caption || `${c.type === "video" ? "Video" : "Photo"} from ${g.title}`}
               className="press shrink-0 snap-start rounded-[6px] bg-white p-1.5 pb-5 text-left shadow-[0_1px_2px_rgba(0,0,0,.12),0_10px_22px_-12px_rgba(0,0,0,.35)]"
               style={{ transform: `rotate(${i % 2 ? 1.2 : -1.2}deg)` }}
@@ -97,7 +109,7 @@ function Group({ g, members, albums, onOpen }: { g: OccasionGroup; members: Memb
             const on = current?.id === c.id && isPlaying;
             return (
               <li key={c.id}>
-                <button type="button" onClick={() => (current?.id === c.id ? toggle() : play(c, g.voices))} aria-label={`${on ? "Pause" : "Play"} ${by ? `${callName(by)}'s` : "the"} voice from ${g.title}`} className="press flex w-full items-center gap-3 rounded-[18px] bg-card p-2 pr-3 text-left shadow-card">
+                <button type="button" data-card={c.id} onClick={() => (current?.id === c.id ? toggle() : play(c, g.voices))} aria-label={`${on ? "Pause" : "Play"} ${by ? `${callName(by)}'s` : "the"} voice from ${g.title}`} className="press flex w-full items-center gap-3 rounded-[18px] bg-card p-2 pr-3 text-left shadow-card">
                   {by ? <Avatar src={memberPhoto(by)} name={callName(by)} size={40} /> : <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-well"><Icon name="music" size={17} /></span>}
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[14.5px] font-semibold leading-tight">{by ? callName(by) : "The family"}</span>
@@ -156,7 +168,7 @@ export default function OccasionsPage() {
       if (!data) return slug;
       const near = occasionsInRange(data.members, data.holidays, addDays(date, -2), addDays(date, 2)).filter((o) => o.slug === slug);
       if (near.length === 1 || (near.length && slug !== "birthday")) return titleOf(near[0]);
-      if (slug === "birthday") return "A birthday";
+      if (slug === "birthday") return `Birthday · ${shortDay(date)}`;
       const h = data.holidays.find((x) => x.key === slug || x.ritual === slug);
       if (h) return h.title;
       const cfg = data.configs.find((c) => c.slug === slug);

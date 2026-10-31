@@ -130,7 +130,7 @@ function AdviceItem({ item }: { item: Item }) {
   const giver = members.find((m) => m.id === item.q.toMemberId);
   const by = members.find((m) => m.id === item.q.askedBy);
   return (
-    <div className="pt-3">
+    <div className="pt-3" data-card={item.card.id}>
       <div className="flex items-center gap-2">
         <Avatar src={memberPhoto(giver)} name={callName(giver)} size={24} />
         <p className="m-0 min-w-0 flex-1 truncate text-[12.5px] text-ink-soft">

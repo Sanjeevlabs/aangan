@@ -1,5 +1,9 @@
 // Memory Lane grouping: same kind of thing together (photos, videos,
-// voices), newest first, each with a small timeline cue. Client-safe.
+// voices), newest first, each with a small timeline cue. Memory Lane is the
+// family's everyday photos and voices only: a card another tab owns
+// (Occasions, Stories, The Book, Advice) stays there (laneElsewhere).
+// Client-safe.
+import type { Question, Story, TodayTask } from "./kinds";
 import type { Card } from "./schemas";
 
 export type LaneKind = "photo" | "video" | "audio";
@@ -36,12 +40,36 @@ export function rangeLabel(cards: Pick<Card, "takenAt">[]): string {
   return `${head} → ${oldest.getFullYear()}`;
 }
 
-/** Cards split by kind, newest first, optionally only one person's. */
-export function laneGroups(cards: Card[], who: string | null): Record<LaneKind, Card[]> {
+/**
+ * Cards another tab already shows, so Memory Lane leaves them out: what
+ * Occasions claims (claimedByOccasions), every story's voice (Stories), each
+ * answered question's voice (Advice, and the story or recipe it became), and
+ * every elder's own answer to the daily question (The Book).
+ */
+export function laneElsewhere(input: {
+  occasions: Iterable<string>;
+  stories: Pick<Story, "cardId">[];
+  questions: Pick<Question, "answeredCardId">[];
+  tasks: Pick<TodayTask, "answers">[];
+  /** Whose answers The Book shows: the elders. */
+  bookIds: string[];
+  cards: Pick<Card, "id" | "authorId">[];
+}): Set<string> {
+  const out = new Set(input.occasions);
+  for (const s of input.stories) if (s.cardId) out.add(s.cardId);
+  for (const q of input.questions) if (q.answeredCardId) out.add(q.answeredCardId);
+  const author = new Map(input.cards.map((c) => [c.id, c.authorId]));
+  for (const t of input.tasks) for (const a of t.answers) if (input.bookIds.includes(a.memberId) && author.get(a.cardId) === a.memberId) out.add(a.cardId);
+  return out;
+}
+
+/** Cards split by kind, newest first, optionally only one person's; `skip` holds cards another tab shows. */
+export function laneGroups(cards: Card[], who: string | null, skip?: Set<string>): Record<LaneKind, Card[]> {
   const out: Record<LaneKind, Card[]> = { photo: [], video: [], audio: [] };
   const list = [...cards].sort((a, b) => b.takenAt.localeCompare(a.takenAt));
   for (const c of list) {
     if (who && c.authorId !== who) continue;
+    if (skip?.has(c.id)) continue;
     out[c.type].push(c);
   }
   return out;

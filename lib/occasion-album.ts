@@ -3,7 +3,8 @@
 // per occasion, newest first. Built from what is already there: wishes sent
 // for an occasion's run, cards a ritual guide made (ritualSlug), and the albums
 // Muse sorts whose event is an occasion. A group with nothing in it is left
-// out. Memory Lane leaves these albums out, so nothing shows twice. Pure.
+// out. Every card an occasion claims (claimedByOccasions, same rules) stays
+// out of Memory Lane, so nothing shows twice. Pure.
 import type { Album } from "./kinds";
 import type { Card, RitualRun, Wish } from "./schemas";
 
@@ -84,4 +85,10 @@ export function occasionGroups(input: {
       return { ...g, prints: sorted.filter((c) => c.type !== "audio"), voices: sorted.filter((c) => c.type === "audio") };
     })
     .sort((a, b) => b.date.localeCompare(a.date) || a.key.localeCompare(b.key));
+}
+
+/** Every card Occasions shows, by the same rules as occasionGroups: Memory Lane leaves these out. */
+export function claimedByOccasions(cards: Card[], albums: Album[], runs: RitualRun[], wishCards: Pick<Wish, "ritualRunId" | "cardId">[]): Set<string> {
+  const groups = occasionGroups({ cards, albums, runs, wishes: wishCards, titleFor: (slug) => slug });
+  return new Set(groups.flatMap((g) => [...g.prints, ...g.voices].map((c) => c.id)));
 }

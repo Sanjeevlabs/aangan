@@ -1,6 +1,7 @@
 "use client";
 
 import { m, useReducedMotion } from "framer-motion";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { hourLabel } from "@/lib/occasion-calendar";
 import { slug } from "@/lib/card-kit";
@@ -202,6 +203,11 @@ export function OccasionCelebration({
             </button>
           )}
         </div>
+        {run && beads.some((b) => b.card) && (
+          <Link href={`/reel/${encodeURIComponent(run.id)}`} className="press mt-2 flex h-10 items-center justify-center gap-1.5 rounded-full text-[14px] font-semibold text-white/90 no-underline">
+            <Icon name="play" size={13} /> Play the reel
+          </Link>
+        )}
         {lampHour !== null && <LampHour hour={lampHour} sticker={canMakeLampSticker(viewer)} />}
       </div>
     </m.article>

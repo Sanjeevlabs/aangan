@@ -1,14 +1,15 @@
 // The Book of Maa & Papa (SPEC §30.4): every answer a person gave to the
-// daily question, and every keeper question they answered, becomes a chapter
-// in their own voice. Pure: the route feeds it docs and cards.
-import type { Question, TodayTask } from "@/lib/kinds";
+// daily question becomes a chapter in their own voice. Answers to advice and
+// blessing asks live on Advice, not here, so nothing shows twice. Pure: the
+// route feeds it docs and cards.
+import type { TodayTask } from "@/lib/kinds";
 import type { Card, Member } from "@/lib/schemas";
 import { TODAY_PROMPTS, fill, sealedCardIds } from "@/lib/today";
 
 export interface Chapter {
   id: string;
   title: string;
-  source: "today" | "question";
+  source: "today";
   at: string;
   year: number;
   card: Card;
@@ -33,7 +34,7 @@ function taskTitle(task: TodayTask, memberId: string, members: Member[]): string
  * still sealed for the viewer stay out, and only the person's own voice notes
  * count (a chapter is always in their voice).
  */
-export function bookChapters({ memberId, viewerId, tasks, questions, cards, members }: { memberId: string; viewerId: string; tasks: TodayTask[]; questions: Question[]; cards: Card[]; members: Member[] }): Chapter[] {
+export function bookChapters({ memberId, viewerId, tasks, cards, members }: { memberId: string; viewerId: string; tasks: TodayTask[]; cards: Card[]; members: Member[] }): Chapter[] {
   const sealed = sealedCardIds(tasks, viewerId);
   const byId = new Map(cards.map((c) => [c.id, c]));
   const seen = new Set<string>();
@@ -45,7 +46,6 @@ export function bookChapters({ memberId, viewerId, tasks, questions, cards, memb
     out.push({ id, title, source, at: card.takenAt, year: new Date(card.takenAt).getFullYear(), card });
   };
   for (const t of tasks) for (const a of t.answers) if (a.memberId === memberId) add(`${t.id}-${memberId}`, taskTitle(t, memberId, members), "today", a.cardId);
-  for (const q of questions) if (q.toMemberId === memberId && q.answeredCardId) add(q.id, q.text, "question", q.answeredCardId);
   return out.sort((a, b) => b.at.localeCompare(a.at));
 }
 

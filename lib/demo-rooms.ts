@@ -39,16 +39,19 @@ export function seedDemoRooms(now = Date.now()): void {
   seedDoc(FAM, "today_task", { id: `today-${dayAgo(0)}`, date: dayAgo(0), promptId: "miss", forParents: "One thing you miss about Arjun, Kavya & Rohan", forChildren: "One thing you miss about Maa & Papa", ...sides, answers: [{ memberId: "dadi", cardId: "demo-today-maa", at: ago(95, now) }], completedAt: null, createdAt: ago(300, now) });
   // [prompt, parent who answered, their card, Arjun's card]
   const past: [string, string, string, string][] = [
-    ["best-day", "dadi", "demo-from-dadi-1", "demo-voice-3"],
-    ["learnt", "dadi", "demo-dadi-advice-1", "demo-voice-1"],
-    ["smile", "dada", "demo-voice-2", "demo-voice-3"],
-    ["proud", "dada", "demo-dada-bless-1", "demo-voice-1"],
+    ["best-day", "dadi", "demo-book-dadi-bestday", "demo-voice-3"],
+    ["learnt", "dadi", "demo-book-dadi-learnt", "demo-voice-1"],
+    ["smile", "dada", "demo-book-dada-smile", "demo-voice-3"],
+    ["proud", "dada", "demo-book-dada-proud", "demo-voice-1"],
   ];
   past.forEach(([promptId, who, a, b], i) =>
     seedDoc(FAM, "today_task", { id: `today-${dayAgo(i + 1)}`, date: dayAgo(i + 1), promptId, forParents: promptId, forChildren: promptId, ...sides, answers: [{ memberId: who, cardId: a, at: ago((i + 1) * 1440, now) }, { memberId: "arjun", cardId: b, at: ago((i + 1) * 1440 - 120, now) }], completedAt: ago((i + 1) * 1440 - 120, now), createdAt: ago((i + 1) * 1440 + 60, now) }),
   );
   // ---------- Albums: Muse sorted the courtyard morning into one ----------
   seedDoc(FAM, "album", { id: "album-courtyard-2019", title: "A Sunday morning in the courtyard", event: "gathering", cardIds: ["demo-years-2", "demo-court-dadi", "demo-court-leo", "demo-court-aria"], startAt: "2019-10-27T08:00:00.000Z", endAt: "2019-10-27T08:38:00.000Z", coverId: "demo-years-2", madeBy: "muse", fixedBy: null, createdAt: "2019-10-27T09:00:00.000Z" });
+
+  // A cousin's wedding (invented): Celebrations → Occasions shows it as an album.
+  seedDoc(FAM, "album", { id: "album-wedding-jaipur", title: "Cousin Meera's wedding", event: "wedding", cardIds: ["demo-wed-mehendi", "demo-wed-silk", "demo-wed-mandap", "demo-wed-baraat"], startAt: "2025-12-05T14:00:00.000Z", endAt: "2025-12-06T15:45:00.000Z", coverId: "demo-wed-mandap", madeBy: "muse", fixedBy: null, createdAt: "2025-12-07T09:00:00.000Z" });
 
   // ---------- Games across homes: one move each, whenever ----------
   const game = (g: Record<string, unknown>) => seedDoc(FAM, "game", { status: "playing", winner: null, createdAt: ago(60 * 26, now), updatedAt: ago(40, now), ...g });

@@ -18,9 +18,12 @@ import { cn } from "@/lib/utils";
 import { museLabel } from "@/lib/muse-portrait";
 import { isOccasionAlbum } from "@/lib/occasion-album";
 
-// Memory Lane: same kind together. Albums, photos, videos and voices each
-// get one swipe row (newest first, a month on every tile, the row's span in
-// its header). Tap opens a full-screen viewer that swipes through that kind. Occasion albums are on Celebrations → Occasions.
+// Memory Lane: the family's everyday photos and voices, by the years. Same
+// kind together: albums, photos, videos and voices each get one swipe row
+// (newest first, a month on every tile, the row's span in its header). Tap
+// opens a full-screen viewer that swipes through that kind. Whatever another
+// tab shows (occasions, stories, the Book, advice) stays there: /api/lane
+// names those cards and the rows leave them out.
 
 function RowHead({ title, count, range, extra }: { title: string; count: number; range?: string; extra?: React.ReactNode }) {
   return (
@@ -45,6 +48,7 @@ function Tile({ card, kind, onOpen }: { card: Card; kind: LaneKind; onOpen: () =
       type="button"
       onClick={onOpen}
       aria-label={label}
+      data-card={card.id}
       className={cn("press relative shrink-0 snap-start overflow-hidden rounded-[18px] bg-surface text-left", voice ? "h-[112px] w-[112px]" : "h-[150px] w-[120px]")}
     >
       <Photo src={cardCover(card, members)} alt="" sizes="240px" position="center 30%" />
@@ -80,10 +84,13 @@ export default function LanePage() {
   const { cards } = useFamilyCards(refreshKey);
   const [who, setWho] = useState<string | null>(null);
   const albumsQ = useJson<{ albums: Album[] }>(`/api/albums?k=${refreshKey}`);
+  const elsewhereQ = useJson<{ elsewhere: string[] }>(`/api/lane?k=${refreshKey}`);
   const [sorting, setSorting] = useState<string | null>(null);
   const [open, setOpen] = useState<{ kind: LaneKind; index: number } | null>(null);
 
-  const groups = useMemo(() => (cards ? laneGroups(cards, who) : null), [cards, who]);
+  // Until we know what the other tabs show, nothing is drawn (no flash of their cards). A failed lookup shows everything.
+  const skip = useMemo(() => (elsewhereQ.data ? new Set(elsewhereQ.data.elsewhere) : elsewhereQ.failed ? new Set<string>() : null), [elsewhereQ.data, elsewhereQ.failed]);
+  const groups = useMemo(() => (cards && skip ? laneGroups(cards, who, skip) : null), [cards, who, skip]);
   const albums = useMemo(() => {
     // Occasion albums (weddings, birthdays, festivals) live in Celebrations → Occasions, not here too.
     const all = (albumsQ.data?.albums ?? []).filter((a) => a.cardIds.length >= 2 && !isOccasionAlbum(a));
@@ -91,7 +98,8 @@ export default function LanePage() {
     return [...mine].sort((a, b) => b.endAt.localeCompare(a.endAt));
   }, [albumsQ.data, who, cards]);
   const total = groups ? groups.photo.length + groups.video.length + groups.audio.length : 0;
-  const authors = useMemo(() => new Set((cards ?? []).map((c) => c.authorId)), [cards]);
+  // Only people with something on this page get a chip.
+  const authors = useMemo(() => new Set((cards ?? []).filter((c) => !skip?.has(c.id)).map((c) => c.authorId)), [cards, skip]);
   const people = members.filter((m) => authors.has(m.id));
   const viewing = open && groups ? { list: groups[open.kind], title: LANE_ROWS.find((r) => r.kind === open.kind)?.title ?? "" } : null;
 
@@ -104,7 +112,7 @@ export default function LanePage() {
 
   return (
     <div>
-      <RoomHeader title="Memory Lane" subtitle="Photos, videos and voices, newest first" />
+      <RoomHeader title="Memory Lane" subtitle="Everyday photos and voices, by the years" />
 
       {people.length > 1 && (
         <div className="no-scrollbar -mx-5 mb-4 flex gap-1.5 overflow-x-auto px-5" role="radiogroup" aria-label="Show memories from">

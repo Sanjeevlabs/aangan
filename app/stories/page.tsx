@@ -167,7 +167,7 @@ function Stories() {
                 const on = current?.id === card.id;
                 return (
                   <li key={s.id} className={cn("relative w-[164px] shrink-0 snap-start", fresh === s.id && "rounded-[24px] ring-4 ring-marigold")}>
-                    <button type="button" onClick={() => (on ? toggle() : play(card))} className="press block w-full text-left" aria-label={`${on && isPlaying ? "Pause" : "Play"} ${s.title}, told by ${callName(teller)}`}>
+                    <button type="button" data-card={card.id} onClick={() => (on ? toggle() : play(card))} className="press block w-full text-left" aria-label={`${on && isPlaying ? "Pause" : "Play"} ${s.title}, told by ${callName(teller)}`}>
                       <span className="relative block">
                         <StoryCover theme={s.theme} className="h-[136px] rounded-[22px]" />
                         <span className="absolute bottom-2 right-2 grid h-10 w-10 place-items-center rounded-full bg-white text-ink shadow-frost">

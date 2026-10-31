@@ -18,7 +18,7 @@ const card = (id: string, authorId: string, takenAt: string, type: Card["type"] 
 const maa = { id: "dadi", tz: "Asia/Kolkata", city: "Amritsar" } as Member;
 
 describe("the book of Maa & Papa", () => {
-  it("turns Maa's answers to the daily question and to keeper questions into chapters", async () => {
+  it("turns Maa's answers to the daily question into chapters, and nothing from Advice", async () => {
     const res = await bookGet(authedGet("http://test/api/book?member=dadi", "arjun"));
     expect(res.status).toBe(200);
     const { chapters } = (await res.json()) as { chapters: Chapter[] };
@@ -30,19 +30,26 @@ describe("the book of Maa & Papa", () => {
     expect(chapters.some((c) => c.card.id === "demo-today-maa")).toBe(false);
     const own = (await (await bookGet(authedGet("http://test/api/book?member=dadi", "dadi"))).json()) as { chapters: Chapter[] };
     expect(own.chapters.some((c) => c.card.id === "demo-today-maa")).toBe(true);
+    // Every chapter is a daily answer: advice and blessings stay on Advice.
+    expect([...chapters, ...own.chapters].every((c) => c.source === "today")).toBe(true);
+    const papa = (await (await bookGet(authedGet("http://test/api/book?member=dada", "arjun"))).json()) as { chapters: Chapter[] };
+    const ids = [...chapters, ...papa.chapters].map((c) => c.card.id);
+    expect(ids).not.toContain("demo-dadi-advice-1");
+    expect(ids).not.toContain("demo-dada-bless-1");
+    expect(papa.chapters.length).toBeGreaterThanOrEqual(2);
   });
 
   it("refuses someone outside the family", async () => {
     expect((await bookGet(authedGet("http://test/api/book?member=nobody", "arjun"))).status).toBe(404);
   });
 
-  it("only counts the person's own voice, once, grouped by year", () => {
+  it("only counts the person's own voice, once, grouped by year; never an answered ask", () => {
     const tasks = [{ id: "t1", date: "2025-01-01", promptId: "miss", forParents: "One thing you miss", forChildren: "x y", parents: ["dadi"], children: ["arjun"], answers: [{ memberId: "dadi", cardId: "a", at: "2025-01-01T10:00:00.000Z" }, { memberId: "arjun", cardId: "b", at: "2025-01-01T11:00:00.000Z" }], completedAt: "2025-01-01T11:00:00.000Z", madeBy: "muse", createdAt: "2025-01-01T00:00:00.000Z" }] as TodayTask[];
     const cards = [card("a", "dadi", "2025-01-01T10:00:00.000Z"), card("b", "arjun", "2025-01-01T11:00:00.000Z"), card("c", "dadi", "2026-02-01T10:00:00.000Z")];
-    const questions = [{ id: "q", toMemberId: "dadi", text: "Tell me about your first home", lang: "en", askedBy: "arjun", topic: "story", answeredCardId: "c", madeBy: "family", category: null, createdAt: "2026-01-01T00:00:00.000Z" }, { id: "q2", toMemberId: "dadi", text: "Same answer again", lang: "en", askedBy: null, topic: "story", answeredCardId: "a", madeBy: "muse", category: null, createdAt: "2026-01-01T00:00:00.000Z" }] as never;
-    const chapters = bookChapters({ memberId: "dadi", viewerId: "arjun", tasks, questions, cards, members: [] });
+    const later = { ...tasks[0], id: "t2", date: "2026-02-01", answers: [{ memberId: "dadi", cardId: "c", at: "2026-02-01T10:00:00.000Z" }, { memberId: "dadi", cardId: "a", at: "2026-02-01T10:00:00.000Z" }, { memberId: "arjun", cardId: "b", at: "2026-02-01T11:00:00.000Z" }] } as TodayTask;
+    const chapters = bookChapters({ memberId: "dadi", viewerId: "arjun", tasks: [...tasks, later], cards, members: [] });
     expect(chapters.map((c) => c.card.id)).toEqual(["c", "a"]);
-    expect(chapters.map((c) => c.source)).toEqual(["question", "today"]);
+    expect(chapters.map((c) => c.source)).toEqual(["today", "today"]);
     expect(byYear(chapters).map((y) => y.year)).toEqual([2026, 2025]);
   });
 });
