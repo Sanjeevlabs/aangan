@@ -7,7 +7,7 @@ import { joinLink, whatsappInvite } from "@/lib/invite-link";
 import { resetFamilyCards } from "@/lib/use-family";
 import { postJson } from "@/lib/use-json";
 import { useDocumentLang, useT, type T } from "@/lib/use-t";
-import { en, htmlLang, type UiKey } from "@/lib/ui-strings";
+import { en, htmlLang, type UiKey } from "@/lib/ui-strings/lazy";
 import { cn } from "@/lib/utils";
 import { AUTH_INTENT_KEY, browserAuth, signInOptions } from "@/lib/supabase-browser";
 import { authRedirectUrl, isNative, openExternal } from "@/lib/native";

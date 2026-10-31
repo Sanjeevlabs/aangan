@@ -7,6 +7,7 @@ import { EventHero, EventMini } from "@/components/event-card";
 import { PlanSheet, type PlanPreset } from "@/components/event-plan-sheet";
 import { EventPrompts } from "@/components/event-prompts";
 import Link from "next/link";
+import { WeeklyCallCard } from "@/components/weekly-call-card";
 import { WishAhead } from "@/components/wish-ahead";
 import { Avatar, Button, EmptyState, Icon, RoomHeader, SectionTitle } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
@@ -18,6 +19,7 @@ import { useNextVisit } from "@/components/home-presence";
 import { callName, memberPhoto } from "@/lib/people";
 import type { Member } from "@/lib/schemas";
 import { useJson } from "@/lib/use-json";
+import { Boundary } from "@/components/ui/boundary";
 
 export default function GatherPage() {
   const { viewer, members } = useViewer();
@@ -121,13 +123,15 @@ export default function GatherPage() {
         </>
       )}
 
+      <WeeklyCallCard />
+
       {visit && (
         <Link href="/together/visits" replace className="mt-4 flex min-h-[44px] items-center gap-1.5 text-[14px] font-medium text-ink-soft no-underline">
           <Icon name="rooms" size={15} /> {visit.title} is on Visits <Icon name="chevron" size={14} />
         </Link>
       )}
 
-      <ComingUp occasions={upcoming} members={members} canPlan={canPlan} onPlan={(o) => setSheet({ occasion: o })} />
+      <Boundary label="Coming up"><ComingUp occasions={upcoming} members={members} canPlan={canPlan} onPlan={(o) => setSheet({ occasion: o })} /></Boundary>
 
       <PlanSheet
         open={sheet !== null}

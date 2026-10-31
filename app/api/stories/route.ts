@@ -7,6 +7,7 @@ import { canChange } from "@/lib/permissions";
 import { labelStory } from "@/lib/stories";
 import { ideaFor } from "@/lib/story-ideas";
 import { guardWrites } from "@/lib/api-guard";
+import { nudgeShared } from "@/lib/nudge-producers";
 
 // Stories, the kids' corner.
 // GET  → stories + open story requests
@@ -54,6 +55,7 @@ async function postHandler(req: Request): Promise<Response> {
       const q = await getDoc(auth.familyId, "question", body.questionId);
       if (q) await putDoc(auth.familyId, "question", { ...q, answeredCardId: card.id });
     }
+    if (tellerId === auth.memberId) await nudgeShared(auth.familyId, tellerId, "story", "/stories");
     return Response.json({ story }, { status: 201 });
   }
 

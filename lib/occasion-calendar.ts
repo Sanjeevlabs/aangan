@@ -14,6 +14,10 @@ export interface OccasionConfig {
   title: string;
   cultureNotes: string;
   steps: OccasionStep[];
+  /** Optional colour (#rrggbb) and greeting from the ritual JSON. */
+  accent?: string;
+  lampAccent?: string;
+  greeting?: string;
 }
 export interface OccasionPerson {
   id: string;

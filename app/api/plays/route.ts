@@ -3,6 +3,7 @@ import { dbAddPlay, dbGetMember, dbListCards, dbListPlays } from "@/lib/db";
 import { requireMember, requireSession } from "@/lib/auth";
 import { withDemoShelf } from "@/lib/demo";
 import { guardWrites } from "@/lib/api-guard";
+import { nudgeHeard } from "@/lib/nudge-producers";
 
 async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
@@ -28,13 +29,15 @@ async function postHandler(req: Request): Promise<Response> {
   if (ownership) return ownership;
   // The demo family's synthetic shelf voices can be heard (and counted as heard) too.
   const cards = withDemoShelf(await dbListCards(auth.familyId), auth.familyId);
-  if (!cards.some((c) => c.id === parsed.data.cardId)) {
+  const card = cards.find((c) => c.id === parsed.data.cardId);
+  if (!card) {
     return Response.json({ error: "unknown-card" }, { status: 404 });
   }
   if (!(await dbGetMember(parsed.data.memberId))) {
     return Response.json({ error: "unknown-member" }, { status: 404 });
   }
   const play = await dbAddPlay({ ...parsed.data, familyId: auth.familyId });
+  await nudgeHeard(auth.familyId, card, parsed.data.memberId); // never throws
   return Response.json({ play }, { status: 201 });
 }
 

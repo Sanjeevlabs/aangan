@@ -268,6 +268,8 @@ export function seedDemoRooms(now = Date.now()): void {
     extras: false,
     createdAt: new Date(now).toISOString(),
   });
+  // The fixed weekly call: Sunday chai, evening in Pune, morning for the far home.
+  seedDoc(FAM, "weekly_call", { id: "weekly-call", weekday: 0, hour: 19, minute: 0, tz: "Asia/Kolkata", hostId: "dadi", name: "Sunday chai", updatedBy: "dadi", updatedAt: ago(60 * 24 * 14, now) });
   seedDoc(FAM, "care_settings", { id: "dadi", memberId: "dadi", quietAlert: true, tellMemberId: "arjun", graceHours: 3, updatedAt: ago(60 * 24 * 6, now) });
 
   // ---------- Maa's Village ----------
@@ -296,6 +298,10 @@ export function seedDemoRooms(now = Date.now()): void {
   seedDoc(FAM, "safety_settings", { id: "dada", memberId: "dada", enabled: true, watchers: ["arjun", "dadi"], paused: false, updatedAt: ago(60 * 24 * 6, now) });
   seedDoc(FAM, "safety_checkin", { id: "safe-papa-1", memberId: "dada", kind: "heading", note: "To the bank, back by noon", etaAt: ago(60 * 26 - 25, now), closedAt: ago(60 * 26 - 22, now), location: null, at: ago(60 * 26, now) });
   seedDoc(FAM, "safety_checkin", { id: "safe-papa-2", memberId: "dada", kind: "home-safe", note: "", etaAt: null, closedAt: ago(140, now), location: null, at: ago(140, now) });
+
+  // ---------- Nudges waiting for Arjun: a reply loop and the calendar ----------
+  seedDoc(FAM, "nudge", { id: "nudge-demo-heard", toMemberId: "arjun", kind: "heard", text: "{m:dadi} heard your voice note", href: "/home?card=demo-voice-1", at: ago(60 * 5, now), deliverAfter: ago(60 * 2, now), deliveredAt: null, channel: null, seenAt: null });
+  seedDoc(FAM, "nudge", { id: "nudge-demo-occasion", toMemberId: "arjun", kind: "occasion", text: "The call for {m:leo}'s birthday is on Monday", href: "/gather", at: ago(60 * 4, now), deliverAfter: ago(60 * 2, now), deliveredAt: null, channel: null, seenAt: null });
 
   // ---------- Care circle ----------
   seedDoc(FAM, "need", {

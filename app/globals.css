@@ -264,6 +264,11 @@ button {
   background: #14100d;
   color: #fff;
 }
+/* The courtyard header photo, drawn by the server-sent shell (app/page.tsx CheckingShell) only
+   behind the door: app/layout.tsx sets html[data-door=open] before first paint. */
+.door-hero { display: none; }
+html[data-door="open"] .door-hero { display: block; }
+html[data-door="open"] .checking-ground { background: var(--paper); }
 .glass-dark {
   background: rgba(20, 16, 13, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.14);

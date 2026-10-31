@@ -290,3 +290,8 @@
 - One place per job: removed the You chip's photo/voice buttons (the dock does that), the 550 ms recorder on a held Bless, and the courtyard's second "record a wish" (Coming up keeps it).
 - CI: a navigation walk in Chromium visits every room tab as a parent, an adult child and a child (scripts/walk.py).
 - Tests: 431 (sandbox ids, copy integrity, enter/reuse/switch, purge). Copy rows checked against schema.sql on a local Postgres.
+
+## 31 Oct 2026 · Stage 22: evidence-led closeness, and speed
+- Research brief (relationship science, rituals, prompts, speed) → Festival Week (data-driven; elder leads the steps, children ask, lamp takes the festival colour), window glance strip (awake now · waiting for you · next · our call), the fixed weekly call ritual with .ics, "Do You Know?" story prompts, batched nudges (≤3/week, recipient's morning, email when configured) with a weekly letter digest; copy audit removed counts and "last seen" wording.
+- Speed: courtyard LCP 6.0 s → 1.2 s, CLS 0.37 → 0, 18 → 6 API calls; shared JS 272 → 202 KB gz; images 312 → 82 KB; perf budget + vitals in CI. Reliability: upload queue with retry, stale-while-revalidate, per-section boundaries, service worker.
+- Tests: 661. Schema check vs code kinds enforced by a test.

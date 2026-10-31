@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { albumDates } from "@/components/albums";
 import { LaneViewer } from "@/components/lane-viewer";
+import { FestivalLeadEntry } from "@/components/festival-header";
 import { OccasionCelebration } from "@/components/occasion-celebration";
 import { TraditionsSheet, type TraditionChoice } from "@/components/occasion-festivals";
 import { usePlayer } from "@/components/player";
@@ -18,6 +19,7 @@ import { callName, cardCover, cardDuration, formatDuration, memberPhoto } from "
 import type { Member, RitualRun, Wish } from "@/lib/schemas";
 import { useFamilyCards } from "@/lib/use-family";
 import { useJson } from "@/lib/use-json";
+import { Boundary } from "@/components/ui/boundary";
 
 // Occasions (Celebrations → Occasions): every photo and voice from the
 // family's birthdays, weddings, anniversaries and festivals, one group per
@@ -211,6 +213,7 @@ export default function OccasionsPage() {
         </div>
       ) : (
         <div className="space-y-7">
+          <FestivalLeadEntry />
           {todays.map((o) => (
             <OccasionCelebration key={o.id} title={titleOf(o)} person={memberOf(o)} members={data.members} viewer={viewer} run={runOf(o)} wishes={wishedBy(o)} cards={cards ?? []} lampHour={o.kind === "festival" ? o.lampHour : null} onWish={() => wish(o)} onWished={() => void reload()} />
           ))}
@@ -229,7 +232,7 @@ export default function OccasionsPage() {
           )}
 
           {groups.map((g) => (
-            <Group key={g.key} g={g} members={data.members} albums={albumsQ.data?.albums ?? []} onOpen={(grp, index) => setOpen({ g: grp, index })} />
+            <Boundary key={g.key} label={g.title}><Group g={g} members={data.members} albums={albumsQ.data?.albums ?? []} onOpen={(grp, index) => setOpen({ g: grp, index })} /></Boundary>
           ))}
 
           <button type="button" onClick={() => setFestivalsOpen(true)} className="press flex w-full items-center gap-3 rounded-card bg-card px-4 py-3 text-left shadow-card">

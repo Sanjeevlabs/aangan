@@ -17,6 +17,7 @@ import { postJson, useJson } from "@/lib/use-json";
 import { cn } from "@/lib/utils";
 import { museLabel } from "@/lib/muse-portrait";
 import { isOccasionAlbum } from "@/lib/occasion-album";
+import { Boundary } from "@/components/ui/boundary";
 
 // Memory Lane: the family's everyday photos and voices, by the years. Same
 // kind together: albums, photos, videos and voices each get one swipe row
@@ -114,7 +115,7 @@ export default function LanePage() {
     <div>
       <RoomHeader title="Memory Lane" subtitle="Everyday photos and voices, by the years" />
 
-      {people.length > 1 && (
+      {groups !== null && people.length > 1 && (
         <div className="no-scrollbar -mx-5 mb-4 flex gap-1.5 overflow-x-auto px-5" role="radiogroup" aria-label="Show memories from">
           <button type="button" role="radio" aria-checked={who === null} onClick={() => setWho(null)} className={cn("press h-10 shrink-0 rounded-full px-4 text-[14px] font-medium", who === null ? "bg-ink text-white" : "bg-surface")}>
             Everyone
@@ -129,7 +130,7 @@ export default function LanePage() {
       )}
 
       {groups === null ? (
-        <div className="space-y-5" aria-busy="true" aria-label="Loading memories">
+        <div key="loading" className="space-y-5" aria-busy="true" aria-label="Loading memories">
           {[0, 1, 2].map((i) => (
             <div key={i}>
               <div className="skeleton mb-2 h-5 w-32" />
@@ -146,7 +147,7 @@ export default function LanePage() {
       ) : (
         <div className="space-y-5">
           {(albums.length > 0 || (albumsQ.data && total > 0)) && cards && (
-            <section aria-label="Albums">
+            <Boundary label="Albums"><section aria-label="Albums">
               <RowHead
                 title="Albums"
                 count={albums.length}
@@ -173,21 +174,21 @@ export default function LanePage() {
               ) : (
                 <p className="m-0 text-[14px] text-ink-soft">No albums yet. Tap the wand to sort photos into albums.</p>
               )}
-            </section>
+            </section></Boundary>
           )}
 
           {LANE_ROWS.map((r) => {
             const list = groups[r.kind];
             if (!list.length) return null;
             return (
-              <section key={r.kind} aria-label={r.title}>
+              <Boundary key={r.kind} label={r.title}><section aria-label={r.title}>
                 <RowHead title={r.title} count={list.length} range={rangeLabel(list)} />
                 <Row label={r.title}>
                   {list.map((c, i) => (
                     <Tile key={c.id} card={c} kind={r.kind} onOpen={() => setOpen({ kind: r.kind, index: i })} />
                   ))}
                 </Row>
-              </section>
+              </section></Boundary>
             );
           })}
         </div>

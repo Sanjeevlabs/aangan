@@ -11,6 +11,7 @@ import { useViewer } from "@/components/viewer";
 import { callName, memberPhoto } from "@/lib/people";
 import { useDisplayText } from "@/lib/use-display-text";
 import { useJson } from "@/lib/use-json";
+import { Boundary } from "@/components/ui/boundary";
 
 // The Book of Maa & Papa (SPEC §30.4): their daily answers, kept as chapters
 // of a life story, in their own voice.
@@ -115,7 +116,7 @@ function Book() {
             <div className="space-y-3">
               {y.chapters.map((c) => {
                 n -= 1;
-                return <ChapterPage key={c.id} chapter={c} n={n} />;
+                return <Boundary key={c.id} label="This chapter"><ChapterPage chapter={c} n={n} /></Boundary>;
               })}
             </div>
           </section>

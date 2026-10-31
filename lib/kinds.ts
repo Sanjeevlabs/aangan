@@ -489,6 +489,47 @@ export const MuseImageRunSchema = z.object({
   at: iso,
 });
 
+// ---------- Nudges: one gentle batch a day at the recipient's 8 AM, never a stream ----------
+export const NUDGE_KINDS = ["heard", "blessed", "shared", "occasion", "call", "letter"] as const;
+export const NudgeSchema = z.object({
+  id,
+  toMemberId: id,
+  kind: z.enum(NUDGE_KINDS),
+  /** Plain words, no counts. `{m:<memberId>}` is a person, resolved to the viewer's word for them at render. */
+  text: z.string().min(1).max(120),
+  href: z.string().max(200),
+  at: iso,
+  /** The recipient's next 8 AM local after `at`. */
+  deliverAfter: iso,
+  deliveredAt: iso.nullable().default(null),
+  channel: z.enum(["email", "inapp"]).nullable().default(null),
+  /** When the recipient opened the list (only they ever see it). */
+  seenAt: iso.nullable().default(null),
+});
+
+/** Per member: id is the member id. Default (no doc): email on if they have one, up to 3 a week. */
+export const NudgeSettingsSchema = z.object({
+  id,
+  email: z.boolean().default(true),
+  maxPerWeek: z.number().int().min(0).max(3).default(3),
+});
+
+// ---------- The fixed weekly call: one per family, a named ritual ----------
+/** "Sunday chai": the same hour every week, in the zone it was set in. */
+export const WeeklyCallSchema = z.object({
+  id: z.literal("weekly-call"),
+  /** 0 = Sunday … 6 = Saturday, in `tz`. */
+  weekday: z.number().int().min(0).max(6),
+  hour: z.number().int().min(0).max(23),
+  minute: z.number().int().min(0).max(59),
+  /** IANA zone the weekday and time are meant in (the elders' home, usually). */
+  tz: z.string().min(1).max(64),
+  hostId: z.string().min(1),
+  name: z.string().max(40).optional(),
+  updatedBy: z.string().min(1),
+  updatedAt: z.string().datetime(),
+});
+
 export const DOC_SCHEMAS = {
   recipe: RecipeSchema,
   attempt: AttemptSchema,
@@ -516,7 +557,10 @@ export const DOC_SCHEMAS = {
   chitthi: ChitthiSchema,
   partner_token: PartnerTokenSchema,
   day_line: DayLineSchema,
+  weekly_call: WeeklyCallSchema,
   muse_image_run: MuseImageRunSchema,
+  nudge: NudgeSchema,
+  nudge_settings: NudgeSettingsSchema,
 } as const;
 
 export type DocKind = keyof typeof DOC_SCHEMAS;
@@ -550,7 +594,11 @@ export type WindowView = DocOf<"window_view">;
 export type Lamp = DocOf<"lamp">;
 export type Chitthi = DocOf<"chitthi">;
 export type DayLine = DocOf<"day_line">;
+export type WeeklyCall = DocOf<"weekly_call">;
 export type MuseImageRun = DocOf<"muse_image_run">;
+export type Nudge = DocOf<"nudge">;
+export type NudgeKind = (typeof NUDGE_KINDS)[number];
+export type NudgeSettings = DocOf<"nudge_settings">;
 export type Wall = (typeof WALLS)[number];
 export type WindowLayer = (typeof WINDOW_LAYERS)[number];
 export type FirstScene = (typeof FIRST_SCENES)[number];

@@ -203,6 +203,7 @@ export function seedDemo(): void {
   photo("demo-diya-1", null, "2025-10-20T13:30:00.000Z", "/demo/courtyard.jpg", "Diyas lit together, miles apart.", { summary: "Ritual card from the Festival of Lights guide.", ritualSlug: "diwali", mediaRef: null });
   photo("demo-diwali-rangoli", "dadi", "2025-10-20T11:00:00.000Z", "/demo/courtyard.jpg", "Rangoli at the door before the first lamp.", { ritualSlug: "diwali", place: "Amritsar" });
   photo("demo-diwali-sparklers", "priya", "2025-10-20T15:10:00.000Z", "/demo/family-leo.webp", "Vihaan's first sparkler, held very far away.", { ritualSlug: "diwali", place: "Bengaluru" });
+  photo("demo-diwali-2024-lamps", "arjun", "2024-11-01T14:20:00.000Z", "/demo/family-group.webp", "Every balcony lit, a year earlier.", { ritualSlug: "diwali", place: "Bengaluru" });
   // Arjun's birthday: the family sang, and every home sent a wish.
   voice("demo-bday-1", null, "2026-07-30T12:00:00.000Z", "परिवार ने मिलकर जन्मदिन का गीत गाया।", "", { summary: "Birthday ritual voice note.", lang: "hi", ritualSlug: "birthday", segments: [] });
   voice("demo-wish-dadi-arjun", "dadi", "2026-07-30T01:00:00.000Z", "Jeete raho, beta.", "Jeete raho, beta. On this day you arrived in the rain, and you have been bringing good news ever since.", { coverRef: "/demo/family-dadi.webp" });

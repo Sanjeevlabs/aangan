@@ -4,10 +4,10 @@
 // their displayLang; signed out, the browser's language. Missing keys read
 // English. Content the family shares is translated elsewhere (Muse).
 
-import { Fragment, createElement, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Fragment, createElement, useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useViewer } from "@/components/viewer";
 import { toLangCode, type LangCode } from "./languages";
-import { htmlDir, htmlLang, translate, type UiKey, type Vars } from "./ui-strings";
+import { cataloguesVersion, ensureCatalogue, htmlDir, htmlLang, subscribeCatalogues, translate, type UiKey, type Vars } from "./ui-strings/lazy";
 
 function browserLang(): LangCode {
   if (typeof navigator === "undefined") return "en";
@@ -36,7 +36,12 @@ export interface T {
 
 export function useT(): T {
   const lang = useUiLang();
-  const base = useCallback((key: UiKey, vars?: Vars) => translate(lang, key, vars), [lang]);
+  // A language other than English arrives as its own small download; words read English until then.
+  const loadedVersion = useSyncExternalStore(subscribeCatalogues, cataloguesVersion, () => 0);
+  useEffect(() => {
+    void ensureCatalogue(lang);
+  }, [lang]);
+  const base = useCallback((key: UiKey, vars?: Vars) => translate(lang, key, vars), [lang, loadedVersion]);
   return useMemo(() => {
     const t = base as T;
     t.rich = (key, nodes) => {

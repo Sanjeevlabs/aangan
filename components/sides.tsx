@@ -104,8 +104,8 @@ export function BothSides() {
           </div>
         )}
       </div>
-      <p className="m-0 mb-3 mt-1 text-[14px] text-ink-soft">{n > 1 ? "Each family keeps its own tree. Switch to see theirs." : "Married into another family? Join theirs with their code and the same email."}</p>
-      {loading && <div className="skeleton h-[84px] rounded-card" aria-busy="true" aria-label="Loading families" />}
+      <p className="m-0 mb-3 mt-1 min-h-[42px] text-[14px] text-ink-soft">{n > 1 ? "Each family keeps its own tree. Switch to see theirs." : "Married into another family? Join theirs with their code and the same email."}</p>
+      {loading && <div className="skeleton h-[68px] rounded-card" aria-busy="true" aria-label="Loading families" />}
       {failed && (
         <button type="button" onClick={() => void reload()} className="press h-11 w-full rounded-full bg-surface text-[14px] text-ink-soft">
           Couldn&rsquo;t load your families. Tap to retry.

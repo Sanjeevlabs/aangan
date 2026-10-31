@@ -1,36 +1,104 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useCourtyardSlice } from "./courtyard-data";
+
+// Last good payload per URL: a route paints from it at once and refreshes in
+// the background. Kept in memory and (small payloads) in sessionStorage.
+const cache = new Map<string, unknown>();
+const KEY = "aangan:json:";
+const MAX_STORED = 400_000;
+
+export function readCache<T>(url: string): T | null {
+  if (cache.has(url)) return cache.get(url) as T;
+  try {
+    const raw = sessionStorage.getItem(KEY + url);
+    if (raw) {
+      const v = JSON.parse(raw) as T;
+      cache.set(url, v);
+      return v;
+    }
+  } catch {
+    /* no sessionStorage, or a bad entry */
+  }
+  return null;
+}
+
+function writeCache(url: string, value: unknown): void {
+  cache.set(url, value);
+  try {
+    const raw = JSON.stringify(value);
+    if (raw.length <= MAX_STORED) sessionStorage.setItem(KEY + url, raw);
+  } catch {
+    /* quota or private mode: memory only */
+  }
+}
+
+/** Forget every cached payload (sign-in, sign-out, switching family). */
+export function clearJsonCache(): void {
+  cache.clear();
+  try {
+    for (const k of Object.keys(sessionStorage)) if (k.startsWith(KEY)) sessionStorage.removeItem(k);
+  } catch {
+    /* ignore */
+  }
+}
+if (typeof window !== "undefined") window.addEventListener("aangan:auth", clearJsonCache);
+
+/**
+ * One refresh of `url`. A good response replaces the cache. A failed one keeps
+ * whatever was cached: `stale` is true (show a quiet "offline" hint), and
+ * `failed` only when there is nothing at all to show.
+ */
+export async function revalidate<T>(url: string, f: typeof fetch = (...a) => fetch(...a)): Promise<{ data: T | null; stale: boolean; failed: boolean }> {
+  try {
+    const res = await f(url, { cache: "no-store" });
+    if (!res.ok) throw new Error(String(res.status));
+    const json = (await res.json()) as T;
+    writeCache(url, json);
+    return { data: json, stale: false, failed: false };
+  } catch {
+    const kept = readCache<T>(url);
+    return { data: kept, stale: kept !== null, failed: kept === null };
+  }
+}
 
 /**
  * Fetch JSON for a room; `reload` after a write. Null while loading.
- * `every` (ms) also refetches quietly while the page is visible: on an
- * interval and when the tab comes back. A failed quiet refetch keeps the data.
+ * Stale-while-revalidate: the last good payload for the URL shows at once and
+ * is refreshed in the background; `stale` marks data that could not be
+ * refreshed. `every` (ms) also refetches quietly while the page is visible:
+ * on an interval and when the tab comes back. Inside the courtyard, the
+ * payload comes from the one shared GET /api/courtyard (lib/courtyard-data.tsx)
+ * and this hook does not fetch.
  */
-export function useJson<T>(url: string | null, opts?: { every?: number }): { data: T | null; failed: boolean; reload: () => Promise<void> } {
+export function useJson<T>(wanted: string | null, opts?: { every?: number }): { data: T | null; stale: boolean; failed: boolean; reload: () => Promise<void> } {
+  const shared = useCourtyardSlice(wanted);
+  const url = shared ? null : wanted;
   const every = opts?.every;
-  const [data, setData] = useState<T | null>(null);
+  // Memory only at first, so the first client render matches the server's (null).
+  const [data, setData] = useState<T | null>(() => (url && cache.has(url) ? (cache.get(url) as T) : null));
+  const [stale, setStale] = useState(false);
   const [failed, setFailed] = useState(false);
   const live = useRef(true);
   const load = useCallback(async (quiet: boolean) => {
     if (!url) return;
     if (!quiet) setFailed(false);
-    try {
-      const res = await fetch(url, { cache: "no-store" });
-      if (!res.ok) throw new Error(String(res.status));
-      const json = (await res.json()) as T;
-      if (live.current) setData(json);
-    } catch {
-      if (live.current && !quiet) setFailed(true);
-    }
+    const r = await revalidate<T>(url);
+    if (!live.current) return;
+    if (r.data !== null) setData(r.data);
+    setStale(r.stale);
+    setFailed(!quiet && r.failed);
   }, [url]);
   useEffect(() => {
     live.current = true;
+    const cached = url ? readCache<T>(url) : null;
+    if (cached) setData(cached);
     void load(false);
     return () => {
       live.current = false;
     };
-  }, [load]);
+  }, [load, url]);
   const reload = useCallback(() => load(false), [load]);
   useEffect(() => {
     if (!url || !every) return;
@@ -44,7 +112,8 @@ export function useJson<T>(url: string | null, opts?: { every?: number }): { dat
       document.removeEventListener("visibilitychange", tick);
     };
   }, [url, every, load]);
-  return { data, failed, reload };
+  if (shared) return { data: (shared.data ?? null) as T | null, stale: false, failed: false, reload: shared.reload };
+  return { data, stale, failed, reload };
 }
 
 /** POST JSON; returns parsed body or null on failure. */

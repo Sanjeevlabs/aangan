@@ -16,6 +16,7 @@ import { canChange } from "@/lib/permissions";
 import { callName, memberPhoto } from "@/lib/people";
 import { cn } from "@/lib/utils";
 import { postJson, useJson } from "@/lib/use-json";
+import { Boundary } from "@/components/ui/boundary";
 
 // The family Kitchen: a library of every recipe anyone in the family shares,
 // shelved by the person who cooks it. Each dish belongs to someone, may be
@@ -35,6 +36,8 @@ export default function KitchenPage() {
   const byId = (id: string) => members.find((m) => m.id === id);
   const recipes = data?.recipes ?? [];
   const attemptsFor = (id: string) => (data?.attempts ?? []).filter((a) => a.recipeId === id);
+  // The page draws once the recipes and the questions asked of you are both in, so nothing slides down.
+  const loading = (data === null && !failed) || (asks.data === null && !asks.failed);
   const waiting = (asks.data?.questions ?? []).filter((q) => q.topic === "recipe" && !q.answeredCardId);
   const mine = waiting.filter((q) => q.toMemberId === viewer.id);
   const usedCourses = COURSES.filter((c) => recipes.some((r) => r.course === c));
@@ -42,15 +45,30 @@ export default function KitchenPage() {
   const shown = recipes.filter((r) => (course === "all" || r.course === course) && (!q || r.title.toLowerCase().includes(q) || r.ingredients.some((i) => i.item.toLowerCase().includes(q))));
   // One shelf per cook: the elders first, then you, then everyone else.
   const rank = (id: string) => (byId(id)?.role === "elder" ? 0 : id === viewer.id ? 1 : 2);
-  const count = (id: string) => shown.filter((r) => r.cookId === id).length;
   const shelves = Array.from(new Set(shown.map((r) => r.cookId)))
-    .sort((a, b) => rank(a) - rank(b) || count(b) - count(a))
+    .sort((a, b) => rank(a) - rank(b) || callName(byId(a)).localeCompare(callName(byId(b))))
     .map((id) => ({ cook: byId(id), list: shown.filter((r) => r.cookId === id).sort((a, b) => b.createdAt.localeCompare(a.createdAt)) }))
     .filter((x): x is { cook: NonNullable<typeof x.cook>; list: Recipe[] } => Boolean(x.cook));
   const iHaveNone = data !== null && !recipes.some((r) => r.cookId === viewer.id);
 
   if (scanned) {
     return <RecipeEditor prefill={scanned.prefill} scan={scanned.scan} onDone={(id) => { setScanned(null); if (id) router.push(`/kitchen/${id}`); }} />;
+  }
+
+  if (loading) {
+    return (
+      <div>
+        <RoomHeader title="Recipes" subtitle="Every family recipe, shelved by who cooks it" />
+        <div key="loading" aria-busy="true" aria-label="Loading recipes">
+          <div className="grid grid-cols-3 gap-2">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="skeleton h-[64px] rounded-[20px]" />
+            ))}
+          </div>
+          <div className="skeleton mt-7 h-[220px] rounded-card" />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -95,7 +113,6 @@ export default function KitchenPage() {
       <ScanRecipeButton onScanned={setScanned} />
       {asking && <AskForRecipe onDone={() => { setAsking(false); void asks.reload(); }} />}
 
-      {data === null && !failed && <div className="skeleton mt-6 h-[220px] rounded-card" aria-busy="true" aria-label="Loading recipes" />}
       {failed && <EmptyLine>The Kitchen couldn&rsquo;t load. Try again in a moment.</EmptyLine>}
 
       {recipes.length > 3 && (
@@ -115,12 +132,11 @@ export default function KitchenPage() {
       )}
 
       {shelves.map(({ cook, list }) => (
-        <section key={cook.id} aria-label={`${callName(cook)}'s recipes`}>
+        <Boundary key={cook.id} label="This shelf"><section aria-label={`${callName(cook)}'s recipes`}>
           <div className="mb-3 mt-7 flex items-center gap-2.5">
             <Avatar src={memberPhoto(cook)} name={callName(cook)} size={38} />
             <h2 className="m-0 min-w-0 flex-1 truncate text-[20px]">
               {cook.id === viewer.id ? "Your recipes" : `${callName(cook)}'s recipes`}
-              <span className="ml-1.5 text-[14px] font-medium text-ink-faint">{list.length}</span>
             </h2>
             {cook.id === viewer.id && (
               <Link href="/kitchen/new" className="text-[14px] font-semibold text-ink-soft no-underline">
@@ -133,7 +149,7 @@ export default function KitchenPage() {
               <RecipeTile key={r.id} recipe={r} attempts={attemptsFor(r.id)} canManage={canChange(viewer, r.cookId) || Boolean(r.addedBy && canChange(viewer, r.addedBy))} onDeleted={() => void reload()} />
             ))}
           </ul>
-        </section>
+        </section></Boundary>
       ))}
       {recipes.length > 0 && shelves.length === 0 && <EmptyLine>No recipes match.</EmptyLine>}
       {iHaveNone && recipes.length > 0 && (
