@@ -2,15 +2,16 @@ import { CreatePlayRequestSchema } from "@/lib/schemas";
 import { dbAddPlay, dbGetMember, dbListCards, dbListPlays } from "@/lib/db";
 import { requireMember, requireSession } from "@/lib/auth";
 import { withDemoShelf } from "@/lib/demo";
+import { guardWrites } from "@/lib/api-guard";
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const { searchParams } = new URL(req.url);
   return Response.json({ plays: await dbListPlays(searchParams.get("cardId") ?? undefined, auth.familyId) });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   let body: unknown;
@@ -36,3 +37,6 @@ export async function POST(req: Request): Promise<Response> {
   const play = await dbAddPlay({ ...parsed.data, familyId: auth.familyId });
   return Response.json({ play }, { status: 201 });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

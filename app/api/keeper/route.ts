@@ -5,6 +5,7 @@ import { deleteDoc, getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
 import { AdviceCategoryId, adviceCategory } from "@/lib/advice";
 import { can } from "@/lib/permissions";
 import { askWeeklyQuestions } from "@/lib/keeper";
+import { guardWrites } from "@/lib/api-guard";
 
 // Questions for elders: the weekly one Muse asks, and the ones family ask.
 const Body = z.discriminatedUnion("action", [
@@ -16,7 +17,7 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("remove"), questionId: z.string().min(1) }),
 ]);
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   // Every advice/blessing question carries its shelf: stored if present, else the deterministic fallback.
@@ -27,7 +28,7 @@ export async function GET(req: Request): Promise<Response> {
   return Response.json({ questions });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   if (!checkRateLimit(auth, "/api/keeper")) return Response.json({ error: "rate-limited" }, { status: 429 });
@@ -84,3 +85,6 @@ export async function POST(req: Request): Promise<Response> {
   });
   return Response.json({ question }, { status: 201 });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

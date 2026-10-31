@@ -7,11 +7,12 @@ import { ensureToday } from "@/lib/today-server";
 import { dbListMembers } from "@/lib/db";
 import { nextOccasionFor } from "@/lib/occasions-server";
 import { withDemoShelf } from "@/lib/demo";
+import { guardWrites } from "@/lib/api-guard";
 
 // Today: one task, both homes. Your answer is a voice note you recorded; the
 // other side's answer is sealed until you add yours.
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   if (!checkRateLimit(auth, "/api/today")) return Response.json({ error: "rate-limited" }, { status: 429 });
@@ -25,7 +26,7 @@ export async function GET(req: Request): Promise<Response> {
 
 const Answer = z.object({ action: z.literal("answer"), taskId: z.string().min(1), cardId: z.string().min(1) });
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   if (!checkRateLimit(auth, "/api/today")) return Response.json({ error: "rate-limited" }, { status: 429 });
@@ -44,3 +45,6 @@ export async function POST(req: Request): Promise<Response> {
   const saved = await putDoc(auth.familyId, "today_task", next);
   return Response.json({ task: viewFor(saved, auth.memberId), completed: Boolean(saved.completedAt) });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

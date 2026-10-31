@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { dbCreateInvite, dbListInvites, dbRevokeInvite } from "@/lib/db";
 import { requireCan, requireSession } from "@/lib/auth";
+import { guardWrites } from "@/lib/api-guard";
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const invites = (await dbListInvites()).filter(
@@ -13,7 +14,7 @@ export async function GET(req: Request): Promise<Response> {
 
 // Expiring invite codes (7 days). Session members mint codes for their own
 // family; the code is exchanged for a session at /api/session.
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const allowed = await requireCan(auth, "invite.create");
@@ -27,7 +28,7 @@ export async function POST(req: Request): Promise<Response> {
 }
 
 // Revoke a code before it expires (admins).
-export async function DELETE(req: Request): Promise<Response> {
+async function deleteHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const allowed = await requireCan(auth, "invite.revoke");
@@ -37,3 +38,7 @@ export async function DELETE(req: Request): Promise<Response> {
   const ok = await dbRevokeInvite(parsed.data.code, auth.familyId);
   return ok ? Response.json({ revoked: parsed.data.code }) : Response.json({ error: "unknown-invite" }, { status: 404 });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);
+export const DELETE = guardWrites(deleteHandler);

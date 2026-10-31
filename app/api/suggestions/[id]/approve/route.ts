@@ -1,11 +1,13 @@
 import { dbAddCard, dbAddGatherSession, dbAddSuggestion, dbAddWish, dbAssignDailyRole, dbGetMember, dbListMembers, dbListRitualRuns, dbListSuggestions, dbSetRitualRunStatus, dbSetSuggestionStatus } from "@/lib/db";
 import { isGrownUp } from "@/lib/permissions";
 import { requireSession } from "@/lib/auth";
+import { DbWriteError } from "@/lib/family-db";
+import { guardWrites } from "@/lib/api-guard";
 
 // Review / Approve: the ONLY place agent proposals become actions.
 // Payload actions: create_card | assign_daily_role | request_wish |
 // schedule_notification (acknowledge) | create_gather_session | assemble_reel.
-export async function POST(req: Request, props: { params: Promise<{ id: string }> }): Promise<Response> {
+async function postHandler(req: Request, props: { params: Promise<{ id: string }> }): Promise<Response> {
   const params = await props.params;
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
@@ -85,9 +87,12 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
       });
     }
     // schedule_notification approvals simply acknowledge the reminder.
-  } catch {
+  } catch (e) {
+    if (e instanceof DbWriteError) throw e; // guardWrites answers 503 save-failed
     return Response.json({ error: "approve-failed" }, { status: 500 });
   }
   const updated = await dbSetSuggestionStatus(params.id, "approved", familyId);
   return Response.json({ suggestion: updated ?? { ...found, status: "approved" } });
 }
+
+export const POST = guardWrites(postHandler);

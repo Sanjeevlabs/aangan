@@ -5,6 +5,7 @@ import { withDemoShelf } from "@/lib/demo";
 import { getDoc, listDocs, putDoc } from "@/lib/family-docs";
 import { households } from "@/lib/households";
 import { BEAT_TTL_MS, glowFrom, lastContact, pendingBeats } from "@/lib/lamp";
+import { guardWrites } from "@/lib/api-guard";
 
 // The light in the window (SPEC §30.1, §30.4). One lamp per home.
 // GET: every home's lamp + heartbeats waiting for you.
@@ -22,7 +23,7 @@ async function homesOf(familyId: string) {
   return { members, homes: households(members, relationships) };
 }
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const [{ members, homes }, lamps, stored] = await Promise.all([homesOf(auth.familyId), listDocs(auth.familyId, "lamp"), dbListCards(auth.familyId)]);
@@ -42,7 +43,7 @@ export async function GET(req: Request): Promise<Response> {
   });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const parsed = Body.safeParse(await req.json().catch(() => null));
@@ -79,3 +80,6 @@ export async function POST(req: Request): Promise<Response> {
   await putDoc(auth.familyId, "lamp", { ...lamp, felt: { ...lamp.felt, [auth.memberId]: nowIso }, updatedAt: nowIso });
   return Response.json({ ok: true });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

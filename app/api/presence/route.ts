@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth";
 import { dbListMembers } from "@/lib/db";
 import { deleteDoc, getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
 import { PresenceMomentSchema } from "@/lib/kinds";
+import { guardWrites } from "@/lib/api-guard";
 
 // Presence: the moments a person shares about their day, and the parent-owned
 // care settings. Only you can share your presence or change your settings.
@@ -15,7 +16,7 @@ const Settings = z.object({
   shareVisits: z.boolean().default(true),
 });
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const since = Date.now() - 8 * 86_400_000; // a week of rhythm, for "usual"
@@ -25,7 +26,7 @@ export async function GET(req: Request): Promise<Response> {
   return Response.json({ presence: presence.filter((p) => Date.parse(p.at) >= since && !(p.moment === "here" && hidden.has(p.memberId))), settings });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const parsed = Share.safeParse(await req.json().catch(() => null));
@@ -42,7 +43,7 @@ export async function POST(req: Request): Promise<Response> {
   return Response.json({ presence }, { status: 201 });
 }
 
-export async function PUT(req: Request): Promise<Response> {
+async function putHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const parsed = Settings.safeParse(await req.json().catch(() => null));
@@ -57,7 +58,7 @@ export async function PUT(req: Request): Promise<Response> {
 }
 
 // Undo a moment you shared (only your own).
-export async function DELETE(req: Request): Promise<Response> {
+async function deleteHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const parsed = z.object({ presenceId: z.string().min(1) }).safeParse(await req.json().catch(() => null));
@@ -68,3 +69,8 @@ export async function DELETE(req: Request): Promise<Response> {
   await deleteDoc(auth.familyId, "presence", p.id);
   return Response.json({ removed: p.id });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);
+export const PUT = guardWrites(putHandler);
+export const DELETE = guardWrites(deleteHandler);

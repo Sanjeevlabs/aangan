@@ -5,6 +5,7 @@ import { deleteDoc, getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
 import { COURSES, IngredientSchema, StepSchema } from "@/lib/kinds";
 import { canChange } from "@/lib/permissions";
 import { recipeFromVoice } from "@/lib/kitchen";
+import { guardWrites } from "@/lib/api-guard";
 
 // The family Kitchen.
 // GET  → every recipe and every attempt (who cooked what, and who blessed it).
@@ -43,14 +44,14 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("unbless"), attemptId: z.string().min(1) }),
 ]);
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const [recipes, attempts] = await Promise.all([listDocs(auth.familyId, "recipe"), listDocs(auth.familyId, "attempt")]);
   return Response.json({ recipes, attempts });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   if (!checkRateLimit(auth, "/api/kitchen")) return Response.json({ error: "rate-limited" }, { status: 429 });
@@ -182,3 +183,6 @@ export async function POST(req: Request): Promise<Response> {
   });
   return Response.json({ question }, { status: 201 });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

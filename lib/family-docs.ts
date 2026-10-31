@@ -4,7 +4,7 @@
 // Every row is parsed with its kind's schema on the way in and out; a bad
 // row is skipped and logged, never served. Demo families stay in memory
 // (dbFor returns null for them), for reads and writes.
-import { dbFor } from "./family-db";
+import { DbWriteError, dbFor } from "./family-db";
 import { DOC_SCHEMAS, type DocKind, type DocOf } from "./kinds";
 
 type Row = { familyId: string; kind: DocKind; data: { id: string } & Record<string, unknown>; createdAt: string };
@@ -56,13 +56,15 @@ export async function getDoc<K extends DocKind>(familyId: string, kind: K, id: s
 export async function putDoc<K extends DocKind>(familyId: string, kind: K, input: unknown): Promise<DocOf<K>> {
   const data = DOC_SCHEMAS[kind].parse(input) as DocOf<K>;
   const row = data as unknown as { id: string } & Record<string, unknown>;
-  mem.set(memKey(familyId, row.id), { familyId, kind, data: row, createdAt: new Date().toISOString() });
   const sb = dbFor(familyId);
-  if (!sb) return data;
+  if (!sb) {
+    mem.set(memKey(familyId, row.id), { familyId, kind, data: row, createdAt: new Date().toISOString() });
+    return data;
+  }
   const { error } = await sb
     .from("family_docs")
     .upsert({ id: `${familyId}:${row.id}`, family_id: familyId, kind, data: row, updated_at: new Date().toISOString() }, { onConflict: "id" });
-  if (error) console.error("[family-docs] write failed, kept in memory", kind, error.message);
+  if (error) throw new DbWriteError("family_docs", error.message);
   return data;
 }
 

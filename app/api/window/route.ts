@@ -6,11 +6,12 @@ import { composeWindow, defaultView, homePhotoOk, photoRefFor, windowState } fro
 import { withDemoShelf } from "@/lib/demo";
 import { FIRST_SCENES, POTS, WALLS } from "@/lib/kinds";
 import { can } from "@/lib/permissions";
+import { guardWrites } from "@/lib/api-guard";
 
 // The window (LITE): your view into the other home. Each person sets their
 // own: a family photo, still or living. Muse composes the living motion.
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   if (!checkRateLimit(auth, "/api/window")) return Response.json({ error: "rate-limited" }, { status: 429 });
@@ -32,7 +33,7 @@ const HomePhoto = z
   .object({ action: z.literal("homePhoto"), ref: z.string().min(1).max(300).nullable().optional(), mix: z.boolean().optional() })
   .refine((b) => b.ref !== undefined || b.mix !== undefined);
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   if (!checkRateLimit(auth, "/api/window")) return Response.json({ error: "rate-limited" }, { status: 429 });
@@ -108,3 +109,6 @@ export async function POST(req: Request): Promise<Response> {
   }
   return Response.json({ error: "invalid-window" }, { status: 400 });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

@@ -14,6 +14,22 @@ export function dbLive(): boolean {
 }
 
 /**
+ * A write to the live database failed. Thrown instead of quietly keeping the
+ * row in this isolate's memory: on Workers memory isn't shared, so a "saved"
+ * row would vanish on the next request while the caller was told it worked.
+ * Routes turn it into a 503 "save-failed" (lib/api-guard.ts).
+ */
+export class DbWriteError extends Error {
+  constructor(
+    public readonly table: string,
+    message: string,
+  ) {
+    super(`${table}: ${message}`);
+    this.name = "DbWriteError";
+  }
+}
+
+/**
  * The database client for this family's data, or null when it must stay in
  * memory (mock mode, no keys, or a demo family). A missing family id means
  * data that isn't tied to one family; it follows dbLive().

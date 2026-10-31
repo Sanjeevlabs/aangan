@@ -9,8 +9,9 @@ import { listDocs, putDoc } from "@/lib/family-docs";
 import { checkRateLimit, requireSession } from "@/lib/auth";
 import { sealedCardIds } from "@/lib/today";
 import { withDemoShelf } from "@/lib/demo";
+import { guardWrites } from "@/lib/api-guard";
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const [stored, tasks, letters] = await Promise.all([dbListCards(auth.familyId), listDocs(auth.familyId, "today_task"), listDocs(auth.familyId, "chitthi")]);
@@ -155,7 +156,7 @@ async function postMultipart(req: Request, familyId: string, authorId: string): 
   return Response.json({ card, album }, { status: 201 });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   if (!checkRateLimit(auth, "/api/cards")) return Response.json({ error: "rate-limited" }, { status: 429 });
@@ -203,3 +204,6 @@ async function fileIntoAlbum(familyId: string, card: Awaited<ReturnType<typeof d
     return null;
   }
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

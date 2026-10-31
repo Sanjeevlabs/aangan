@@ -3,6 +3,7 @@ import { requireCan, requireSession } from "@/lib/auth";
 import { dbListMembers } from "@/lib/db";
 import { deleteDoc, getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
 import { PET_SPECIES } from "@/lib/kinds";
+import { guardWrites } from "@/lib/api-guard";
 
 // Pets are family: they live in a home (with a person), show on the home's
 // card and the family map, can have care tasks ("Bruno's vet visit") and a
@@ -22,13 +23,13 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("remove"), petId: z.string().min(1) }),
 ]);
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   return Response.json({ pets: await listDocs(auth.familyId, "pet") });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const allowed = await requireCan(auth, "tree.add");
@@ -54,3 +55,6 @@ export async function POST(req: Request): Promise<Response> {
   const pet = await putDoc(auth.familyId, "pet", { id: newId("pet"), ...fields, photoRef: fields.photoRef ?? null, addedBy: auth.memberId, createdAt: new Date().toISOString() });
   return Response.json({ pet }, { status: 201 });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

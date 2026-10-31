@@ -59,7 +59,7 @@ import {
   listConsents as memListConsents,
   type Invite as MemInvite,
 } from "./store";
-import { dbFor } from "./family-db";
+import { DbWriteError, dbFor } from "./family-db";
 import { DEMO_FAMILY_IDS, isDemoFamily } from "./family";
 import { baseLang } from "./languages";
 import type { MemberPatch } from "./store";
@@ -196,7 +196,7 @@ export async function dbAddCard(input: Omit<import("zod").input<typeof CardSchem
     ...(card.place ? { place: card.place } : {}),
     ...(card.note ? { note: card.note } : {}),
   });
-  if (error) return memAddCard(card);
+  if (error) throw new DbWriteError("cards", error.message);
   return card;
 }
 
@@ -369,7 +369,7 @@ export async function dbAddPlay(input: { cardId: string; memberId: string; famil
     member_id: play.memberId,
     played_at: play.playedAt,
   });
-  if (error) return memAddPlay(play);
+  if (error) throw new DbWriteError("plays", error.message);
   return play;
 }
 
@@ -468,30 +468,32 @@ export async function dbAddRelationship(input: {
     memAddMember(member);
     return { member, relationship };
   }
-  const [{ error: mErr }, { error: rErr }] = await Promise.all([
-    sb.from("members").insert({
-      id: member.id,
-      family_id: familyId,
-      first_name: member.firstName,
-      display_name: member.displayName,
-      role: member.role,
-      access: member.access,
-      lang: member.lang,
-      display_lang: member.displayLang,
-      tz: member.tz,
-      birthday: member.birthday,
-    }),
-    sb.from("relationships").insert({
-      id: relationship.id,
-      family_id: familyId,
-      member_id: input.memberId,
-      relation_member_id: memberId,
-      relation: input.relation,
-    }),
-  ]);
-  if (mErr || rErr) {
-    memAddRelationship(relationship);
-    memAddMember(member);
+  // Member first: relationships.relation_member_id has a foreign key to it,
+  // so the two inserts can't run side by side.
+  const { error: mErr } = await sb.from("members").insert({
+    id: member.id,
+    family_id: familyId,
+    first_name: member.firstName,
+    display_name: member.displayName,
+    role: member.role,
+    access: member.access,
+    lang: member.lang,
+    display_lang: member.displayLang,
+    tz: member.tz,
+    birthday: member.birthday,
+  });
+  if (mErr) throw new DbWriteError("members", mErr.message);
+  const { error: rErr } = await sb.from("relationships").insert({
+    id: relationship.id,
+    family_id: familyId,
+    member_id: input.memberId,
+    relation_member_id: memberId,
+    relation: input.relation,
+  });
+  if (rErr) {
+    // Don't leave a half-made person with no link behind.
+    await sb.from("members").delete().eq("id", member.id).eq("family_id", familyId);
+    throw new DbWriteError("relationships", rErr.message);
   }
   return { member, relationship };
 }
@@ -556,7 +558,7 @@ export async function dbAddSuggestion(input: { goal: string; payload?: Record<st
     payload: s.payload,
     status: s.status,
   });
-  if (error) return memAddSuggestion(s);
+  if (error) throw new DbWriteError("suggestions", error.message);
   return s;
 }
 
@@ -608,7 +610,7 @@ export async function dbAddAgentRun(input: { goal: string; tools: string[]; stat
     tools: run.tools,
     status: run.status,
   });
-  if (error) return memAddAgentRun(run);
+  if (error) throw new DbWriteError("agent_runs", error.message);
   return run;
 }
 
@@ -653,7 +655,7 @@ export async function dbAddWish(input: { ritualRunId?: string | null; cardId?: s
     member_id: w.memberId,
     kind: w.kind,
   });
-  if (error) return memAddWish(w);
+  if (error) throw new DbWriteError("wishes", error.message);
   return w;
 }
 
@@ -697,7 +699,7 @@ export async function dbEnsureRitualRun(slug: string, occasionDate: string, fami
     occasion_date: occasionDate,
     status: "collecting",
   });
-  if (error) return memAddRitualRun(run);
+  if (error) throw new DbWriteError("ritual_runs", error.message);
   return run;
 }
 
@@ -781,7 +783,7 @@ export async function dbAddGatherSession(input: { title: string; startsAt: strin
     invites: g.invites,
     playlist: g.playlist,
   });
-  if (error) return memAddGather(g);
+  if (error) throw new DbWriteError("gather_sessions", error.message);
   return g;
 }
 
@@ -853,7 +855,7 @@ export async function dbCreateInvite(familyId: string, createdBy: string | null 
     expires_at: expiresAt,
     created_by: createdBy,
   });
-  if (error) return memCreateInvite(invite.code, expiresAt, familyId, createdBy);
+  if (error) throw new DbWriteError("invites", error.message);
   return invite;
 }
 
@@ -931,7 +933,7 @@ export async function dbSetReaction(input: { cardId: string; memberId: string; k
     },
     { onConflict: "card_id,member_id" },
   );
-  if (error) return memSetReaction(reaction);
+  if (error) throw new DbWriteError("reactions", error.message);
   return reaction;
 }
 

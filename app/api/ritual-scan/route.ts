@@ -3,11 +3,12 @@ import { planRitualScan } from "@/lib/ritual-agent";
 import { dbAddAgentRun, dbAddSuggestion, dbAssignDailyRole, dbEnsureRitualRun, dbListFamilyIds, dbListDailyRoles, dbListMembers, dbListRitualRuns, dbListSuggestions, dbListWishes, dbSetRitualRunStatus } from "@/lib/db";
 import { familyHolidays } from "@/lib/occasions-server";
 import { cronAuthorized, requireSession } from "@/lib/auth";
+import { guardWrites } from "@/lib/api-guard";
 
 // Daily ritual/role scan. Vercel Cron (GET, see vercel.json) hits this with
 // Authorization: Bearer CRON_SECRET; manual callers use POST with a session.
 // Idempotent — safe to call repeatedly.
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   if (!cronAuthorized(req)) return Response.json({ error: "unauthorized-cron" }, { status: 401 });
   // Cron covers every family; one family's failure never blocks the others.
   const results = [];
@@ -21,7 +22,7 @@ export async function GET(req: Request): Promise<Response> {
   return Response.json({ families: results });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   return runScan(auth.familyId);
@@ -75,3 +76,6 @@ async function runScan(familyId: string): Promise<Response> {
     questionsAsked: questions.length,
   });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);
