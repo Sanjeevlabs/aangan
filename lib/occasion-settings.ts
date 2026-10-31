@@ -8,8 +8,7 @@
 // "ritual_settings", one row per family), validated with Zod on the way in
 // and out; in-memory in mock mode and as a fallback. Server only.
 import { z } from "zod";
-import { isMockMode } from "./config";
-import { isDbLive, supabaseServer } from "./supabase";
+import { dbFor } from "./family-db";
 
 export const RitualSettingsSchema = z.object({
   id: z.literal("ritual-settings"),
@@ -27,9 +26,7 @@ const ID = "ritual-settings";
 const g = globalThis as typeof globalThis & { __aanganRitualSettings?: Map<string, RitualSettings> };
 const mem = (g.__aanganRitualSettings ??= new Map<string, RitualSettings>());
 
-function live(): boolean {
-  return !isMockMode() && isDbLive();
-}
+// Demo families stay in memory (dbFor returns null for them).
 
 function empty(): RitualSettings {
   return { id: ID, traditions: [], kept: [], skipped: [], updatedBy: null, updatedAt: new Date(0).toISOString() };
@@ -37,8 +34,7 @@ function empty(): RitualSettings {
 
 export async function getRitualSettings(familyId: string): Promise<RitualSettings> {
   const local = mem.get(familyId);
-  if (!live()) return local ?? empty();
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return local ?? empty();
   const { data, error } = await sb.from("family_docs").select("data").eq("id", `${familyId}:${ID}`).eq("kind", KIND).maybeSingle();
   if (error || !data) return local ?? empty();
@@ -68,8 +64,7 @@ export async function setRitualSettings(familyId: string, patch: { traditions?: 
     updatedAt: new Date().toISOString(),
   });
   mem.set(familyId, doc);
-  if (!live()) return doc;
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return doc;
   const { error } = await sb
     .from("family_docs")

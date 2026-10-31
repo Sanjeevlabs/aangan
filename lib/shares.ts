@@ -3,12 +3,13 @@
 // a frozen copy of just that thing — no names beyond what the card shows, no
 // voice, no photos of people, no family data. Revocable at any time.
 // Postgres table `public_shares` when live; an in-memory map otherwise.
+// Shares made in the demo stay in memory (dbFor returns null for demo families).
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
-import { isMockMode } from "./config";
 import { COURSES } from "./kind-values";
+import { isDemoFamily } from "./family";
+import { dbFor } from "./family-db";
 import { IngredientSchema, StepSchema } from "./kinds";
-import { isDbLive, supabaseServer } from "./supabase";
 
 export const PublicRecipeSchema = z.object({
   title: z.string().max(80),
@@ -43,7 +44,6 @@ export type Share = z.infer<typeof ShareSchema>;
 // separately (mock mode and the in-memory fallback).
 const g = globalThis as typeof globalThis & { __aanganShares?: Map<string, Share> };
 const mem = (g.__aanganShares ??= new Map<string, Share>());
-const live = () => !isMockMode() && isDbLive();
 
 export function newToken(): string {
   return randomBytes(18).toString("base64url");
@@ -54,12 +54,10 @@ export async function createShare(input: Omit<Share, "token" | "createdAt" | "re
   const existing = (await listShares(input.familyId)).find((s) => s.refId === input.refId && !s.revokedAt);
   const share = ShareSchema.parse({ ...input, token: existing?.token ?? newToken(), createdAt: existing?.createdAt ?? new Date().toISOString(), views: existing?.views ?? 0 });
   mem.set(share.token, share);
-  if (live()) {
-    const sb = supabaseServer();
-    if (sb) {
-      const { error } = await sb.from("public_shares").upsert({ token: share.token, family_id: share.familyId, kind: share.kind, ref_id: share.refId, snapshot: share.snapshot, created_by: share.createdBy, created_at: share.createdAt, revoked_at: null }, { onConflict: "token" });
-      if (error) console.error("[shares] write failed, kept in memory", error.message);
-    }
+  const sb = dbFor(share.familyId);
+  if (sb) {
+    const { error } = await sb.from("public_shares").upsert({ token: share.token, family_id: share.familyId, kind: share.kind, ref_id: share.refId, snapshot: share.snapshot, created_by: share.createdBy, created_at: share.createdAt, revoked_at: null }, { onConflict: "token" });
+    if (error) console.error("[shares] write failed, kept in memory", error.message);
   }
   return share;
 }
@@ -73,10 +71,13 @@ function fromRow(r: Record<string, unknown>): Share | null {
 export async function getShare(token: string): Promise<Share | null> {
   if (!/^[A-Za-z0-9_-]{20,64}$/.test(token)) return null;
   let share = mem.get(token) ?? null;
-  if (!share && live()) {
-    const sb = supabaseServer();
-    const { data } = sb ? await sb.from("public_shares").select("*").eq("token", token).maybeSingle() : { data: null };
+  // Not in memory: a real family's share lives in the database (no family to
+  // check yet, so this follows the database switch). A demo row there is ignored.
+  const sb = share ? null : dbFor(null);
+  if (sb) {
+    const { data } = await sb.from("public_shares").select("*").eq("token", token).maybeSingle();
     share = data ? fromRow(data as Record<string, unknown>) : null;
+    if (share && isDemoFamily(share.familyId)) share = null;
   }
   if (!share || share.revokedAt) return null;
   return share;
@@ -85,17 +86,14 @@ export async function getShare(token: string): Promise<Share | null> {
 export async function countView(token: string): Promise<void> {
   const s = mem.get(token);
   if (s) mem.set(token, { ...s, views: s.views + 1 });
-  if (live()) {
-    const sb = supabaseServer();
-    // Best effort; a counter must never break the page.
-    if (sb) await sb.rpc("bump_share_views", { t: token }).then(() => undefined, () => undefined);
-  }
+  const sb = dbFor(s?.familyId);
+  // Best effort; a counter must never break the page.
+  if (sb) await sb.rpc("bump_share_views", { t: token }).then(() => undefined, () => undefined);
 }
 
 export async function listShares(familyId: string): Promise<Share[]> {
   const local = Array.from(mem.values()).filter((s) => s.familyId === familyId);
-  if (!live()) return local;
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return local;
   const { data } = await sb.from("public_shares").select("*").eq("family_id", familyId).order("created_at", { ascending: false }).limit(200);
   const rows = (data ?? []).map((r) => fromRow(r as Record<string, unknown>)).filter((s): s is Share => s !== null);
@@ -108,10 +106,8 @@ export async function revokeShare(familyId: string, token: string): Promise<bool
   if (!s) return false;
   const revoked = { ...s, revokedAt: new Date().toISOString() };
   mem.set(token, revoked);
-  if (live()) {
-    const sb = supabaseServer();
-    if (sb) await sb.from("public_shares").update({ revoked_at: revoked.revokedAt }).eq("token", token).eq("family_id", familyId);
-  }
+  const sb = dbFor(familyId);
+  if (sb) await sb.from("public_shares").update({ revoked_at: revoked.revokedAt }).eq("token", token).eq("family_id", familyId);
   return true;
 }
 

@@ -444,6 +444,10 @@ revoke execute on function add_spend(numeric) from public, anon, authenticated;
 grant execute on function add_spend(numeric) to service_role;
 
 -- -------------------------------------------------------------------- seed
+-- The demo families (demo-family, demo-iyer) are served from the app's
+-- in-memory seed (lib/store.ts, lib/demo*.ts) and never read or written
+-- here: lib/family-db.ts keeps them off the database. These rows are unused
+-- by the app and kept only so older databases stay consistent.
 insert into families (id, name) values ('demo-family', 'Sharma')
 on conflict (id) do nothing;
 

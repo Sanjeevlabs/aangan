@@ -5,6 +5,7 @@
 // the cron route requires Bearer CRON_SECRET instead.
 import { createHmac, timingSafeEqual } from "crypto";
 import { dbGetMember } from "./db";
+import { DEMO_FAMILY_IDS as DEMO_IDS, isDemoFamily } from "./family";
 
 export const SESSION_COOKIE = "aangan_session";
 const SESSION_TTL_MS = 14 * 24 * 3600 * 1000;
@@ -21,8 +22,8 @@ export interface Session {
 export const DEMO_INVITE_CODE = "AANGAN-DEMO";
 export const DEMO_FAMILY_ID = "demo-family";
 /** Synthetic demo Aangans (both sides of the demo couple). */
-export const DEMO_FAMILY_IDS: readonly string[] = ["demo-family", "demo-iyer"];
-export const isDemoFamily = (familyId: string): boolean => DEMO_FAMILY_IDS.includes(familyId);
+export const DEMO_FAMILY_IDS: readonly string[] = DEMO_IDS;
+export { isDemoFamily };
 
 function secret(): string | null {
   return process.env.SESSION_SECRET ?? null;

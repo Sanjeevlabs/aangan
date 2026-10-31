@@ -23,8 +23,7 @@ import { cacheKey, sha256Hex, type LlmStore, type SpendLedger } from "./llm";
 import { serverLedger, serverStore } from "./llm-server";
 import { newId, putDoc } from "./family-docs";
 import { MUSE_IMAGE_ESTIMATE_USD } from "./muse-portrait";
-import { createDownloadUrl, mockGetBlob } from "./storage";
-import { isDbLive } from "./supabase";
+import { createDownloadUrl, mockGetBlob, usesMockStorage } from "./storage";
 
 export type ImageSize = "1024x1024" | "1024x1536" | "1536x1024";
 
@@ -137,6 +136,22 @@ export async function museImage(opts: {
 const MAX_REF_BYTES = 6 * 1024 * 1024;
 
 /**
+ * A bundled file from this app. On Cloudflare a Worker can't reliably fetch its
+ * own hostname, so read it through the static-assets binding; elsewhere
+ * (next start, tests) a plain fetch works.
+ */
+async function fetchOwnAsset(url: URL): Promise<Response> {
+  try {
+    const { getCloudflareContext } = await import("@opennextjs/cloudflare");
+    const env = getCloudflareContext().env as { ASSETS?: { fetch: (input: URL | string) => Promise<Response> } };
+    if (env.ASSETS) return await env.ASSETS.fetch(url);
+  } catch {
+    /* not running on Cloudflare */
+  }
+  return fetch(url);
+}
+
+/**
  * A family photo ref → a data URL for Muse. Only the family's own media:
  * bundled demo files on this origin, or this family's private storage.
  * Anything else (another host, another family's path) is refused.
@@ -148,7 +163,7 @@ export async function loadFamilyImage(ref: string, familyId: string, origin: str
     if (ref.startsWith("storage:")) {
       const path = ref.slice("storage:".length);
       if (!path.startsWith(`${familyId}/`) || path.includes("..")) return null;
-      const local = !isDbLive() ? mockGetBlob(path) : undefined;
+      const local = usesMockStorage(path) ? mockGetBlob(path) : undefined;
       if (local) {
         bytes = local.bytes;
         mime = local.mime;
@@ -161,7 +176,7 @@ export async function loadFamilyImage(ref: string, familyId: string, origin: str
         mime = res.headers.get("content-type") ?? mime;
       }
     } else if (/^\/demo\/[\w.-]+\.(webp|jpe?g|png)$/i.test(ref)) {
-      const res = await fetch(new URL(ref, origin));
+      const res = await fetchOwnAsset(new URL(ref, origin));
       if (!res.ok) return null;
       bytes = new Uint8Array(await res.arrayBuffer());
       mime = res.headers.get("content-type") ?? (ref.endsWith(".webp") ? "image/webp" : ref.endsWith(".png") ? "image/png" : "image/jpeg");
