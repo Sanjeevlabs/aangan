@@ -2,30 +2,48 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-/** Fetch JSON for a room; `reload` after a write. Null while loading. */
-export function useJson<T>(url: string | null): { data: T | null; failed: boolean; reload: () => Promise<void> } {
+/**
+ * Fetch JSON for a room; `reload` after a write. Null while loading.
+ * `every` (ms) also refetches quietly while the page is visible: on an
+ * interval and when the tab comes back. A failed quiet refetch keeps the data.
+ */
+export function useJson<T>(url: string | null, opts?: { every?: number }): { data: T | null; failed: boolean; reload: () => Promise<void> } {
+  const every = opts?.every;
   const [data, setData] = useState<T | null>(null);
   const [failed, setFailed] = useState(false);
   const live = useRef(true);
-  const reload = useCallback(async () => {
+  const load = useCallback(async (quiet: boolean) => {
     if (!url) return;
-    setFailed(false);
+    if (!quiet) setFailed(false);
     try {
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) throw new Error(String(res.status));
       const json = (await res.json()) as T;
       if (live.current) setData(json);
     } catch {
-      if (live.current) setFailed(true);
+      if (live.current && !quiet) setFailed(true);
     }
   }, [url]);
   useEffect(() => {
     live.current = true;
-    void reload();
+    void load(false);
     return () => {
       live.current = false;
     };
-  }, [reload]);
+  }, [load]);
+  const reload = useCallback(() => load(false), [load]);
+  useEffect(() => {
+    if (!url || !every) return;
+    const tick = () => {
+      if (!document.hidden) void load(true);
+    };
+    const timer = setInterval(tick, every);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [url, every, load]);
   return { data, failed, reload };
 }
 
