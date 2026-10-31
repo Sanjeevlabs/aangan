@@ -18,6 +18,9 @@ create table if not exists families (
   default_home_image_ref text,
   created_at timestamptz default now()
 );
+-- Demo copies: hash of the caller that made them (per-caller hourly brake).
+alter table families add column if not exists demo_caller text;
+create index if not exists families_demo_caller_idx on families (demo_caller, created_at desc);
 
 -- ---------------------------------------------------------------- members
 -- PRD: members(+home_image, lang, display_lang, tz). Legacy `language`

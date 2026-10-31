@@ -10,6 +10,7 @@
 //
 // Server only. Pure helpers (buildSandbox, sandbox ids) are unit-tested; the
 // writes need a live database.
+import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cardRow, memberRow } from "./db";
 import { DEMO_SHELF_CARDS } from "./demo";
@@ -40,6 +41,11 @@ import {
 export const SANDBOX_TTL_HOURS = 48;
 /** New sandboxes allowed per hour across all visitors (cost and abuse ceiling). */
 export const SANDBOX_HOURLY_CAP = 400;
+/** Copies one caller (by address) may make per hour. */
+export const SANDBOX_CALLER_CAP = 5;
+
+/** What is stored of a caller key: a short hash, never the address. */
+export const callerHash = (key: string): string => createHash("sha256").update(key).digest("hex").slice(0, 16);
 
 export interface SeedSnapshot {
   members: Member[];
@@ -208,8 +214,14 @@ export type CreateSandboxResult = { ok: true; vid: string; idMap: Map<string, st
  * well under the Worker subrequest limit. A required table failing removes
  * the partial copy.
  */
-export async function createSandbox(sb: SupabaseClient): Promise<CreateSandboxResult> {
+export async function createSandbox(sb: SupabaseClient, callerKey: string | null): Promise<CreateSandboxResult> {
   const since = new Date(Date.now() - 3_600_000).toISOString();
+  const caller = callerKey ? callerHash(callerKey) : null;
+  if (caller) {
+    // Per-caller brake: one address can't fill the table with copies.
+    const mine = await sb.from("families").select("id", { count: "exact", head: true }).eq("demo_caller", caller).gte("created_at", since);
+    if ((mine.count ?? 0) >= SANDBOX_CALLER_CAP) return { ok: false, error: "busy" };
+  }
   const { count } = await sb.from("families").select("id", { count: "exact", head: true }).like("id", `${SANDBOX_PREFIX}%`).gte("created_at", since);
   if ((count ?? 0) >= SANDBOX_HOURLY_CAP) return { ok: false, error: "busy" };
 
@@ -220,6 +232,8 @@ export async function createSandbox(sb: SupabaseClient): Promise<CreateSandboxRe
   for (let i = 0; i < 4; i++) {
     // Built per stage: a failed ritual-run copy changes the wishes rows below.
     const stage = sandboxRows(snapshot)[i];
+    // Only the main copy carries the caller (the column is sent only when there is one).
+    if (i === 0 && caller) stage[0].rows[0] = { ...stage[0].rows[0], demo_caller: caller };
     const results = await Promise.all(stage.map(async (t) => ({ t, err: await insertAll(sb, t.table, t.rows) })));
     for (const { t, err } of results) {
       if (!err) continue;

@@ -3,7 +3,7 @@ import { DEMO_INVITE_CODE, clearSessionCookieHeader, isDemoFamily, sessionCookie
 import { dbGetMember, dbListInvites, dbListMembers } from "@/lib/db";
 import { isAdmin } from "@/lib/permissions";
 import { hostOf } from "@/lib/roles";
-import { allowAuthAttempt } from "@/lib/otp";
+import { allowAuthAttempt, callerKey } from "@/lib/otp";
 import { dbFor, dbLive } from "@/lib/family-db";
 import { isSeedFamily } from "@/lib/family";
 import { createSandbox, sandboxId, visitorOf } from "@/lib/demo-sandbox";
@@ -77,7 +77,7 @@ async function enterDemo(req: Request, seedMemberId: string): Promise<Response> 
   if (!memberId) {
     const sb = dbFor(null);
     if (!sb) return Response.json({ error: "session-unavailable" }, { status: 503 });
-    const made = await createSandbox(sb);
+    const made = await createSandbox(sb, callerKey(req));
     if (!made.ok) return Response.json({ error: made.error === "busy" ? "demo-busy" : "demo-unavailable" }, { status: 503 });
     memberId = made.idMap.get(seedMemberId) ?? null;
   }

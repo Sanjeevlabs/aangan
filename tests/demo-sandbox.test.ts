@@ -198,8 +198,8 @@ describe("entering the demo with the database live", () => {
 describe("purge", () => {
   it("deletes copies past 48 hours with their media, and keeps fresh ones and real families", async () => {
     const sb = h.fake as unknown as Parameters<typeof createSandbox>[0];
-    const old = await createSandbox(sb);
-    const fresh = await createSandbox(sb);
+    const old = await createSandbox(sb, null);
+    const fresh = await createSandbox(sb, null);
     if (!old.ok || !fresh.ok) throw new Error("sandbox");
     const oldFam = `demo-v-${old.vid}`;
     h.tables.get("families")!.push({ id: "fam-real00000001", name: "Real", created_at: "2020-01-01T00:00:00.000Z" });
@@ -213,5 +213,26 @@ describe("purge", () => {
     expect(left).toContain(`demo-v-${fresh.vid}`);
     expect(left.some((id) => String(id).startsWith(oldFam))).toBe(false);
     expect(h.tables.get("family_docs")!.some((d) => String(d.family_id).startsWith(oldFam))).toBe(false);
+  });
+});
+
+describe("per-caller brake", () => {
+  const from = (ip: string, cookie = "") => session(new Request("http://test/api/session", { method: "POST", headers: { "content-type": "application/json", "cf-connecting-ip": ip, ...(cookie ? { cookie } : {}) }, body: JSON.stringify({ inviteCode: "AANGAN-DEMO", memberId: "arjun" }) }));
+
+  it("the 6th copy in an hour from one caller is refused; another caller still gets in", async () => {
+    for (let i = 0; i < 5; i++) expect((await from("203.0.113.7")).status).toBe(200);
+    const sixth = await from("203.0.113.7");
+    expect(sixth.status).toBe(503);
+    expect(((await sixth.json()) as { error: string }).error).toBe("demo-busy");
+    expect((await from("203.0.113.8")).status).toBe(200);
+    // Only a hash of the address is stored, on the main copy.
+    const stored = h.tables.get("families")!.filter((f) => f.demo_caller).map((f) => f.demo_caller);
+    expect(stored.length).toBe(6);
+    expect(stored.every((v) => /^[0-9a-f]{16}$/.test(String(v)))).toBe(true);
+  });
+
+  it("a visitor whose cookie still works is not counted again", async () => {
+    const cookie = cookieOf(await from("203.0.113.9"));
+    for (let i = 0; i < 7; i++) expect((await from("203.0.113.9", cookie)).status).toBe(200);
   });
 });

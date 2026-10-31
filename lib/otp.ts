@@ -76,3 +76,8 @@ export function allowAuthAttempt(key: string, max = 5, windowMs = 10 * 60_000, n
 export function clearAuthAttempts(): void {
   hits.clear();
 }
+
+/** Who is calling: Cloudflare address header, else the first forwarded hop, else null. */
+export function callerKey(req: Request): string | null {
+  return req.headers.get("cf-connecting-ip")?.trim() || req.headers.get("x-forwarded-for")?.split(",")[0].trim() || null;
+}

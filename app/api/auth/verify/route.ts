@@ -5,7 +5,7 @@ import type { Member } from "@/lib/schemas";
 import { isAdmin } from "@/lib/permissions";
 import { familyFull, hostOf } from "@/lib/roles";
 import type { Invite } from "@/lib/db";
-import { allowAuthAttempt, identityFromToken, verifyCode } from "@/lib/otp";
+import { allowAuthAttempt, callerKey, identityFromToken, verifyCode } from "@/lib/otp";
 
 const Name = z.string().trim().min(1).max(40);
 const City = z.string().trim().max(60);
@@ -76,7 +76,7 @@ export async function POST(req: Request): Promise<Response> {
   const { intent } = parsed.data;
   let email: string;
   if (parsed.data.accessToken) {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+    const ip = callerKey(req) ?? "local";
     if (!allowAuthAttempt(`token:${ip}`, 20)) return Response.json({ error: "too-many-attempts" }, { status: 429 });
     const who = await identityFromToken(parsed.data.accessToken);
     if (!who) return Response.json({ error: "wrong-code" }, { status: 401 });
