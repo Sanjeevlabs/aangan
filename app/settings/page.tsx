@@ -487,9 +487,9 @@ export default function SettingsPage() {
 
       {tab === "you" && (
         <>
-      <Group title="Your window" id="window">
-        <WindowSettings />
+      <Group title="Your first screen" id="window">
         <WindowOptions />
+        <WindowSettings />
       </Group>
       <Group title="Connected apps" id="connected-apps">
         <ConnectedApps />

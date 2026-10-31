@@ -360,6 +360,10 @@ export const WALLS = ["jodhpur", "jaipur", "chettinad", "goa", "kerala", "lime"]
 
 // ---------- The window (LITE): what each person sees of the other home ----------
 export const WINDOW_LAYERS = ["steam", "rain", "leaves", "birds", "stars", "clouds", "lamp", "breeze"] as const;
+/** What you stand at when Aangan opens: a window, a balcony, or inside the courtyard. */
+export const FIRST_SCENES = ["window", "balcony", "courtyard"] as const;
+/** Flower pots on the sill, along the railing, or by the courtyard wall (up to three). */
+export const POTS = ["marigold", "rose", "jasmine", "geranium", "moneyplant", "succulent"] as const;
 export const WindowViewSchema = z.object({
   /** One per viewer: the son chooses what his window shows, the parents theirs. */
   id,
@@ -379,6 +383,14 @@ export const WindowViewSchema = z.object({
   people: z.array(id).max(2).default([]),
   /** The colour of the wall around the window (SPEC §30.1). */
   wall: z.enum(WALLS).default("jodhpur"),
+  /** The first screen: window (default), balcony or courtyard. */
+  scene: z.enum(FIRST_SCENES).default("window"),
+  /** Up to three flower pots, in the order chosen. */
+  pots: z.array(z.enum(POTS)).max(3).default([]),
+  /** A photo of their actual home (a media ref this family owns) as the view; null = the living album. */
+  homePhoto: z.string().max(300).nullable().default(null),
+  /** With a home photo: let family photos cross-fade in now and then. */
+  mixAlbum: z.boolean().default(true),
   updatedAt: iso,
 });
 
@@ -536,4 +548,6 @@ export type DayLine = DocOf<"day_line">;
 export type MuseImageRun = DocOf<"muse_image_run">;
 export type Wall = (typeof WALLS)[number];
 export type WindowLayer = (typeof WINDOW_LAYERS)[number];
+export type FirstScene = (typeof FIRST_SCENES)[number];
+export type Pot = (typeof POTS)[number];
 export type TodayTask = DocOf<"today_task">;

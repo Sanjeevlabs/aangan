@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { whatsappInvite } from "@/lib/invite-link";
 import { haptic } from "@/lib/native";
-import type { Knock, SafetyCheckin, Wall, WindowLayer } from "@/lib/kinds";
+import type { FirstScene, Knock, Pot, SafetyCheckin, Wall, WindowLayer } from "@/lib/kinds";
 import { resolveMediaUrl } from "@/lib/media-session";
 import { callName, cardCover, memberPhoto } from "@/lib/people";
 import { stateOf, type SafetyState } from "@/lib/safety";
@@ -18,6 +18,7 @@ import { ago, postJson, useJson } from "@/lib/use-json";
 import { useFamilyCards } from "@/lib/use-family";
 import { cn } from "@/lib/utils";
 import { WALL_LOOK } from "@/lib/walls";
+import { bloomFrom, sharedToday } from "@/lib/pots";
 import { PHASE_TINT, type DayPhase, type Weather } from "@/lib/weather";
 import { timeIn } from "@/lib/zones";
 import { PeoplePicker } from "./people-picker";
@@ -25,6 +26,8 @@ import { usePlayer } from "./player";
 import { useShell } from "./shell";
 import { Avatar, Icon } from "./ui/kit";
 import { useViewer } from "./viewer";
+import { PotArt, PotDefs } from "./window-pots";
+import { BalconyRail, CourtyardRoom, balconyRail, camFor, project, useBox, yardDepth, yardFarWall, yardStep, yardWalls } from "./window-scenes";
 
 // The window (SPEC §30.1): the first screen, with the parents at its centre.
 // An arched window in a coloured wall. Inside, the living album under their
@@ -32,6 +35,10 @@ import { useViewer } from "./viewer";
 // weather. On the ledge, the light both homes share and their latest voice.
 // Below: how they are in words against their usual day, whether now is a good
 // time to call, and the key you slide home.
+// Each viewer can stand somewhere else instead (Settings → Your first screen):
+// on a balcony, or inside the courtyard (components/window-scenes.tsx); the
+// view can be a photo of their actual home; up to three flower pots bloom
+// with the family (components/window-pots.tsx, lib/pots.ts).
 
 interface WindowData {
   imageRef: string;
@@ -48,6 +55,10 @@ interface WindowData {
   wall: Wall;
   sky: { sun: { x: number; y: number } | null; moon: { illumination: number; waxing: boolean; name: string } };
   call: { good: boolean; text: string };
+  scene?: FirstScene;
+  pots?: Pot[];
+  homePhoto?: string | null;
+  mixAlbum?: boolean;
 }
 
 export const WELCOME_KEY = "aangan:welcome";
@@ -270,6 +281,7 @@ function GlazingBars() {
 }
 
 function Jharokha({ album, still, data }: { album: ReturnType<typeof useAlbum>; still: boolean; data: WindowData }) {
+  const potted = (data.pots ?? []).length > 0;
   const x0 = useRef<number | null>(null);
   const night = data.phase === "night" || data.phase === "dusk";
   const raining = data.weather?.kind === "rain" || data.weather?.kind === "storm";
@@ -302,7 +314,7 @@ function Jharokha({ album, still, data }: { album: ReturnType<typeof useAlbum>; 
         <GlazingBars />
         <div className="win-glass pointer-events-none absolute inset-0" style={{ borderRadius: "inherit", opacity: night ? 0.55 : 1 }} aria-hidden="true" />
         {caption && (
-          <figcaption className="voice pointer-events-none absolute inset-x-5 bottom-[58px] text-center text-[15px] leading-snug text-white [text-shadow:0_1px_8px_rgba(0,0,0,.6)]">
+          <figcaption className={cn("voice pointer-events-none absolute inset-x-5 text-center text-[15px] leading-snug text-white [text-shadow:0_1px_8px_rgba(0,0,0,.6)]", potted ? "bottom-[78px]" : "bottom-[58px]")}>
             {caption}
             {album.cur?.by && !night && <span className="mt-0.5 block font-sans text-[11px] not-italic text-white/80">{album.cur.by}</span>}
           </figcaption>
@@ -318,13 +330,146 @@ function Jharokha({ album, still, data }: { album: ReturnType<typeof useAlbum>; 
   );
 }
 
+/* --------------------------------------------- the balcony and the courtyard */
+type Spot = { x: number; y: number; k: number };
+
+/** Up to three pots, nearest drawn last. `slots` are where they stand on screen. */
+function Pots({ pots, bloom, slots, size }: { pots: Pot[]; bloom: number; slots: Spot[]; size: number }) {
+  const placed = pots.slice(0, 3).map((kind, i) => ({ kind, at: slots[i], i })).filter((p): p is { kind: Pot; at: Spot; i: number } => Boolean(p.at));
+  placed.sort((a, b) => a.at.k - b.at.k);
+  return (
+    <>
+      {placed.map(({ kind, at, i }) => {
+        const hgt = size * at.k;
+        return <PotArt key={`${kind}-${i}`} kind={kind} bloom={bloom} height={hgt} delay={i * 2.3} className="pointer-events-none absolute" style={{ left: at.x - (hgt * 50) / 130, top: at.y - hgt * 0.975 }} />;
+      })}
+    </>
+  );
+}
+
+/**
+ * Standing on a balcony or inside the courtyard: the view (the living album,
+ * or their home photo) fills the open middle under their real sky; the room
+ * is drawn over it in perspective; the lamp stands on the rail or a step.
+ */
+function OpenScene({
+  kind,
+  album,
+  still,
+  data,
+  pots,
+  bloom,
+  glow,
+  lamp,
+  voice,
+}: {
+  kind: "balcony" | "courtyard";
+  glow: number;
+  album: ReturnType<typeof useAlbum>;
+  still: boolean;
+  data: WindowData;
+  pots: Pot[];
+  bloom: number;
+  lamp: (at: { x: number; y: number }) => React.ReactNode;
+  voice: (style: React.CSSProperties) => React.ReactNode;
+}) {
+  const [ref, box] = useBox<HTMLDivElement>();
+  const x0 = useRef<number | null>(null);
+  const night = data.phase === "night" || data.phase === "dusk";
+  const raining = data.weather?.kind === "rain" || data.weather?.kind === "storm";
+  const caption = night && !album.cur?.family ? `Look up: ${data.far?.names.split(" & ")[0] ?? "they"} can see this same moon tonight, ${Math.round(data.sky.moon.illumination * 100)}% full` : album.cur?.title;
+  const cam = box.w && box.h ? camFor(box.w, box.h) : null;
+  let lampAt: { x: number; y: number } | null = null;
+  let voiceAt: React.CSSProperties = {};
+  let captionBottom = 120;
+  let slots: Spot[] = [];
+  if (cam) {
+    const { w, h } = cam;
+    if (kind === "balcony") {
+      const r = balconyRail(cam);
+      lampAt = { x: w * 0.42, y: r.topY - 2 * r.k };
+      voiceAt = { right: 18, top: r.topY - 4 * r.k - 27 };
+      captionBottom = h - r.topY + 46;
+      slots = [project(cam, w - 54, h, -36), project(cam, 62, h, -40), project(cam, w - 112, h, -84)];
+    } else {
+      const st = yardStep(cam);
+      const walls = yardWalls(cam);
+      const top = project(cam, (st.x0 + st.x1) / 2, h - st.hgt, st.z0 - st.d / 2);
+      lampAt = { x: top.x, y: top.y };
+      voiceAt = { left: Math.min(w - 132, top.x + 36), top: top.y - 30 };
+      captionBottom = h - project(cam, w / 2, h - yardFarWall(cam), -yardDepth(cam)).y + 16;
+      slots = [project(cam, w - 50, h, -40), project(cam, walls.l + 48, h, -560), project(cam, walls.r - 46, h, -330)];
+    }
+  }
+  return (
+    <div ref={ref} className="absolute inset-0 overflow-hidden bg-[#1a1816]">
+      {/* The view: their sky over the album, or their own home */}
+      <div
+        className="absolute inset-0"
+        style={{ touchAction: "pan-y" }}
+        onPointerDown={(e) => (x0.current = e.clientX)}
+        onPointerUp={(e) => {
+          if (x0.current === null) return;
+          const dx = e.clientX - x0.current;
+          x0.current = null;
+          if (Math.abs(dx) > 40) album.go(dx < 0 ? 1 : -1);
+        }}
+      >
+        <AlbumPhotos list={album.list} at={album.at} still={still} onFail={album.fail} />
+        {/* Their sun and moon over the open view; a photo of a real place keeps its own sky */}
+        {!album.cur?.family && <RealSky sky={data.sky} phase={data.phase} />}
+        {raining && !still && <SkyLayers layers={["rain"]} phase={data.phase} tint={false} />}
+        {/* Open air: a touch of haze toward the distance, deeper at night */}
+        <div className="pointer-events-none absolute inset-0" style={{ background: night ? "linear-gradient(180deg, rgba(6,10,30,.35), rgba(6,10,30,.15) 50%, rgba(0,0,0,.35))" : "linear-gradient(180deg, rgba(255,255,255,0) 30%, rgba(225,230,235,.10) 60%, rgba(0,0,0,.12))" }} />
+        {album.list.length > 1 && (
+          <>
+            <button type="button" aria-label="Previous photo" onClick={() => album.go(-1)} className="absolute bottom-[30%] left-0 top-[24%] w-[22%]" />
+            <button type="button" aria-label="Next photo" onClick={() => album.go(1)} className="absolute bottom-[30%] right-0 top-[24%] w-[22%]" />
+          </>
+        )}
+      </div>
+      {cam && (kind === "balcony" ? <BalconyRail cam={cam} night={night} /> : <CourtyardRoom cam={cam} night={night} />)}
+      {caption && (
+        <p className="voice pointer-events-none absolute inset-x-12 m-0 text-center text-[15px] leading-snug text-white [text-shadow:0_1px_8px_rgba(0,0,0,.7)]" style={{ bottom: captionBottom }}>
+          {caption}
+          {album.cur?.by && !night && <span className="mt-0.5 block font-sans text-[11px] not-italic text-white/80">{album.cur.by}</span>}
+        </p>
+      )}
+      {cam && <Pots pots={pots} bloom={bloom} slots={slots} size={kind === "balcony" ? 104 : 112} />}
+      {/* At night the lamp lights what's around it: the rail and floor, the step and the tiles */}
+      {night && lampAt && <span className="pointer-events-none absolute h-[340px] w-[340px] -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ left: lampAt.x + 16, top: lampAt.y - 14, mixBlendMode: "screen", opacity: 0.45 + 0.55 * Math.min(1, glow), background: "radial-gradient(circle, rgba(255,182,96,.95), rgba(255,160,70,.42) 30%, rgba(255,150,60,.12) 52%, rgba(255,150,60,0) 70%)" }} aria-hidden="true" />}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[70px]" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.38))" }} aria-hidden="true" />
+      {lampAt && lamp(lampAt)}
+      {cam && voice(voiceAt)}
+    </div>
+  );
+}
+
+/** Pots on the window sill: either side of the lamp, the third a step behind. */
+const SILL_SLOTS = [
+  { left: "23%", scale: 1 },
+  { left: "55%", scale: 1 },
+  { left: "9%", scale: 0.86 },
+];
+function SillPots({ pots, bloom }: { pots: Pot[]; bloom: number }) {
+  const placed = pots.slice(0, 3).map((kind, i) => ({ kind, i, slot: SILL_SLOTS[i] }));
+  return (
+    <>
+      {[...placed].reverse().map(({ kind, i, slot }) => (
+        <PotArt key={`${kind}-${i}`} kind={kind} bloom={bloom} height={74 * slot.scale} delay={i * 2.3} className="pointer-events-none absolute -translate-x-1/2" style={{ left: slot.left, bottom: `calc(100% - ${slot.scale < 1 ? 7 : 5}px)` }} />
+      ))}
+    </>
+  );
+}
+
 /* ------------------------------------------------- the light in the window */
 interface LampData {
   lamps: { homeKey: string; memberIds: string[]; litAt: string | null; litBy: string | null; glow: number }[];
   beats: { from: string; at: string }[];
 }
 
-function Lamp({ glow, onLight, onHold, pulseKey }: { glow: number; onLight: () => void; onHold: () => void; pulseKey: number }) {
+/** `at`: where the diya's base stands, in px of its positioned parent (balcony rail, courtyard step). Default: on the sill. */
+function Lamp({ glow, onLight, onHold, pulseKey, at }: { glow: number; onLight: () => void; onHold: () => void; pulseKey: number; at?: { x: number; y: number } }) {
   const held = useRef<number | "held" | null>(null);
   const [rings, setRings] = useState(0);
   useEffect(() => {
@@ -333,7 +478,7 @@ function Lamp({ glow, onLight, onHold, pulseKey }: { glow: number; onLight: () =
   }, [pulseKey]);
   const g = Math.max(0.35, Math.min(1.25, glow));
   return (
-    <div className="absolute bottom-[5px] left-[40%] z-[1] -translate-x-1/2">
+    <div className={cn("absolute z-[1]", !at && "bottom-[5px] left-[40%] -translate-x-1/2")} style={at ? { left: at.x, top: at.y, transform: "translate(-50%, calc(-100% + 8px))" } : undefined}>
       <span className="lamp-halo pointer-events-none absolute left-[47px] top-[26px] h-[400px] w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ ["--g" as string]: g } as React.CSSProperties} aria-hidden="true" />
       <span key={rings} className={cn("pointer-events-none absolute left-[47px] top-[28px] h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full", rings && "lamp-ring")} aria-hidden="true" />
       <button
@@ -518,15 +663,21 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
   const knock = (sit.data?.knocks ?? []).find((k) => farIds.has(k.memberId));
   const slides = useMemo<AlbumSlide[]>(() => {
     if (!data) return [];
-    const own = data.chosen ? resolveMediaUrl(data.imageRef) : null;
-    if (own) return [{ src: own, title: "", by: "", family: true }];
     const family = (cards ?? [])
       .filter((c) => c.type === "photo" && c.caption)
       .slice(0, 6)
       .map((c) => {
         const by = members.find((mm) => mm.id === c.authorId);
-        return { src: cardCover(c, members), title: c.caption, by: [callName(by), new Date(c.takenAt).getFullYear()].filter(Boolean).join(" · ") };
+        return { src: cardCover(c, members), title: c.caption, by: [callName(by), new Date(c.takenAt).getFullYear()].filter(Boolean).join(" · "), family: true };
       });
+    // A photo of their actual home: it stays, and (if they like) a family photo crossfades in now and then.
+    const home = data.homePhoto ? resolveMediaUrl(data.homePhoto) : null;
+    if (home) {
+      const slide = { src: home, title: data.far?.city ? `Home, ${data.far.city}` : "Their home", by: "", family: true };
+      return data.mixAlbum === false || !family.length ? [slide] : family.slice(0, 4).flatMap((f) => [slide, slide, f]);
+    }
+    const own = data.chosen ? resolveMediaUrl(data.imageRef) : null;
+    if (own) return [{ src: own, title: "", by: "", family: true }];
     return livingAlbum(scenesFor(data.phase, data.weather?.kind ?? null), family);
   }, [data, cards, members]);
   const still = data?.view?.style === "still";
@@ -579,63 +730,94 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
   };
 
   const look = WALL_LOOK[data?.wall ?? "jodhpur"];
-  const dark = look.ink === "dark";
+  const scene = data?.scene ?? "window";
+  const open = scene !== "window";
+  const dark = look.ink === "dark" && !open;
   const playing = latestVoice && current?.id === latestVoice.id && isPlaying;
+  const pots = data?.pots ?? [];
+  // The pots bloom with the family: the lamp's glow, and a voice or photo today. Never below healthy.
+  const bloom = bloomFrom(litNow ? 1 : pair.glow, sharedToday(cards ?? []));
+
+  const lampEl = (at?: { x: number; y: number }) => (!waiting && data ? <Lamp glow={litNow ? 1.15 : pair.glow} onLight={() => void light()} onHold={() => void heartbeat()} pulseKey={pulse} at={at} /> : null);
+  const voiceEl = (style?: React.CSSProperties) =>
+    latestVoice ? (
+      <button type="button" onClick={() => (current?.id === latestVoice.id ? toggle() : play(latestVoice))} aria-label={`${playing ? "Pause" : "Play"} ${callName(voiceBy)}'s voice note`} className={cn("absolute z-[2] flex -rotate-2 items-center gap-1.5 rounded-[3px] bg-[#f6f0e3] py-1.5 pl-1.5 pr-2.5 text-[11.5px] font-medium text-ink shadow-[0_1px_1px_rgba(0,0,0,.25),2px_6px_10px_-4px_rgba(0,0,0,.45)]", !style && "-top-[27px] right-3")} style={style}>
+        <span className="grid h-5 w-5 place-items-center rounded-full bg-ink text-white">
+          <Icon name={playing ? "pause" : "play"} size={10} />
+        </span>
+        {callName(voiceBy)} · {ago(latestVoice.takenAt)}
+      </button>
+    ) : null;
+  const header = (
+    <header className="relative flex items-start justify-between gap-3">
+      <div className={cn("min-w-0", dark ? "[text-shadow:0_1px_0_rgba(255,255,255,.25)]" : open ? "[text-shadow:0_1px_12px_rgba(0,0,0,.55)]" : "[text-shadow:0_1px_10px_rgba(0,0,0,.22)]")}>
+        <h1 className="m-0 truncate text-[26px] font-light leading-[1.1] tracking-[-0.01em]">{names || (data ? "Your window" : " ")}</h1>
+        {data?.far && (
+          <p className="m-0 mt-1 flex flex-wrap items-center gap-x-2.5 text-[13px] opacity-90">
+            <span>{data.far.city || "Their home"}</span>
+            <span className="tnum" suppressHydrationWarning>
+              {clock}
+            </span>
+            {data.km && <span>{data.km.toLocaleString()} km away</span>}
+          </p>
+        )}
+        {welcome && <p className="voice m-0 mt-1.5 text-[15px]">{welcome}</p>}
+      </div>
+      <button type="button" onClick={() => router.push("/settings")} aria-label="Your profile and settings" className="press shrink-0 rounded-full ring-1 ring-white/50">
+        <Avatar src={memberPhoto(viewer)} name={viewer.firstName} size={40} />
+      </button>
+    </header>
+  );
+  const lampWords = waiting ? " " : (lampLine ?? defaultLampLine);
 
   return (
     <div className="fixed inset-0 z-30 flex flex-col overflow-hidden bg-paper text-ink">
       {/* The wall, the window, the sill */}
       <section
-        className={cn("wall-paint relative flex min-h-0 flex-[1.25] flex-col px-5 transition-[filter] duration-700", dark ? "text-ink" : "text-white")}
+        className={cn("wall-paint relative flex min-h-0 flex-[1.25] flex-col transition-[filter] duration-700", open ? "px-0" : "px-5", dark ? "text-ink" : "text-white")}
         style={{
-          paddingTop: "calc(14px + env(safe-area-inset-top))",
+          paddingTop: open ? undefined : "calc(14px + env(safe-area-inset-top))",
           ["--wall-top" as string]: look.top,
           ["--wall-bottom" as string]: look.bottom,
           filter: data && data.phase === "night" ? "brightness(.6) saturate(.8)" : undefined,
           ["--wall-ink-soft" as string]: dark ? "rgba(28,27,26,.72)" : "rgba(255,255,255,.92)",
         } as React.CSSProperties}
       >
-        <div className="wall-plaster pointer-events-none absolute inset-0" aria-hidden="true" />
-        <header className="relative flex items-start justify-between gap-3">
-          <div className={cn("min-w-0", dark ? "[text-shadow:0_1px_0_rgba(255,255,255,.25)]" : "[text-shadow:0_1px_10px_rgba(0,0,0,.22)]")}>
-            <h1 className="m-0 truncate text-[26px] font-light leading-[1.1] tracking-[-0.01em]">{names || (data ? "Your window" : " ")}</h1>
-            {data?.far && (
-              <p className="m-0 mt-1 flex flex-wrap items-center gap-x-2.5 text-[13px] opacity-90">
-                <span>{data.far.city || "Their home"}</span>
-                <span className="tnum" suppressHydrationWarning>
-                  {clock}
-                </span>
-                {data.km && <span>{data.km.toLocaleString()} km away</span>}
-              </p>
-            )}
-            {welcome && <p className="voice m-0 mt-1.5 text-[15px]">{welcome}</p>}
-          </div>
-          <button type="button" onClick={() => router.push("/settings")} aria-label="Your profile and settings" className="press shrink-0 rounded-full ring-1 ring-white/50">
-            <Avatar src={memberPhoto(viewer)} name={viewer.firstName} size={40} />
-          </button>
-        </header>
-        <div className="relative mt-3 min-h-0 flex-1">{data ? <Jharokha album={album} still={still} data={data} /> : <div className="win-reveal mx-auto h-full max-w-[310px] animate-pulse" aria-busy="true" aria-label="Opening the window" />}</div>
-        {/* The sill: a teak board. The lamp and their latest voice sit on it. */}
-        <div className="relative z-[1] mx-auto mb-2 mt-[-3px] h-[19px] w-full max-w-[340px]">
-          <div className="win-wood-h win-sill-top absolute inset-x-0 top-0 h-[7px] [clip-path:polygon(4px_0,calc(100%-4px)_0,100%_100%,0_100%)]" aria-hidden="true">
-            <span className="absolute inset-0 bg-[rgba(255,236,205,.16)]" />
-          </div>
-          <div className="win-wood-h win-sill-face absolute inset-x-0 bottom-0 top-[7px]" aria-hidden="true">
-            <span className="absolute inset-0 rounded-[inherit] bg-[rgba(30,14,4,.18)]" />
-          </div>
-          {!waiting && data && <Lamp glow={litNow ? 1.15 : pair.glow} onLight={() => void light()} onHold={() => void heartbeat()} pulseKey={pulse} />}
-          {latestVoice && (
-            <button type="button" onClick={() => (current?.id === latestVoice.id ? toggle() : play(latestVoice))} aria-label={`${playing ? "Pause" : "Play"} ${callName(voiceBy)}'s voice note`} className="absolute -top-[27px] right-3 z-[2] flex -rotate-2 items-center gap-1.5 rounded-[3px] bg-[#f6f0e3] py-1.5 pl-1.5 pr-2.5 text-[11.5px] font-medium text-ink shadow-[0_1px_1px_rgba(0,0,0,.25),2px_6px_10px_-4px_rgba(0,0,0,.45)]">
-              <span className="grid h-5 w-5 place-items-center rounded-full bg-ink text-white">
-                <Icon name={playing ? "pause" : "play"} size={10} />
-              </span>
-              {callName(voiceBy)} · {ago(latestVoice.takenAt)}
-            </button>
-          )}
-        </div>
-        <p className="relative m-0 mb-3 text-center text-[11.5px]" style={{ color: "var(--wall-ink-soft)", textShadow: dark ? "0 1px 0 rgba(255,255,255,.3)" : "0 1px 6px rgba(0,0,0,.3)" }} suppressHydrationWarning>
-          {waiting ? " " : (lampLine ?? defaultLampLine)}
-        </p>
+        <PotDefs />
+        {open && data ? (
+          <>
+            {/* Standing on the balcony, or inside the courtyard */}
+            <OpenScene kind={scene as "balcony" | "courtyard"} album={album} still={still} data={data} pots={pots} bloom={bloom} glow={litNow ? 1 : pair.glow} lamp={(at) => lampEl(at)} voice={(st) => voiceEl(st)} />
+            <div className="scene-scrim pointer-events-none absolute inset-x-0 top-0 h-[150px]" aria-hidden="true" />
+            <div className="relative z-[3] px-5" style={{ paddingTop: "calc(14px + env(safe-area-inset-top))" }}>
+              {header}
+            </div>
+            <p className="pointer-events-none absolute inset-x-0 bottom-2.5 z-[3] mx-auto m-0 max-w-[210px] text-center text-[11.5px] leading-snug text-white/95 [text-shadow:0_1px_6px_rgba(0,0,0,.75)]" suppressHydrationWarning>
+              {lampWords}
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="wall-plaster pointer-events-none absolute inset-0" aria-hidden="true" />
+            {header}
+            <div className="relative mt-3 min-h-0 flex-1">{data ? <Jharokha album={album} still={still} data={data} /> : <div className="win-reveal mx-auto h-full max-w-[310px] animate-pulse" aria-busy="true" aria-label="Opening the window" />}</div>
+            {/* The sill: a teak board. The pots, the lamp and their latest voice sit on it. */}
+            <div className="relative z-[1] mx-auto mb-2 mt-[-3px] h-[19px] w-full max-w-[340px]">
+              <div className="win-wood-h win-sill-top absolute inset-x-0 top-0 h-[7px] [clip-path:polygon(4px_0,calc(100%-4px)_0,100%_100%,0_100%)]" aria-hidden="true">
+                <span className="absolute inset-0 bg-[rgba(255,236,205,.16)]" />
+              </div>
+              <div className="win-wood-h win-sill-face absolute inset-x-0 bottom-0 top-[7px]" aria-hidden="true">
+                <span className="absolute inset-0 rounded-[inherit] bg-[rgba(30,14,4,.18)]" />
+              </div>
+              <SillPots pots={pots} bloom={bloom} />
+              {lampEl()}
+              {voiceEl()}
+            </div>
+            <p className="relative m-0 mb-3 text-center text-[11.5px]" style={{ color: "var(--wall-ink-soft)", textShadow: dark ? "0 1px 0 rgba(255,255,255,.3)" : "0 1px 6px rgba(0,0,0,.3)" }} suppressHydrationWarning>
+              {lampWords}
+            </p>
+          </>
+        )}
       </section>
 
       {/* Inside: are they safe and sound, and the one thing to do */}

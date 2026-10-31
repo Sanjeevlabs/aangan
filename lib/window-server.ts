@@ -14,8 +14,10 @@ import { hourIn } from "./zones";
 import { aliveState, type Alive } from "./status";
 import { dayRhythm, rhythmLine, type DayRhythm } from "./rhythm";
 import { moonPhase, sunInArch, sunPosition } from "./sky";
-import type { Wall } from "./kinds";
+import type { FirstScene, Pot, Wall } from "./kinds";
 import { withDemoShelf } from "./demo";
+import { isDemoFamily } from "./auth";
+import { createDownloadUrl } from "./storage";
 
 export interface WindowState {
   view: WindowView | null;
@@ -43,6 +45,57 @@ export interface WindowState {
   sky: { sun: { x: number; y: number } | null; moon: { illumination: number; waxing: boolean; name: string } };
   /** Is now a good time to call, in their day and yours. */
   call: { good: boolean; text: string };
+  /** What this viewer stands at: window, balcony or courtyard. */
+  scene: FirstScene;
+  /** Flower pots on the sill / railing / courtyard floor (up to three). */
+  pots: Pot[];
+  /** A photo of their actual home as the view (a media ref), else null: the living album. */
+  homePhoto: string | null;
+  /** With a home photo: family photos cross-fade in now and then. */
+  mixAlbum: boolean;
+}
+
+/**
+ * A viewer's window before they've changed anything. Real families: the
+ * window, no pots, the living album. The synthetic demo families open on
+ * marigold and jasmine on the sill, so the demo shows something lovely.
+ */
+export function defaultView(familyId: string, memberId: string): WindowView {
+  return {
+    id: memberId,
+    memberId,
+    cardId: null,
+    imageRef: null,
+    style: "living",
+    layers: [],
+    line: "",
+    madeBy: "family",
+    quietAfterHours: 4,
+    people: [],
+    wall: "jodhpur",
+    scene: "window",
+    pots: isDemoFamily(familyId) ? ["marigold", "jasmine"] : [],
+    homePhoto: null,
+    mixAlbum: true,
+    updatedAt: new Date(0).toISOString(),
+  };
+}
+
+const STORAGE_PATH = /^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)+$/;
+
+/**
+ * Is this media ref the family's own photo? Either a file this family
+ * uploaded to its private storage (and that exists), or the photo of one of
+ * its own photo cards. Never another family's path, never another host.
+ */
+export async function homePhotoOk(familyId: string, ref: string): Promise<boolean> {
+  if (ref.startsWith("storage:")) {
+    const path = ref.slice("storage:".length);
+    if (!path.startsWith(`${familyId}/`) || path.includes("..") || !STORAGE_PATH.test(path)) return false;
+    return (await createDownloadUrl(path)) !== null;
+  }
+  const cards = withDemoShelf(await dbListCards(familyId), familyId);
+  return cards.some((c) => c.type === "photo" && c.mediaRef === ref);
 }
 
 const DEFAULT_IMAGE = { elders: "/demo/aangan-home.svg", children: "/demo/home-city.svg" };
@@ -101,6 +154,7 @@ export async function windowState(familyId: string, viewerId: string, now = new 
       return { id: m.id, lastActive, state, rhythm, line: rhythmLine(state, lastActive, rhythm, m.tz, (iso) => agoWords(iso, now)) };
     })
     .slice(0, 2);
+  const own = view ?? defaultView(familyId, viewerId);
   let imageRef = view?.imageRef ?? null;
   if (!imageRef) imageRef = home?.elders ? DEFAULT_IMAGE.elders : DEFAULT_IMAGE.children;
   return {
@@ -121,6 +175,10 @@ export async function windowState(familyId: string, viewerId: string, now = new 
     sky: skyOver(weather, now),
     call: callHint(tz, viewer?.tz ?? tz, home?.members.filter((m) => m.role !== "child").map((m) => m.displayName || m.firstName) ?? [], now),
     joined: (home?.members ?? []).some((m) => m.role !== "child" && (Boolean(m.email) || lastSeen(m.id) !== null)),
+    scene: own.scene,
+    pots: own.pots,
+    homePhoto: own.homePhoto,
+    mixAlbum: own.mixAlbum,
   };
 }
 

@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- Old terracotta floor tiles, procedurally: sixteen hand-made tiles, each
+       fired a slightly different red, with clay mottle, grit, worn soft edges
+       and lime-mortar joints. Made for Aangan; no third-party image. -->
+  <defs>
+    <filter id="clay" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="4" seed="4" stitchTiles="stitch" result="m"/>
+      <feColorMatrix in="m" type="matrix" values="0 0 0 0 0.16  0 0 0 0 0.07  0 0 0 0 0.03  1.3 0 0 0 -0.55" result="mottle"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="8" stitchTiles="stitch" result="g"/>
+      <feColorMatrix in="g" type="matrix" values="0 0 0 0 0.28  0 0 0 0 0.12  0 0 0 0 0.05  3 0 0 0 -1.95" result="grit"/>
+      <feComposite in="mottle" in2="SourceGraphic" operator="over" result="a"/>
+      <feComposite in="grit" in2="a" operator="over" result="b"/>
+      <feComposite in="b" in2="SourceGraphic" operator="in"/>
+    </filter>
+    <radialGradient id="pillow" cx="45%" cy="42%" r="75%">
+      <stop offset="0" stop-color="#fff2e0" stop-opacity=".10"/>
+      <stop offset=".62" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#2a0e02" stop-opacity=".34"/>
+    </radialGradient>
+  </defs>
+  <!-- lime mortar -->
+  <rect width="256" height="256" fill="#b9a68e"/>
+  <rect width="256" height="256" fill="#6d5a45" opacity=".25"/>
+  <g filter="url(#clay)">
+    <rect x="1.5" y="1.5" width="61" height="61" rx="2" fill="#a9532f"/>
+    <rect x="65.5" y="1.5" width="61" height="61" rx="2" fill="#b4603a"/>
+    <rect x="129.5" y="1.5" width="61" height="61" rx="2" fill="#9d4a2a"/>
+    <rect x="193.5" y="1.5" width="61" height="61" rx="2" fill="#ae5935"/>
+    <rect x="1.5" y="65.5" width="61" height="61" rx="2" fill="#b8673f"/>
+    <rect x="65.5" y="65.5" width="61" height="61" rx="2" fill="#a24f2d"/>
+    <rect x="129.5" y="65.5" width="61" height="61" rx="2" fill="#b15d37"/>
+    <rect x="193.5" y="65.5" width="61" height="61" rx="2" fill="#984628"/>
+    <rect x="1.5" y="129.5" width="61" height="61" rx="2" fill="#a14e2c"/>
+    <rect x="65.5" y="129.5" width="61" height="61" rx="2" fill="#ba6941"/>
+    <rect x="129.5" y="129.5" width="61" height="61" rx="2" fill="#a75230"/>
+    <rect x="193.5" y="129.5" width="61" height="61" rx="2" fill="#b3623b"/>
+    <rect x="1.5" y="193.5" width="61" height="61" rx="2" fill="#b05b36"/>
+    <rect x="65.5" y="193.5" width="61" height="61" rx="2" fill="#9f4c2b"/>
+    <rect x="129.5" y="193.5" width="61" height="61" rx="2" fill="#b7663e"/>
+    <rect x="193.5" y="193.5" width="61" height="61" rx="2" fill="#a5512e"/>
+  </g>
+  <!-- each tile: worn, a little domed, darker at the edges -->
+  <g fill="url(#pillow)">
+    <rect x="1.5" y="1.5" width="61" height="61" rx="2"/><rect x="65.5" y="1.5" width="61" height="61" rx="2"/><rect x="129.5" y="1.5" width="61" height="61" rx="2"/><rect x="193.5" y="1.5" width="61" height="61" rx="2"/>
+    <rect x="1.5" y="65.5" width="61" height="61" rx="2"/><rect x="65.5" y="65.5" width="61" height="61" rx="2"/><rect x="129.5" y="65.5" width="61" height="61" rx="2"/><rect x="193.5" y="65.5" width="61" height="61" rx="2"/>
+    <rect x="1.5" y="129.5" width="61" height="61" rx="2"/><rect x="65.5" y="129.5" width="61" height="61" rx="2"/><rect x="129.5" y="129.5" width="61" height="61" rx="2"/><rect x="193.5" y="129.5" width="61" height="61" rx="2"/>
+    <rect x="1.5" y="193.5" width="61" height="61" rx="2"/><rect x="65.5" y="193.5" width="61" height="61" rx="2"/><rect x="129.5" y="193.5" width="61" height="61" rx="2"/><rect x="193.5" y="193.5" width="61" height="61" rx="2"/>
+  </g>
+  <!-- a few chips and a hairline crack, like an old floor -->
+  <path d="M150 140 l9 6 l4 11 l8 4" fill="none" stroke="#4a1e0c" stroke-width=".8" opacity=".45"/>
+  <path d="M30 216 q6 -3 10 1" fill="none" stroke="#4a1e0c" stroke-width=".7" opacity=".4"/>
+  <circle cx="98" cy="34" r="2.2" fill="#d9b48f" opacity=".35"/>
+  <circle cx="226" cy="98" r="1.6" fill="#d9b48f" opacity=".35"/>
+</svg>
