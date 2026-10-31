@@ -4,6 +4,7 @@ import { isMockMode, providerKey } from "@/lib/config";
 import { listDocs, newId, putDoc } from "@/lib/family-docs";
 import { acceptDataUrl, museImage } from "@/lib/muse-image";
 import { quotaLeft, RESTORE_PROMPT } from "@/lib/muse-portrait";
+import { guardWrites } from "@/lib/api-guard";
 
 // Restore an old photo (Muse Image edit of the one photo the person just
 // picked). The original is never replaced: the screen shows both and the
@@ -16,7 +17,7 @@ const Body = z.object({
   variant: z.number().int().min(0).max(20).default(0),
 });
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   let raw: unknown;
@@ -44,3 +45,5 @@ export async function POST(req: Request): Promise<Response> {
   await putDoc(auth.familyId, "muse_image_run", { ...run, sample: false });
   return Response.json({ runId: run.id, image: out.image });
 }
+
+export const POST = guardWrites(postHandler);

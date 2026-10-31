@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth";
 import { dbGetMember } from "@/lib/db";
 import { DAY_LINE_MAX, allowDayLineWrite, endOfLocalDay, liveLines } from "@/lib/day-line";
 import { deleteDoc, listDocs, putDoc } from "@/lib/family-docs";
+import { guardWrites } from "@/lib/api-guard";
 
 // A line about today. GET: the family's lines still showing (their author's
 // local day hasn't ended). POST: write or replace YOUR line. DELETE: take
@@ -10,14 +11,14 @@ import { deleteDoc, listDocs, putDoc } from "@/lib/family-docs";
 
 const Body = z.object({ text: z.string().trim().min(1).max(DAY_LINE_MAX) });
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const lines = liveLines(await listDocs(auth.familyId, "day_line"));
   return Response.json({ lines: lines.map((l) => ({ memberId: l.memberId, text: l.text, until: l.until })) });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   if (!allowDayLineWrite(`${auth.familyId}:${auth.memberId}`)) return Response.json({ error: "rate-limited" }, { status: 429 });
@@ -38,7 +39,7 @@ export async function POST(req: Request): Promise<Response> {
   return Response.json({ line: { memberId: line.memberId, text: line.text, until: line.until } }, { status: 201 });
 }
 
-export async function DELETE(req: Request): Promise<Response> {
+async function deleteHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   if (!allowDayLineWrite(`${auth.familyId}:${auth.memberId}`)) return Response.json({ error: "rate-limited" }, { status: 429 });
@@ -47,3 +48,7 @@ export async function DELETE(req: Request): Promise<Response> {
   await deleteDoc(auth.familyId, "day_line", auth.memberId);
   return Response.json({ removed: true });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);
+export const DELETE = guardWrites(deleteHandler);

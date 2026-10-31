@@ -6,6 +6,7 @@ import { deleteDoc, getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
 import type { Project } from "@/lib/kinds";
 import { canChange } from "@/lib/permissions";
 import { TEMPLATES, template } from "@/lib/together-templates";
+import { guardWrites } from "@/lib/api-guard";
 
 // Visits & holidays: a visit home or a family holiday, with dates, who's
 // going, a shared list and a countdown both homes see. Both are "visit"
@@ -29,14 +30,14 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("task-delete"), projectId: id, taskId: id }),
 ]);
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const projects = (await listDocs(auth.familyId, "project")).filter((p) => p.kind === "visit");
   return Response.json({ templates: TEMPLATES, projects });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   if (!checkRateLimit(auth, "/api/together")) return Response.json({ error: "rate-limited" }, { status: 429 });
@@ -104,3 +105,6 @@ export async function POST(req: Request): Promise<Response> {
       return Response.json({ project: await save({ tasks: tasks((t) => (t.id === body.taskId ? null : t)) }) });
   }
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

@@ -1,8 +1,9 @@
 import { CreateWishRequestSchema } from "@/lib/schemas";
 import { dbAddWish, dbGetMember, dbListCards, dbListRitualRuns, dbListWishes } from "@/lib/db";
 import { requireMember, requireSession } from "@/lib/auth";
+import { guardWrites } from "@/lib/api-guard";
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const { searchParams } = new URL(req.url);
@@ -11,7 +12,7 @@ export async function GET(req: Request): Promise<Response> {
 
 // Record a wish/blessing, optionally linked to a voice card. The wish must
 // be the session member's own (replies post as the viewer).
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   let body: unknown;
@@ -35,3 +36,6 @@ export async function POST(req: Request): Promise<Response> {
   const wish = await dbAddWish({ ...parsed.data, familyId: auth.familyId });
   return Response.json({ wish }, { status: 201 });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

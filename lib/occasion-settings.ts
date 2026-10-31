@@ -8,7 +8,7 @@
 // "ritual_settings", one row per family), validated with Zod on the way in
 // and out; in-memory in mock mode and as a fallback. Server only.
 import { z } from "zod";
-import { dbFor } from "./family-db";
+import { DbWriteError, dbFor } from "./family-db";
 
 export const RitualSettingsSchema = z.object({
   id: z.literal("ritual-settings"),
@@ -63,13 +63,15 @@ export async function setRitualSettings(familyId: string, patch: { traditions?: 
     updatedBy: by,
     updatedAt: new Date().toISOString(),
   });
-  mem.set(familyId, doc);
   const sb = dbFor(familyId);
-  if (!sb) return doc;
+  if (!sb) {
+    mem.set(familyId, doc);
+    return doc;
+  }
   const { error } = await sb
     .from("family_docs")
     .upsert({ id: `${familyId}:${ID}`, family_id: familyId, kind: KIND, data: doc, updated_at: doc.updatedAt }, { onConflict: "id" });
-  if (error) console.error("[ritual-settings] write failed, kept in memory", error.message);
+  if (error) throw new DbWriteError("family_docs", error.message);
   return doc;
 }
 

@@ -4,6 +4,7 @@ import { dbListMembers } from "@/lib/db";
 import { getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
 import { SAFETY_KINDS } from "@/lib/kinds";
 import { stateOf, withoutStaleLocation } from "@/lib/safety";
+import { guardWrites } from "@/lib/api-guard";
 
 // Safe & sound. Owned by the person it protects:
 // - Only she can turn it on, choose who sees it, pause it, or check in.
@@ -24,7 +25,7 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("close"), checkinId: z.string().min(1) }),
 ]);
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const [settings, checkins] = await Promise.all([listDocs(auth.familyId, "safety_settings"), listDocs(auth.familyId, "safety_checkin")]);
@@ -53,7 +54,7 @@ export async function GET(req: Request): Promise<Response> {
   });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const parsed = Body.safeParse(await req.json().catch(() => null));
@@ -89,3 +90,6 @@ export async function POST(req: Request): Promise<Response> {
   const checkin = await putDoc(auth.familyId, "safety_checkin", { id: newId("safe"), memberId: auth.memberId, kind: body.kind, note: body.note, etaAt, closedAt: closesItself ? now.toISOString() : null, location, at: now.toISOString() });
   return Response.json({ checkin }, { status: 201 });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

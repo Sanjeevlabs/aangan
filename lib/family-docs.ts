@@ -4,7 +4,7 @@
 // Every row is parsed with its kind's schema on the way in and out; a bad
 // row is skipped and logged, never served. Demo families stay in memory
 // (dbFor returns null for them), for reads and writes.
-import { dbFor } from "./family-db";
+import { DbWriteError, dbFor } from "./family-db";
 import { DOC_SCHEMAS, type DocKind, type DocOf } from "./kinds";
 
 type Row = { familyId: string; kind: DocKind; data: { id: string } & Record<string, unknown>; createdAt: string };
@@ -49,20 +49,28 @@ export async function listDocs<K extends DocKind>(familyId: string, kind: K): Pr
 }
 
 export async function getDoc<K extends DocKind>(familyId: string, kind: K, id: string): Promise<DocOf<K> | undefined> {
-  return (await listDocs(familyId, kind)).find((d) => (d as { id: string }).id === id);
+  const sb = dbFor(familyId);
+  if (!sb) return memList(familyId, kind).find((d) => (d as { id: string }).id === id);
+  // One row by its key, not the newest 500 filtered in code (older docs would vanish).
+  const { data, error } = await sb.from("family_docs").select("data").eq("id", `${familyId}:${id}`).eq("kind", kind).maybeSingle();
+  if (error) return memList(familyId, kind).find((d) => (d as { id: string }).id === id);
+  if (!data) return undefined;
+  return parse(kind, (data as { data: unknown }).data) ?? undefined;
 }
 
 /** Insert or replace by id. Throws on schema violation (callers validate input first). */
 export async function putDoc<K extends DocKind>(familyId: string, kind: K, input: unknown): Promise<DocOf<K>> {
   const data = DOC_SCHEMAS[kind].parse(input) as DocOf<K>;
   const row = data as unknown as { id: string } & Record<string, unknown>;
-  mem.set(memKey(familyId, row.id), { familyId, kind, data: row, createdAt: new Date().toISOString() });
   const sb = dbFor(familyId);
-  if (!sb) return data;
+  if (!sb) {
+    mem.set(memKey(familyId, row.id), { familyId, kind, data: row, createdAt: new Date().toISOString() });
+    return data;
+  }
   const { error } = await sb
     .from("family_docs")
     .upsert({ id: `${familyId}:${row.id}`, family_id: familyId, kind, data: row, updated_at: new Date().toISOString() }, { onConflict: "id" });
-  if (error) console.error("[family-docs] write failed, kept in memory", kind, error.message);
+  if (error) throw new DbWriteError("family_docs", error.message);
   return data;
 }
 

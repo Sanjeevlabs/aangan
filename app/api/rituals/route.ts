@@ -6,12 +6,13 @@ import { countryName, traditionChoices, TRADITIONS_DATA } from "@/lib/holidays";
 import { setRitualSettings } from "@/lib/occasion-settings";
 import { familyHolidays, ritualConfigs } from "@/lib/occasions-server";
 import { addDays, occasionsInRange } from "@/lib/occasion-calendar";
+import { guardWrites } from "@/lib/api-guard";
 
 // Occasions data: member birthdays, national days, and the festivals of the
 // traditions this family celebrates (Google's public holiday calendar for
 // the family's country, mapped by data/traditions.json; bundled fallback).
 // The traditions choice is one family-level list, used only for the calendar.
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const [members, me] = await Promise.all([dbListMembers(auth.familyId), dbGetMember(auth.memberId)]);
@@ -57,7 +58,7 @@ const Body = z.discriminatedUnion("action", [SetKept, SetTraditions]);
 
 // Change the family's traditions and per-festival overrides. Admins and
 // members only (not child accounts).
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const parsed = Body.safeParse(await req.json().catch(() => null));
@@ -82,3 +83,6 @@ export async function POST(req: Request): Promise<Response> {
   const settings = await setRitualSettings(auth.familyId, { traditions, kept: body.kept, skipped: body.skipped }, auth.memberId);
   return Response.json({ traditions: settings.traditions, kept: settings.kept, skipped: settings.skipped });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

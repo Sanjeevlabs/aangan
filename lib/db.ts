@@ -59,7 +59,7 @@ import {
   listConsents as memListConsents,
   type Invite as MemInvite,
 } from "./store";
-import { dbFor } from "./family-db";
+import { DbWriteError, dbFor } from "./family-db";
 import { DEMO_FAMILY_IDS, isDemoFamily, isSeedFamily } from "./family";
 import { baseLang } from "./languages";
 import type { MemberPatch } from "./store";
@@ -201,7 +201,7 @@ export async function dbAddCard(input: Omit<import("zod").input<typeof CardSchem
   const sb = dbFor(card.familyId);
   if (!sb) return memAddCard(card);
   const { error } = await sb.from("cards").upsert(cardRow(card));
-  if (error) return memAddCard(card);
+  if (error) throw new DbWriteError("cards", error.message);
   return card;
 }
 
@@ -380,7 +380,7 @@ export async function dbAddPlay(input: { cardId: string; memberId: string; famil
     member_id: play.memberId,
     played_at: play.playedAt,
   });
-  if (error) return memAddPlay(play);
+  if (error) throw new DbWriteError("plays", error.message);
   return play;
 }
 
@@ -479,30 +479,32 @@ export async function dbAddRelationship(input: {
     memAddMember(member);
     return { member, relationship };
   }
-  const [{ error: mErr }, { error: rErr }] = await Promise.all([
-    sb.from("members").insert({
-      id: member.id,
-      family_id: familyId,
-      first_name: member.firstName,
-      display_name: member.displayName,
-      role: member.role,
-      access: member.access,
-      lang: member.lang,
-      display_lang: member.displayLang,
-      tz: member.tz,
-      birthday: member.birthday,
-    }),
-    sb.from("relationships").insert({
-      id: relationship.id,
-      family_id: familyId,
-      member_id: input.memberId,
-      relation_member_id: memberId,
-      relation: input.relation,
-    }),
-  ]);
-  if (mErr || rErr) {
-    memAddRelationship(relationship);
-    memAddMember(member);
+  // Member first: relationships.relation_member_id has a foreign key to it,
+  // so the two inserts can't run side by side.
+  const { error: mErr } = await sb.from("members").insert({
+    id: member.id,
+    family_id: familyId,
+    first_name: member.firstName,
+    display_name: member.displayName,
+    role: member.role,
+    access: member.access,
+    lang: member.lang,
+    display_lang: member.displayLang,
+    tz: member.tz,
+    birthday: member.birthday,
+  });
+  if (mErr) throw new DbWriteError("members", mErr.message);
+  const { error: rErr } = await sb.from("relationships").insert({
+    id: relationship.id,
+    family_id: familyId,
+    member_id: input.memberId,
+    relation_member_id: memberId,
+    relation: input.relation,
+  });
+  if (rErr) {
+    // Don't leave a half-made person with no link behind.
+    await sb.from("members").delete().eq("id", member.id).eq("family_id", familyId);
+    throw new DbWriteError("relationships", rErr.message);
   }
   return { member, relationship };
 }
@@ -567,7 +569,7 @@ export async function dbAddSuggestion(input: { goal: string; payload?: Record<st
     payload: s.payload,
     status: s.status,
   });
-  if (error) return memAddSuggestion(s);
+  if (error) throw new DbWriteError("suggestions", error.message);
   return s;
 }
 
@@ -619,7 +621,7 @@ export async function dbAddAgentRun(input: { goal: string; tools: string[]; stat
     tools: run.tools,
     status: run.status,
   });
-  if (error) return memAddAgentRun(run);
+  if (error) throw new DbWriteError("agent_runs", error.message);
   return run;
 }
 
@@ -664,7 +666,7 @@ export async function dbAddWish(input: { ritualRunId?: string | null; cardId?: s
     member_id: w.memberId,
     kind: w.kind,
   });
-  if (error) return memAddWish(w);
+  if (error) throw new DbWriteError("wishes", error.message);
   return w;
 }
 
@@ -708,7 +710,7 @@ export async function dbEnsureRitualRun(slug: string, occasionDate: string, fami
     occasion_date: occasionDate,
     status: "collecting",
   });
-  if (error) return memAddRitualRun(run);
+  if (error) throw new DbWriteError("ritual_runs", error.message);
   return run;
 }
 
@@ -792,7 +794,7 @@ export async function dbAddGatherSession(input: { title: string; startsAt: strin
     invites: g.invites,
     playlist: g.playlist,
   });
-  if (error) return memAddGather(g);
+  if (error) throw new DbWriteError("gather_sessions", error.message);
   return g;
 }
 
@@ -821,6 +823,35 @@ export async function dbSetMovableDate(slug: string, year: number, date: string,
   await sb.from("ritual_configs").upsert({ slug, config: { ...config, movable } });
 }
 
+/**
+ * Take the one-time right to act on a pending suggestion: flips pending ->
+ * approved and says whether THIS call did it. Two taps (or two requests)
+ * race here and only one wins, so an approval can't run its action twice.
+ */
+export async function dbClaimSuggestion(id: string, familyId: string): Promise<boolean> {
+  const sb = dbFor(familyId);
+  if (!sb) {
+    // No await between the check and the flip, so this is atomic in memory.
+    const s = memListSuggestions().find((x) => x.id === id && x.familyId === familyId && x.status === "pending");
+    if (!s) return false;
+    memSetSuggestionStatus(id, "approved");
+    return true;
+  }
+  const { data, error } = await sb.from("suggestions").update({ status: "approved" }).eq("id", id).eq("family_id", familyId).eq("status", "pending").select("id");
+  if (error) throw new DbWriteError("suggestions", error.message);
+  return (data?.length ?? 0) > 0;
+}
+
+/** Give a claim back when the action failed, so the family can try again. */
+export async function dbReleaseSuggestion(id: string, familyId: string): Promise<void> {
+  const sb = dbFor(familyId);
+  if (!sb) {
+    memSetSuggestionStatus(id, "pending");
+    return;
+  }
+  await sb.from("suggestions").update({ status: "pending" }).eq("id", id).eq("family_id", familyId);
+}
+
 // ---- Privacy set + invites. ----
 
 export type Invite = MemInvite;
@@ -841,6 +872,27 @@ export async function dbListInvites(): Promise<Invite[]> {
     createdBy: (r.created_by as string | null) ?? null,
   }));
   return [...rows.filter((i) => !isSeedFamily(i.familyId)), ...demo];
+}
+
+/**
+ * One unexpired invite by code (any case), without pulling every family's
+ * invites. Demo invites live in memory and are checked first, like
+ * dbListInvites merges them.
+ */
+export async function dbFindInvite(code: string): Promise<Invite | undefined> {
+  const want = code.trim().toUpperCase();
+  if (!want) return undefined;
+  const nowMs = Date.now();
+  const match = (i: Invite) => i.code.toUpperCase() === want && new Date(i.expiresAt).getTime() > nowMs;
+  const sb = dbFor(null);
+  if (!sb) return memListInvites().find(match);
+  const demo = memListInvites().find((i) => isDemoFamily(i.familyId) && match(i));
+  if (demo) return demo;
+  const { data, error } = await sb.from("invites").select("*").eq("code", want).gt("expires_at", new Date(nowMs).toISOString()).limit(1);
+  if (error || !data) return memListInvites().find(match);
+  const r = data[0];
+  if (!r || isDemoFamily(r.family_id as string)) return undefined;
+  return { id: r.id as string, code: r.code as string, familyId: r.family_id as string, expiresAt: iso(r.expires_at), createdBy: (r.created_by as string | null) ?? null };
 }
 
 function inviteCode(): string {
@@ -864,7 +916,7 @@ export async function dbCreateInvite(familyId: string, createdBy: string | null 
     expires_at: expiresAt,
     created_by: createdBy,
   });
-  if (error) return memCreateInvite(invite.code, expiresAt, familyId, createdBy);
+  if (error) throw new DbWriteError("invites", error.message);
   return invite;
 }
 
@@ -942,7 +994,7 @@ export async function dbSetReaction(input: { cardId: string; memberId: string; k
     },
     { onConflict: "card_id,member_id" },
   );
-  if (error) return memSetReaction(reaction);
+  if (error) throw new DbWriteError("reactions", error.message);
   return reaction;
 }
 

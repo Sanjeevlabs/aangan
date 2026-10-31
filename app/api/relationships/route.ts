@@ -2,8 +2,9 @@ import { CreateRelationshipRequestSchema } from "@/lib/schemas";
 import { dbAddRelationship, dbGetMember, dbListMembers, dbListRelationships } from "@/lib/db";
 import { requireCan, requireSession } from "@/lib/auth";
 import { familyFull } from "@/lib/roles";
+import { guardWrites } from "@/lib/api-guard";
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   return Response.json({ relationships: await dbListRelationships(auth.familyId) });
@@ -13,7 +14,7 @@ export async function GET(req: Request): Promise<Response> {
 // one validated call. Any family member may add anyone, related to anyone
 // already in *their* family (the anchor is checked against the session's
 // family, never another family's).
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   let body: unknown;
@@ -34,3 +35,6 @@ export async function POST(req: Request): Promise<Response> {
   const { member, relationship } = await dbAddRelationship({ ...parsed.data, familyId: auth.familyId, anchorRole: anchor.role });
   return Response.json({ member, relationship }, { status: 201 });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

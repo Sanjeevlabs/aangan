@@ -4,10 +4,11 @@ import { runAgent } from "@/lib/agent";
 import { agentTools } from "@/lib/agent-tools";
 import { checkRateLimit, requireSession } from "@/lib/auth";
 import { serverLedger, serverStore } from "@/lib/llm-server";
+import { guardWrites } from "@/lib/api-guard";
 
 // Agents write suggestions; nothing executes here. Approval happens at
 // /api/suggestions/[id]/approve after Review.
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const { searchParams } = new URL(req.url);
@@ -23,7 +24,7 @@ export async function GET(req: Request): Promise<Response> {
   return Response.json({ suggestions: mine });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   if (!checkRateLimit(auth, "/api/suggestions")) return Response.json({ error: "rate-limited" }, { status: 429 });
@@ -57,3 +58,6 @@ export async function POST(req: Request): Promise<Response> {
   });
   return Response.json({ suggestions: created }, { status: 201 });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

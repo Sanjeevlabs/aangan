@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireSession } from "@/lib/auth";
 import { dbListCards } from "@/lib/db";
 import { listDocs, putDoc } from "@/lib/family-docs";
+import { guardWrites } from "@/lib/api-guard";
 
 // Morning letter (SPEC §30.4): a voice note that arrives at their morning.
 // The card is stored as usual; GET /api/cards hides it from everyone but its
@@ -10,14 +11,14 @@ import { listDocs, putDoc } from "@/lib/family-docs";
 const Body = z.object({ cardId: z.string().min(1).max(80), deliverAt: z.string().datetime() });
 const MAX_AHEAD = 36 * 3_600_000;
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const letters = (await listDocs(auth.familyId, "chitthi")).filter((l) => l.authorId === auth.memberId && Date.parse(l.deliverAt) > Date.now());
   return Response.json({ letters });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const parsed = Body.safeParse(await req.json().catch(() => null));
@@ -29,3 +30,6 @@ export async function POST(req: Request): Promise<Response> {
   const letter = await putDoc(auth.familyId, "chitthi", { id: card.id, deliverAt: parsed.data.deliverAt, authorId: auth.memberId, createdAt: new Date().toISOString() });
   return Response.json({ letter });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

@@ -6,11 +6,12 @@ import { cronAuthorized, requireSession } from "@/lib/auth";
 import { purgeSandboxes } from "@/lib/demo-sandbox";
 import { dbFor } from "@/lib/family-db";
 import { getCronState, pageFamilies, setCronState } from "@/lib/cron-state";
+import { guardWrites } from "@/lib/api-guard";
 
 // Daily ritual/role scan. Vercel Cron (GET, see vercel.json) hits this with
 // Authorization: Bearer CRON_SECRET; manual callers use POST with a session.
 // Idempotent — safe to call repeatedly.
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   if (!cronAuthorized(req)) return Response.json({ error: "unauthorized-cron" }, { status: 401 });
   // Demo visitors' copies expire after 48 hours (rows and media).
   const sb = dbFor(null);
@@ -31,7 +32,7 @@ export async function GET(req: Request): Promise<Response> {
   return Response.json({ families: results, purged });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   return runScan(auth.familyId);
@@ -95,3 +96,6 @@ async function runScan(familyId: string): Promise<Response> {
     questionsAsked: questions.length,
   });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

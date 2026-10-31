@@ -4,6 +4,7 @@ import { isDemoFamily, requireCan, requireSession } from "@/lib/auth";
 import { dbAddRelationship, dbLinkMembers, dbListMembers, dbUpdateMemberProfile } from "@/lib/db";
 import { allowAuthAttempt } from "@/lib/otp";
 import type { Member } from "@/lib/schemas";
+import { guardWrites } from "@/lib/api-guard";
 
 // Onboarding, "Whose window is this?": the person who started the family adds
 // the home on the other side of the window. No roles are assumed: one parent,
@@ -35,7 +36,7 @@ function validTz(tz: string | undefined, fallback: string): string {
   }
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const me = await requireCan(auth, "tree.add");
@@ -66,3 +67,5 @@ export async function POST(req: Request): Promise<Response> {
 
   return Response.json({ members: added.map((m) => ({ ...m, email: null, personId: null })) }, { status: 201 });
 }
+
+export const POST = guardWrites(postHandler);

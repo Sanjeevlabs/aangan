@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { DEMO_INVITE_CODE, clearSessionCookieHeader, isDemoFamily, sessionCookieHeader, sessionFromRequest, signSession } from "@/lib/auth";
-import { dbGetMember, dbListInvites, dbListMembers } from "@/lib/db";
-import { isAdmin } from "@/lib/permissions";
+import { dbFindInvite, dbGetMember, dbListMembers } from "@/lib/db";
+import { isAdmin, isClaimable } from "@/lib/permissions";
 import { hostOf } from "@/lib/roles";
 import { allowAuthAttempt, callerKey } from "@/lib/otp";
 import { dbFor, dbLive } from "@/lib/family-db";
@@ -46,10 +46,14 @@ export async function POST(req: Request): Promise<Response> {
     // never opens a person who has their own account, or an admin: they sign
     // in with their email code.
     return Response.json({ error: "sign-in-with-email" }, { status: 403 });
+  } else if (!isClaimable(member)) {
+    // Same rule as joining by email: a code opens only a grown-up's open
+    // place, never a child's or teen's profile.
+    return Response.json({ error: "not-claimable" }, { status: 403 });
   } else {
-    const now = Date.now();
-    const invites = await dbListInvites();
-    ok = invites.some((i) => i.code === code && i.familyId === member.familyId && new Date(i.expiresAt).getTime() > now);
+    // Codes are stored upper-case; typing them any case works.
+    const invite = await dbFindInvite(code);
+    ok = Boolean(invite && invite.familyId === member.familyId);
   }
   if (!ok) return Response.json({ error: "invalid-invite" }, { status: 403 });
 

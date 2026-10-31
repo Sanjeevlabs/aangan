@@ -4,6 +4,7 @@ import { eventFromText, fileCard } from "@/lib/albums";
 import { dbListCards } from "@/lib/db";
 import { deleteDoc, getDoc, listDocs, putDoc } from "@/lib/family-docs";
 import { EVENT_KINDS } from "@/lib/kinds";
+import { guardWrites } from "@/lib/api-guard";
 
 // Albums. GET → albums (newest first).
 // POST → rename · remove (a photo from an album) · move (to another album) ·
@@ -22,14 +23,14 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("resort") }),
 ]);
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const albums = (await listDocs(auth.familyId, "album")).sort((a, b) => b.endAt.localeCompare(a.endAt));
   return Response.json({ albums });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   if (!checkRateLimit(auth, "/api/albums")) return Response.json({ error: "rate-limited" }, { status: 429 });
@@ -91,3 +92,6 @@ export async function POST(req: Request): Promise<Response> {
       return Response.json({ deleted: album.id });
   }
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

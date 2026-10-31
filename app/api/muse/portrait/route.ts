@@ -5,6 +5,7 @@ import { dbListCards, dbListMembers, dbListRelationships } from "@/lib/db";
 import { listDocs, newId, putDoc } from "@/lib/family-docs";
 import { loadFamilyImage, museImage } from "@/lib/muse-image";
 import { checkPick, PORTRAIT_STYLES, portraitPrompt, quotaLeft } from "@/lib/muse-portrait";
+import { guardWrites } from "@/lib/api-guard";
 
 // Family portrait (Muse Image). Nothing here posts anything: the route
 // paints, the person looks, and only /api/muse/keep makes it a family card.
@@ -21,14 +22,14 @@ const Body = z.object({
 
 const museOff = () => isMockMode() || !providerKey("meta");
 
-export async function GET(req: Request): Promise<Response> {
+async function getHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   const runs = await listDocs(auth.familyId, "muse_image_run");
   return Response.json({ left: quotaLeft(runs, "portrait"), sample: museOff() });
 }
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   let raw: unknown;
@@ -93,3 +94,6 @@ export async function POST(req: Request): Promise<Response> {
   await putDoc(auth.familyId, "muse_image_run", { ...run, sample: false });
   return Response.json({ runId: run.id, image: out.image, left: quotaLeft(runs, "portrait") - 1 });
 }
+
+export const GET = guardWrites(getHandler);
+export const POST = guardWrites(postHandler);

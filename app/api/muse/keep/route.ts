@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth";
 import { CARD_NOTE_MAX, CARD_PLACE_MAX } from "@/lib/card-limits";
 import { dbAddCard } from "@/lib/db";
 import { getDoc, putDoc } from "@/lib/family-docs";
+import { guardWrites } from "@/lib/api-guard";
 
 // "Keep": the only way a Muse render becomes a family card. Tied to a real
 // render by this person (a muse_image_run), kept once, and always labelled
@@ -21,7 +22,7 @@ const Body = z.object({
   note: z.string().trim().max(CARD_NOTE_MAX).default(""),
 });
 
-export async function POST(req: Request): Promise<Response> {
+async function postHandler(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
   let raw: unknown;
@@ -63,3 +64,5 @@ export async function POST(req: Request): Promise<Response> {
   await putDoc(auth.familyId, "muse_image_run", { ...run, keptCardId: card.id });
   return Response.json({ card }, { status: 201 });
 }
+
+export const POST = guardWrites(postHandler);

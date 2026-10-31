@@ -4,7 +4,7 @@
 // Server only.
 import { z } from "zod";
 import { EventSchema, type FamilyEvent } from "./events";
-import { dbFor } from "./family-db";
+import { DbWriteError, dbFor } from "./family-db";
 
 const DismissSchema = z.object({ id: z.string().min(1), memberId: z.string().min(1), key: z.string().min(1).max(160), at: z.string().datetime() });
 type Dismiss = z.infer<typeof DismissSchema>;
@@ -29,7 +29,7 @@ async function putLive(familyId: string, kind: string, id: string, data: unknown
   const sb = dbFor(familyId);
   if (!sb) return;
   const { error } = await sb.from("family_docs").upsert({ id: `${familyId}:${id}`, family_id: familyId, kind, data, updated_at: new Date().toISOString() }, { onConflict: "id" });
-  if (error) console.error("[gather-store] write failed, kept in memory", kind, error.message);
+  if (error) throw new DbWriteError("family_docs", error.message);
 }
 
 export async function listEvents(familyId: string): Promise<FamilyEvent[]> {
@@ -49,8 +49,9 @@ export async function getEvent(familyId: string, id: string): Promise<FamilyEven
 /** Insert or replace. Throws on a schema violation (callers validate input first). */
 export async function putEvent(familyId: string, input: unknown): Promise<FamilyEvent> {
   const e = EventSchema.parse(input);
-  events.set(key(familyId, e.id), e);
+  // Memory copy only once the database took it (or when there is no database).
   await putLive(familyId, "event", e.id, e);
+  events.set(key(familyId, e.id), e);
   return e;
 }
 
@@ -65,8 +66,8 @@ export async function listDismissed(familyId: string, memberId: string): Promise
 
 export async function dismiss(familyId: string, memberId: string, k: string): Promise<void> {
   const d = DismissSchema.parse({ id: `dismiss-${memberId}-${k}`.slice(0, 200), memberId, key: k, at: new Date().toISOString() });
-  dismissals.set(key(familyId, d.id), d);
   await putLive(familyId, "event_dismiss", d.id, d);
+  dismissals.set(key(familyId, d.id), d);
 }
 
 export function resetEvents(): void {
