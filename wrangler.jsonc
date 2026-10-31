@@ -14,5 +14,7 @@
   },
   // Daily ritual/role scan (was vercel.json "crons"), 09:00 UTC.
   "triggers": { "crons": ["0 9 * * *"] },
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+  // Production origin (DNS on Cloudflare). Must match APP_ORIGIN and CAP_SERVER_URL.
+  "routes": [{ "pattern": "aangan.sanjeevlabs.com", "custom_domain": true }]
 }
