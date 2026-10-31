@@ -73,9 +73,6 @@ export function seedDemoRooms(now = Date.now()): void {
   // Vihaan asked Papa for one; it waits on Papa's courtyard.
   seedDoc(FAM, "question", { id: "tellme-leo-dada", toMemberId: "dada", text: "Tell Vihaan a story about a tiger", lang: "en", askedBy: "priya", topic: "story", answeredCardId: null, madeBy: "family", createdAt: ago(60 * 20, now) });
 
-  // ---------- Our call: every Sunday at 7 PM in India, Maa hosts ----------
-  seedDoc(FAM, "weekly_call", { id: "weekly-call", weekday: 0, hour: 19, minute: 0, tz: "Asia/Kolkata", hostId: "dadi" });
-
   // ---------- Together: things the family is doing ----------
   seedDoc(FAM, "project", {
     id: "together-visit",
