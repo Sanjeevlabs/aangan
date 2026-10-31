@@ -12,6 +12,8 @@ import type { TranscriptSegment } from "@/lib/schemas";
 import { CARD_NOTE_MAX, CARD_PLACE_MAX } from "@/lib/card-limits";
 import { cn } from "@/lib/utils";
 import { hourIn, placeFromTz } from "@/lib/zones";
+import { keepRender } from "@/lib/muse-canvas";
+import { RestoreOffer, type Restored } from "./muse-restore";
 import { useShell } from "./shell";
 import { Avatar, Button, Icon, LiveDot, PlayButton } from "./ui/kit";
 import { useViewer } from "./viewer";
@@ -543,6 +545,9 @@ function MomentComposer({ onDone }: { onDone: () => void }) {
   const glasses = false;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Muse's one offer here: restore a single old photo (kept only if the person chooses it).
+  const [restored, setRestored] = useState<Restored | null>(null);
+  const single = files.length === 1 && files[0].type.startsWith("image/") ? files[0] : null;
   const inputRef = useRef<HTMLInputElement>(null);
   const previews = useMemo(() => files.map((f) => ({ url: URL.createObjectURL(f), video: f.type.startsWith("video/") })), [files]);
   useEffect(() => () => previews.forEach((p) => URL.revokeObjectURL(p.url)), [previews]);
@@ -557,6 +562,11 @@ function MomentComposer({ onDone }: { onDone: () => void }) {
         const upload = video
           ? await processVideo(file, { fromToday: true, fromGlassesToggle: glasses })
           : await processImage(file, { fromToday: true, fromGlassesToggle: glasses });
+        if (restored && file === single) {
+          // The restored picture becomes the card; the original travels with it.
+          if (!(await keepRender({ runId: restored.runId, blob: restored.blob, caption: note.trim(), takenAt: upload.takenAt, place: where.trim(), note: printNote.trim(), originalRef: upload.mediaRef }))) failed += 1;
+          continue;
+        }
         const stored = getSessionMedia(upload.mediaRef)?.blob ?? file;
         const frames = video ? await extractVideoFrames(file).catch(() => []) : [];
         if (!(await postMoment(upload, stored, note.trim(), viewer.lang, frames, { place: where.trim(), note: printNote.trim() }))) failed += 1;
@@ -578,7 +588,10 @@ function MomentComposer({ onDone }: { onDone: () => void }) {
         multiple
         className="hidden"
         aria-label="Choose photos or a video"
-        onChange={(e) => setFiles(Array.from(e.target.files ?? []).slice(0, 10))}
+        onChange={(e) => {
+          setRestored(null);
+          setFiles(Array.from(e.target.files ?? []).slice(0, 10));
+        }}
       />
       {files.length === 0 ? (
         <button
@@ -610,6 +623,8 @@ function MomentComposer({ onDone }: { onDone: () => void }) {
           </button>
         </div>
       )}
+
+      {single && <RestoreOffer key={`${single.name}-${single.size}-${single.lastModified}`} file={single} onChange={setRestored} />}
 
       <label className="mt-4 block">
         <span className="sr-only">Caption</span>

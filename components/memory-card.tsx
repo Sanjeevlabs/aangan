@@ -12,6 +12,7 @@ import { useShell } from "./shell";
 import { PrintFrame } from "./print-frame";
 import { ActionMenu, Button, Icon, LiveDot, Photo } from "./ui/kit";
 import { useViewer } from "./viewer";
+import { museLabel } from "@/lib/muse-portrait";
 
 /**
  * Edit the caption or delete a voice note / photo. The author can do both;
@@ -119,6 +120,7 @@ export function PhotoCard({ card, tall = false }: { card: Card; tall?: boolean }
       <div>
         <PrintFrame card={card} author={author} src={cardCover(card, members)} alt={text ?? "Family photo"} imageHeight={tall ? 380 : 280} signed>
           {card.source === "glasses" && <span className="glass absolute left-2.5 top-2.5 rounded-full px-3 py-1.5 text-[12px] font-medium">Captured hands-free</span>}
+          {museLabel(card.source) && <span className="absolute left-2.5 top-2.5 flex items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 text-[12px] font-semibold text-[#1c1b1a]"><Icon name="sparkle" size={12} />{museLabel(card.source)}</span>}
           <div className="glass absolute right-2.5 top-2.5 rounded-full">
             <CardActions card={card} tone="light" onEditing={setEditing} />
           </div>

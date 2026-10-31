@@ -12,7 +12,7 @@ import { Avatar, Button, Icon, RoomHeader, SectionTitle } from "./ui/kit";
 import { memberPhoto } from "@/lib/people";
 import { useViewer } from "./viewer";
 
-type Draft = Pick<Recipe, "title" | "memory" | "serves" | "course" | "prepMins" | "cookMins" | "prepWork" | "outcome" | "ingredients" | "steps" | "voiceCardId" | "videoCardId"> & { cookId: string };
+export type Draft = Pick<Recipe, "title" | "memory" | "serves" | "course" | "prepMins" | "cookMins" | "prepWork" | "outcome" | "ingredients" | "steps" | "voiceCardId" | "videoCardId"> & { cookId: string };
 
 const blank = (cookId: string): Draft => ({
   title: "",
@@ -36,10 +36,18 @@ const field = "h-[48px] w-full rounded-[14px] bg-white px-4 text-[16px] outline-
  * One editor for a new recipe and for corrections. The cook's words win:
  * amounts stay as they say them ("one katori"), with an optional rough guide.
  */
-export function RecipeEditor({ recipe, onDone }: { recipe?: Recipe; onDone: (id?: string) => void }) {
+/** A recipe card Muse read from a photo: the photo stays on the recipe. */
+export interface ScanInfo {
+  ref: string;
+  url: string | null;
+  /** False when Muse couldn't read it (the editor opens empty, photo attached). */
+  fromMuse: boolean;
+}
+
+export function RecipeEditor({ recipe, onDone, prefill, scan }: { recipe?: Recipe; onDone: (id?: string) => void; prefill?: Partial<Draft>; scan?: ScanInfo }) {
   const { viewer, members } = useViewer();
   const { cards } = useFamilyCards();
-  const [d, setD] = useState<Draft>(() => (recipe ? { ...recipe, prepWork: [...recipe.prepWork], ingredients: recipe.ingredients.map((i) => ({ ...i })), steps: recipe.steps.map((s) => ({ ...s })) } : blank(viewer.id)));
+  const [d, setD] = useState<Draft>(() => (recipe ? { ...recipe, prepWork: [...recipe.prepWork], ingredients: recipe.ingredients.map((i) => ({ ...i })), steps: recipe.steps.map((s) => ({ ...s })) } : { ...blank(viewer.id), ...prefill }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((x) => ({ ...x, [k]: v }));
@@ -68,7 +76,7 @@ export function RecipeEditor({ recipe, onDone }: { recipe?: Recipe; onDone: (id?
       voiceCardId: d.voiceCardId,
       videoCardId: d.videoCardId,
     };
-    const out = await postJson<{ recipe?: Recipe }>("/api/kitchen", recipe ? { action: "edit", recipeId: recipe.id, ...body } : { action: "create", cookId: d.cookId, ...body });
+    const out = await postJson<{ recipe?: Recipe }>("/api/kitchen", recipe ? { action: "edit", recipeId: recipe.id, ...body } : { action: "create", cookId: d.cookId, ...(scan ? { scanRef: scan.ref } : {}), ...body });
     setBusy(false);
     if (!out) return setError("Couldn't save. Try again.");
     onDone(out.recipe?.id);
@@ -76,7 +84,20 @@ export function RecipeEditor({ recipe, onDone }: { recipe?: Recipe; onDone: (id?
 
   return (
     <div>
-      <RoomHeader title={recipe ? "Edit recipe" : "Add a recipe"} subtitle={recipe ? "Fix anything. The cook's words win." : "Your own, or one you're writing down for someone"} />
+      <RoomHeader title={recipe ? "Edit recipe" : scan ? "Check the recipe" : "Add a recipe"} subtitle={recipe ? "Fix anything. The cook's words win." : scan ? "Nothing is saved until you add it" : "Your own, or one you're writing down for someone"} />
+
+      {scan && (
+        <figure className="m-0 mb-5 flex items-center gap-3 rounded-card bg-[#fff6e6] p-3">
+          {scan.url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={scan.url} alt="The recipe card" className="h-[84px] w-[68px] shrink-0 rounded-[12px] object-cover" />
+          )}
+          <figcaption className="min-w-0">
+            <span className="block font-hand text-[20px] leading-tight text-[#8a4b00]">In {d.cookId === viewer.id ? "your" : `${callName(members.find((m) => m.id === d.cookId))}'s`} handwriting</span>
+            <span className="mt-0.5 block text-[13px] text-ink-soft">{scan.fromMuse ? "Muse read this card. Check every line against it, then add it." : "Muse couldn't read this one. Type it in from the photo; it stays with the recipe."}</span>
+          </figcaption>
+        </figure>
+      )}
 
       {!recipe && (
         <>

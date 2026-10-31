@@ -12,6 +12,7 @@ import { ago, postJson, useJson } from "@/lib/use-json";
 import { isAwake, placeFromTz, timeIn } from "@/lib/zones";
 import { Carousel } from "./carousel";
 import { MyNeeds, MyQuestions, StoryDoor, VisitCountdown, useNextVisit } from "./home-presence";
+import { MuseSlide, useMuseSlot } from "./muse-slot";
 import { usePlayer } from "./player";
 import { VoiceCode } from "./plaque";
 import { useShell } from "./shell";
@@ -232,6 +233,7 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
   const familyName = sides.find((s) => s.familyId === current)?.name;
   const lampData = { presence: pres.data?.presence ?? [], settings: pres.data?.settings ?? [], cards: cards ?? [] };
   const dayPerson = members.find((mm) => mm.id === dayOfId);
+  const muse = useMuseSlot(cards ?? []);
 
   return (
     <div>
@@ -295,6 +297,7 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
           {visit && <VisitCountdown visit={visit} />}
           <ComingUpSlide />
           {yearsAgo && <YearsSlide card={yearsAgo} />}
+          {muse.slot && <MuseSlide slot={muse.slot} onDismiss={muse.dismiss} />}
         </Carousel>
       )}
 

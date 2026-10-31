@@ -58,7 +58,12 @@ Every model called at runtime is a Meta model. Muse is the family's helper, but 
 | | **Care**: a spoken need → a task; a reassurance note for the parent in their language (`lib/care.ts`) |
 | | **Translation into 29 languages**: voices, recipes (the whole card at once), questions, notes |
 | | Memory-card captions incl. video understanding, kinship terms, Gather playlists, the ritual agent's tool-calling loop, search-grounded movable festival dates |
-| `muse-image-1.0` | Seed script only: fallback courtyard + demo-family photos in `public/demo/` (labelled AI-generated; never inside real cards) |
+| `muse-image-1.0` | **Family portrait**: one painted group portrait from the family's own photos (watercolour, oil, pencil, festive), marked "Painted by Muse" in the pixels, kept only on Keep (`lib/muse-image.ts`, `/portrait`) |
+| | **Restore an old photo** from the add sheet, side by side with the original, marked "Restored by Muse" |
+| | Seed script: fallback courtyard + demo-family photos in `public/demo/` (labelled AI-generated; never inside real cards) |
+| `muse-spark-1.3` · vision | **Scan a recipe card**: a handwritten or printed card in any language → the recipe editor for checking (`lib/recipe-scan.ts`) |
+
+Every place Muse appears, and the rule of one offer per screen: [docs/MUSE.md](docs/MUSE.md).
 
 How it is kept safe and cheap:
 

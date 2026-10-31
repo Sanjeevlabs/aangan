@@ -70,6 +70,7 @@ export function roomsFor(isParent: boolean, _parentNames = ""): Room[] {
         { href: "/bond", title: "Family tree", note: "Every generation, both sides, home by home", icon: "tree" },
         { href: "/book", title: "The Book", note: "Their life, chapter by chapter, in their own voice", icon: "book" },
         { href: "/advice", title: "Advice, tips & blessings", note: "Life lessons and kitchen tricks, kept with the question", icon: "bless" },
+        { href: "/portrait", title: "Family portrait", note: "Muse paints all of you, from your own photos", icon: "sparkle" },
         { href: "/settings#invite", title: "Invite family", note: "A sibling, a cousin, your in-laws", icon: "plus" },
       ],
     },

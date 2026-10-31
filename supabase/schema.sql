@@ -111,7 +111,7 @@ create table if not exists cards (
   lang text default 'en',
   taken_at timestamptz not null,
   ritual_slug text,
-  source text default 'upload' check (source in ('upload', 'today', 'glasses', 'ritual', 'agent')),
+  source text default 'upload' check (source in ('upload', 'today', 'glasses', 'ritual', 'agent', 'muse-portrait', 'muse-restored')),
   media_path text,
   thumbnail_path text,
   media_ref text,
@@ -123,6 +123,9 @@ create table if not exists cards (
   created_at timestamptz default now()
 );
 alter table cards add column if not exists source text default 'upload' check (source in ('upload', 'today', 'glasses', 'ritual', 'agent'));
+-- Muse-made cards are labelled by their source (Painted by Muse, Restored by Muse).
+alter table cards drop constraint if exists cards_source_check;
+alter table cards add constraint cards_source_check check (source in ('upload', 'today', 'glasses', 'ritual', 'agent', 'muse-portrait', 'muse-restored'));
 alter table cards add column if not exists media_ref text;
 alter table cards add column if not exists peaks jsonb default '[]';
 alter table cards add column if not exists palette text[] default '{}';
@@ -398,7 +401,7 @@ create table if not exists family_docs (
 );
 -- Kinds are validated by lib/kinds.ts; the check keeps junk out of the table.
 alter table family_docs drop constraint if exists family_docs_kind_check;
-alter table family_docs add constraint family_docs_kind_check check (kind in ('recipe','attempt','presence','care_settings','need','helper','rota','duty','pet','sitting','knock','question','muse_call','safety_checkin','safety_settings','post','order','story','project','album','place','game','ritual_settings','window_view','today_task','lamp','chitthi','partner_token','event','event_dismiss','day_line'));
+alter table family_docs add constraint family_docs_kind_check check (kind in ('recipe','attempt','presence','care_settings','need','helper','rota','duty','pet','sitting','knock','question','muse_call','safety_checkin','safety_settings','post','order','story','project','album','place','game','ritual_settings','window_view','today_task','lamp','chitthi','partner_token','event','event_dismiss','day_line','muse_image_run'));
 create index if not exists family_docs_family_kind_idx on family_docs (family_id, kind, created_at desc);
 alter table family_docs enable row level security;
 

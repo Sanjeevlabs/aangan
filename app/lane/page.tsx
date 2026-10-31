@@ -15,6 +15,7 @@ import type { Card } from "@/lib/schemas";
 import { useFamilyCards } from "@/lib/use-family";
 import { postJson, useJson } from "@/lib/use-json";
 import { cn } from "@/lib/utils";
+import { museLabel } from "@/lib/muse-portrait";
 
 // Memory Lane: same kind together. Albums, photos, videos and voices each
 // get one swipe row (newest first, a month on every tile, the row's span in
@@ -51,6 +52,12 @@ function Tile({ card, kind, onOpen }: { card: Card; kind: LaneKind; onOpen: () =
       {kind !== "photo" && (
         <span className="glass absolute bottom-1.5 right-1.5 grid h-7 w-7 place-items-center rounded-full">
           <Icon name={voice && current?.id === card.id && isPlaying ? "pause" : "play"} size={11} />
+        </span>
+      )}
+      {museLabel(card.source) && (
+        <span className="absolute bottom-7 left-1.5 flex items-center gap-0.5 rounded-full bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-[#1c1b1a]">
+          <Icon name="sparkle" size={10} />
+          {museLabel(card.source)}
         </span>
       )}
       <span className="absolute bottom-2 left-2 right-10 truncate text-[12px] font-medium text-white">{voice ? `${callName(author)} · ${formatDuration(cardDuration(card))}` : callName(author)}</span>

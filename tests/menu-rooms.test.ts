@@ -28,7 +28,7 @@ describe("the five rooms", () => {
       memories: ["/lane", "/rituals", "/stories"],
       kitchen: ["/kitchen"],
       care: ["/care", "/care/helpers", "/nearby", "/send"],
-      family: ["/bond", "/book", "/advice", "/settings#invite"],
+      family: ["/bond", "/book", "/advice", "/portrait", "/settings#invite"],
       sit: ["/gather", "/together/visits", "/together/holidays", "/gather/play"],
     });
   });

@@ -87,7 +87,8 @@ export const RitualConfigSchema = z.object({
   steps: z.array(RitualStepSchema).min(1),
 });
 
-export const CardSourceSchema = z.enum(["upload", "today", "glasses", "ritual", "agent"]);
+/** muse-portrait / muse-restored: made by Muse Image from the family's own photos, always labelled. */
+export const CardSourceSchema = z.enum(["upload", "today", "glasses", "ritual", "agent", "muse-portrait", "muse-restored"]);
 
 export const CardSchema = z.object({
   id: z.string(),
@@ -169,7 +170,8 @@ export const CreateCardRequestSchema = z.object({
   caption: z.string().max(280).default(""),
   lang: z.string().min(2).max(8).default("en"),
   takenAt: z.string().datetime(),
-  source: CardSourceSchema.default("upload"),
+  // Muse-made sources are set only by /api/muse/keep, from a real render.
+  source: CardSourceSchema.exclude(["muse-portrait", "muse-restored"]).default("upload"),
   mediaRef: z.string().nullable().default(null),
   peaks: z.array(z.number().min(0).max(1)).max(128).default([]),
   palette: z.array(z.string()).max(5).default([]),

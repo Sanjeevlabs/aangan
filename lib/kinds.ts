@@ -46,6 +46,8 @@ export const RecipeSchema = z.object({
   /** A video of it being made (a card), if any. */
   videoCardId: z.string().nullable().default(null),
   coverRef: z.string().nullable().default(null),
+  /** The photo of the recipe card it was read from ("In Maa's handwriting"), if scanned. */
+  scanRef: z.string().max(512).nullable().default(null),
   /** One line of why it matters: "Every Sunday in Kanpur, after the market." */
   memory: z.string().max(240).default(""),
   serves: z.string().max(40).default(""),
@@ -454,6 +456,22 @@ export const MuseCallSchema = z.object({
   at: iso,
 });
 
+// ---------- Muse Image renders (portraits, restored photos) ----------
+/** One render, kept or not: the family's daily allowance counts these. */
+export const MuseImageRunSchema = z.object({
+  id,
+  kind: z.enum(["portrait", "restore"]),
+  by: id,
+  /** Who is in a portrait (member ids). Empty for a restore. */
+  people: z.array(id).max(10).default([]),
+  style: z.string().max(20).default(""),
+  /** A sample painted on the device because Muse was off (no model call). */
+  sample: z.boolean().default(false),
+  /** The card it became, once a person tapped Keep. */
+  keptCardId: z.string().nullable().default(null),
+  at: iso,
+});
+
 export const DOC_SCHEMAS = {
   recipe: RecipeSchema,
   attempt: AttemptSchema,
@@ -481,6 +499,7 @@ export const DOC_SCHEMAS = {
   chitthi: ChitthiSchema,
   partner_token: PartnerTokenSchema,
   day_line: DayLineSchema,
+  muse_image_run: MuseImageRunSchema,
 } as const;
 
 export type DocKind = keyof typeof DOC_SCHEMAS;
@@ -514,6 +533,7 @@ export type WindowView = DocOf<"window_view">;
 export type Lamp = DocOf<"lamp">;
 export type Chitthi = DocOf<"chitthi">;
 export type DayLine = DocOf<"day_line">;
+export type MuseImageRun = DocOf<"muse_image_run">;
 export type Wall = (typeof WALLS)[number];
 export type WindowLayer = (typeof WINDOW_LAYERS)[number];
 export type TodayTask = DocOf<"today_task">;

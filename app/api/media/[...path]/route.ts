@@ -14,5 +14,6 @@ export async function GET(_req: Request, props: { params: Promise<{ path: string
   }
   const target = await createDownloadUrl(path);
   if (!target) return Response.json({ error: "unknown-media" }, { status: 404 });
-  return Response.redirect(target.url, 307);
+  // The mock store hands back a same-origin path; Response.redirect needs an absolute URL.
+  return Response.redirect(new URL(target.url, _req.url), 307);
 }

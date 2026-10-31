@@ -13,6 +13,7 @@ import { usePlayer, VoiceControls } from "./player";
 import { PrintFrame } from "./print-frame";
 import { Icon, Photo } from "./ui/kit";
 import { useViewer } from "./viewer";
+import { museLabel } from "@/lib/muse-portrait";
 
 // Full-screen viewer for ONE kind of memory (photos, videos or voices):
 // swipe left/right (native scroll-snap), arrows on desktop, Esc to close.
@@ -44,6 +45,11 @@ function Slide({ card, active, queue, onPrev, onNext }: { card: Card; active: bo
         <div className="absolute inset-0 flex items-center justify-center px-6" style={{ paddingTop: "calc(64px + env(safe-area-inset-top))", paddingBottom: "calc(24px + env(safe-area-inset-bottom))" }}>
           <PrintFrame card={card} author={author} src={cover} alt={text || "Family photo"} width={LANE_PRINT_W} signed sizes="(max-width: 480px) 92vw, 440px" />
         </div>
+        {museLabel(card.source) && (
+          <span className="absolute left-1/2 top-0 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 text-[12px] font-semibold text-[#1c1b1a]" style={{ marginTop: "calc(64px + env(safe-area-inset-top))" }}>
+            {museLabel(card.source)}
+          </span>
+        )}
       </div>
     );
   }

@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { COURSE_LOOK, RecipeCover, totalTime } from "@/components/recipe-art";
+import { RecipeEditor } from "@/components/recipe-editor";
+import { ScanRecipeButton, type ScanResult } from "@/components/recipe-scan";
 import { useShell } from "@/components/shell";
 import { ActionMenu, Avatar, Button, EmptyLine, Icon, RoomHeader, SectionTitle } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
@@ -25,6 +28,9 @@ export default function KitchenPage() {
   const [asking, setAsking] = useState(false);
   const [query, setQuery] = useState("");
   const [course, setCourse] = useState<Recipe["course"] | "all">("all");
+  const router = useRouter();
+  // A scanned recipe card opens straight in the editor, for a person to check.
+  const [scanned, setScanned] = useState<ScanResult | null>(null);
 
   const byId = (id: string) => members.find((m) => m.id === id);
   const recipes = data?.recipes ?? [];
@@ -42,6 +48,10 @@ export default function KitchenPage() {
     .map((id) => ({ cook: byId(id), list: shown.filter((r) => r.cookId === id).sort((a, b) => b.createdAt.localeCompare(a.createdAt)) }))
     .filter((x): x is { cook: NonNullable<typeof x.cook>; list: Recipe[] } => Boolean(x.cook));
   const iHaveNone = data !== null && !recipes.some((r) => r.cookId === viewer.id);
+
+  if (scanned) {
+    return <RecipeEditor prefill={scanned.prefill} scan={scanned.scan} onDone={(id) => { setScanned(null); if (id) router.push(`/kitchen/${id}`); }} />;
+  }
 
   return (
     <div>
@@ -82,6 +92,7 @@ export default function KitchenPage() {
           Ask someone
         </button>
       </div>
+      <ScanRecipeButton onScanned={setScanned} />
       {asking && <AskForRecipe onDone={() => { setAsking(false); void asks.reload(); }} />}
 
       {data === null && !failed && <div className="skeleton mt-6 h-[220px] rounded-card" aria-busy="true" aria-label="Loading recipes" />}
@@ -184,6 +195,7 @@ function RecipeTile({ recipe, attempts, canManage, onDeleted }: { recipe: Recipe
           {recipe.voiceCardId && <Icon name="mic" size={12} className="ml-0.5 text-[#8a4b00]" />}
           {recipe.videoCardId && <Icon name="camera" size={12} className="text-[#8a4b00]" />}
         </p>
+        {recipe.scanRef && <p className="m-0 font-hand text-[15px] leading-tight text-[#8a4b00]">from the handwritten card</p>}
         {attempts.length > 0 && <p className="m-0 text-[12px] text-ink-faint">cooked {attempts.length}×</p>}
       </Link>
       {canManage && (
