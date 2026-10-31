@@ -23,6 +23,7 @@ import { SideSwitch, useSides } from "./sides";
 import { GiftsShelf } from "./gifts-shelf";
 import { EventPrompts } from "./event-prompts";
 import { TodayCard, useToday } from "./today";
+import { CourtyardLetter } from "./courtyard-letter";
 import { Avatar, Icon, Monogram, Photo } from "./ui/kit";
 import { useViewer } from "./viewer";
 
@@ -284,6 +285,7 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
 
       <EventPrompts className="mt-4" />
       <TodayCard />
+      <CourtyardLetter />
 
       {cards === null ? (
         <div className={`skeleton mt-5 ${SLIDE_H} rounded-[26px]`} aria-busy="true" aria-label="Loading" />

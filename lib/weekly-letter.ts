@@ -7,6 +7,7 @@ import { listDocs } from "./family-docs";
 import { museJson } from "./muse";
 import { callName } from "./people";
 import type { Suggestion } from "./schemas";
+import { weekStartOf } from "./week";
 
 export const LETTER_TITLE_MAX = 60;
 export const LETTER_BODY_MAX = 900;
@@ -29,12 +30,7 @@ export interface WeeklyLetterPayload extends WeeklyLetter {
 const DAY = 86_400_000;
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-/** Monday (UTC) of the week holding `at`, as YYYY-MM-DD. */
-export function weekStartOf(at: Date = new Date()): string {
-  const d = new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate()));
-  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
-  return d.toISOString().slice(0, 10);
-}
+export { weekStartOf };
 
 /** The letter's language from a display language: Hindi in Devanagari, else English. */
 export function letterLang(displayLang: string | undefined): "en" | "hi" {

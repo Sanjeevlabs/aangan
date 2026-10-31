@@ -1,3 +1,4 @@
+import { weekStartOf } from "./week";
 import { seedDemoRooms } from "./demo-rooms";
 import { resetDocs } from "./family-docs";
 import type { z } from "zod";
@@ -232,6 +233,22 @@ export function seedDemo(): void {
     ["play-priya-morning", "demo-from-dadi-1", "priya", h(3)],
   ] as const)
     addPlay({ id, familyId: "demo-family", cardId, memberId, playedAt: at });
+
+  // This week's letter from the courtyard, waiting for a grown-up (invented; only the family's names).
+  addSuggestion({
+    id: "demo-weekly-letter",
+    familyId: "demo-family",
+    createdAt: new Date().toISOString(),
+    goal: "Send this week's letter?",
+    payload: {
+      action: "weekly_letter",
+      title: "A letter from the courtyard",
+      body: "Dear family,\n\nMaa's voice note about the rain reached you all, and Priya and Arjun both stopped to listen. Papa told Vihaan and Anika a story, and Kavya and Rohan asked for it again.\n\nThe lamp was lit and the courtyard was full of you, even from far away.\n\nWith love, from all of us at home.",
+      lang: "en",
+      weekStart: weekStartOf(),
+      factCount: 8,
+    },
+  });
 }
 
 export function resetDemo(): void {
