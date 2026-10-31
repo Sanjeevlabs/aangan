@@ -863,6 +863,27 @@ export async function dbListInvites(): Promise<Invite[]> {
   return [...rows.filter((i) => !isDemoFamily(i.familyId)), ...demo];
 }
 
+/**
+ * One unexpired invite by code (any case), without pulling every family's
+ * invites. Demo invites live in memory and are checked first, like
+ * dbListInvites merges them.
+ */
+export async function dbFindInvite(code: string): Promise<Invite | undefined> {
+  const want = code.trim().toUpperCase();
+  if (!want) return undefined;
+  const nowMs = Date.now();
+  const match = (i: Invite) => i.code.toUpperCase() === want && new Date(i.expiresAt).getTime() > nowMs;
+  const sb = dbFor(null);
+  if (!sb) return memListInvites().find(match);
+  const demo = memListInvites().find((i) => isDemoFamily(i.familyId) && match(i));
+  if (demo) return demo;
+  const { data, error } = await sb.from("invites").select("*").eq("code", want).gt("expires_at", new Date(nowMs).toISOString()).limit(1);
+  if (error || !data) return memListInvites().find(match);
+  const r = data[0];
+  if (!r || isDemoFamily(r.family_id as string)) return undefined;
+  return { id: r.id as string, code: r.code as string, familyId: r.family_id as string, expiresAt: iso(r.expires_at), createdBy: (r.created_by as string | null) ?? null };
+}
+
 function inviteCode(): string {
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   let out = "";

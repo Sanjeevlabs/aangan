@@ -1,4 +1,4 @@
-import { dbGetFamilyName, dbListInvites, dbListMembers } from "@/lib/db";
+import { dbFindInvite, dbGetFamilyName, dbListMembers } from "@/lib/db";
 import { allowAuthAttempt } from "@/lib/otp";
 import { hostOf } from "@/lib/roles";
 
@@ -11,8 +11,7 @@ export async function GET(req: Request): Promise<Response> {
   if (!allowAuthAttempt(`peek:${ip}`, 20)) return Response.json({ error: "too-many-attempts" }, { status: 429 });
   const code = (new URL(req.url).searchParams.get("code") ?? "").trim().toUpperCase();
   if (code.length < 4 || code.length > 64) return Response.json({ error: "invalid-invite" }, { status: 400 });
-  const now = Date.now();
-  const invite = (await dbListInvites()).find((i) => i.code.toUpperCase() === code && new Date(i.expiresAt).getTime() > now);
+  const invite = await dbFindInvite(code);
   if (!invite) return Response.json({ error: "invalid-invite" }, { status: 404 });
   const [members, name] = await Promise.all([dbListMembers(invite.familyId), dbGetFamilyName(invite.familyId)]);
   const host = hostOf(members.filter((m) => m.email)) ?? members.find((m) => m.email);

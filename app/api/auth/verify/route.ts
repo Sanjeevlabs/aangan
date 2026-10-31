@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { sessionCookieHeader, signSession } from "@/lib/auth";
-import { dbAddMember, dbCreateFamily, dbFindMemberByEmail, dbGetMember, dbListInvites, dbListMembers, dbListSides, dbUpdateMemberProfile } from "@/lib/db";
+import { dbAddMember, dbCreateFamily, dbFindMemberByEmail, dbFindInvite, dbGetMember, dbListMembers, dbListSides, dbUpdateMemberProfile } from "@/lib/db";
 import type { Member } from "@/lib/schemas";
-import { isAdmin } from "@/lib/permissions";
+import { isAdmin, isClaimable } from "@/lib/permissions";
 import { familyFull, hostOf } from "@/lib/roles";
 import type { Invite } from "@/lib/db";
 import { allowAuthAttempt, identityFromToken, verifyCode } from "@/lib/otp";
@@ -31,7 +31,7 @@ const VerifySchema = z.object({
 async function claimable(memberId: string | undefined, familyId: string): Promise<Member | undefined> {
   if (!memberId) return undefined;
   const m = await dbGetMember(memberId);
-  return m && m.familyId === familyId && !m.email && m.access === "member" && m.status !== "pending" && m.role !== "child" ? m : undefined;
+  return m && m.familyId === familyId && isClaimable(m) ? m : undefined;
 }
 
 /**
@@ -102,8 +102,7 @@ export async function POST(req: Request): Promise<Response> {
   } else if (intent.type === "join" && existing) {
     // Already in one Aangan, joining another (my wife's family, say): the same
     // person gets a place on both sides, linked by personId.
-    const now = Date.now();
-    const invite = (await dbListInvites()).find((i) => i.code.toUpperCase() === intent.inviteCode.toUpperCase() && new Date(i.expiresAt).getTime() > now);
+    const invite = await dbFindInvite(intent.inviteCode);
     if (!invite) return Response.json({ error: "invalid-invite" }, { status: 403 });
     const sides = await dbListSides(existing);
     const there = sides.find((m) => m.familyId === invite.familyId) ?? (existing.familyId === invite.familyId ? existing : undefined);
@@ -147,8 +146,7 @@ export async function POST(req: Request): Promise<Response> {
     if (intent.type === "create") {
       familyId = await dbCreateFamily(intent.familyName);
     } else {
-      const now = Date.now();
-      invite = (await dbListInvites()).find((i) => i.code.toUpperCase() === intent.inviteCode.toUpperCase() && new Date(i.expiresAt).getTime() > now);
+      invite = await dbFindInvite(intent.inviteCode);
       if (!invite) return Response.json({ error: "invalid-invite" }, { status: 403 });
       familyId = invite.familyId;
     }
