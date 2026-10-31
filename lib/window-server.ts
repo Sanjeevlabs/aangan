@@ -211,7 +211,7 @@ export async function windowState(familyId: string, viewerId: string, now = new 
     sky: skyOver(weather, now),
     call: callHint(tz, viewer?.tz ?? tz, home?.members.filter((m) => m.role !== "child").map((m) => m.displayName || m.firstName) ?? [], now),
     joined: (home?.members ?? []).some((m) => m.role !== "child" && (Boolean(m.email) || lastSeen(m.id) !== null)),
-    glance: await glanceFor(familyId, viewerId, members, home?.tz ?? null, cards, now),
+    glance: await glanceFor(familyId, viewerId, members, home?.tz ?? null, cards, now, lastSeen),
     scene: own.scene,
     pots: own.pots,
     homePhoto: own.homePhoto,
@@ -223,7 +223,7 @@ export async function windowState(familyId: string, viewerId: string, now = new 
  * The glance strip: who is awake, what waits for the viewer, what is next, and
  * the weekly call in both zones. Never throws: a failed source just empties its tile.
  */
-async function glanceFor(familyId: string, viewerId: string, members: Member[], theirTz: string | null, cards: Awaited<ReturnType<typeof dbListCards>>, now: Date): Promise<Glance> {
+async function glanceFor(familyId: string, viewerId: string, members: Member[], theirTz: string | null, cards: Awaited<ReturnType<typeof dbListCards>>, now: Date, lastSeen: (id: string) => string | null): Promise<Glance> {
   const viewer = members.find((m) => m.id === viewerId);
   const myTz = viewer?.tz ?? "UTC";
   const names = Object.fromEntries(members.map((m) => [m.id, m.displayName || m.firstName]));
@@ -239,7 +239,7 @@ async function glanceFor(familyId: string, viewerId: string, members: Member[], 
     safe(familyHolidays(familyId, members).then((h) => h.visible), []),
   ]);
   return {
-    awake: awakeNow(members, viewerId, now),
+    awake: awakeNow(members, viewerId, now, lastSeen),
     waiting: waitingForYou({ viewerId, now, names, cards: withDemoShelf(cards, familyId), plays, questions, today: tasks.slice(0, 4), needs }),
     next: nextUp({
       today,

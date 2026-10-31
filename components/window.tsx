@@ -597,7 +597,7 @@ function StatusLine({ p, st, check, onWorry }: { p: Member; st: WindowData["peop
 /* ------------------------------------------------------- the glance strip */
 // Four 3-second answers across the whole family. Words, never counts. Every
 // tile is the same height as its skeleton, so nothing jumps when it loads.
-const TILE = "flex h-[80px] w-[164px] flex-none snap-start flex-col justify-between rounded-[18px] bg-surface px-3 py-2";
+const TILE = "flex h-[80px] min-w-0 flex-col justify-between rounded-[18px] bg-surface px-3 py-2";
 const TILE_EDGE = { boxShadow: "var(--surface-edge)" } as const;
 
 function Tile({ href, label, aria, children }: { href: string; label: string; aria: string; children: React.ReactNode }) {
@@ -614,7 +614,7 @@ const detail = "line-clamp-2 text-[15px] font-semibold leading-[1.2]";
 function GlanceStrip({ glance, members }: { glance: Glance | null; members: Member[] }) {
   if (!glance)
     return (
-      <div className="-mx-5 flex gap-2 overflow-hidden px-5" aria-busy="true" aria-label="Looking across the family">
+      <div className="grid grid-cols-2 gap-2" aria-busy="true" aria-label="Looking across the family">
         {[0, 1, 2, 3].map((i) => (
           <div key={i} className={cn(TILE, "animate-pulse")} style={TILE_EDGE} />
         ))}
@@ -624,7 +624,7 @@ function GlanceStrip({ glance, members }: { glance: Glance | null; members: Memb
   const cities = awakeCities(glance.awake);
   const who = faces.map((f) => callName(f.m)).filter(Boolean).join(", ");
   return (
-    <nav aria-label="Across the family" className="-mx-5 flex snap-x gap-2 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <nav aria-label="Across the family" className="grid grid-cols-2 gap-2">
       <Tile href="/" label="Awake now" aria={glance.awake.length ? `Awake now: ${who}${cities ? `, in ${cities}` : ""}` : "Everyone's asleep"}>
         {glance.awake.length ? (
           <span className="block min-w-0">

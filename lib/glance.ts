@@ -24,7 +24,7 @@ export interface Glance {
 type Person = Pick<Member, "id" | "role" | "tz" | "city" | "status"> & { personId?: string | null };
 
 /** Awake now: 7 AM to 10 PM local, active, not a child profile, not the viewer. One entry per real person. */
-export function awakeNow(members: Person[], viewerId: string, now: Date): Glance["awake"] {
+export function awakeNow(members: Person[], viewerId: string, now: Date, lastSeen: (id: string) => string | null = () => null): Glance["awake"] {
   const seen = new Set<string>();
   const out: Glance["awake"] = [];
   const me = members.find((m) => m.id === viewerId);
@@ -35,7 +35,10 @@ export function awakeNow(members: Person[], viewerId: string, now: Date): Glance
       if (seen.has(m.personId)) continue;
       seen.add(m.personId);
     }
-    if (!isAwake(m.tz, now)) continue;
+    // Daytime where they are, or a sign of life in the last half hour (a late night counts).
+    const last = lastSeen(m.id);
+    const recent = last !== null && now.getTime() - Date.parse(last) < 30 * 60_000;
+    if (!isAwake(m.tz, now) && !recent) continue;
     out.push({ id: m.id, city: m.city.trim() || placeFromTz(m.tz) });
   }
   return out;
