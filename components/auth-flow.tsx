@@ -9,7 +9,8 @@ import { postJson } from "@/lib/use-json";
 import { useDocumentLang, useT, type T } from "@/lib/use-t";
 import { en, htmlLang, type UiKey } from "@/lib/ui-strings";
 import { cn } from "@/lib/utils";
-import { AUTH_INTENT_KEY, browserAuth, callbackUrl, signInOptions } from "@/lib/supabase-browser";
+import { AUTH_INTENT_KEY, browserAuth, signInOptions } from "@/lib/supabase-browser";
+import { authRedirectUrl, isNative, openExternal } from "@/lib/native";
 import { useShell } from "./shell";
 import { Button, Icon } from "./ui/kit";
 
@@ -151,7 +152,7 @@ export function AuthFlow({ mode }: { mode: Mode }) {
         saveIntent();
         const { error: err } = byPhone
           ? await sb.auth.signInWithOtp({ phone: phoneE164() })
-          : await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: callbackUrl(), shouldCreateUser: true } });
+          : await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: authRedirectUrl("email"), shouldCreateUser: true } });
         if (err) throw new Error(/rate/i.test(err.message) ? "too-many-attempts" : "code-not-sent");
         setMock(false);
         setStep("code");
@@ -193,7 +194,11 @@ export function AuthFlow({ mode }: { mode: Mode }) {
     if (!sb) return;
     setBusy(true);
     saveIntent();
-    const { error: err } = await sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: callbackUrl() } });
+    // Google blocks sign-in inside app webviews: in the native app it opens in the system browser
+    // and comes back through the app.aangan.family:// deep link.
+    const native = isNative();
+    const { data, error: err } = await sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: authRedirectUrl("oauth"), skipBrowserRedirect: native } });
+    if (!err && native && data?.url) await openExternal(data.url);
     if (err) {
       setError(errorText(t, "code-not-sent"));
       setBusy(false);

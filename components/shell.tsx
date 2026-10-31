@@ -17,6 +17,7 @@ import { Avatar, Icon, type IconName } from "./ui/kit";
 import { ViewerProvider, useViewer } from "./viewer";
 import { PeoplePicker } from "./people-picker";
 import { DocumentLangOnly } from "@/lib/use-t";
+import { onAppUrlOpen, setStatusBar } from "@/lib/native";
 
 // The composer (mic, EXIF, media processing) loads only when first opened.
 const AddSheet = dynamic(() => import("./add-sheet").then((m) => m.AddSheet), { ssr: false });
@@ -231,6 +232,12 @@ function useHeartbeat(on: boolean): void {
 function ShellInner({ children }: { children: React.ReactNode }) {
   const { viewer, signedIn } = useViewer();
   useHeartbeat(signedIn);
+  // Native app: status bar style, and deep links (auth callback, shared links) open in-app.
+  const nativeRouter = useRouter();
+  useEffect(() => {
+    void setStatusBar();
+    return onAppUrlOpen((route) => nativeRouter.push(route));
+  }, [nativeRouter]);
   const [large] = useLargeText(viewer.role === "elder");
   const [addOpen, setAddOpen] = useState(false);
   // Mount the composer on first open, then keep it mounted so its exit animation runs.

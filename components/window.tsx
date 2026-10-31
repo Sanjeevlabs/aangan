@@ -4,6 +4,7 @@ import { m } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { whatsappInvite } from "@/lib/invite-link";
+import { haptic } from "@/lib/native";
 import type { Knock, SafetyCheckin, Wall, WindowLayer } from "@/lib/kinds";
 import { resolveMediaUrl } from "@/lib/media-session";
 import { callName, cardCover, memberPhoto } from "@/lib/people";
@@ -172,11 +173,7 @@ function SlideHome({ onOpen }: { onOpen: () => void }) {
   const finish = useCallback(() => {
     setDone(true);
     setX(max());
-    try {
-      navigator.vibrate?.(12);
-    } catch {
-      /* no haptics */
-    }
+    void haptic("selection");
     window.setTimeout(onOpen, 160);
     window.setTimeout(() => {
       setDone(false);
@@ -496,11 +493,7 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
     let n = 0;
     const iv = window.setInterval(() => {
       setPulse((k) => k + 1);
-      try {
-        navigator.vibrate?.([70, 120, 50]);
-      } catch {
-        /* no haptics */
-      }
+      void haptic("light");
       if (++n >= 4) window.clearInterval(iv);
     }, 1000);
     void postJson("/api/lamp", { action: "felt" });
@@ -555,11 +548,7 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
     setLitNow(true);
     setPulse((k) => k + 1);
     setLampLine(`You lit it just now · it's glowing in ${data?.far?.city || "their home"}`);
-    try {
-      navigator.vibrate?.(10);
-    } catch {
-      /* no haptics */
-    }
+    void haptic("medium");
     await postJson("/api/lamp", { action: "light" });
     void lamp.reload();
   };
