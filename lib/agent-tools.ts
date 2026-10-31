@@ -3,8 +3,27 @@
 // results into `suggestions`; the approve route executes them after review.
 import type { AgentTool } from "./agent";
 import { dbListCards, dbListMembers, dbListRelationships, dbListWishes } from "./db";
+import { gatherWeekFacts, LETTER_GOAL, writeLetter, type WeeklyLetterPayload } from "./weekly-letter";
 
-export function agentTools(familyId: string): AgentTool[] {
+type LetterOpts = { lang?: "en" | "hi"; minFacts?: number };
+
+/** Draft the week's letter from grounded facts. Reads only; the approve route writes it. */
+export function weeklyLetterTool(familyId: string, opts: LetterOpts = {}): AgentTool {
+  return {
+    name: "draft_weekly_letter",
+    description: "Draft this week's short letter to the family from what really happened (needs approval).",
+    parameters: { type: "object", properties: { weekStart: { type: "string" } } },
+    run: async (args) => {
+      const { weekStart, facts } = await gatherWeekFacts(familyId, typeof args.weekStart === "string" ? args.weekStart : undefined);
+      if (facts.length < Math.max(1, opts.minFacts ?? 1)) return { draft: false, reason: "quiet-week", factCount: facts.length };
+      const letter = await writeLetter(familyId, facts, opts.lang ?? "en");
+      const payload: WeeklyLetterPayload = { action: "weekly_letter", ...letter, weekStart, factCount: facts.length };
+      return { draft: true, suggestion: { goal: LETTER_GOAL, payload } };
+    },
+  };
+}
+
+export function agentTools(familyId: string, opts: LetterOpts = {}): AgentTool[] {
   return [
     {
       name: "read_family_graph",
@@ -105,5 +124,6 @@ export function agentTools(familyId: string): AgentTool[] {
         startsAt: typeof args.startsAt === "string" ? args.startsAt : new Date(Date.now() + 86400000).toISOString(),
       }),
     },
+    weeklyLetterTool(familyId, opts),
   ];
 }
