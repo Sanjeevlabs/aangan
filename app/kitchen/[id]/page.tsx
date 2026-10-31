@@ -95,7 +95,15 @@ export default function RecipePage() {
 
   return (
     <div>
-      <RoomHeader title="" action={menu.length ? <ActionMenu actions={menu} label="Recipe options" /> : undefined} />
+      <RoomHeader
+        title=""
+        action={
+          <div className="flex items-center gap-1">
+            <ShareRecipe recipe={data.original} cookName={callName(cook)} photo={cover ? (resolveMediaUrl(cover) ?? cover) : null} />
+            {menu.length ? <ActionMenu actions={menu} label="Recipe options" /> : null}
+          </div>
+        }
+      />
 
       <RecipeCover recipe={r} photo={cover ? (resolveMediaUrl(cover) ?? cover) : null} className="h-[230px] rounded-hero" />
 
@@ -112,11 +120,6 @@ export default function RecipePage() {
         </span>
       </Link>
       {r.memory && <p className="voice m-0 mt-4 text-[19px] leading-snug">&ldquo;{r.memory}&rdquo;</p>}
-      {viewer.access !== "child" && (
-        <div className="mt-4 flex gap-2">
-          <ShareRecipe recipe={data.original} cookName={callName(cook)} />
-        </div>
-      )}
 
       {stats.length > 0 && (
         <dl className="m-0 mt-5 grid divide-x divide-[var(--line)] rounded-card bg-surface py-3" style={{ gridTemplateColumns: `repeat(${stats.length}, 1fr)` }}>

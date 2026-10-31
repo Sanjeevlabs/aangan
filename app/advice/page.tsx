@@ -5,7 +5,8 @@ import { VoiceRow } from "@/components/memory-card";
 import { useShell } from "@/components/shell";
 import { Avatar, Button, Icon, RoomHeader } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
-import { ADVICE_CATEGORIES, ADVICE_FALLBACK, adviceCategory } from "@/lib/advice";
+import { ShareQuote } from "@/components/share-quote";
+import { ADVICE_CATEGORIES, ADVICE_FALLBACK, adviceCategory, categoryLabel } from "@/lib/advice";
 import type { Card } from "@/lib/schemas";
 import type { Question } from "@/lib/kinds";
 import { callName, memberPhoto } from "@/lib/people";
@@ -136,6 +137,7 @@ function AdviceItem({ item }: { item: Item }) {
           {giver?.id === viewer.id ? "You" : callName(giver)}
           {by ? ` · asked by ${by.id === viewer.id ? "you" : callName(by)}` : " · this week's question"}
         </p>
+        <ShareQuote words={item.card.transcript || item.card.caption} speaker={giver} at={item.card.takenAt} context={item.q.topic === "blessing" ? "A blessing" : categoryLabel(item.cat)} className="-my-1 h-10 w-10" />
       </div>
       <p className="m-0 mt-1.5 line-clamp-2 text-[14px] font-semibold">&ldquo;{item.q.text}&rdquo;</p>
       <VoiceRow card={item.card} showAuthor={false} />

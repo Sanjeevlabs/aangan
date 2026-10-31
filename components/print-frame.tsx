@@ -1,10 +1,14 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { slug } from "@/lib/card-kit";
 import { printNote, printWhen, printWhere } from "@/lib/print";
+import { photoPrintCard } from "@/lib/share-cards";
+import { canCutOutPhoto, canSharePhoto } from "@/lib/share-rules";
 import type { Card, Member } from "@/lib/schemas";
 import { useDisplayText } from "@/lib/use-display-text";
 import { cn } from "@/lib/utils";
+import { ShareButton } from "./share-sheet";
 import { Photo } from "./ui/kit";
 import { useViewer } from "./viewer";
 
@@ -29,6 +33,8 @@ export function PrintFrame({
   sizes = "(max-width: 480px) 90vw, 400px",
   className,
   children,
+  share = false,
+  onShareOpen,
 }: {
   card: Card;
   author?: Member;
@@ -46,13 +52,17 @@ export function PrintFrame({
   className?: string;
   /** Drawn over the image (a video, tap zones, a menu). */
   children?: ReactNode;
+  /** Offer Share (and Make a sticker) to the person who shared this photo. */
+  share?: boolean;
+  onShareOpen?: (open: boolean) => void;
 }) {
-  const { displayLang } = useViewer();
+  const { displayLang, viewer } = useViewer();
   const note = printNote(card);
   const { text } = useDisplayText(note, card.lang, displayLang);
   const when = printWhen(card.takenAt, author?.tz);
   const where = printWhere(card, author);
   const by = author ? author.displayName || author.firstName : "";
+  const shareable = share && canSharePhoto(viewer, card);
   return (
     <figure
       className={cn("relative m-0 rounded-[3px] p-3 pb-4 text-[#25201c]", className)}
@@ -67,7 +77,25 @@ export function PrintFrame({
         <span className="pointer-events-none absolute inset-0 shadow-[inset_0_0_0_1px_rgba(0,0,0,.07)]" aria-hidden="true" />
         {children}
       </div>
-      <figcaption className="px-1 pt-3 font-hand">
+      {shareable && (
+        <div className="absolute bottom-3 right-3 z-20">
+          <ShareButton
+            iconOnly
+            tone="paper"
+            label="Share this print"
+            onOpenChange={onShareOpen}
+            target={() => ({
+              title: "Share this print",
+              note: "Only you can share your photos. It goes as an image, never a link into the family.",
+              filename: `${slug(note || "aangan-print")}.png`,
+              text: note,
+              render: () => photoPrintCard({ src, note: text ?? note, when, where, by }),
+            })}
+            sticker={() => (card.type === "photo" && canCutOutPhoto(viewer, card) ? { kind: "photo", title: "Sticker from this photo", src, source: { kind: "card", id: card.id } } : null)}
+          />
+        </div>
+      )}
+      <figcaption className={cn("px-1 pt-3 font-hand", shareable && "min-h-[52px] pr-12")}>
         {note && (
           <p className="m-0 line-clamp-3 text-[22px] leading-[1.25]" lang={text && text !== note ? displayLang : card.lang}>
             {text ?? note}

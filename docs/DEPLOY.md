@@ -12,7 +12,7 @@ Files: `wrangler.jsonc` (worker name `aangan`, `nodejs_compat`, static assets, d
 
 ## 1. Account and CLI
 
-1. Create a Cloudflare account. Worker size: the compressed worker is ~2.0 MiB, under both Workers size limits (3 MiB and 10 MiB compressed, depending on the plan).
+1. Create a Cloudflare account. Worker size: the compressed worker is ~2.9 MiB (`npx wrangler deploy --dry-run`), under both Workers size limits (3 MiB and 10 MiB compressed, depending on the plan); see section 7.
 2. `npx wrangler login` (opens a browser; authorises this machine).
 3. `npx wrangler whoami` should list your account. If you have several accounts, set `CLOUDFLARE_ACCOUNT_ID` in your shell.
 
@@ -35,6 +35,7 @@ For local `cf:preview`, put runtime values in `.dev.vars` (gitignored, same `KEY
 | `BASETEN_API_KEY` | runtime secret | optional | Muse Spark Open failover on Baseten. |
 | `MODAL_MUSE_URL`, `MODAL_API_KEY`, `MODAL_MUSE_MODEL` | runtime (key is secret) | optional | Own Muse Spark Open endpoint on Modal; needs URL and key. |
 | `MUSE_PROVIDER` | runtime var | optional | `meta` (default), `baseten` or `modal`. |
+| `SAM_URL`, `SAM_API_KEY` | runtime (key is secret) | optional | Sticker cut-outs with Meta SAM (`modal/sam_server.py`, see below). Without both, and always with `MOCK=true`, stickers use a clean circle/rounded crop. Each cut-out counts ~USD 0.002 against the spend cap. |
 | `SUPABASE_SECRET_KEY` | runtime secret | live mode | Service-role key. Never prefix with `NEXT_PUBLIC_`. |
 | `NEXT_PUBLIC_SUPABASE_URL` | **build time** | live mode | Also read server-side, so set it as a runtime var too. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | **build time** | live mode | Also set as a runtime var. |
@@ -80,7 +81,25 @@ Supabase → Authentication → URL Configuration:
 
 Native builds: `CAP_SERVER_URL=https://<your-domain> npm run cap:sync` (see docs/NATIVE.md).
 
-## 6. Cron
+## 6. Sticker cut-outs (Meta SAM on Modal)
+
+`modal/sam_server.py` serves SAM 2.1 (`facebook/sam2.1-hiera-large`) or SAM 3 (`SAM_MODEL=facebook/sam3`, gated: accept the licence on Hugging Face with the account behind `HF_TOKEN`) on a GPU that scales to zero after two idle minutes.
+
+```sh
+pip install modal && modal setup
+modal secret create aangan-sam SAM_API_KEY=<long random string> HF_TOKEN=<hf token>
+modal deploy modal/sam_server.py
+npx wrangler secret put SAM_URL       # https://<workspace>--aangan-sam-cutout.modal.run
+npx wrangler secret put SAM_API_KEY   # the same random string
+```
+
+The app's `/api/stickers/cutout` sends only the photo the person picked (their own; a recipe's dish) and the point they tapped, gets a PNG mask back, and stores nothing. It is limited to 6 cut-outs a minute per person (per isolate) and refuses past the USD spend cap.
+
+## 7. Open Graph images
+
+`/opengraph-image` (the home page) is rendered once at build time. `/r/<token>/opengraph-image` (a shared recipe) is rendered on request by `next/og` inside the Worker. Set `APP_ORIGIN` in the build environment too (shell or `.env.production.local`) so the home page's `og:image` is an absolute URL; the recipe pages use the request's own origin. Checked under `wrangler dev` (workerd): `/r/<token>/opengraph-image` returns a 1200×630 PNG. `next/og` adds its WASM renderer and a font to the worker (~0.6 MiB gzip): the compressed worker is now ~2.9 MiB, just under the Free plan's 3 MiB limit (Paid allows 10 MiB). If it outgrows Free, replace `app/r/[token]/opengraph-image.tsx` with a static image (or move to Paid).
+
+## 8. Cron
 
 `wrangler.jsonc` declares a Cron Trigger (`0 9 * * *`, UTC), replacing the `crons` entry in `vercel.json`. `cf-worker.mjs` handles it by calling `GET <APP_ORIGIN>/api/ritual-scan` inside the worker with `Authorization: Bearer <CRON_SECRET>`. Test locally with `npx wrangler dev --test-scheduled` and `curl "http://localhost:8787/__scheduled?cron=0+9+*+*+*"`. Cron Triggers run in the dashboard under the worker's Settings → Triggers.
 

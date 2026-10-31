@@ -3,10 +3,15 @@
 import { m, useReducedMotion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { hourLabel } from "@/lib/occasion-calendar";
+import { slug } from "@/lib/card-kit";
 import { callName, memberPhoto } from "@/lib/people";
+import { occasionCard } from "@/lib/share-cards";
+import { canMakeLampSticker, canShareOccasion } from "@/lib/share-rules";
 import type { Card, Member, RitualRun, Wish } from "@/lib/schemas";
 import { GarlandPlayer, type GarlandBead } from "./occasion-garland";
 import { PhotoWishButton } from "./occasion-wish";
+import { ShareButton } from "./share-sheet";
+import { StickerButton } from "./sticker-maker";
 import { Avatar, Icon, Photo } from "./ui/kit";
 
 // The day itself: the person (or the family, on a festival), a quiet
@@ -16,7 +21,7 @@ import { Avatar, Icon, Photo } from "./ui/kit";
 
 type LampState = "idle" | "busy" | "lit" | "unavailable" | "failed";
 
-function LampHour({ hour }: { hour: number }) {
+function LampHour({ hour, sticker = false }: { hour: number; sticker?: boolean }) {
   const [state, setState] = useState<LampState>("idle");
   const [now, setNow] = useState(() => new Date().getHours());
   useEffect(() => {
@@ -48,6 +53,7 @@ function LampHour({ hour }: { hour: number }) {
         <Icon name="lamp" size={18} />
       </span>
       <p className="m-0 min-w-0 flex-1 text-[13.5px] leading-snug text-white/90">{line}</p>
+      {sticker && <StickerButton iconOnly label="Lamp sticker: Thinking of you" className="bg-white/20 text-white" spec={() => ({ kind: "lamp", title: "Lamp sticker" })} />}
       {state !== "lit" && state !== "unavailable" && (
         <button type="button" onClick={() => void light()} disabled={state === "busy"} aria-label="Light your lamp" className="press grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-black disabled:opacity-50">
           <Icon name="lamp" size={18} />
@@ -138,6 +144,32 @@ export function OccasionCelebration({
         <Icon name="sparkle" size={14} />
         Today
       </div>
+      {canShareOccasion(viewer) && wishers.length > 0 && (
+        <div className="absolute right-3 top-3 z-10">
+          <ShareButton
+            iconOnly
+            tone="glass"
+            label="Share the wishes"
+            target={() => {
+              const cardTitle = `Wishes for ${person ? `${callName(person)}\u2019s birthday` : title}`;
+              return {
+                title: "Share the wishes",
+                note: "An image with everyone who wished. No voices, no messages.",
+                filename: `${slug(cardTitle)}.png`,
+                text: cardTitle,
+                render: () =>
+                  occasionCard({
+                    title: cardTitle,
+                    photo: memberPhoto(person) ?? "/demo/family-group.webp",
+                    wishers: wishers.map(({ member }) => ({ name: callName(member), photo: memberPhoto(member) })),
+                    line: `${wishers.length} of us wished ${person ? callName(person) : "together"}`,
+                    date: new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric" }).format(new Date()),
+                  }),
+              };
+            }}
+          />
+        </div>
+      )}
       <div className="glass absolute inset-x-2.5 bottom-2.5 rounded-[22px] p-4">
         <p className="m-0 text-[22px] font-bold leading-tight">{mine ? "Happy birthday to you" : title}</p>
         <div className="mt-2 flex items-center gap-2">
@@ -170,7 +202,7 @@ export function OccasionCelebration({
             </button>
           )}
         </div>
-        {lampHour !== null && <LampHour hour={lampHour} />}
+        {lampHour !== null && <LampHour hour={lampHour} sticker={canMakeLampSticker(viewer)} />}
       </div>
     </m.article>
     <GarlandPlayer

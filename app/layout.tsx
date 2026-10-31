@@ -15,7 +15,10 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   icons: { icon: [{ url: "/icons/icon-192.png", sizes: "192x192" }, { url: "/icons/icon.svg", type: "image/svg+xml" }], apple: "/icons/apple-touch-icon.png" },
   appleWebApp: { capable: true, title: "Aangan", statusBarStyle: "black-translucent" },
-  openGraph: { title: "Aangan", description: "Far from home. Never far from them.", images: ["/icons/icon-1024.png"] },
+  // og:image comes from app/opengraph-image.tsx; APP_ORIGIN (at build time) makes its URL absolute.
+  metadataBase: process.env.APP_ORIGIN ? new URL(process.env.APP_ORIGIN) : undefined,
+  openGraph: { type: "website", siteName: "Aangan", title: "Aangan", description: "Far from home. Never far from them." },
+  twitter: { card: "summary_large_image", title: "Aangan", description: "Far from home. Never far from them." },
 };
 
 export const viewport: Viewport = {

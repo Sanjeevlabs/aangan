@@ -366,7 +366,7 @@ export function PersonDay({ member, cards, onClose }: { member: Member; cards: C
               <VoiceControls card={card} queue={items} onPrev={at > 0 ? stepPrev : null} onNext={at + 1 < items.length ? stepNext : null} className="mt-3 w-full" />
             </div>
           ) : (
-            <PrintFrame key={card.id} card={card} author={author} src={cover} width={printWidth(400 + (line ? 44 : 0) + (own ? 64 : 0))} priority sizes="400px">
+            <PrintFrame key={card.id} card={card} author={author} src={cover} width={printWidth(400 + (line ? 44 : 0) + (own ? 64 : 0))} priority sizes="400px" share={own && !videoSrc} onShareOpen={(o) => o && setPaused(true)}>
               {videoSrc && (
                 <video
                   key={card.id}

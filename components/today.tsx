@@ -6,6 +6,7 @@ import { callName } from "@/lib/people";
 import { useJson } from "@/lib/use-json";
 import { cn } from "@/lib/utils";
 import { useShell } from "./shell";
+import { ShareTodayAnswer } from "./share-quote";
 import { Icon } from "./ui/kit";
 import { useViewer } from "./viewer";
 
@@ -51,6 +52,7 @@ export function TodayCard({ variant = "card" }: { variant?: "card" | "line" }) {
     .join(" & ");
   const answer = () => openAdd("voice", { kind: "today", taskId: task.id, prompt }, otherIds.filter((id) => id !== viewer.id));
   const status = statusLine(task, otherNames || "the other home");
+  const myAnswer = task.answers.find((a) => a.memberId === viewer.id);
 
   if (variant === "line")
     return (
@@ -86,6 +88,7 @@ export function TodayCard({ variant = "card" }: { variant?: "card" | "line" }) {
             <Icon name="check" size={16} /> You answered
           </span>
         )}
+        {myAnswer && <ShareTodayAnswer cardId={myAnswer.cardId} className="h-12 w-12" />}
         {task.sealed > 0 && (
           <span className="flex h-12 items-center gap-2 rounded-full border border-white/15 px-4 text-[13px] text-white/80">
             <Icon name="key" size={15} /> {task.sealed} sealed

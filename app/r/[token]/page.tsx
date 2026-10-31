@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { COURSE_LOOK, RecipeCover, minutes, totalTime } from "@/components/recipe-art";
 import { countView, getShare } from "@/lib/shares";
@@ -9,16 +10,40 @@ import { countView, getShare } from "@/lib/shares";
 
 export const dynamic = "force-dynamic";
 
+/** This request's own origin, so og:image is absolute on any host (workers.dev, the custom domain, localhost). */
+async function originOf(): Promise<URL | undefined> {
+  if (process.env.APP_ORIGIN) {
+    try {
+      return new URL(process.env.APP_ORIGIN);
+    } catch {
+      /* fall through to the request's host */
+    }
+  }
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  if (!host) return process.env.APP_ORIGIN ? new URL(process.env.APP_ORIGIN) : undefined;
+  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
+  try {
+    return new URL(`${proto}://${host}`);
+  } catch {
+    return undefined;
+  }
+}
+
 export async function generateMetadata(props: { params: Promise<{ token: string }> }): Promise<Metadata> {
   const params = await props.params;
-  const share = await getShare(params.token);
-  if (!share) return { title: "Aangan", robots: { index: false } };
+  const [share, metadataBase] = await Promise.all([getShare(params.token), originOf()]);
+  if (!share) return { title: "Aangan", metadataBase, robots: { index: false } };
   const r = share.snapshot;
+  const title = `${r.title}, from ${r.from}'s kitchen`;
+  const description = r.memory || `A family recipe from ${r.from}, shared on Aangan.`;
   return {
     title: `${r.title} · from ${r.from}'s kitchen`,
-    description: r.memory || `A family recipe from ${r.from}, shared on Aangan.`,
+    description,
+    metadataBase,
     robots: { index: false, follow: false },
-    openGraph: { title: `${r.title}, from ${r.from}'s kitchen`, description: r.memory || "A family recipe, shared on Aangan." },
+    openGraph: { type: "article", siteName: "Aangan", title, description, url: `/r/${params.token}` },
+    twitter: { card: "summary_large_image", title, description },
   };
 }
 
@@ -43,6 +68,16 @@ export default async function SharedRecipe(props: { params: Promise<{ token: str
   ].filter(([, v]) => v);
   return (
     <article className="pb-10 pt-2">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <Link href="/" className="flex items-center gap-2 text-ink no-underline" aria-label="Aangan home">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icons/icon-192.png" alt="" width={32} height={32} className="rounded-[9px]" />
+          <span className="text-[17px] font-semibold">Aangan</span>
+        </Link>
+        <Link href="/" className="press flex h-10 items-center rounded-full bg-black px-4 text-[14px] font-semibold text-white no-underline">
+          Start your family on Aangan
+        </Link>
+      </div>
       <RecipeCover recipe={r} className="h-[220px] rounded-hero" />
       <p className="m-0 mt-5 text-[13px] font-semibold uppercase tracking-[0.08em]" style={{ color: look.ink }}>
         {look.label}
@@ -108,8 +143,8 @@ export default async function SharedRecipe(props: { params: Promise<{ token: str
       <aside className="mt-10 rounded-hero bg-[linear-gradient(135deg,#1c1712,#3a2a1c)] p-6 text-white">
         <p className="m-0 text-[20px] font-semibold leading-snug">Whose cooking do you miss?</p>
         <p className="m-0 mt-1.5 text-[15px] text-white/80">Aangan keeps your family&rsquo;s recipes in the voices that taught them, private to your family.</p>
-        <Link href="/create" className="press mt-4 flex h-12 items-center justify-center rounded-full bg-white text-[16px] font-semibold text-ink no-underline">
-          Start your family&rsquo;s kitchen
+        <Link href="/" className="press mt-4 flex h-12 items-center justify-center rounded-full bg-white text-[16px] font-semibold text-ink no-underline">
+          Start your family on Aangan
         </Link>
       </aside>
     </article>

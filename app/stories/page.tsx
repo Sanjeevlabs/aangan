@@ -7,6 +7,7 @@ import { usePlayer } from "@/components/player";
 import { useShell } from "@/components/shell";
 import { StoryCover, THEME_LOOK } from "@/components/story-art";
 import { ActionMenu, Avatar, Button, EmptyLine, Icon, MuseMark, RoomHeader, SectionTitle } from "@/components/ui/kit";
+import { ShareQuote } from "@/components/share-quote";
 import { useViewer } from "@/components/viewer";
 import { STORY_AGES, STORY_THEMES } from "@/lib/kind-values";
 import type { Question, Story } from "@/lib/kinds";
@@ -180,6 +181,9 @@ function Stories() {
                         {s.ages !== "all" ? ` · ${AGE_LABEL[s.ages]}` : ""}
                       </span>
                     </button>
+                    <div className="absolute left-1.5 top-1.5">
+                      <ShareQuote words={card.transcript || s.summary} speaker={teller} at={card.takenAt} context={`A story \u00b7 ${s.title}`} className="h-10 w-10 bg-white/90 text-ink shadow-frost" />
+                    </div>
                     {canChange(viewer, s.tellerId) && (
                       <div className="absolute right-1.5 top-1.5">
                         <ActionMenu
