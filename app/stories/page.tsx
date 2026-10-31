@@ -17,7 +17,7 @@ import type { Card, Member } from "@/lib/schemas";
 import { useFamilyCards } from "@/lib/use-family";
 import { postJson, useJson } from "@/lib/use-json";
 import { cn } from "@/lib/utils";
-import type { StoryIdea } from "@/lib/story-ideas";
+import { familyStoriesFor, resolveIdea, type StoryIdea } from "@/lib/story-ideas";
 
 // Stories: the kids' corner. Grandparents tell, children listen (at bedtime
 // too), and ask for the next one. Muse only labels a story; it never writes one.
@@ -147,6 +147,9 @@ function Stories() {
         </div>
       )}
 
+      {viewer.role === "elder" && <OnlyYouCanTell onTell={(prompt) => openAdd("voice", { kind: "story", prompt })} />}
+      {viewer.role === "child" && data && <AskElder asked={mine.map((q) => q.text)} onAsked={() => void reload()} />}
+
       {data === null && <div className="skeleton mt-6 h-[220px] rounded-card" aria-busy="true" aria-label="Loading stories" />}
 
       {tellers.map((id) => {
@@ -158,7 +161,6 @@ function Stories() {
               <Avatar src={memberPhoto(teller)} name={callName(teller)} size={38} />
               <h2 className="m-0 min-w-0 flex-1 truncate text-[20px]">
                 {id === viewer.id ? "Your stories" : `${callName(teller)}'s stories`}
-                <span className="ml-1.5 text-[14px] font-medium text-ink-faint">{list.length}</span>
               </h2>
             </div>
             <ul className="no-scrollbar -mx-5 my-0 flex list-none snap-x scroll-px-5 gap-3 overflow-x-auto py-0 pb-1 pl-5 pr-5">
@@ -233,6 +235,89 @@ function Stories() {
       <AnimatePresence>{bedtime && <Bedtime stories={stories} cardOf={cardOf} tellers={tellers.map((id) => byId(id)).filter((x): x is Member => Boolean(x))} onClose={() => setBedtime(false)} />}</AnimatePresence>
       <AnimatePresence>{editing && <EditStory story={editing} onDone={async () => { setEditing(null); await reload(); }} />}</AnimatePresence>
     </div>
+  );
+}
+
+/** Names for {child} and {grandchild}: the family's grown-ups and children, in the viewer's words. */
+function familyNames(members: Member[], viewerId: string) {
+  const call = (list: Member[]) => list.filter((x) => x.id !== viewerId).map(callName);
+  return { children: call(members.filter((x) => x.role === "adult")), grandchildren: call(members.filter((x) => x.role === "child")) };
+}
+
+/** For an elder: the stories only they can tell, as family questions a grandchild would love answered. */
+function OnlyYouCanTell({ onTell }: { onTell: (prompt: string) => void }) {
+  const { viewer, members } = useViewer();
+  const [today, setToday] = useState<string | null>(null);
+  useEffect(() => setToday(new Date().toISOString().slice(0, 10)), []);
+  if (!today) return null;
+  const names = familyNames(members, viewer.id);
+  const ideas = familyStoriesFor(today, 5).map((i, n) => resolveIdea(i, names, n));
+  return (
+    <section aria-label="Stories only you can tell" className="mt-6">
+      <h2 className="m-0 text-[20px]">Stories only you can tell</h2>
+      <p className="m-0 mt-1 text-[14.5px] text-ink-soft">Children who know their family&rsquo;s stories feel steadier. Pick one and just talk.</p>
+      <ul className="m-0 mt-3 list-none space-y-2 p-0">
+        {ideas.map((i) => (
+          <li key={i.id}>
+            <button type="button" onClick={() => onTell(i.title)} className="press flex min-h-[56px] w-full items-center gap-3 rounded-[18px] bg-surface px-4 py-2.5 text-left">
+              <span className="min-w-0 flex-1">
+                <span className="block text-[16px] font-semibold leading-snug">{i.title}</span>
+                <span className="mt-0.5 block text-[13.5px] text-ink-soft">{i.beats[0]}</span>
+              </span>
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-black text-white" aria-hidden="true">
+                <Icon name="mic" size={18} />
+              </span>
+              <span className="sr-only">Record this story</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** For a child: five questions, one tap each, to the eldest elder, through the same ask flow. */
+function AskElder({ asked, onAsked }: { asked: string[]; onAsked: () => void }) {
+  const { viewer, members } = useViewer();
+  const [today, setToday] = useState<string | null>(null);
+  const [sent, setSent] = useState<string | null>(null);
+  useEffect(() => setToday(new Date().toISOString().slice(0, 10)), []);
+  // No ages are kept, so "eldest" is the first elder the family listed.
+  const elder = members.find((x) => x.role === "elder" && x.id !== viewer.id);
+  if (!today || !elder) return null;
+  const ideas = familyStoriesFor(today, 5, (i) => asked.includes(`Tell me a story about ${i.ask}`));
+  if (!ideas.length && !sent) return null;
+  const name = callName(elder);
+  return (
+    <section aria-label={`Ask ${name}`} className="mt-6">
+      <h2 className="m-0 text-[20px]">Ask {name}</h2>
+      <p className="m-0 mt-1 text-[14.5px] text-ink-soft">One tap sends the question. {name} answers in their own voice.</p>
+      {sent && (
+        <p className="m-0 mt-3 rounded-card bg-[#e8f3e1] p-4 text-[15px] text-[#3d6b2a]" role="status">
+          Asked! {name} will see it on their courtyard.
+        </p>
+      )}
+      <ul className="m-0 mt-3 list-none space-y-2 p-0">
+        {ideas.map((i) => (
+          <li key={i.id}>
+            <button
+              type="button"
+              onClick={async () => {
+                const out = await postJson("/api/stories", { action: "request", toMemberId: elder.id, about: i.ask });
+                if (out) {
+                  setSent(i.ask ?? "");
+                  onAsked();
+                }
+              }}
+              className="press flex min-h-[48px] w-full items-center gap-3 rounded-[18px] bg-surface px-4 py-2.5 text-left text-[16px] font-medium"
+            >
+              <span className="min-w-0 flex-1 leading-snug">Tell me about {i.ask}</span>
+              <Icon name="send" size={17} />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

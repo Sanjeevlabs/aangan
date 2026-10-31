@@ -197,14 +197,14 @@ function HomeNow({ home, presence, settings, viewerId, pets = [] }: { home: Hous
                   {shared.note ? <span className="voice text-[15px] text-ink-soft"> · {shared.note}</span> : null}
                   <span className="text-ink-faint"> · {ago(shared.at)}</span>
                 </>
-              ) : visit ? (
-                <span className="text-ink-soft">was in Aangan {ago(visit.at)}</span>
+              ) : visit && Date.now() - Date.parse(visit.at) < 24 * 3_600_000 ? (
+                <span className="text-ink-soft">stopped by today</span>
               ) : shared ? (
                 <span className="text-ink-soft">
                   {MOMENT_LABEL[shared.moment].line} · {ago(shared.at)}
                 </span>
               ) : (
-                <span className="text-ink-soft">hasn&rsquo;t shared anything yet</span>
+                <span className="text-ink-soft">nothing shared yet</span>
               )}
             </span>
           </li>

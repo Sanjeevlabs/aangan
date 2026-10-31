@@ -42,9 +42,8 @@ export default function KitchenPage() {
   const shown = recipes.filter((r) => (course === "all" || r.course === course) && (!q || r.title.toLowerCase().includes(q) || r.ingredients.some((i) => i.item.toLowerCase().includes(q))));
   // One shelf per cook: the elders first, then you, then everyone else.
   const rank = (id: string) => (byId(id)?.role === "elder" ? 0 : id === viewer.id ? 1 : 2);
-  const count = (id: string) => shown.filter((r) => r.cookId === id).length;
   const shelves = Array.from(new Set(shown.map((r) => r.cookId)))
-    .sort((a, b) => rank(a) - rank(b) || count(b) - count(a))
+    .sort((a, b) => rank(a) - rank(b) || callName(byId(a)).localeCompare(callName(byId(b))))
     .map((id) => ({ cook: byId(id), list: shown.filter((r) => r.cookId === id).sort((a, b) => b.createdAt.localeCompare(a.createdAt)) }))
     .filter((x): x is { cook: NonNullable<typeof x.cook>; list: Recipe[] } => Boolean(x.cook));
   const iHaveNone = data !== null && !recipes.some((r) => r.cookId === viewer.id);
@@ -120,7 +119,6 @@ export default function KitchenPage() {
             <Avatar src={memberPhoto(cook)} name={callName(cook)} size={38} />
             <h2 className="m-0 min-w-0 flex-1 truncate text-[20px]">
               {cook.id === viewer.id ? "Your recipes" : `${callName(cook)}'s recipes`}
-              <span className="ml-1.5 text-[14px] font-medium text-ink-faint">{list.length}</span>
             </h2>
             {cook.id === viewer.id && (
               <Link href="/kitchen/new" className="text-[14px] font-semibold text-ink-soft no-underline">
