@@ -5,13 +5,16 @@
 // there would vanish on the next request.
 // Server only (returns the service-role client).
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isMockMode } from "./config";
 import { isSeedFamily } from "./family";
 import { isDbLive, supabaseServer } from "./supabase";
 
-/** True when the database is on at all (keys present, mock mode off). */
+/**
+ * True when the database is on at all (keys present, MOCK off). Deliberately
+ * independent of the model key: a missing or rotated META_API_KEY turns Muse
+ * off, never the family's data.
+ */
 export function dbLive(): boolean {
-  return !isMockMode() && isDbLive();
+  return process.env.MOCK !== "true" && isDbLive();
 }
 
 /**

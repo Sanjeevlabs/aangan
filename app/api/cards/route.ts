@@ -37,7 +37,15 @@ const MultipartFieldsSchema = z.object({
   taggedNames: z.string().default("[]"),
   place: z.string().trim().max(60).default(""),
   note: z.string().trim().max(140).default(""),
+  /** Where the bytes already went (`storage:<family>/uploads/…`, from /api/media/upload-url). */
+  mediaRef: z.string().max(300).default(""),
+  takenAtSource: z.enum(["exif", "file", "model", "now"]).default("now"),
 });
+
+/** A card may only point at its own family's uploads; anything else is dropped. */
+function ownMediaRef(ref: string, familyId: string): string | null {
+  return ref.startsWith(`storage:${familyId}/uploads/`) && !ref.includes("..") ? ref : null;
+}
 
 function parseJsonArray(raw: string): unknown[] {
   try {
@@ -87,6 +95,8 @@ async function postMultipart(req: Request, familyId: string, authorId: string): 
     taggedNames: form.get("taggedNames") ?? undefined,
     place: form.get("place") ?? undefined,
     note: form.get("note") ?? undefined,
+    mediaRef: form.get("mediaRef") ?? undefined,
+    takenAtSource: form.get("takenAtSource") ?? undefined,
   });
   if (!fields.success) {
     return Response.json({ error: "invalid-card" }, { status: 400 });
@@ -126,7 +136,8 @@ async function postMultipart(req: Request, familyId: string, authorId: string): 
     // only names the model may repeat); the card stores the grounded text.
     caption = grounded.caption;
     lang = grounded.language;
-    takenAt = resolveTakenAt({ modelDate: grounded.takenAt });
+    // The photo's own date wins (EXIF, then the file); the model only fills a gap.
+    takenAt = resolveTakenAt({ exifDate: f.takenAtSource === "exif" || f.takenAtSource === "file" ? f.takenAt : null, modelDate: grounded.takenAt });
     if (grounded.event !== "everyday") event = grounded.event;
   }
   const peaks = parseJsonArray(f.peaks).filter((n): n is number => typeof n === "number");
@@ -142,7 +153,7 @@ async function postMultipart(req: Request, familyId: string, authorId: string): 
     takenAt,
     ritualSlug: null,
     source: f.source,
-    mediaRef: null,
+    mediaRef: ownMediaRef(f.mediaRef, familyId),
     peaks: peaks.slice(0, 128),
     palette: palette.slice(0, 5),
     transcript: f.transcript.slice(0, 2000),

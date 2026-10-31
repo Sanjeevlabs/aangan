@@ -209,14 +209,18 @@ alter table ritual_configs add column if not exists culture_notes text default '
 alter table ritual_configs add column if not exists steps jsonb not null default '[]';
 
 -- -------------------------------------------------------------- ritual_runs
+-- Occasion slugs come from the family graph (birthdays) and rituals/*.json,
+-- not from ritual_configs rows (nothing seeds that table), so the slug is a
+-- plain column: the old foreign key made every live insert fail silently.
 create table if not exists ritual_runs (
   id text primary key,
   family_id text references families(id) on delete cascade,
-  ritual_slug text references ritual_configs(slug),
+  ritual_slug text,
   occasion_date date,
   status text default 'open' check (status in ('open', 'collecting', 'delivered', 'done')),
   created_at timestamptz default now()
 );
+alter table ritual_runs drop constraint if exists ritual_runs_ritual_slug_fkey;
 
 -- ------------------------------------------------------------------ wishes
 -- Wishes AND blessings from members/elders (kind: wish|blessing).
