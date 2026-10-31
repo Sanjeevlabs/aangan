@@ -4,6 +4,9 @@ import { dbGetMember, dbListInvites, dbListMembers } from "@/lib/db";
 import { isAdmin } from "@/lib/permissions";
 import { hostOf } from "@/lib/roles";
 import { allowAuthAttempt } from "@/lib/otp";
+import { dbFor, dbLive } from "@/lib/family-db";
+import { isSeedFamily } from "@/lib/family";
+import { createSandbox, sandboxId, visitorOf } from "@/lib/demo-sandbox";
 
 const ExchangeSchema = z.object({
   inviteCode: z.string().min(1).max(64),
@@ -24,10 +27,14 @@ export async function POST(req: Request): Promise<Response> {
   // Slow down guessing: per caller address and per target member.
   const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "local";
   const claimed = (body as { memberId?: unknown } | null)?.memberId;
-  if (!allowAuthAttempt(`session:${ip}`, 20) || (typeof claimed === "string" && !allowAuthAttempt(`session-member:${claimed}`, 10))) return Response.json({ error: "too-many-attempts" }, { status: 429 });
+  const demoCode = (body as { inviteCode?: unknown } | null)?.inviteCode === DEMO_INVITE_CODE;
+  // The per-member limit slows invite-code guessing; the public demo code has
+  // nothing to guess, and every demo visitor asks for the same seed member.
+  if (!allowAuthAttempt(`session:${ip}`, 20) || (!demoCode && typeof claimed === "string" && !allowAuthAttempt(`session-member:${claimed}`, 10))) return Response.json({ error: "too-many-attempts" }, { status: 429 });
   const parsed = ExchangeSchema.safeParse(body);
   if (!parsed.success) return Response.json({ error: "invalid-session" }, { status: 400 });
   const code = parsed.data.inviteCode.trim();
+  if (code === DEMO_INVITE_CODE && dbLive()) return enterDemo(req, parsed.data.memberId);
   const member = await dbGetMember(parsed.data.memberId);
   if (!member) return Response.json({ error: "unknown-member" }, { status: 404 });
 
@@ -52,6 +59,33 @@ export async function POST(req: Request): Promise<Response> {
     { familyId: member.familyId, memberId: member.id },
     { headers: { "set-cookie": sessionCookieHeader(signed) } },
   );
+}
+
+// The public demo with the database live: each visitor gets their own copy of
+// the seed (lib/demo-sandbox.ts), reused while their cookie lasts, so what
+// they add survives reloads and nobody sees anyone else's uploads.
+async function enterDemo(req: Request, seedMemberId: string): Promise<Response> {
+  const seedMember = await dbGetMember(seedMemberId);
+  if (!seedMember || !isSeedFamily(seedMember.familyId)) return Response.json({ error: "unknown-member" }, { status: 404 });
+  let memberId: string | null = null;
+  const current = sessionFromRequest(req);
+  const vid = current ? visitorOf(current.familyId) : null;
+  if (vid) {
+    const again = await dbGetMember(sandboxId(seedMemberId, vid));
+    if (again && visitorOf(again.familyId) === vid) memberId = again.id;
+  }
+  if (!memberId) {
+    const sb = dbFor(null);
+    if (!sb) return Response.json({ error: "session-unavailable" }, { status: 503 });
+    const made = await createSandbox(sb);
+    if (!made.ok) return Response.json({ error: made.error === "busy" ? "demo-busy" : "demo-unavailable" }, { status: 503 });
+    memberId = made.idMap.get(seedMemberId) ?? null;
+  }
+  const member = memberId ? await dbGetMember(memberId) : undefined;
+  if (!member) return Response.json({ error: "demo-unavailable" }, { status: 503 });
+  const signed = signSession({ familyId: member.familyId, memberId: member.id });
+  if (!signed) return Response.json({ error: "session-unavailable" }, { status: 500 });
+  return Response.json({ familyId: member.familyId, memberId: member.id }, { headers: { "set-cookie": sessionCookieHeader(signed) } });
 }
 
 // Current session (who am I). The one route a joiner who is still waiting

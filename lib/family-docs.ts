@@ -84,6 +84,15 @@ export async function deleteDocsForMember(familyId: string, memberId: string): P
   for (const f of fields) await sb.from("family_docs").delete().eq("family_id", familyId).eq(`data->>${f}`, memberId);
 }
 
+/** Every in-memory document of one family, as stored (the demo copy reads the seed this way). */
+export function memDocsOf(familyId: string): { kind: DocKind; data: { id: string } & Record<string, unknown> }[] {
+  const out: { kind: DocKind; data: { id: string } & Record<string, unknown> }[] = [];
+  mem.forEach((r) => {
+    if (r.familyId === familyId) out.push({ kind: r.kind, data: r.data });
+  });
+  return out;
+}
+
 export function resetDocs(): void {
   mem.clear();
 }

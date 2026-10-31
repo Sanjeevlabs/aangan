@@ -2,10 +2,10 @@
 // The bucket is private (no public reads); the server mints short-lived
 // URLs for upload (PUT) and download (redirect). In mock mode (no Supabase
 // keys) bytes live in a process-memory map so tests and mock dev keep
-// working; live Supabase persists them across reloads. The demo families
-// always use the in-memory store, even with the database live: their uploads
-// never reach the bucket and vanish with the server instance.
-import { isDemoFamily } from "./family";
+// working; live Supabase persists them across reloads. Only the seed families
+// use the in-memory store; a demo visitor's copy uploads to the bucket under
+// its own family id and is purged with it after 48 hours.
+import { isSeedFamily } from "./family";
 import { isDbLive, supabaseServer } from "./supabase";
 
 export const MEDIA_BUCKET = "family-media";
@@ -51,7 +51,7 @@ export function mockClearBlobs(): void {
  * or the path belongs to a demo family (paths start with the family id).
  */
 export function usesMockStorage(path: string): boolean {
-  return !isDbLive() || isDemoFamily(path.split("/")[0] ?? "");
+  return !isDbLive() || isSeedFamily(path.split("/")[0] ?? "");
 }
 
 export function storagePath(familyId: string, filename: string): string {

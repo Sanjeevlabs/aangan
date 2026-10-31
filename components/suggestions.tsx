@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { strings } from "@/lib/i18n";
 import type { Suggestion } from "@/lib/schemas";
-import { useShell } from "./shell";
+import { useRouter } from "next/navigation";
 import { useViewer } from "./viewer";
 
 // "Aangan suggests · Review / Approve" — flat surface card. Actions execute
@@ -14,7 +14,7 @@ export function Suggestions({ compact }: { compact?: boolean }) {
   const [items, setItems] = useState<Suggestion[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const { openAdd } = useShell();
+  const router = useRouter();
 
   const load = useCallback(async () => {
     setFailed(false);
@@ -32,11 +32,11 @@ export function Suggestions({ compact }: { compact?: boolean }) {
   }, [load]);
 
   const act = async (id: string, approve: boolean) => {
-    // "Record a wish": open the recorder for this occasion. The wish is saved when you send it.
+    // "Record a wish": the one place to record it is the wish card in Coming up.
     const sug = items?.find((x) => x.id === id);
     const p = (sug?.payload ?? {}) as { action?: string; ritualRunId?: string; kind?: string; prompt?: string };
     if (approve && p.action === "request_wish" && p.ritualRunId) {
-      openAdd("voice", { kind: p.kind === "blessing" ? "blessing" : "wish", runId: p.ritualRunId } as Parameters<typeof openAdd>[1]);
+      router.push("/gather");
       setBusyId(id);
       await fetch(`/api/suggestions/${id}/approve`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ decision: "reject" }) }).catch(() => null);
       await load();

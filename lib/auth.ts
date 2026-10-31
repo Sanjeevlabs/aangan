@@ -5,7 +5,8 @@
 // the cron route requires Bearer CRON_SECRET instead.
 import { createHmac, timingSafeEqual } from "crypto";
 import { dbGetMember } from "./db";
-import { DEMO_FAMILY_IDS as DEMO_IDS, isDemoFamily } from "./family";
+import { DEMO_FAMILY_IDS as DEMO_IDS, isDemoFamily, isSeedFamily } from "./family";
+import { dbLive } from "./family-db";
 
 export const SESSION_COOKIE = "aangan_session";
 const SESSION_TTL_MS = 14 * 24 * 3600 * 1000;
@@ -82,7 +83,13 @@ export function sessionFromRequest(req: Request, key?: string): Session | null {
   const header = req.headers.get("cookie") ?? "";
   const match = header.split(";").map((c) => c.trim()).find((c) => c.startsWith(`${SESSION_COOKIE}=`));
   if (!match) return null;
-  return verifySession(decodeURIComponent(match.slice(SESSION_COOKIE.length + 1)), key);
+  const session = verifySession(decodeURIComponent(match.slice(SESSION_COOKIE.length + 1)), key);
+  // With the database live, the seed is read-only: memory isn't shared
+  // between server instances, so a write there would vanish. A cookie from
+  // before demo copies existed sends the visitor back to the door, where the
+  // demo makes them their own copy (lib/demo-sandbox.ts).
+  if (session && isSeedFamily(session.familyId) && dbLive()) return null;
+  return session;
 }
 
 export function sessionCookieHeader(signed: string): string {

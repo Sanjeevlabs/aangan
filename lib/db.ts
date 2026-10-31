@@ -60,7 +60,7 @@ import {
   type Invite as MemInvite,
 } from "./store";
 import { dbFor } from "./family-db";
-import { DEMO_FAMILY_IDS, isDemoFamily } from "./family";
+import { DEMO_FAMILY_IDS, isDemoFamily, isSeedFamily } from "./family";
 import { baseLang } from "./languages";
 import type { MemberPatch } from "./store";
 import { ConsentSchema, type Consent } from "./schemas";
@@ -169,11 +169,9 @@ export async function dbListCards(familyId: string): Promise<Card[]> {
   return cards;
 }
 
-export async function dbAddCard(input: Omit<import("zod").input<typeof CardSchema>, "id"> & { id?: string }): Promise<Card> {
-  const card = CardSchema.parse({ id: input.id ?? crypto.randomUUID(), ...input });
-  const sb = dbFor(card.familyId);
-  if (!sb) return memAddCard(card);
-  const { error } = await sb.from("cards").upsert({
+/** The cards row for a card (dbAddCard and the demo copy write the same columns). */
+export function cardRow(card: Card): Record<string, unknown> {
+  return {
     id: card.id,
     family_id: card.familyId,
     type: card.type,
@@ -195,7 +193,14 @@ export async function dbAddCard(input: Omit<import("zod").input<typeof CardSchem
     // Only sent when set, so a database that hasn't added the columns yet keeps working.
     ...(card.place ? { place: card.place } : {}),
     ...(card.note ? { note: card.note } : {}),
-  });
+  };
+}
+
+export async function dbAddCard(input: Omit<import("zod").input<typeof CardSchema>, "id"> & { id?: string }): Promise<Card> {
+  const card = CardSchema.parse({ id: input.id ?? crypto.randomUUID(), ...input });
+  const sb = dbFor(card.familyId);
+  if (!sb) return memAddCard(card);
+  const { error } = await sb.from("cards").upsert(cardRow(card));
   if (error) return memAddCard(card);
   return card;
 }
@@ -225,7 +230,7 @@ export async function dbGetMember(id: string): Promise<Member | undefined> {
   if (error || !data) return memGetMember(id);
   const m = memberFromRow(data as Record<string, unknown>);
   // The demo rows schema.sql seeds are never served: the demo lives in memory.
-  return isDemoFamily(m.familyId) ? memGetMember(id) : m;
+  return isSeedFamily(m.familyId) ? memGetMember(id) : m;
 }
 
 export async function dbSetMemberHome(memberId: string, homeImageRef: string, homePalette: string[]): Promise<Member | undefined> {
@@ -255,11 +260,9 @@ export async function dbCreateFamily(name: string): Promise<string> {
   return id;
 }
 
-export async function dbAddMember(input: Omit<import("zod").input<typeof MemberSchema>, "id">): Promise<Member> {
-  const member = MemberSchema.parse({ id: `m-${crypto.randomUUID().slice(0, 12)}`, ...input });
-  const sb = dbFor(member.familyId);
-  if (!sb) return memAddMember(member);
-  const { error } = await sb.from("members").insert({
+/** The members row for a member (dbAddMember and the demo copy write the same columns). */
+export function memberRow(member: Member): Record<string, unknown> {
+  return {
     id: member.id,
     family_id: member.familyId,
     first_name: member.firstName,
@@ -275,7 +278,15 @@ export async function dbAddMember(input: Omit<import("zod").input<typeof MemberS
     email: member.email ? member.email.toLowerCase() : null,
     photo_ref: member.photoRef,
     person_id: member.personId,
-  });
+    ...(member.homeImageRef ? { home_image_ref: member.homeImageRef, home_palette: member.homePalette } : {}),
+  };
+}
+
+export async function dbAddMember(input: Omit<import("zod").input<typeof MemberSchema>, "id">): Promise<Member> {
+  const member = MemberSchema.parse({ id: `m-${crypto.randomUUID().slice(0, 12)}`, ...input });
+  const sb = dbFor(member.familyId);
+  if (!sb) return memAddMember(member);
+  const { error } = await sb.from("members").insert(memberRow(member));
   if (error) throw new Error("member-create-failed");
   return member;
 }
@@ -304,7 +315,7 @@ export async function dbListSides(member: Member): Promise<Member[]> {
   if (!sb) return local;
   const { data, error } = await sb.from("members").select("*").eq("person_id", member.personId).limit(8);
   if (error || !data) return local;
-  return data.map((r) => memberFromRow(r as Record<string, unknown>)).filter((m) => !isDemoFamily(m.familyId));
+  return data.map((r) => memberFromRow(r as Record<string, unknown>)).filter((m) => !isSeedFamily(m.familyId));
 }
 
 export async function dbUpdateMemberProfile(memberId: string, patch: MemberPatch): Promise<Member | undefined> {
@@ -819,7 +830,7 @@ export async function dbListInvites(): Promise<Invite[]> {
   if (!sb) return memListInvites();
   // Invites made inside the demo stay in memory; they redeem alongside the
   // live ones (the AANGAN-DEMO code itself needs no invite row).
-  const demo = memListInvites().filter((i) => isDemoFamily(i.familyId));
+  const demo = memListInvites().filter((i) => isSeedFamily(i.familyId));
   const { data, error } = await sb.from("invites").select("*").order("created_at", { ascending: false });
   if (error || !data) return memListInvites();
   const rows = data.map((r) => ({
@@ -829,7 +840,7 @@ export async function dbListInvites(): Promise<Invite[]> {
     expiresAt: iso(r.expires_at),
     createdBy: (r.created_by as string | null) ?? null,
   }));
-  return [...rows.filter((i) => !isDemoFamily(i.familyId)), ...demo];
+  return [...rows.filter((i) => !isSeedFamily(i.familyId)), ...demo];
 }
 
 function inviteCode(): string {

@@ -123,7 +123,6 @@ function SitSlide() {
 /* --------------------------------------------------------------- coming up */
 function ComingUpSlide() {
   const { members } = useViewer();
-  const { openAdd } = useShell();
   const { data } = useToday();
   const occ = data?.occasion;
   if (!occ) return null;
@@ -139,11 +138,6 @@ function ComingUpSlide() {
           <span className="block text-[12px] uppercase tracking-[0.14em] text-white/70">{when}</span>
           <span className="block truncate text-[19px] font-semibold">{occ.title}</span>
         </span>
-        {who && (
-          <button type="button" onClick={() => openAdd("voice", null, who.id)} aria-label={`Record a wish for ${callName(who)}`} className="press pointer-events-auto grid h-12 w-12 place-items-center rounded-full bg-white text-black">
-            <Icon name="mic" size={19} />
-          </button>
-        )}
       </div>
     </article>
   );

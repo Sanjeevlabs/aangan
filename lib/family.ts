@@ -275,7 +275,17 @@ export const DEMO_IYER_MEMBERS: Member[] = [
 
 /** Demo Aangans: the synthetic families the demo invite code opens. */
 export const DEMO_FAMILY_IDS = ["demo-family", "demo-iyer"] as const;
-export const isDemoFamily = (familyId: string): boolean => (DEMO_FAMILY_IDS as readonly string[]).includes(familyId);
+/** The seed itself: synthetic, in memory, never written to. */
+export const isSeedFamily = (familyId: string): boolean => (DEMO_FAMILY_IDS as readonly string[]).includes(familyId);
+/**
+ * A demo visitor's own copy of the seed, kept in the database for 48 hours
+ * (lib/demo-sandbox.ts): `demo-v-<12 hex>` for the Sharma side,
+ * `demo-v-<12 hex>-iyer` for the Iyer side.
+ */
+export const SANDBOX_PREFIX = "demo-v-";
+export const isSandboxFamily = (familyId: string): boolean => /^demo-v-[0-9a-f]{12}(-[a-z]+)?$/.test(familyId);
+/** Demo behaviour (persona switch, no public shares, no cron spend): the seed and every visitor copy. */
+export const isDemoFamily = (familyId: string): boolean => isSeedFamily(familyId) || isSandboxFamily(familyId);
 
 export const DEFAULT_VIEWER_ID = "arjun";
 

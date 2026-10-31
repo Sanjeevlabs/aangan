@@ -3,12 +3,17 @@ import { planRitualScan } from "@/lib/ritual-agent";
 import { dbAddAgentRun, dbAddSuggestion, dbAssignDailyRole, dbEnsureRitualRun, dbListFamilyIds, dbListDailyRoles, dbListMembers, dbListRitualRuns, dbListSuggestions, dbListWishes, dbSetRitualRunStatus } from "@/lib/db";
 import { familyHolidays } from "@/lib/occasions-server";
 import { cronAuthorized, requireSession } from "@/lib/auth";
+import { purgeSandboxes } from "@/lib/demo-sandbox";
+import { dbFor } from "@/lib/family-db";
 
 // Daily ritual/role scan. Vercel Cron (GET, see vercel.json) hits this with
 // Authorization: Bearer CRON_SECRET; manual callers use POST with a session.
 // Idempotent — safe to call repeatedly.
 export async function GET(req: Request): Promise<Response> {
   if (!cronAuthorized(req)) return Response.json({ error: "unauthorized-cron" }, { status: 401 });
+  // Demo visitors' copies expire after 48 hours (rows and media).
+  const sb = dbFor(null);
+  const purged = sb ? await purgeSandboxes(sb).catch((e: unknown) => ({ error: String(e) })) : null;
   // Cron covers every family; one family's failure never blocks the others.
   const results = [];
   for (const familyId of await dbListFamilyIds()) {
@@ -18,7 +23,7 @@ export async function GET(req: Request): Promise<Response> {
       results.push({ familyId, error: "scan-failed" });
     }
   }
-  return Response.json({ families: results });
+  return Response.json({ families: results, purged });
 }
 
 export async function POST(req: Request): Promise<Response> {
