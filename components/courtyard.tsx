@@ -20,6 +20,7 @@ import { useShell } from "./shell";
 import { SafetyWatch } from "./safety";
 import { PersonDay, lampFor } from "./person-day";
 import { SideSwitch, useSides } from "./sides";
+import { GiftsShelf } from "./gifts-shelf";
 import { EventPrompts } from "./event-prompts";
 import { TodayCard, useToday } from "./today";
 import { Avatar, Icon, Monogram, Photo } from "./ui/kit";
@@ -212,7 +213,7 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
   const { refreshKey } = useShell();
   const { cards } = useFamilyCards(refreshKey);
   const { sides, current } = useSides();
-  const pres = useJson<{ presence: Presence[]; settings: CareSettings[] }>("/api/presence");
+  const pres = useJson<{ presence: Presence[]; settings: CareSettings[] }>("/api/presence", { every: 60_000 });
   const elder = viewer.role === "elder";
   const visit = useNextVisit();
   const stories = useJson<{ stories: { id: string; tellerId: string; title: string }[] }>(viewer.role === "child" ? "/api/stories" : null);
@@ -300,6 +301,7 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
 
       {elder && (
         <div className="mt-5 space-y-3">
+          <GiftsShelf />
           <MyQuestions />
           <MyNeeds />
         </div>

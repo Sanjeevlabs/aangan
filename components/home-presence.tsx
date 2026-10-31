@@ -30,7 +30,7 @@ interface PresenceData {
  */
 export function CourtyardNow() {
   const { viewer, members } = useViewer();
-  const pres = useJson<PresenceData>("/api/presence");
+  const pres = useJson<PresenceData>("/api/presence", { every: 60_000 });
   const { relationships } = useViewer();
   const farHomes = households(members, relationships).filter((h) => h.elders && !h.members.some((m) => m.id === viewer.id));
   const pets = useJson<{ pets: Pet[] }>("/api/pets");
