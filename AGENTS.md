@@ -9,9 +9,9 @@ Read docs/PRD.md before any task; it overrides earlier instructions; build only 
 - No secrets or real family data in code, logs, or assets. Synthetic or self-owned test assets only.
 - `META_API_KEY` comes from the environment only. Never write it to any file.
 - Rituals are data-driven: festival specifics live in `rituals/*.json`. Never branch on a festival or culture in `lib/` or `app/`.
-- Muse Image styles cards only. Never invent people or events. Cache every output.
+- Muse Image: style cards, paint family portraits, restore old photos. Portraits are painted (never photorealistic) and marked "Painted by Muse"; restorations are marked "Restored by Muse". Never invent events or people outside the family. Cache every output.
 - No elaborate frameworks or dashboards. A guardrail costing over ~1h gets a cheaper version.
-- The human commits. Never run `git commit`, `amend`, `push`, or `tag`.
+- Commits as Sanjeevlabs (novstar89@gmail.com), no Claude/Co-Authored-By/session trailers. Never push to main, never force-push, never tag. PRs are merged only when the owner says.
 
 ## Commands
 
