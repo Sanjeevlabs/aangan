@@ -44,7 +44,7 @@ export function ConnectedApps() {
         </button>
       </div>
     );
-  if (!data) return <div id="connected-apps" className="skeleton h-[200px] rounded-[22px]" aria-busy="true" aria-label="Loading connected apps" />;
+  if (!data) return <div key="loading" id="connected-apps" className="skeleton h-[200px] rounded-[22px]" aria-busy="true" aria-label="Loading connected apps" />;
 
   const disconnect = async (a: Account) => {
     setBusy(a.id);

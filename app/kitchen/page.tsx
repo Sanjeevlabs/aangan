@@ -35,6 +35,8 @@ export default function KitchenPage() {
   const byId = (id: string) => members.find((m) => m.id === id);
   const recipes = data?.recipes ?? [];
   const attemptsFor = (id: string) => (data?.attempts ?? []).filter((a) => a.recipeId === id);
+  // The page draws once the recipes and the questions asked of you are both in, so nothing slides down.
+  const loading = (data === null && !failed) || (asks.data === null && !asks.failed);
   const waiting = (asks.data?.questions ?? []).filter((q) => q.topic === "recipe" && !q.answeredCardId);
   const mine = waiting.filter((q) => q.toMemberId === viewer.id);
   const usedCourses = COURSES.filter((c) => recipes.some((r) => r.course === c));
@@ -51,6 +53,22 @@ export default function KitchenPage() {
 
   if (scanned) {
     return <RecipeEditor prefill={scanned.prefill} scan={scanned.scan} onDone={(id) => { setScanned(null); if (id) router.push(`/kitchen/${id}`); }} />;
+  }
+
+  if (loading) {
+    return (
+      <div>
+        <RoomHeader title="Recipes" subtitle="Every family recipe, shelved by who cooks it" />
+        <div key="loading" aria-busy="true" aria-label="Loading recipes">
+          <div className="grid grid-cols-3 gap-2">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="skeleton h-[64px] rounded-[20px]" />
+            ))}
+          </div>
+          <div className="skeleton mt-7 h-[220px] rounded-card" />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -95,7 +113,6 @@ export default function KitchenPage() {
       <ScanRecipeButton onScanned={setScanned} />
       {asking && <AskForRecipe onDone={() => { setAsking(false); void asks.reload(); }} />}
 
-      {data === null && !failed && <div className="skeleton mt-6 h-[220px] rounded-card" aria-busy="true" aria-label="Loading recipes" />}
       {failed && <EmptyLine>The Kitchen couldn&rsquo;t load. Try again in a moment.</EmptyLine>}
 
       {recipes.length > 3 && (

@@ -114,7 +114,7 @@ export default function LanePage() {
     <div>
       <RoomHeader title="Memory Lane" subtitle="Everyday photos and voices, by the years" />
 
-      {people.length > 1 && (
+      {groups !== null && people.length > 1 && (
         <div className="no-scrollbar -mx-5 mb-4 flex gap-1.5 overflow-x-auto px-5" role="radiogroup" aria-label="Show memories from">
           <button type="button" role="radio" aria-checked={who === null} onClick={() => setWho(null)} className={cn("press h-10 shrink-0 rounded-full px-4 text-[14px] font-medium", who === null ? "bg-ink text-white" : "bg-surface")}>
             Everyone
@@ -129,7 +129,7 @@ export default function LanePage() {
       )}
 
       {groups === null ? (
-        <div className="space-y-5" aria-busy="true" aria-label="Loading memories">
+        <div key="loading" className="space-y-5" aria-busy="true" aria-label="Loading memories">
           {[0, 1, 2].map((i) => (
             <div key={i}>
               <div className="skeleton mb-2 h-5 w-32" />

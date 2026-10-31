@@ -7,6 +7,7 @@ import type { CareSettings, Knock, Presence, Sitting } from "@/lib/kinds";
 import { callName, cardCover, memberPhoto, peopleByRecency, relativeDay } from "@/lib/people";
 import type { Card, Member } from "@/lib/schemas";
 import { useDisplayText } from "@/lib/use-display-text";
+import { useCourtyard } from "@/lib/courtyard-data";
 import { useFamilyCards } from "@/lib/use-family";
 import { ago, postJson, useJson } from "@/lib/use-json";
 import { can } from "@/lib/permissions";
@@ -208,6 +209,35 @@ function MyDayChip({ member, onOpen }: { member: Member; onOpen: () => void }) {
   );
 }
 
+/* ------------------------------------------------------------ loading shape */
+// The "Everyone" row's loading shape: the same box as the chips that replace it.
+function ChipsSkeleton() {
+  return (
+    <div className="-mx-5 flex gap-0 overflow-hidden px-5 pb-1 pt-2" aria-busy="true" aria-label="Loading">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div key={i} className="w-[92px] shrink-0">
+          <div className="skeleton mx-auto h-[68px] w-[68px] rounded-full" />
+          <div className="skeleton mx-auto mt-2 h-[14px] w-14 rounded" />
+          <div className="skeleton mx-auto mt-1.5 h-[11px] w-16 rounded" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Stands in for everything under the header until it all arrives together. */
+function CourtyardSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Loading">
+      <section className="mt-5">
+        <div className="mb-2 h-9" />
+        <ChipsSkeleton />
+      </section>
+      <div className={`skeleton mt-5 ${SLIDE_H} rounded-[26px]`} />
+    </div>
+  );
+}
+
 /* ----------------------------------------------------------------- page */
 export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
   const { viewer, members } = useViewer();
@@ -233,6 +263,10 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
   const lampData = { presence: pres.data?.presence ?? [], settings: pres.data?.settings ?? [], cards: cards ?? [] };
   const dayPerson = members.find((mm) => mm.id === dayOfId);
   const muse = useMuseSlot(cards ?? []);
+  // Everything under the header appears in one step, once the cards and the one
+  // courtyard payload are in, so nothing slides down as the pieces arrive.
+  const shared = useCourtyard();
+  const ready = cards !== null && (!shared || shared.status !== "loading");
 
   return (
     <div>
@@ -253,12 +287,13 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
             <h1 className="m-0 mt-0.5 truncate text-[26px] font-light leading-[1.1] tracking-[-0.01em]">{familyName ? `The ${familyName} family` : "Your family"}</h1>
           </div>
         </div>
-        <SideSwitch />
+        {ready && <SideSwitch />}
       </header>
 
-      <SafetyWatch />
+      {!ready && <CourtyardSkeleton />}
+      {ready && <SafetyWatch />}
 
-      {people.length > 0 && (
+      {ready && people.length > 0 && (
         <section aria-label="Everyone" className="mt-5">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="m-0 text-[17px] font-semibold">Everyone</h2>
@@ -266,12 +301,8 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
               <Icon name="tree" size={18} />
             </Link>
           </div>
-          {cards === null || pres.data === null ? (
-            <div className="flex gap-3" aria-busy="true" aria-label="Loading">
-              {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="skeleton h-[68px] w-[68px] shrink-0 rounded-full" />
-              ))}
-            </div>
+          {pres.data === null ? (
+            <ChipsSkeleton />
           ) : (
             <ul className="no-scrollbar -mx-5 m-0 flex list-none gap-2 overflow-x-auto px-5 pb-1 pt-2" style={{ scrollSnapType: "x mandatory", scrollPaddingInline: 20 }}>
               <MyDayChip member={viewer} onOpen={() => setDayOfId(viewer.id)} />
@@ -283,30 +314,30 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
         </section>
       )}
 
-      <EventPrompts className="mt-4" />
-      <TodayCard />
-      <CourtyardLetter />
+      {ready && (
+        <>
+          <EventPrompts className="mt-4" />
+          <TodayCard />
+          <CourtyardLetter />
 
-      {cards === null ? (
-        <div className={`skeleton mt-5 ${SLIDE_H} rounded-[26px]`} aria-busy="true" aria-label="Loading" />
-      ) : (
-        <Carousel label="Now in the family" className="mt-5">
-          {voice && <VoiceSlide card={voice} />}
-          {story && <StoryDoor story={story} />}
-          <SitSlide />
-          {visit && <VisitCountdown visit={visit} />}
-          <ComingUpSlide />
-          {yearsAgo && <YearsSlide card={yearsAgo} />}
-          {muse.slot && <MuseSlide slot={muse.slot} onDismiss={muse.dismiss} />}
-        </Carousel>
-      )}
+          <Carousel label="Now in the family" className="mt-5">
+            {voice && <VoiceSlide card={voice} />}
+            {story && <StoryDoor story={story} />}
+            <SitSlide />
+            {visit && <VisitCountdown visit={visit} />}
+            <ComingUpSlide />
+            {yearsAgo && <YearsSlide card={yearsAgo} />}
+            {muse.slot && <MuseSlide slot={muse.slot} onDismiss={muse.dismiss} />}
+          </Carousel>
 
-      {elder && (
-        <div className="mt-5 space-y-3">
-          <GiftsShelf />
-          <MyQuestions />
-          <MyNeeds />
-        </div>
+          {elder && (
+            <div className="mt-5 space-y-3">
+              <GiftsShelf />
+              <MyQuestions />
+              <MyNeeds />
+            </div>
+          )}
+        </>
       )}
 
       {dayPerson && <PersonDay member={dayPerson} cards={cards ?? []} onClose={() => setDayOfId(null)} />}

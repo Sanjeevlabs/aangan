@@ -53,7 +53,7 @@ export function WindowOptions() {
     await reload();
     setBusy(false);
   };
-  if (!data) return <div className="skeleton mt-5 h-[140px] rounded-card" aria-busy="true" aria-label="Loading wall and people" />;
+  if (!data) return <div key="loading" className="skeleton mb-6 h-[600px] rounded-card" aria-busy="true" aria-label="Loading wall and people" />;
   const chosen = data.people.map((p) => p.id);
   const others = members.filter((mm) => mm.id !== viewer.id && mm.role !== "child" && can(mm, "window.at"));
   const scene = data.scene ?? "window";

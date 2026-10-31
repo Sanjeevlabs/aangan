@@ -78,7 +78,13 @@ export function CareView({ tab }: { tab: "tasks" | "helpers" }) {
   const [chosen, setChosen] = useState<string | null>(null);
   const home = homes.find((h) => h.id === chosen) ?? (viewer.role === "elder" ? householdOf(viewer.id, homes) : undefined) ?? homes.find((h) => !h.members.some((x) => x.id === viewer.id)) ?? homes[0];
 
-  if (!mounted) return <div className="skeleton mt-16 h-[420px] rounded-card" aria-busy="true" aria-label="Loading care" />;
+  if (!mounted)
+    return (
+      <div>
+        <RoomHeader title={pageTitle} />
+        <div key="loading" className="skeleton h-[320px] rounded-card" aria-busy="true" aria-label="Loading care" />
+      </div>
+    );
   if (!home) {
     return (
       <div>
@@ -124,8 +130,8 @@ export function CareView({ tab }: { tab: "tasks" | "helpers" }) {
             Try again
           </Button>
         </div>
-      ) : !data ? (
-        <div className="skeleton h-[320px] rounded-card" aria-busy="true" aria-label="Loading care" />
+      ) : !data || (!petsQ.data && !petsQ.failed) ? (
+        <div key="loading" className="skeleton h-[320px] rounded-card" aria-busy="true" aria-label="Loading care" />
       ) : tab === "tasks" ? (
         <Tasks home={home} parent={parent} isParent={isParent} needs={needs} helpers={helpers} pets={pets} onChange={care.reload} />
       ) : (
