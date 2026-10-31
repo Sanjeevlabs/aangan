@@ -4,12 +4,13 @@
 // → RoomHeader) is the only way sideways. A room with one page (Kitchen) has
 // no tab row. Every tab is its own page: no two tabs anywhere share one.
 // Safe & sound is not here: it lives on the window, the first screen.
-// Settings is not here either: tap your own photo. Invite family lives on the
-// tree page and in Settings.
+// Settings is not here either: tap your own photo. Inviting family opens the
+// invite sheet in place (the tree page, the dock, the window), never Settings.
+// Children (teen or child access) don't get Portrait: only grown-ups start one.
 
 export interface RoomTab {
   href: string;
-  /** Short label, shown in the tab row and as the page's title. */
+  /** Short label for the tab row. The page's own title may say more (Helpers → "Local helpers"). */
   label: string;
 }
 export interface Room {
@@ -22,12 +23,13 @@ export interface Room {
   tabs: RoomTab[];
 }
 
-export function roomsFor(isParent: boolean): Room[] {
-  return [
+/** The five rooms for a viewer. `canPortrait` is false for children (lib/muse-portrait canStartPortrait). */
+export function roomsFor(isParent: boolean, canPortrait = true): Room[] {
+  const rooms: Room[] = [
     {
       id: "memories",
       title: "Memories",
-      note: "Every photo and voice, stories",
+      note: "Everyday photos and voices, and stories",
       icon: "memories",
       tabs: [
         { href: "/lane", label: "Memory Lane" },
@@ -49,14 +51,14 @@ export function roomsFor(isParent: boolean): Room[] {
       tabs: [
         { href: "/send", label: "Send something" },
         { href: "/care", label: "Care tasks" },
-        { href: "/care/helpers", label: "Local helpers" },
-        { href: "/nearby", label: "Trusted nearby" },
+        { href: "/care/helpers", label: "Helpers" },
+        { href: "/nearby", label: "Nearby" },
       ],
     },
     {
       id: "family",
       title: "Family",
-      note: "Tree, the Book, advice, a portrait",
+      note: canPortrait ? "Tree, the Book, advice, a portrait" : "Tree, the Book, advice",
       icon: "tree",
       tabs: [
         { href: "/bond", label: "Family tree" },
@@ -79,6 +81,7 @@ export function roomsFor(isParent: boolean): Room[] {
       ],
     },
   ];
+  return canPortrait ? rooms : rooms.map((r) => ({ ...r, tabs: r.tabs.filter((t) => t.href !== "/portrait") }));
 }
 
 /** Where a room's tile goes: its first tab. */

@@ -9,6 +9,7 @@ import type { Card, Member } from "@/lib/schemas";
 import { useDisplayText } from "@/lib/use-display-text";
 import { useFamilyCards } from "@/lib/use-family";
 import { ago, postJson, useJson } from "@/lib/use-json";
+import { can } from "@/lib/permissions";
 import { isAwake, placeFromTz, timeIn } from "@/lib/zones";
 import { Carousel } from "./carousel";
 import { MyNeeds, MyQuestions, StoryDoor, VisitCountdown, useNextVisit } from "./home-presence";
@@ -24,11 +25,11 @@ import { TodayCard, useToday } from "./today";
 import { Avatar, Icon, Monogram, Photo } from "./ui/kit";
 import { useViewer } from "./viewer";
 
-// Kutumb (SPEC §30.2): behind the door. A real courtyard as the header, then
+// The courtyard (SPEC §30.2): behind the door. A real courtyard as the header, then
 // everyone with their lamp-glow ring (tap for their day), today's question,
 // and one swipeable row of what's alive now (a voice from home, sitting
 // together, a visit, a birthday, a memory).
-// The rooms live behind the ⋯ in the dock, with the mic and the camera.
+// The five rooms open from the house in the dock, beside the mic and the camera.
 
 const SLIDE_H = "h-[236px]";
 
@@ -93,9 +94,11 @@ function SitSlide() {
           <span className={`h-2 w-2 rounded-full ${knock ? "animate-pulse bg-[#3ccf7a]" : "bg-white/50"}`} />
           {knock ? "Live now" : "Sit together"}
         </p>
-        <Link href="/gather" aria-label="Plan a celebration" className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white no-underline">
-          <Icon name="calendar" size={17} />
-        </Link>
+        {can(viewer, "events.plan") && viewer.role !== "child" && (
+          <Link href="/gather" aria-label="Plan a celebration" className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white no-underline">
+            <Icon name="calendar" size={17} />
+          </Link>
+        )}
       </div>
       <div>
         <p className="m-0 text-[22px] font-light leading-tight">{knock ? `${host?.id === viewer.id ? "You're" : `${callName(host)} is`} on a video call` : awake.length > 1 ? `${awake.length} of you are awake now` : "Everyone's asleep somewhere"}</p>

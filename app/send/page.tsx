@@ -5,6 +5,7 @@ import { Suspense, useMemo } from "react";
 import { SendSheet } from "@/components/send-sheet";
 import { Avatar, Icon, RoomHeader, type IconName } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
+import { sendOrder } from "@/lib/households";
 import { callName, memberPhoto } from "@/lib/people";
 import { appsFor, countryForTz } from "@/lib/send-apps";
 import { cn } from "@/lib/utils";
@@ -64,13 +65,10 @@ function AppCategories({ tz, name }: { tz: string | null | undefined; name: stri
 function Send() {
   const params = useSearchParams();
   const router = useRouter();
-  const { viewer, members } = useViewer();
-  // Who you might send to: the grandparents first, then the other grown-ups.
-  const people = useMemo(
-    () => members.filter((m) => m.id !== viewer.id && m.role !== "child").sort((a, b) => Number(b.role === "elder") - Number(a.role === "elder")),
-    [members, viewer.id],
-  );
-  const forMemberId = params.get("for") ?? people.find((m) => m.role === "elder")?.id ?? people[0]?.id ?? "";
+  const { viewer, members, relationships } = useViewer();
+  // Who you might send to: the other homes first (lib/households sendOrder), never your own spouse by default.
+  const people = useMemo(() => sendOrder(viewer, members, relationships), [viewer, members, relationships]);
+  const forMemberId = params.get("for") ?? people[0]?.id ?? "";
   const person = members.find((m) => m.id === forMemberId);
   const title = params.get("title");
   const kind = params.get("kind") === "need" ? "need" : "occasion";

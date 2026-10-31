@@ -55,7 +55,7 @@ export default function KitchenPage() {
 
   return (
     <div>
-      <RoomHeader title="Kitchen" subtitle="Every family recipe, shelved by who cooks it" />
+      <RoomHeader title="Recipes" subtitle="Every family recipe, shelved by who cooks it" />
 
       {mine.length > 0 && (
         <section aria-label="Asked of you" className="mb-6 space-y-2">

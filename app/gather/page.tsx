@@ -10,20 +10,21 @@ import Link from "next/link";
 import { WishAhead } from "@/components/wish-ahead";
 import { Avatar, Button, EmptyState, Icon, RoomHeader, SectionTitle } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
-import { fmtIn, occasionEventKey } from "@/lib/events";
+import { occasionEventKey } from "@/lib/events";
 import { nextEvent, useEvents } from "@/lib/gather-client";
 import type { UpcomingOccasion } from "@/lib/gather-prompts";
-import type { Knock, Recipe } from "@/lib/kinds";
-import { roomUrl } from "@/lib/overlap";
+import type { Recipe } from "@/lib/kinds";
+import { useNextVisit } from "@/components/home-presence";
 import { callName, memberPhoto } from "@/lib/people";
 import type { Member } from "@/lib/schemas";
-import { postJson, useJson } from "@/lib/use-json";
-import { cn } from "@/lib/utils";
+import { useJson } from "@/lib/use-json";
 
 export default function GatherPage() {
   const { viewer, members } = useViewer();
   const router = useRouter();
   const { data, failed, reload } = useEvents();
+  // Visits are planned on the Visits tab; here, only a pointer to the next one.
+  const visit = useNextVisit();
   const [sheet, setSheet] = useState<PlanPreset | null>(null);
   // Render times after mount so server and browser never disagree on "now".
   const [mounted, setMounted] = useState(false);
@@ -97,7 +98,7 @@ export default function GatherPage() {
         <EmptyState
           position="center 45%"
           title="Nothing planned yet."
-          line="A birthday, a festival, a visit home."
+          line="A birthday, a festival, a family call."
           action={
             canPlan ? (
               <Button className="w-full" onClick={() => setSheet({})}>
@@ -120,9 +121,13 @@ export default function GatherPage() {
         </>
       )}
 
-      <ComingUp occasions={upcoming} members={members} viewerId={viewer.id} canPlan={canPlan} onPlan={(o) => setSheet({ occasion: o })} />
+      {visit && (
+        <Link href="/together/visits" replace className="mt-4 flex min-h-[44px] items-center gap-1.5 text-[14px] font-medium text-ink-soft no-underline">
+          <Icon name="rooms" size={15} /> {visit.title} is on Visits <Icon name="chevron" size={14} />
+        </Link>
+      )}
 
-      <Knocks members={members} viewer={viewer} />
+      <ComingUp occasions={upcoming} members={members} viewerId={viewer.id} canPlan={canPlan} onPlan={(o) => setSheet({ occasion: o })} />
 
       <PlanSheet
         open={sheet !== null}
@@ -179,65 +184,6 @@ function ComingUp({ occasions, members, viewerId, canPlan, onPlan }: { occasions
           );
         })}
       </ul>
-    </section>
-  );
-}
-
-/* --------------------------------------------- come sit with me (no plan) */
-function Knocks({ members, viewer }: { members: Member[]; viewer: Member }) {
-  const { data, reload } = useJson<{ knocks: Knock[] }>("/api/sit");
-  const [busy, setBusy] = useState(false);
-  const [minutes, setMinutes] = useState(45);
-  const knocks = data?.knocks ?? [];
-  const mine = knocks.find((k) => k.memberId === viewer.id);
-  const others = knocks.filter((k) => k.memberId !== viewer.id);
-  return (
-    <section aria-label="Come sit with me">
-      <SectionTitle>Or just sit, now</SectionTitle>
-      {others.map((k) => {
-        const who = members.find((m) => m.id === k.memberId);
-        return (
-          <div key={k.id} className="mb-3 flex items-center gap-3 rounded-[22px] bg-card p-3 shadow-card">
-            <Avatar src={memberPhoto(who)} name={callName(who)} size={44} ring />
-            <div className="min-w-0 flex-1">
-              <p className="m-0 text-[15px] font-semibold">{callName(who)}&rsquo;s door is open</p>
-              <p className="voice m-0 truncate text-[15px] text-ink-soft">{k.note || "Come sit with me?"}</p>
-            </div>
-            <a href={roomUrl(k.id)} target="_blank" rel="noreferrer" aria-label={`Sit with ${callName(who)}`} className="press grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#1c1b1a] text-white no-underline">
-              <Icon name="video" size={20} />
-            </a>
-          </div>
-        );
-      })}
-      <div className="flex items-center gap-2 rounded-[22px] bg-card p-2 shadow-card">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-well">
-          <Icon name={mine ? "door" : "doorClosed"} size={20} />
-        </span>
-        <p className="m-0 min-w-0 flex-1 text-[15px] font-semibold">{mine ? `Door open till ${fmtIn(viewer.tz, mine.until, { hour: "numeric", minute: "2-digit" })}` : "I'm free, come sit"}</p>
-        {mine ? (
-          <>
-            <a href={roomUrl(mine.id)} target="_blank" rel="noreferrer" aria-label="Go sit" className="press grid h-11 w-11 place-items-center rounded-full bg-[#1c1b1a] text-white no-underline">
-              <Icon name="video" size={20} />
-            </a>
-            <button type="button" aria-label="Close the door" disabled={busy} onClick={async () => { setBusy(true); await postJson("/api/sit", { action: "unknock" }); setBusy(false); void reload(); }} className="press grid h-11 w-11 place-items-center rounded-full bg-well">
-              <Icon name="close" size={18} />
-            </button>
-          </>
-        ) : (
-          <>
-            <div className="flex gap-1" role="radiogroup" aria-label="For how long">
-              {[30, 45, 90].map((m) => (
-                <button key={m} type="button" role="radio" aria-checked={minutes === m} onClick={() => setMinutes(m)} className={cn("press tnum h-11 rounded-full px-2.5 text-[14px] font-semibold", minutes === m ? "bg-well" : "text-ink-soft")}>
-                  {m}′
-                </button>
-              ))}
-            </div>
-            <button type="button" aria-label="Open my door" disabled={busy} onClick={async () => { setBusy(true); await postJson("/api/sit", { action: "knock", minutes, note: "" }); setBusy(false); void reload(); }} className="press grid h-11 w-11 place-items-center rounded-full bg-[#1c1b1a] text-white">
-              <Icon name="door" size={20} />
-            </button>
-          </>
-        )}
-      </div>
     </section>
   );
 }

@@ -12,9 +12,9 @@ import { isAdmin } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { Avatar, Button, Icon, type IconName } from "./ui/kit";
 
+// Visits are planned on Celebrations → Visits, so they are not offered here.
 const OTHER: { type: EventType; icon: IconName; placeholder: string }[] = [
   { type: "anniversary", icon: "heart", placeholder: "Maa & Papa's anniversary" },
-  { type: "visit", icon: "village", placeholder: "Arjun is coming home" },
   { type: "custom", icon: "sparkle", placeholder: "Papa's retirement" },
 ];
 

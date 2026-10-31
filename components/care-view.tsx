@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, m } from "framer-motion";
+import Link from "next/link";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useShell } from "@/components/shell";
 import { Translated } from "@/components/translated";
@@ -10,7 +11,7 @@ import { householdName, householdOf, households, type Household } from "@/lib/ho
 import { HELPER_ROLES, NEED_KINDS, PRIORITIES, RECURRENCE } from "@/lib/kind-values";
 import type { Helper, Need, Pet } from "@/lib/kinds";
 import { language } from "@/lib/languages";
-import { telHref, waHref } from "@/lib/nearby";
+import { everydayHelpers, telHref, waHref } from "@/lib/nearby";
 import { can } from "@/lib/permissions";
 import { callName, memberPhoto } from "@/lib/people";
 import type { Member } from "@/lib/schemas";
@@ -320,9 +321,9 @@ function TaskRow({ need, onOpen, manage, act, muted }: { need: Need; onOpen: () 
         </button>
       )}
       {live && (
-        <a href={`/send?for=${encodeURIComponent(need.forMemberId)}&kind=need&title=${encodeURIComponent(need.title)}`} aria-label={`Send something for: ${need.title}`} className="press grid h-11 w-11 shrink-0 place-items-center rounded-full bg-well text-ink no-underline">
+        <Link href={`/send?for=${encodeURIComponent(need.forMemberId)}&kind=need&title=${encodeURIComponent(need.title)}`} aria-label={`Send something for: ${need.title}`} className="press grid h-11 w-11 shrink-0 place-items-center rounded-full bg-well text-ink no-underline">
           <Icon name="send" size={17} />
-        </a>
+        </Link>
       )}
       {manage && live && (
         <button type="button" disabled={busy} onClick={() => void run({ action: "done", needId: need.id })} aria-label={`Mark done: ${need.title}`} className="press grid h-11 w-11 shrink-0 place-items-center rounded-full bg-black text-white disabled:opacity-40">
@@ -610,11 +611,12 @@ function Helpers({ parent, helpers, needs, canManage, onChange }: { parent: Memb
   const [addRole, setAddRole] = useState<Helper["role"] | undefined>(undefined);
   const missing = ROLE_SUGGEST.filter((r) => !helpers.some((h) => h.role === r)).slice(0, 4);
   const [editing, setEditing] = useState<string | null>(null);
-  const shown = useMemo(() => [...helpers].sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name)), [helpers]);
+  // The first-to-call list (helper.emergency) lives on Nearby, not here too.
+  const shown = useMemo(() => [...everydayHelpers(helpers)].sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name)), [helpers]);
   const jobs = (id: string) => needs.filter((n) => n.helperId === id && n.status === "done").length;
   return (
     <section aria-label="Local helpers">
-      {helpers.length === 0 && !adding && (
+      {shown.length === 0 && !adding && (
         <div className="rounded-card bg-card px-4 shadow-card">
           <EmptyLine>No one yet. Start with whoever delivers groceries.</EmptyLine>
         </div>
@@ -623,7 +625,7 @@ function Helpers({ parent, helpers, needs, canManage, onChange }: { parent: Memb
         <ul className="m-0 list-none divide-y divide-[var(--line)] rounded-card bg-card p-0 px-4 shadow-card">
           {shown.map((h) => {
             const done = jobs(h.id);
-            const meta = [h.role, h.hours, h.emergency ? "trusted nearby" : "", done ? `helped ${done}×` : ""].filter(Boolean).join(" · ");
+            const meta = [h.role, h.hours, done ? `helped ${done}×` : ""].filter(Boolean).join(" · ");
             return (
               <Fragment key={h.id}>
                 <li className="flex min-h-[68px] items-center gap-2 py-3">
@@ -662,6 +664,9 @@ function Helpers({ parent, helpers, needs, canManage, onChange }: { parent: Memb
           })}
         </ul>
       )}
+      <Link href="/nearby" replace className="mt-3 flex min-h-[44px] items-center gap-1 text-[14px] font-medium text-ink-soft no-underline">
+        <Icon name="shield" size={15} /> Your first-to-call list is in Nearby <Icon name="chevron" size={14} />
+      </Link>
       {canManage &&
         (adding ? (
           <div className="mt-3">

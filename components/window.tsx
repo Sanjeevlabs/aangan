@@ -1,6 +1,7 @@
 "use client";
 
 import { m } from "framer-motion";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { whatsappInvite } from "@/lib/invite-link";
@@ -21,6 +22,7 @@ import { WALL_LOOK } from "@/lib/walls";
 import { bloomFrom, sharedToday } from "@/lib/pots";
 import { PHASE_TINT, type DayPhase, type Weather } from "@/lib/weather";
 import { timeIn } from "@/lib/zones";
+import { InviteSheet, inviteCode } from "./invite-sheet";
 import { PeoplePicker } from "./people-picker";
 import { usePlayer } from "./player";
 import { useShell } from "./shell";
@@ -579,9 +581,9 @@ function StatusLine({ p, st, check, onWorry }: { p: Member; st: WindowData["peop
         )}
         {word && check && <span aria-hidden="true">·</span>}
         {check && (
-          <a href="/safe" className={cn("inline-flex items-center gap-1 no-underline", alarm ? "font-semibold text-[#c2343a]" : "text-ink-soft")}>
+          <Link href="/safe" className={cn("inline-flex items-center gap-1 no-underline", alarm ? "font-semibold text-[#c2343a]" : "text-ink-soft")}>
             <Icon name="shield" size={12} /> {check.label} · {ago(check.at)}
-          </a>
+          </Link>
         )}
       </p>
     </div>
@@ -829,9 +831,9 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
             <div>
               <div className="-my-2.5 flex items-center justify-between gap-3">
                 <h2 className="m-0 text-[17px] font-semibold leading-tight tracking-[-0.01em]">Safe &amp; sound</h2>
-                <a href="/safe" className="-mr-2 flex min-h-[44px] shrink-0 items-center gap-0.5 px-2 text-[13px] font-medium text-ink-soft no-underline">
+                <Link href="/safe" className="-mr-2 flex min-h-[44px] shrink-0 items-center gap-0.5 px-2 text-[13px] font-medium text-ink-soft no-underline">
                   See check-ins <Icon name="chevron" size={14} />
-                </a>
+                </Link>
               </div>
               <p className="m-0 mt-0.5 text-[12px] leading-snug text-ink-soft">From when they last opened Aangan and checked in</p>
             </div>
@@ -888,22 +890,13 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
 /** Nobody from the other side has joined yet: the window waits, the invite is one tap. */
 function WaitingCard({ names }: { names: string }) {
   const [busy, setBusy] = useState(false);
+  const [sheet, setSheet] = useState(false);
   const send = async () => {
     setBusy(true);
-    let code: string | null = null;
-    try {
-      const res = await fetch("/api/invites", { cache: "no-store" });
-      const d = (await res.json()) as { invites?: { code: string; expiresAt: string }[] };
-      code = (d.invites ?? []).find((i) => Date.parse(i.expiresAt) > Date.now())?.code ?? null;
-      if (!code) {
-        const made = await postJson<{ invite?: { code: string } }>("/api/invites", {});
-        code = made?.invite?.code ?? null;
-      }
-    } catch {
-      code = null;
-    }
+    const code = await inviteCode();
     setBusy(false);
-    if (!code) return void (window.location.href = "/settings#invite");
+    // No code (or no right to make one): the invite sheet says why and lets them retry, in place.
+    if (!code) return setSheet(true);
     window.open(whatsappInvite(window.location.origin, code), "_blank", "noopener");
   };
   return (
@@ -916,6 +909,7 @@ function WaitingCard({ names }: { names: string }) {
       <button type="button" onClick={() => void send()} disabled={busy} className="press mt-4 flex h-12 items-center gap-2 rounded-full bg-white px-5 text-[15px] font-semibold text-black">
         <Icon name="send" size={17} /> {busy ? "Opening…" : "Send the invite again"}
       </button>
+      <InviteSheet open={sheet} onClose={() => setSheet(false)} />
     </section>
   );
 }
@@ -945,9 +939,9 @@ function WorrySheet({ person, status, onTalk, onCall, onClose }: { person: Membe
           <button type="button" onClick={onTalk} aria-label="Voice note" className="press grid h-16 w-16 place-items-center rounded-full bg-black/[.06] text-ink">
             <Icon name="mic" size={24} />
           </button>
-          <a href="/nearby" aria-label="Trusted nearby: who to call near them" className="press grid h-16 w-16 place-items-center rounded-full bg-black/[.06] text-ink no-underline">
+          <Link href="/nearby" aria-label="Trusted nearby: who to call near them" className="press grid h-16 w-16 place-items-center rounded-full bg-black/[.06] text-ink no-underline">
             <Icon name="gather" size={24} />
-          </a>
+          </Link>
         </div>
       </m.div>
     </div>

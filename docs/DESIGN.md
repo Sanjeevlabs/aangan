@@ -54,11 +54,11 @@ A floating glass **dock** at the bottom of Home:
 |---|---|
 | Memories | Memory Lane `/lane` · Stories `/stories` |
 | Kitchen | Recipes `/kitchen` (one page: no tab row) |
-| Care | Send something `/send` · Care tasks `/care` · Local helpers `/care/helpers` · Trusted nearby `/nearby` |
-| Family | Family tree `/bond` · The Book `/book` · Advice `/advice` · Portrait `/portrait` |
+| Care | Send something `/send` · Care tasks `/care` · Helpers `/care/helpers` · Nearby `/nearby` |
+| Family | Family tree `/bond` · The Book `/book` · Advice `/advice` · Portrait `/portrait` (grown-ups only) |
 | Celebrations | Coming up `/gather` · Occasions `/rituals` · Visits `/together/visits` · Holidays `/together/holidays` · Play `/gather/play` |
 
-`lib/menu.ts` is the single source. Each tab is its own page with its own content; its title is the tab label, with the room's name above it. Pages outside the rooms (Send's sheet, Safe & sound, Settings, a person, an event, an album) have no tab row.
+`lib/menu.ts` is the single source. Each tab is its own page with its own content, and no card shows on two tab pages: Memory Lane is the everyday photos and voices; what an occasion, a story, the Book or Advice holds stays there. Its title is the tab label (or a fuller one: Helpers → "Local helpers", Nearby → "Trusted nearby"), with the room's name above it (Kitchen too: KITCHEN over "Recipes"). The open tab always scrolls into view. Invite family opens a sheet in place; Settings is only behind your own photo. Pages outside the rooms (Safe & sound, Settings, a person, an event, an album) have no tab row.
 
 **Why not tabs.** Tabs give five destinations equal weight and turn the app into a utility. Aangan has one loop, so it gets one big button.
 
@@ -80,7 +80,7 @@ Inside a room: a large title, a back chevron, no dock. Rooms are places you visi
 | **Now playing** | Hear one voice fully | Reply | Full-screen, blurred art backdrop, waveform scrubber, lyrics transcript, reactions (Love, Laugh, Bless) + Reply |
 | **Recorder** (Talk to) | Answer by voice | Record / Send | Recipient chips, large record button, live waveform, review then send. Consent prompt the first time |
 | **Photo composer** | Share a moment | Share | Pick or shoot, optional note, recipients default to everyone |
-| **Memory Lane** | Walk back through time | Open a memory | Chapters by season, one column of photo cards with glass captions |
+| **Memory Lane** | Everyday photos and voices, by the years | Open a memory | One row each for albums, photos, videos and voices. Occasion, story, Book and Advice cards stay on their own tabs |
 | **Occasions** (Celebrations) | Every occasion's photos and voices, together | Open a photo, play a voice | One group per occasion (birthdays, weddings, anniversaries, festivals), newest first: prints and voices; on the day, the celebration with the Chorus on top. What is coming up lives on Coming up |
 | **Birthday Reel** | The family's gift, played in order | Play | Full-screen, segmented progress, petals once |
 | **Coming up** (Celebrations) | What is ahead, and planning it | Plan | Date and time shown in every member's local time, playlist the agent prepared, Start together |

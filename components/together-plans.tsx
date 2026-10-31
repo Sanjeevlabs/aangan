@@ -5,7 +5,7 @@ import { isGrownUp } from "@/lib/permissions";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { PlanBadge, countdownWords, daysUntil } from "@/components/together-art";
-import { Avatar, Button, EmptyLine, EmptyState, Icon, RoomHeader, SectionTitle, SuggestionTile } from "@/components/ui/kit";
+import { Avatar, Button, EmptyLine, EmptyState, Icon, RoomHeader, SectionTitle } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
 import type { Project } from "@/lib/kinds";
 import { callName, memberPhoto } from "@/lib/people";
@@ -36,9 +36,7 @@ export function TogetherPlans({ kind }: { kind: TogetherTemplate["id"] }) {
   const child = !isGrownUp(viewer);
 
   const tmpl = data?.templates[0];
-  // The sibling page and a celebration: both already exist, so the page never ends in white.
-  const other = kind === "holiday" ? { href: "/together/visits", icon: "village" as const, title: "A visit home", line: "Dates, tickets, what to bring." } : { href: "/together/holidays", icon: "sun" as const, title: "A family holiday", line: "Somewhere together." };
-  const next = child ? { href: "/gather/play", icon: "music" as const, title: "Play together", line: "Something to do on a call, right now." } : { href: "/gather?plan=1", icon: "calendar" as const, title: "Plan a celebration", line: "A family call with a reason." };
+  // No tiles to the sibling tabs here: the tab row is the only way sideways.
 
   return (
     <div>
@@ -122,13 +120,6 @@ export function TogetherPlans({ kind }: { kind: TogetherTemplate["id"] }) {
             </section>
           )}
 
-          <section aria-label="More together">
-            <SectionTitle>More together</SectionTitle>
-            <div className="grid grid-cols-2 gap-3">
-              <SuggestionTile href={other.href} icon={other.icon} title={other.title} line={other.line} />
-              <SuggestionTile href={next.href} icon={next.icon} title={next.title} line={next.line} />
-            </div>
-          </section>
         </>
       )}
       {open && <PlanSheet t={open} onClose={() => setOpen(null)} />}

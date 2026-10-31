@@ -24,12 +24,12 @@ export default function ProjectPage() {
   const [editingPlan, setEditingPlan] = useState(false);
   const p = data?.projects.find((x) => x.id === id);
 
-  if (failed && !data) return <div><RoomHeader title="Visits & holidays" /><EmptyLine>Couldn&rsquo;t load this plan. Try again in a moment.</EmptyLine></div>;
+  if (failed && !data) return <div><RoomHeader title="Plan" /><EmptyLine>Couldn&rsquo;t load this plan. Try again in a moment.</EmptyLine></div>;
   if (!data) return <div className="skeleton mt-16 h-[420px] rounded-card" aria-busy="true" />;
   if (!p) {
     return (
       <div>
-        <RoomHeader title="Visits & holidays" />
+        <RoomHeader title="Plan" />
         <EmptyLine>This plan isn&rsquo;t here anymore.</EmptyLine>
       </div>
     );

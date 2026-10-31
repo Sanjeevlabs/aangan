@@ -9,6 +9,7 @@ import { callName, peopleByRecency } from "@/lib/people";
 import { useFamilyCards } from "@/lib/use-family";
 import { useLargeText } from "@/lib/use-large-text";
 import { roomHref, roomsFor } from "@/lib/menu";
+import { canStartPortrait } from "@/lib/muse-portrait";
 import dynamic from "next/dynamic";
 import type { AddTab, ReplyContribution } from "./add-sheet";
 
@@ -16,6 +17,7 @@ import { PlayerProvider, usePlayer } from "./player";
 import { Icon, type IconName } from "./ui/kit";
 import { ViewerProvider, useViewer } from "./viewer";
 import { PeoplePicker } from "./people-picker";
+import { InviteSheet } from "./invite-sheet";
 import { DocumentLangOnly } from "@/lib/use-t";
 import { onAppUrlOpen, setStatusBar } from "@/lib/native";
 
@@ -51,7 +53,7 @@ export function useShell(): ShellState {
 /** The rooms of the house: five tiles, nothing nested. A tile opens the room on its first page; inside, the tab row moves sideways. */
 function RoomsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { viewer } = useViewer();
-  const all = roomsFor(viewer.role === "elder");
+  const all = roomsFor(viewer.role === "elder", canStartPortrait(viewer));
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -61,10 +63,10 @@ function RoomsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Rooms">
+        <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label="The house">
           <m.button type="button" aria-label="Close" className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
           <m.nav
-            aria-label="Rooms"
+            aria-label="The house"
             className="frost relative w-full max-w-[480px] overflow-y-auto rounded-t-[32px] px-4 pt-3"
             style={{ maxHeight: "88vh", paddingBottom: "calc(16px + env(safe-area-inset-bottom))" }}
             initial={{ y: 60, opacity: 0 }}
@@ -106,6 +108,7 @@ function Dock() {
   const { current, open: playerOpen } = usePlayer();
   const pathname = usePathname();
   const [picking, setPicking] = useState(false);
+  const [inviting, setInviting] = useState(false);
 
   const pagePerson = pathname.startsWith("/people/") ? members.find((mm) => mm.id === pathname.split("/")[2]) : undefined;
   // Who sent you a voice you haven't answered: shown in the picker, never assumed.
@@ -144,14 +147,14 @@ function Dock() {
                   )}
                 </button>
               ) : (
-                <Link href="/settings#invite" aria-label="Invite family" className="press grid h-14 w-14 place-items-center rounded-full bg-black text-white no-underline">
+                <button type="button" onClick={() => setInviting(true)} aria-label="Invite family" className="press grid h-14 w-14 place-items-center rounded-full bg-black text-white">
                   <Icon name="plus" size={23} />
-                </Link>
+                </button>
               )}
               <button type="button" onClick={() => openAdd("photos")} aria-label="Share a photo or video" className="press grid h-14 w-14 place-items-center rounded-full text-ink">
                 <Icon name="camera" size={23} strokeWidth={1.9} />
               </button>
-              <button type="button" onClick={openRooms} aria-label="Rooms" className="press grid h-14 w-14 place-items-center rounded-full text-ink">
+              <button type="button" onClick={openRooms} aria-label="Open the house" className="press grid h-14 w-14 place-items-center rounded-full text-ink">
                 <Icon name="rooms" size={23} strokeWidth={1.9} />
               </button>
             </div>
@@ -170,6 +173,7 @@ function Dock() {
         }}
         onClose={() => setPicking(false)}
       />
+      <InviteSheet open={inviting} onClose={() => setInviting(false)} />
     </>
   );
 }

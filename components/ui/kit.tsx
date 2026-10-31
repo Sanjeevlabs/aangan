@@ -4,7 +4,9 @@ import * as L from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { tabsFor } from "@/lib/spaces";
+import { roomOf, tabsFor } from "@/lib/spaces";
+import { canStartPortrait } from "@/lib/muse-portrait";
+import { useViewer } from "@/components/viewer";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -280,23 +282,38 @@ export function RoomHeader({ title, subtitle, action }: { title: string; subtitl
 
 /** Which room of the house this tab page is in, as a quiet line above its title. */
 function RoomName() {
-  const at = tabsFor(usePathname());
-  if (!at) return null;
-  return <p className="m-0 mb-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-ink-soft">{at.space.title}</p>;
+  const room = roomOf(usePathname());
+  if (!room) return null;
+  return <p className="m-0 mb-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-ink-soft">{room.title}</p>;
 }
 
 /** The pages of the current room, as one quiet row. Only on a room's own tab page. */
 function SpaceTabs() {
   const pathname = usePathname();
-  const at = tabsFor(pathname);
+  const { viewer } = useViewer();
+  const at = tabsFor(pathname, canStartPortrait(viewer));
+  const active = useRef<HTMLAnchorElement>(null);
+  // The last tabs (Play, Nearby) sit past the screen edge: bring the open one into view, without animating.
+  // Measured in the row's own pixels (not scrollIntoView), so it is right under the elders' larger text zoom too.
+  useEffect(() => {
+    const pill = active.current;
+    const row = pill?.parentElement;
+    if (!pill || !row) return;
+    const gutter = 20;
+    const left = pill.offsetLeft - gutter;
+    const right = pill.offsetLeft + pill.offsetWidth + gutter;
+    if (left < row.scrollLeft) row.scrollLeft = left;
+    else if (right > row.scrollLeft + row.clientWidth) row.scrollLeft = right - row.clientWidth;
+  }, [pathname]);
   if (!at) return null;
   return (
-    <nav aria-label={at.space.title} className="no-scrollbar -mx-5 mt-4 flex gap-2 overflow-x-auto px-5 py-1">
+    <nav aria-label={at.space.title} className="no-scrollbar relative -mx-5 mt-4 flex gap-2 overflow-x-auto px-5 py-1">
       {at.space.rooms.map((r) => (
         <Link
           key={r.href}
           href={r.href}
           replace
+          ref={r.href === at.room ? active : undefined}
           aria-current={r.href === at.room ? "page" : undefined}
           className={cn(
             // 40px pill, 44px hit area (the ::before reaches 2px past it, top and bottom).

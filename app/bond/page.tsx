@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { Member, Relationship } from "@/lib/schemas";
 import { Avatar, Button, EmptyLine, Icon, RoomHeader } from "@/components/ui/kit";
@@ -16,6 +15,7 @@ import { useViewer } from "@/components/viewer";
 import { FamilyTree } from "@/components/family-tree";
 import { PetsSection } from "@/components/pets";
 import { BothSides } from "@/components/sides";
+import { InviteSheet } from "@/components/invite-sheet";
 import { FamilyCircles, FamilyHomes } from "@/components/family-homes";
 import { can } from "@/lib/permissions";
 import { ZONES, placeFromTz } from "@/lib/zones";
@@ -225,6 +225,7 @@ export default function BondPage() {
   const [members, setMembers] = useState<Member[] | null>(null);
   const [relationships, setRelationships] = useState<Relationship[] | null>(null);
   const [failed, setFailed] = useState(false);
+  const [inviting, setInviting] = useState(false);
   const [anchor, setAnchor] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -285,7 +286,7 @@ export default function BondPage() {
             <p className="m-0 mt-8 text-center text-[14px] text-ink-soft">Ask a grown-up in the family to add people.</p>
           )}
           {can(viewer, "invite.create") && (
-            <Link href="/settings#invite" className="press mt-6 flex items-center gap-3 rounded-card bg-card px-4 py-3 text-ink no-underline shadow-card">
+            <button type="button" onClick={() => setInviting(true)} className="press mt-6 flex w-full items-center gap-3 rounded-card bg-card px-4 py-3 text-left text-ink shadow-card">
               <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-well" aria-hidden="true">
                 <Icon name="plus" size={18} />
               </span>
@@ -294,8 +295,9 @@ export default function BondPage() {
                 <span className="block text-[13px] text-ink-soft">A sibling, a cousin, your in-laws</span>
               </span>
               <Icon name="chevron" size={17} className="text-ink-faint" />
-            </Link>
+            </button>
           )}
+          <InviteSheet open={inviting} onClose={() => setInviting(false)} />
         </>
       )}
     </div>

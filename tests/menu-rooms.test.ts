@@ -25,7 +25,7 @@ describe("the five rooms", () => {
     expect(tabs).toEqual({
       Memories: ["Memory Lane /lane", "Stories /stories"],
       Kitchen: ["Recipes /kitchen"],
-      Care: ["Send something /send", "Care tasks /care", "Local helpers /care/helpers", "Trusted nearby /nearby"],
+      Care: ["Send something /send", "Care tasks /care", "Helpers /care/helpers", "Nearby /nearby"],
       Family: ["Family tree /bond", "The Book /book", "Advice /advice", "Portrait /portrait"],
       Celebrations: ["Coming up /gather", "Occasions /rituals", "Visits /together/visits", "Holidays /together/holidays", "Play /gather/play"],
     });
@@ -42,8 +42,8 @@ describe("the five rooms", () => {
   it("shows each room's tabs on its pages, with the right one active; Kitchen and pages outside rooms have none", () => {
     expect(tabLabels("/stories")).toEqual(["Memory Lane", "Stories"]);
     expect(tabLabels("/book")).toEqual(["Family tree", "The Book", "Advice", "Portrait"]);
-    expect(tabLabels("/send")).toEqual(["Send something", "Care tasks", "Local helpers", "Trusted nearby"]);
-    expect(tabLabels("/care/helpers")).toEqual(["Send something", "Care tasks", "Local helpers", "Trusted nearby"]);
+    expect(tabLabels("/send")).toEqual(["Send something", "Care tasks", "Helpers", "Nearby"]);
+    expect(tabLabels("/care/helpers")).toEqual(["Send something", "Care tasks", "Helpers", "Nearby"]);
     expect(tabLabels("/gather")).toEqual(["Coming up", "Occasions", "Visits", "Holidays", "Play"]);
     expect(tabLabels("/rituals")).toEqual(["Coming up", "Occasions", "Visits", "Holidays", "Play"]);
     expect(tabsFor("/gather/play")?.room).toBe("/gather/play");
@@ -60,7 +60,7 @@ describe("the five rooms", () => {
     expect(sheet).not.toMatch(/\.tabs\.map|\.items\.map|aria-expanded/);
     // The dock opens it with a house, not ⋯.
     const dock = src.slice(src.indexOf("function Dock("));
-    expect(dock).toContain('aria-label="Rooms"');
+    expect(dock).toContain('aria-label="Open the house"');
     expect(dock).toContain('name="rooms"');
     expect(dock).not.toContain('name="more"');
   });

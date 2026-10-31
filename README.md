@@ -16,9 +16,9 @@ The first screen is the window onto the parents' home (safe & sound, a voice not
 
 | Room | Tabs |
 |---|---|
-| **Memories** | Memory Lane · Stories |
+| **Memories** | Memory Lane (everyday photos and voices) · Stories |
 | **Kitchen** | Recipes |
-| **Care** | Send something (their apps by category, plus Muse's ideas) · Care tasks · Local helpers · Trusted nearby |
+| **Care** | Send something (their apps by category, plus Muse's ideas) · Care tasks · Helpers · Nearby |
 | **Family** | Family tree · The Book · Advice · Portrait |
 | **Celebrations** | Coming up · Occasions (photos and voices from every birthday, wedding and festival) · Visits · Holidays · Play |
 
