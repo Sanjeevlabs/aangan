@@ -25,6 +25,7 @@ async function getHandler(req: Request): Promise<Response> {
 }
 
 const MultipartFieldsSchema = z.object({
+  id: z.string().uuid().optional(),
   type: z.enum(["photo", "audio", "video"]),
   caption: z.string().max(280).default(""),
   lang: z.string().min(2).max(8).default("en"),
@@ -46,6 +47,13 @@ const MultipartFieldsSchema = z.object({
 /** A card may only point at its own family's uploads; anything else is dropped. */
 function ownMediaRef(ref: string, familyId: string): string | null {
   return ref.startsWith(`storage:${familyId}/uploads/`) && !ref.includes("..") ? ref : null;
+}
+
+/** The caller's own card with this client id, if a previous try already saved it. */
+async function existingOwnCard(familyId: string, authorId: string, id: string | undefined) {
+  if (!id) return null;
+  const cards = await dbListCards(familyId);
+  return cards.find((c) => c.id === id && c.authorId === authorId) ?? null;
 }
 
 function parseJsonArray(raw: string): unknown[] {
@@ -83,6 +91,7 @@ async function postMultipart(req: Request, familyId: string, authorId: string): 
     return Response.json({ error: "invalid-multipart" }, { status: 400 });
   }
   const fields = MultipartFieldsSchema.safeParse({
+    id: form.get("id") ?? undefined,
     type: form.get("type") ?? undefined,
     caption: form.get("caption") ?? undefined,
     lang: form.get("lang") ?? undefined,
@@ -103,6 +112,9 @@ async function postMultipart(req: Request, familyId: string, authorId: string): 
     return Response.json({ error: "invalid-card" }, { status: 400 });
   }
   const f = fields.data;
+  // A retry of an upload that already landed: answer with the card, change nothing.
+  const already = await existingOwnCard(familyId, authorId, f.id);
+  if (already) return Response.json({ card: already, album: null }, { status: 200 });
   const mediaEntry = form.get("media");
   const mediaFile = mediaEntry instanceof File && mediaEntry.size > 0 ? mediaEntry : null;
   const mediaBytes = mediaFile ? new Uint8Array(await mediaFile.arrayBuffer()) : null;
@@ -145,6 +157,7 @@ async function postMultipart(req: Request, familyId: string, authorId: string): 
   const palette = parseJsonArray(f.palette).filter((n): n is string => typeof n === "string");
   const segments = parseJsonArray(f.segments);
   const card = await dbAddCard({
+    ...(f.id ? { id: f.id } : {}),
     authorId,
     familyId,
     type: f.type,
@@ -186,10 +199,12 @@ async function postHandler(req: Request): Promise<Response> {
   // JSON path: client-supplied caption only — NEVER a model call. An empty
   // caption stays empty (the UI renders its untitled state); video cards that
   // need grounding must use the multipart upload with real bytes.
-  const data = { ...parsed.data };
+  const { id: clientId, ...data } = parsed.data;
+  const already = await existingOwnCard(auth.familyId, auth.memberId, clientId);
+  if (already) return Response.json({ card: already, album: null }, { status: 200 });
   const card = await dbAddCard({
     authorId: auth.memberId,
-    id: crypto.randomUUID(),
+    id: clientId ?? crypto.randomUUID(),
     familyId: auth.familyId,
     summary: "",
     ritualSlug: null,
