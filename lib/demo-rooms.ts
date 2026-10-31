@@ -297,6 +297,10 @@ export function seedDemoRooms(now = Date.now()): void {
   seedDoc(FAM, "safety_checkin", { id: "safe-papa-1", memberId: "dada", kind: "heading", note: "To the bank, back by noon", etaAt: ago(60 * 26 - 25, now), closedAt: ago(60 * 26 - 22, now), location: null, at: ago(60 * 26, now) });
   seedDoc(FAM, "safety_checkin", { id: "safe-papa-2", memberId: "dada", kind: "home-safe", note: "", etaAt: null, closedAt: ago(140, now), location: null, at: ago(140, now) });
 
+  // ---------- Nudges waiting for Arjun: a reply loop and the calendar ----------
+  seedDoc(FAM, "nudge", { id: "nudge-demo-heard", toMemberId: "arjun", kind: "heard", text: "{m:dadi} heard your voice note", href: "/home?card=demo-voice-1", at: ago(60 * 5, now), deliverAfter: ago(60 * 2, now), deliveredAt: null, channel: null, seenAt: null });
+  seedDoc(FAM, "nudge", { id: "nudge-demo-occasion", toMemberId: "arjun", kind: "occasion", text: "The call for {m:leo}'s birthday is on Monday", href: "/gather", at: ago(60 * 4, now), deliverAfter: ago(60 * 2, now), deliveredAt: null, channel: null, seenAt: null });
+
   // ---------- Care circle ----------
   seedDoc(FAM, "need", {
     id: "need-gas",
