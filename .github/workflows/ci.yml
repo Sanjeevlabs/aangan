@@ -15,3 +15,30 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test:mock
+  walk:
+    # Every room tab as a parent, an adult child and a child, in Chromium,
+    # against a mock build (scripts/walk.py). No keys, no network.
+    runs-on: ubuntu-latest
+    env:
+      MOCK: "true"
+      NEXT_PUBLIC_MOCK: "true"
+      SESSION_SECRET: ci-walk-secret-not-a-real-secret-0000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: npm ci
+      - run: npx next build
+      - run: pip install playwright==1.48.0 && python -m playwright install --with-deps chromium
+      - name: Walk every room
+        run: |
+          npx next start -p 3100 > next.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf -o /dev/null http://127.0.0.1:3100/ && break; sleep 1; done
+          python scripts/walk.py --base http://127.0.0.1:3100
+      - if: failure()
+        run: tail -100 next.log
