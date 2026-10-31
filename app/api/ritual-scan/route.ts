@@ -1,3 +1,4 @@
+import { keptFestivals } from "@/lib/occasion-settings";
 import { askWeeklyQuestions } from "@/lib/keeper";
 import { readFileSync } from "fs";
 import { join } from "path";
@@ -37,13 +38,15 @@ async function runScan(familyId: string): Promise<Response> {
   const members = await dbListMembers(familyId);
   const [runs, wishes, roles] = await Promise.all([dbListRitualRuns(familyId), dbListWishes(undefined, familyId), dbListDailyRoles(familyId)]);
 
+  const kept = await keptFestivals(familyId);
   const configs: { slug: string; title: string }[] = [];
   try {
     const { readdirSync } = await import("fs");
     for (const name of readdirSync(join(process.cwd(), "rituals"))) {
       if (!name.endsWith(".json")) continue;
       const c = loadRitualConfig(JSON.parse(readFileSync(join(process.cwd(), "rituals", name), "utf8")));
-      configs.push({ slug: c.slug, title: c.title });
+      // Only festivals this family keeps (Occasions → festivals we keep); birthdays always.
+      if (c.slug === "birthday" || kept.includes(c.slug)) configs.push({ slug: c.slug, title: c.title });
     }
   } catch {
     // Configs optional; birthdays still scan.

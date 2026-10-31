@@ -56,7 +56,7 @@ export function FamilyTree({ members, relationships, viewerId, onAdd }: { member
             return (
               <div key={n.id} className="absolute flex w-[88px] -translate-x-1/2 flex-col items-center" style={{ left: n.x + PAD, top: n.y + PAD / 2 - NODE / 2 }}>
                 <Link href={`/people/${m.id}`} className="press block rounded-full no-underline" aria-label={`${callName(m)}${you ? " (you)" : ""}`}>
-                  <span className={cn("relative block overflow-hidden rounded-full bg-white", you ? "ring-[3px] ring-marigold ring-offset-2 ring-offset-[#faf7f2]" : "ring-2 ring-white shadow-[0_8px_18px_-10px_rgba(60,40,20,.6)]")} style={{ width: NODE, height: NODE }}>
+                  <span className={cn("relative block overflow-hidden rounded-full bg-white", you ? "ring-[3px] ring-ink ring-offset-2 ring-offset-[#faf7f2]" : "ring-2 ring-white shadow-[0_8px_18px_-10px_rgba(60,40,20,.6)]")} style={{ width: NODE, height: NODE }}>
                     {photo ? <Photo src={photo} alt="" sizes="128px" position="center 30%" /> : <Monogram name={callName(m)} size={NODE} />}
                   </span>
                 </Link>

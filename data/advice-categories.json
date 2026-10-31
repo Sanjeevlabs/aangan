@@ -1,0 +1,15 @@
+{
+  "_note": "Advice & blessings shelves. Data, not code: add or rename a shelf here. Keywords are case-insensitive regex fragments used as the deterministic fallback classifier. Health and money shelves hold elders' own habits and experience, never medical or financial advice.",
+  "fallback": "life",
+  "categories": [
+    { "id": "life", "label": "Life & values", "placeholder": "What matters most, looking back?", "keywords": ["life", "values?", "honest", "patien", "anger", "calm", "happy", "happiness", "regret", "kind", "respect", "jeevan", "जीवन", "सब्र"] },
+    { "id": "marriage", "label": "Marriage & relationships", "placeholder": "How did you two make it work?", "keywords": ["marri", "wedding", "husband", "wife", "spouse", "partner", "relationship", "in-laws?", "sasural", "fight", "argu", "शादी", "रिश्त"] },
+    { "id": "children", "label": "Raising children", "placeholder": "How did you handle us as toddlers?", "keywords": ["child", "kids?", "baby", "toddler", "parenting", "raise", "raising", "son", "daughter", "teen", "bacch", "बच्च"] },
+    { "id": "career", "label": "Studies & career", "placeholder": "How do I stay calm before exams?", "keywords": ["exam", "stud", "school", "college", "career", "job", "work", "boss", "office", "interview", "promotion", "business", "पढ़ाई", "नौकरी"] },
+    { "id": "health", "label": "Health habits", "note": "Their own habits, not medical advice.", "placeholder": "What did you do every morning to stay well?", "keywords": ["health", "walk", "yoga", "sleep", "morning routine", "exercise", "fit", "diet", "habit", "सेहत", "टहल"] },
+    { "id": "money", "label": "Money habits", "note": "Their own experience, not financial advice.", "placeholder": "How did you save when money was tight?", "keywords": ["money", "sav(e|ing)", "spend", "budget", "loan", "debt", "salary", "paisa", "kharcha", "पैसा", "बचत"] },
+    { "id": "home", "label": "Home & kitchen tricks", "placeholder": "How do you keep the pickle from spoiling?", "keywords": ["kitchen", "cook", "clean", "stain", "pickle", "house", "home", "garden", "plant", "store", "trick", "रसोई"] },
+    { "id": "traditions", "label": "Festivals & traditions", "placeholder": "Why do we do it this way at home?", "keywords": ["festival", "tradition", "ritual", "custom", "puja", "pooja", "prayer", "tyohar", "celebrat", "त्योहार", "पूजा"] },
+    { "id": "blessings", "label": "Blessings for occasions", "placeholder": "My interview on Friday", "keywords": ["bless", "ashirwad", "aashirwad", "आशीर्वाद", "birthday", "new job", "new home", "anniversary", "journey", "graduat"] }
+  ]
+}

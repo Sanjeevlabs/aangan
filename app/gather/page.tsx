@@ -368,7 +368,7 @@ function Upcoming({ sittings, members, viewer, onChange }: { sittings: Sitting[]
                   <p className="m-0 text-[17px] font-semibold">{s.title}</p>
                   <p className="m-0 mt-0.5 text-[13px] text-ink-soft">{s.hostId === viewer.id ? "You set this up" : `Set up by ${callName(host)}`}</p>
                 </div>
-                {live && <span className="shrink-0 rounded-full bg-marigold px-2.5 py-1 text-[12px] font-bold text-black">Now</span>}
+                {live && <span className="shrink-0 rounded-full bg-ink px-2.5 py-1 text-[12px] font-bold text-white">Now</span>}
               </div>
               {s.note && <p className="voice m-0 mt-2 text-[16px]">“{s.note}”</p>}
               <ul className="m-0 mt-3 list-none divide-y divide-[var(--line)] rounded-[16px] bg-white p-0 px-3">

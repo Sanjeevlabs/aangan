@@ -3,54 +3,63 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { dailyRoleFor } from "@/lib/family";
 import type { Knock, Sitting } from "@/lib/kinds";
-import { roomsFor } from "@/lib/menu";
-import { callName, cardCover, memberPhoto, peopleByRecency, relativeDay, tintShadow } from "@/lib/people";
+import { callName, cardCover, memberPhoto, peopleByRecency, relativeDay } from "@/lib/people";
 import type { Card, Member } from "@/lib/schemas";
 import { useDisplayText } from "@/lib/use-display-text";
 import { useFamilyCards } from "@/lib/use-family";
 import { ago, postJson, useJson } from "@/lib/use-json";
 import { isAwake, placeFromTz, timeIn } from "@/lib/zones";
-import { CourtyardNow } from "./home-presence";
+import { Carousel } from "./carousel";
+import { GiftsThisWeek, MyNeeds, MyQuestions, StoryDoor, VisitCountdown, useNextVisit } from "./home-presence";
 import { usePlayer } from "./player";
 import { VoiceCode } from "./plaque";
-import { HeardChip } from "./reactions";
 import { useShell } from "./shell";
+import { SafetyWatch } from "./safety";
 import { SideSwitch } from "./sides";
 import { TodayCard, useToday } from "./today";
-import { Avatar, Icon, Monogram, Photo, SectionTitle, type IconName } from "./ui/kit";
+import { Avatar, Icon, Monogram, Photo } from "./ui/kit";
 import { useViewer } from "./viewer";
 
-// Kutumb (SPEC §29.3): behind the door. One courtyard, five rooms, one
-// live thing (Sit together) and one thing to do today. Clean on purpose.
+// Kutumb (SPEC §29.3, revised 30 Oct): behind the door. Quiet and short:
+// today's question, then one swipeable row of what's alive now (a voice from
+// home, sitting together, a visit, a birthday, a memory), then everyone.
+// The rooms live behind the ⋯ in the dock, with the mic and the camera.
 
-/* ---------------------------------------------------------------- rooms */
-function RoomTiles() {
-  const router = useRouter();
-  const { viewer } = useViewer();
-  const { openRoom } = useShell();
-  const rooms = roomsFor(viewer.role === "elder");
+const SLIDE_H = "h-[236px]";
+
+/* ------------------------------------------------------ a voice from home */
+function VoiceSlide({ card }: { card: Card }) {
+  const { members, displayLang } = useViewer();
+  const { play, current, isPlaying, toggle } = usePlayer();
+  const author = members.find((mm) => mm.id === card.authorId);
+  const { text } = useDisplayText(card.transcript || card.caption, card.transcript ? card.transcriptLang : card.lang, displayLang);
+  const playing = current?.id === card.id && isPlaying;
   return (
-    <nav aria-label="Rooms" className="mt-5 grid grid-cols-5 gap-2">
-      {rooms.map((r) => (
-        <button key={r.id} type="button" onClick={() => (r.href ? router.push(r.href) : openRoom(r.id))} className="press flex flex-col items-center gap-1.5 text-center">
-          <span
-            className="grid aspect-square w-full max-w-[66px] place-items-center rounded-[20px]"
-            style={{ background: `linear-gradient(150deg, ${r.tone[0]}, #ffffff 140%)`, color: r.tone[1], boxShadow: `0 12px 24px -18px ${r.tone[1]}, inset 0 1px 0 #fff` }}
-          >
-            <Icon name={r.icon as IconName} size={26} strokeWidth={1.9} />
+    <article className={`relative ${SLIDE_H} overflow-hidden rounded-[26px] bg-surface`}>
+      <Photo src={cardCover(card, members)} alt="" sizes="440px" position="center 30%" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/75" aria-hidden="true" />
+      <div className="absolute inset-x-4 bottom-4 text-white">
+        <p className="voice m-0 line-clamp-2 text-[18px] leading-snug">“{text ?? card.caption}”</p>
+        <div className="mt-3 flex items-center gap-3">
+          <span className="min-w-0 flex-1">
+            <span className="block text-[13.5px] font-semibold">{callName(author)}</span>
+            <span className="block text-[12px] text-white/70">{relativeDay(card.takenAt)}</span>
           </span>
-          <span className="text-[12.5px] font-semibold leading-tight text-ink">{r.title}</span>
-        </button>
-      ))}
-    </nav>
+          <span className="hidden min-[400px]:block [&_span>span]:!bg-white/60">
+            <VoiceCode peaks={card.peaks} bars={16} className="h-5" />
+          </span>
+          <button type="button" onClick={() => (current?.id === card.id ? toggle() : play(card))} aria-label={playing ? "Pause" : `Play ${callName(author)}'s voice note`} className="press grid h-12 w-12 place-items-center rounded-full bg-white text-black">
+            <Icon name={playing ? "pause" : "play"} size={18} />
+          </button>
+        </div>
+      </div>
+    </article>
   );
 }
 
 /* --------------------------------------------------------- sit together */
-/** Live, not a room: who's awake right now in every home, and one tap to sit. */
-function SitTogetherLive() {
+function SitSlide() {
   const router = useRouter();
   const { viewer, members } = useViewer();
   const sit = useJson<{ sittings: Sitting[]; knocks: Knock[] }>("/api/sit");
@@ -61,12 +70,11 @@ function SitTogetherLive() {
     const t = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(t);
   }, []);
-  const adults = members.filter((m) => m.role !== "child");
-  const awake = now ? adults.filter((m) => isAwake(m.tz, now)) : [];
+  const adults = members.filter((mm) => mm.role !== "child");
+  const awake = now ? adults.filter((mm) => isAwake(mm.tz, now)) : [];
   const knock = (sit.data?.knocks ?? [])[0];
-  const host = members.find((m) => m.id === knock?.memberId);
+  const host = members.find((mm) => mm.id === knock?.memberId);
   const next = (sit.data?.sittings ?? []).filter((s) => Date.parse(s.startsAt) > Date.now()).sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0];
-
   const start = async () => {
     if (knock) return router.push(`/call/${knock.id}`);
     setBusy(true);
@@ -74,155 +82,79 @@ function SitTogetherLive() {
     setBusy(false);
     if (out?.knock) router.push(`/call/${out.knock.id}`);
   };
-
   return (
-    <section aria-label="Sit together" className="relative mt-5 overflow-hidden rounded-[28px] p-5 text-white" style={{ background: "linear-gradient(160deg,#0f2a22 0%,#123b2e 55%,#1b5140 100%)" }}>
+    <article className={`flex ${SLIDE_H} flex-col justify-between rounded-[26px] bg-[#1c1b1a] p-5 text-white`}>
       <div className="flex items-center justify-between">
-        <p className="m-0 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.1em] text-white/70">
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#7be3a6] opacity-60" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#7be3a6]" />
-          </span>
+        <p className="m-0 flex items-center gap-2 text-[12px] uppercase tracking-[0.14em] text-white/60">
+          <span className={`h-2 w-2 rounded-full ${knock ? "animate-pulse bg-[#3ccf7a]" : "bg-white/50"}`} />
           {knock ? "Live now" : "Sit together"}
         </p>
-        <Link href="/gather" className="text-[13px] font-semibold text-white/75 no-underline">
-          Plan one
+        <Link href="/gather" aria-label="Plan a get-together" className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white no-underline">
+          <Icon name="calendar" size={17} />
         </Link>
       </div>
-      <p className="m-0 mt-2 text-[22px] font-bold leading-tight tracking-[-0.01em]">
-        {knock ? `${host?.id === viewer.id ? "You are" : `${callName(host)} is`} on a video call` : awake.length > 1 ? `${awake.length} of you are awake now` : "Everyone's asleep somewhere"}
-      </p>
-      <p className="m-0 mt-1 text-[14px] text-white/70">{knock ? `Until ${now ? timeIn(viewer.tz, new Date(knock.until)) : ""} · join with video` : next ? `Next: ${next.title} · ${relativeDay(next.startsAt)}` : "Turn the camera on and leave it on. Like sitting in one room."}</p>
-      <div className="mt-4 flex items-center justify-between gap-3">
+      <div>
+        <p className="m-0 text-[22px] font-light leading-tight">{knock ? `${host?.id === viewer.id ? "You're" : `${callName(host)} is`} on a video call` : awake.length > 1 ? `${awake.length} of you are awake now` : "Everyone's asleep somewhere"}</p>
+        <p className="m-0 mt-1 text-[13.5px] text-white/60">{knock ? `Until ${now ? timeIn(viewer.tz, new Date(knock.until)) : ""}` : next ? `Next: ${next.title} · ${relativeDay(next.startsAt)}` : "Leave the camera on, like sitting in one room"}</p>
+      </div>
+      <div className="flex items-center justify-between gap-3">
         <ul className="m-0 flex list-none -space-x-2.5 p-0" aria-label="Awake now">
-          {(awake.length ? awake : adults).slice(0, 6).map((m) => (
-            <li key={m.id} className="relative rounded-full ring-2 ring-[#123b2e]" title={`${callName(m)} · ${placeFromTz(m.tz)}`}>
-              <Avatar src={memberPhoto(m)} name={callName(m)} size={38} />
-              {awake.includes(m) && <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-[#7be3a6] ring-2 ring-[#123b2e]" />}
+          {(awake.length ? awake : adults).slice(0, 6).map((mm) => (
+            <li key={mm.id} className="relative rounded-full ring-2 ring-[#1c1b1a]" title={`${callName(mm)} · ${placeFromTz(mm.tz)}`}>
+              <Avatar src={memberPhoto(mm)} name={callName(mm)} size={36} />
             </li>
           ))}
         </ul>
-        <button type="button" onClick={() => void start()} disabled={busy} className="press flex h-12 shrink-0 items-center gap-2 rounded-full bg-white pl-4 pr-5 text-[15px] font-semibold text-[#123b2e]">
-          <Icon name="video" size={19} />
-          {knock ? "Join" : "Sit now"}
+        <button type="button" onClick={() => void start()} disabled={busy} aria-label={knock ? "Join the call" : "Start a video call"} className="press grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white text-black">
+          <Icon name="video" size={20} />
         </button>
       </div>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------ a voice from home */
-/** The music card: their photo as the cover, the voice as a waveform, Listen. */
-function VoiceFromHome({ card }: { card: Card }) {
-  const { members, displayLang } = useViewer();
-  const { play, current, isPlaying, toggle } = usePlayer();
-  const author = members.find((m) => m.id === card.authorId);
-  const { text } = useDisplayText(card.transcript || card.caption, card.transcript ? card.transcriptLang : card.lang, displayLang);
-  const playing = current?.id === card.id && isPlaying;
-  return (
-    <section aria-label="A voice from home" className="mt-5">
-      <article className="relative overflow-hidden rounded-[30px]" style={{ boxShadow: tintShadow(card, 0.5) }}>
-        <div className="relative aspect-[4/3.4] w-full">
-          <Photo src={cardCover(card, members)} alt="" sizes="480px" position="center 30%" />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/70" aria-hidden="true" />
-        </div>
-        <div className="absolute left-4 top-4">
-          <span className="glass flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold uppercase tracking-[0.08em]">
-            <Icon name="music" size={13} /> A voice from home
-          </span>
-        </div>
-        <div className="glass absolute inset-x-3 bottom-3 rounded-[22px] p-4">
-          <p className="voice m-0 line-clamp-2 text-[19px] leading-snug">“{text ?? card.caption}”</p>
-          <div className="mt-3 flex items-center gap-3">
-            <Avatar src={memberPhoto(author)} name={callName(author)} size={32} />
-            <span className="min-w-0 flex-1">
-              <span className="block text-[14px] font-semibold">{callName(author)}</span>
-              <span className="block text-[12px] text-white/75">{relativeDay(card.takenAt)}</span>
-            </span>
-            <span className="hidden min-[400px]:block [&_span>span]:!bg-white/60">
-              <VoiceCode peaks={card.peaks} bars={16} className="h-5" />
-            </span>
-            <button type="button" onClick={() => (current?.id === card.id ? toggle() : play(card))} className="press flex h-11 items-center gap-2 rounded-full bg-white pl-3 pr-4 text-[14px] font-semibold text-black">
-              <Icon name={playing ? "pause" : "play"} size={15} />
-              {playing ? "Pause" : "Listen"}
-            </button>
-          </div>
-        </div>
-      </article>
-      <div className="mt-2 flex min-h-[20px] items-center gap-2 px-1 text-[13px] text-ink-soft [&_p]:text-[13px]">
-        <HeardChip cardId={card.id} />
-      </div>
-    </section>
-  );
-}
-
-/* ---------------------------------------------------- today's role (parents) */
-function TodaysRole() {
-  const { displayLang } = useViewer();
-  const { openAdd } = useShell();
-  const role = dailyRoleFor(displayLang);
-  return (
-    <button type="button" onClick={() => openAdd("voice", { kind: "story", prompt: role.replace(/^[^:]+:\s*/, "") })} className="press mt-3 flex w-full items-center gap-3 rounded-[22px] bg-[#fff6e2] px-4 py-3.5 text-left">
-      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-marigold text-black">
-        <Icon name="sun" size={20} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8a5a12]">Your role today</span>
-        <span className="block text-[16px] font-semibold leading-snug text-ink">{role.replace(/^[^:]+:\s*/, "")}</span>
-      </span>
-      <Icon name="mic" size={20} className="text-[#8a5a12]" />
-    </button>
+    </article>
   );
 }
 
 /* --------------------------------------------------------------- coming up */
-function ComingUp() {
+function ComingUpSlide() {
   const { members } = useViewer();
   const { openAdd } = useShell();
   const { data } = useToday();
   const occ = data?.occasion;
   if (!occ) return null;
-  const who = members.find((m) => m.id === occ.memberId);
-  const when = occ.days === 0 ? "today" : occ.days === 1 ? "tomorrow" : `in ${occ.days} days`;
-  const photo = memberPhoto(who) ?? "/demo/family-group.webp";
+  const who = members.find((mm) => mm.id === occ.memberId);
+  const when = occ.days === 0 ? "Today" : occ.days === 1 ? "Tomorrow" : `In ${occ.days} days`;
   return (
-    <section aria-label="Coming up">
-      <SectionTitle href="/rituals" linkLabel="Occasions">
-        Coming up
-      </SectionTitle>
-      <article className="relative h-[210px] overflow-hidden rounded-card bg-surface" style={{ boxShadow: "0 22px 44px -20px rgba(90,50,20,.5)" }}>
-        <Photo src={photo} alt="" sizes="440px" position="center 35%" />
-        <div className="glass absolute inset-x-2.5 bottom-2.5 rounded-[18px] p-3.5 pl-4">
-          <p className="m-0 text-[17px] font-semibold">{occ.title}</p>
-          <p className="m-0 text-[13px] text-white/85">{when} · both homes get asked for photos a week before</p>
-          <div className="mt-2.5 flex gap-2">
-            <button type="button" onClick={() => openAdd("photos")} className="press flex h-10 items-center gap-1.5 rounded-full bg-white px-4 text-[14px] font-semibold text-black">
-              <Icon name="camera" size={16} /> Add photos
-            </button>
-            {who && (
-              <button type="button" onClick={() => openAdd("voice", null, who.id)} className="press flex h-10 items-center gap-1.5 rounded-full bg-white/20 px-4 text-[14px] font-semibold">
-                <Icon name="mic" size={16} /> Record a wish
-              </button>
-            )}
-          </div>
-        </div>
-      </article>
-    </section>
+    <article className={`relative ${SLIDE_H} overflow-hidden rounded-[26px] bg-surface`}>
+      <Photo src={memberPhoto(who) ?? "/demo/family-group.webp"} alt="" sizes="440px" position="center 35%" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/75" aria-hidden="true" />
+      <Link href="/rituals" className="absolute inset-0" aria-label="Occasions" />
+      <div className="pointer-events-none absolute inset-x-4 bottom-4 flex items-end gap-3 text-white">
+        <span className="min-w-0 flex-1">
+          <span className="block text-[12px] uppercase tracking-[0.14em] text-white/70">{when}</span>
+          <span className="block truncate text-[19px] font-semibold">{occ.title}</span>
+        </span>
+        {who && (
+          <button type="button" onClick={() => openAdd("voice", null, who.id)} aria-label={`Record a wish for ${callName(who)}`} className="press pointer-events-auto grid h-12 w-12 place-items-center rounded-full bg-white text-black">
+            <Icon name="mic" size={19} />
+          </button>
+        )}
+      </div>
+    </article>
   );
 }
 
 /* ------------------------------------------------------------ from the years */
-function YearsAgo({ card }: { card: Card }) {
+function YearsSlide({ card }: { card: Card }) {
   const { members, displayLang } = useViewer();
   const { text } = useDisplayText(card.caption, card.lang, displayLang);
-  const year = new Date(card.takenAt).getFullYear();
+  const years = new Date().getFullYear() - new Date(card.takenAt).getFullYear();
   return (
     <Link href="/lane" className="block text-white no-underline">
-      <article className="relative h-[240px] overflow-hidden rounded-card bg-surface" style={{ boxShadow: tintShadow(card, 0.45) }}>
+      <article className={`relative ${SLIDE_H} overflow-hidden rounded-[26px] bg-surface`}>
         <Photo src={cardCover(card, members)} alt={text ?? ""} sizes="440px" />
-        <div className="glass absolute inset-x-2.5 bottom-2.5 rounded-[18px] px-4 py-3">
-          <p className="m-0 text-[13px] text-white/85">{new Date().getFullYear() - year} years ago this season</p>
-          <p className="m-0 text-[17px] font-semibold">{text ?? "…"}</p>
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/70" aria-hidden="true" />
+        <div className="absolute inset-x-4 bottom-4">
+          <p className="m-0 text-[12px] uppercase tracking-[0.14em] text-white/70">{years} year{years > 1 ? "s" : ""} ago</p>
+          <p className="m-0 truncate text-[18px] font-semibold">{text ?? "…"}</p>
         </div>
       </article>
     </Link>
@@ -230,14 +162,14 @@ function YearsAgo({ card }: { card: Card }) {
 }
 
 /* --------------------------------------------------------- the family shelf */
-function PersonAlbum({ member, latest }: { member: Member; latest: Card | undefined }) {
+function PersonChip({ member, latest }: { member: Member; latest: Card | undefined }) {
   const photo = memberPhoto(member);
   return (
-    <li className="w-[116px] shrink-0" style={{ scrollSnapAlign: "start" }}>
+    <li className="w-[84px] shrink-0 text-center" style={{ scrollSnapAlign: "start" }}>
       <Link href={`/people/${member.id}`} className="block text-ink no-underline">
-        <div className="relative h-[116px] overflow-hidden rounded-[22px] bg-surface">{photo ? <Photo src={photo} alt={callName(member)} sizes="240px" position="center 30%" /> : <Monogram name={callName(member)} size={116} />}</div>
-        <p className="m-0 mt-2 truncate text-[14.5px] font-semibold">{callName(member)}</p>
-        <p className="m-0 truncate text-[12.5px] text-ink-soft">{latest ? `${latest.type === "audio" ? "Voice" : "Photo"} · ${ago(latest.takenAt)}` : member.city || placeFromTz(member.tz)}</p>
+        <div className="relative mx-auto h-[72px] w-[72px] overflow-hidden rounded-full bg-surface ring-1 ring-black/5">{photo ? <Photo src={photo} alt={callName(member)} sizes="160px" position="center 30%" /> : <Monogram name={callName(member)} size={72} />}</div>
+        <p className="m-0 mt-1.5 truncate text-[13.5px] font-semibold">{callName(member)}</p>
+        <p className="m-0 truncate text-[11.5px] text-ink-soft">{latest ? ago(latest.takenAt) : member.city || placeFromTz(member.tz)}</p>
       </Link>
     </li>
   );
@@ -249,28 +181,31 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
   const { refreshKey, openRoom } = useShell();
   const { cards } = useFamilyCards(refreshKey);
   const elder = viewer.role === "elder";
+  const visit = useNextVisit();
+  const stories = useJson<{ stories: { id: string; tellerId: string; title: string }[] }>(viewer.role === "child" ? "/api/stories" : null);
 
   const voice = useMemo(() => {
     const others = (cards ?? []).filter((c) => c.type === "audio" && c.authorId && c.authorId !== viewer.id);
     // A voice from the other generation first: that's the one you came for.
-    return others.find((c) => members.find((m) => m.id === c.authorId)?.role === (elder ? "adult" : "elder")) ?? others[0];
+    return others.find((c) => members.find((mm) => mm.id === c.authorId)?.role === (elder ? "adult" : "elder")) ?? others[0];
   }, [cards, viewer.id, members, elder]);
   const people = useMemo(() => peopleByRecency(viewer.id, members, cards ?? []), [viewer.id, members, cards]);
   const latestBy = (id: string) => (cards ?? []).find((c) => c.authorId === id);
   const thisYear = new Date().getFullYear();
   const yearsAgo = (cards ?? []).find((c) => c.type === "photo" && new Date(c.takenAt).getFullYear() < thisYear);
+  const story = stories.data?.stories[0];
 
   return (
     <div>
-      <header className="pt-5">
-        <div className="flex items-start justify-between gap-3">
+      <header className="pt-4">
+        <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="m-0 text-[11.5px] font-semibold uppercase tracking-[0.16em] text-ink-soft">Kutumb · the whole family</p>
-            <h1 className="m-0 mt-1 text-[30px] leading-[1.05]">{viewer.firstName}&rsquo;s Aangan</h1>
+            <p className="m-0 text-[11.5px] uppercase tracking-[0.2em] text-ink-soft">Kutumb</p>
+            <h1 className="m-0 mt-0.5 truncate text-[28px] font-light leading-[1.1] tracking-[-0.01em]">{viewer.firstName}&rsquo;s family</h1>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <button type="button" onClick={onCloseDoor} aria-label="Back to the window" className="press grid h-11 w-11 place-items-center rounded-full bg-surface text-ink">
-              <Icon name="doorClosed" size={20} />
+            <button type="button" onClick={onCloseDoor} aria-label="Close the door, back to the window" className="press grid h-11 w-11 place-items-center rounded-full bg-black/[.05] text-ink">
+              <Icon name="doorClosed" size={20} strokeWidth={1.8} />
             </button>
             <button type="button" onClick={() => openRoom("all")} aria-label="Everything, and your settings" className="press rounded-full">
               <Avatar src={memberPhoto(viewer)} name={viewer.firstName} size={44} ring />
@@ -280,33 +215,41 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
         <SideSwitch />
       </header>
 
-      <RoomTiles />
+      <SafetyWatch />
       <TodayCard />
-      <CourtyardNow />
-      {elder && <TodaysRole />}
-      <SitTogetherLive />
 
-      {cards === null ? <div className="skeleton mt-5 h-[380px] rounded-[30px]" aria-busy="true" aria-label="Loading" /> : voice ? <VoiceFromHome card={voice} /> : null}
+      {cards === null ? (
+        <div className={`skeleton mt-5 ${SLIDE_H} rounded-[26px]`} aria-busy="true" aria-label="Loading" />
+      ) : (
+        <Carousel label="Now in the family" className="mt-5">
+          {voice && <VoiceSlide card={voice} />}
+          {story && <StoryDoor story={story} />}
+          <SitSlide />
+          {visit && <VisitCountdown visit={visit} />}
+          <ComingUpSlide />
+          {yearsAgo && <YearsSlide card={yearsAgo} />}
+        </Carousel>
+      )}
 
-      <ComingUp />
-
-      {yearsAgo && (
-        <section aria-label="From the years">
-          <SectionTitle href="/lane" linkLabel="Memory Lane">
-            From the years
-          </SectionTitle>
-          <YearsAgo card={yearsAgo} />
-        </section>
+      {elder && (
+        <div className="mt-5 space-y-3">
+          <MyQuestions />
+          <GiftsThisWeek />
+          <MyNeeds />
+        </div>
       )}
 
       {people.length > 0 && (
-        <section aria-label="Your family">
-          <SectionTitle href="/bond" linkLabel="Family tree">
-            Everyone
-          </SectionTitle>
-          <ul className="no-scrollbar -mx-5 m-0 flex list-none gap-3 overflow-x-auto px-5 pb-2" style={{ scrollSnapType: "x mandatory", scrollPaddingInline: 20 }}>
-            {people.map((m) => (
-              <PersonAlbum key={m.id} member={m} latest={latestBy(m.id)} />
+        <section aria-label="Everyone" className="mt-6">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="m-0 text-[17px] font-semibold">Everyone</h2>
+            <Link href="/bond" aria-label="Family tree" className="grid h-9 w-9 place-items-center rounded-full text-ink-soft no-underline">
+              <Icon name="tree" size={18} />
+            </Link>
+          </div>
+          <ul className="no-scrollbar -mx-5 m-0 flex list-none gap-2 overflow-x-auto px-5 pb-1" style={{ scrollSnapType: "x mandatory", scrollPaddingInline: 20 }}>
+            {people.map((mm) => (
+              <PersonChip key={mm.id} member={mm} latest={latestBy(mm.id)} />
             ))}
           </ul>
         </section>

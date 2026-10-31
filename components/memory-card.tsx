@@ -35,7 +35,7 @@ export function CardActions({ card, tone = "soft", onEditing }: { card: Card; to
   return <ActionMenu actions={actions} tone={tone} label="Voice note options" />;
 }
 
-function CaptionEditor({ card, onDone }: { card: Card; onDone: () => void }) {
+export function CaptionEditor({ card, onDone }: { card: Card; onDone: () => void }) {
   const { bumpRefresh } = useShell();
   const [value, setValue] = useState(card.transcript || card.caption);
   const [busy, setBusy] = useState(false);

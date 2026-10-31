@@ -1,47 +1,74 @@
 "use client";
 
 import { useState } from "react";
-import { Avatar, Button, EmptyLine, Icon, RoomHeader } from "@/components/ui/kit";
+import { ActionMenu, Avatar, Button, EmptyLine, Icon, RoomHeader } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
 import { householdName, households, type Household } from "@/lib/households";
 import { HELPER_ROLES, type Helper } from "@/lib/kinds";
+import { emergencyNumber, isDialable, MAX_NEARBY, rankNearby, telHref, waHref } from "@/lib/nearby";
 import { callName, memberPhoto } from "@/lib/people";
 import { postJson, useJson } from "@/lib/use-json";
+import { cn } from "@/lib/utils";
 import { placeFromTz } from "@/lib/zones";
-import { emergencyNumber } from "@/lib/nearby";
 
-// Trusted nearby (SPEC §29.9): for every home, the few people nearby to call
-// first if something is wrong. Both ways: a father in Amritsar sees who is
-// near his son in Bengaluru, and the son sees who is near his parents. Not an
-// emergency service: the local emergency number is always one tap away.
+// Trusted nearby (SPEC §29.9): for every home, your top 5 people nearby, in
+// the order to call them. If the family can't reach someone, they call #1,
+// then #2, and so on. Calls open the phone's own dialer (an ordinary call on
+// the local mobile network). Not an emergency service: the local emergency
+// number is always one tap away.
 
-const tel = (phone: string) => `tel:${phone.replace(/[^\d+]/g, "")}`;
+const ESCALATION = "If they don't pick up, call #1, then #2, and so on down the list.";
+const ERRORS: Record<string, string> = {
+  "needs-consent": "Tick that they've agreed to be listed.",
+  "invalid-phone": "Enter a full phone number, like +91 98765 43210.",
+  "nearby-full": `This home already has ${MAX_NEARBY}. Remove someone first.`,
+};
 
 export default function NearbyPage() {
   const { viewer, members, relationships } = useViewer();
-  const { data, reload } = useJson<{ helpers: Helper[] }>("/api/care");
+  const { data, failed, reload } = useJson<{ helpers: Helper[] }>("/api/care");
   const homes = households(members, relationships)
     .filter((h) => h.members.some((m) => m.role !== "child"))
     // Your home first, then the parents', then everyone else.
     .sort((a, b) => Number(b.members.some((m) => m.id === viewer.id)) - Number(a.members.some((m) => m.id === viewer.id)) || Number(b.elders) - Number(a.elders));
   return (
     <div>
-      <RoomHeader title="Trusted nearby" subtitle="For every home, the people nearby to call first" />
-      {data === null && <div className="skeleton h-[300px] rounded-card" aria-busy="true" aria-label="Loading" />}
-      {data && homes.map((h) => <HomeNearby key={h.id} home={h} helpers={(data.helpers ?? []).filter((x) => x.emergency && h.members.some((m) => m.id === x.forMemberId))} onChange={reload} />)}
+      <RoomHeader title="Trusted nearby" subtitle={`For every home, your top ${MAX_NEARBY} people close by, in the order to call them.`} />
+      {failed && !data ? (
+        <div className="rounded-card bg-surface px-5 py-8 text-center">
+          <p className="m-0 text-[15px] text-ink-soft">Couldn&rsquo;t load the list right now.</p>
+          <Button variant="secondary" className="mx-auto mt-3 !h-11 !bg-white" onClick={() => void reload()}>
+            Try again
+          </Button>
+        </div>
+      ) : !data ? (
+        <div className="skeleton h-[300px] rounded-card" aria-busy="true" aria-label="Loading" />
+      ) : (
+        homes.map((h) => <HomeNearby key={h.id} home={h} helpers={rankNearby((data.helpers ?? []).filter((x) => x.emergency && h.members.some((m) => m.id === x.forMemberId)))} onChange={reload} />)
+      )}
     </div>
   );
 }
 
-function HomeNearby({ home, helpers, onChange }: { home: Household; helpers: Helper[]; onChange: () => void }) {
+function HomeNearby({ home, helpers, onChange }: { home: Household; helpers: Helper[]; onChange: () => Promise<void> }) {
   const { viewer } = useViewer();
   const mine = home.members.some((m) => m.id === viewer.id);
+  const mayEdit = mine || viewer.access !== "child";
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const city = home.members.find((m) => m.city)?.city || placeFromTz(home.tz);
   const sos = emergencyNumber(home.tz);
+  const full = helpers.length >= MAX_NEARBY;
+  const move = async (id: string, dir: -1 | 1) => {
+    setBusy(true);
+    await postJson("/api/care", { action: "nearby-move", helperId: id, dir });
+    await onChange();
+    setBusy(false);
+  };
   return (
-    <section aria-label={`Around ${householdName(home, callName)}`} className="mb-8">
-      <div className="mb-3 flex items-center gap-3">
+    <section aria-label={mine ? "Around you" : `Around ${householdName(home, callName)}`} className="mb-7">
+      <div className="mb-2 flex items-center gap-3">
         <span className="flex -space-x-2">
           {home.members.filter((m) => m.role !== "child").slice(0, 3).map((m) => (
             <span key={m.id} className="rounded-full ring-2 ring-white">
@@ -51,90 +78,142 @@ function HomeNearby({ home, helpers, onChange }: { home: Household; helpers: Hel
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="m-0 truncate text-[18px]">{mine ? "Around you" : `Around ${householdName(home, callName)}`}</h2>
-          <p className="m-0 text-[13px] text-ink-soft">{city}</p>
+          <p className="m-0 text-[13px] text-ink-soft">
+            {city} · <span className="tnum">{helpers.length}/{MAX_NEARBY}</span>
+          </p>
         </div>
-        <a href={`tel:${sos}`} className="press flex h-10 items-center gap-1.5 rounded-full bg-[#fde3df] px-3.5 text-[14px] font-semibold text-[#a3271b] no-underline" aria-label={`Emergency services in ${city}: ${sos}`}>
-          <Icon name="phone" size={15} /> {sos}
+        <a href={`tel:${sos}`} className="press flex h-10 items-center gap-1.5 rounded-full bg-black px-3.5 text-[14px] font-semibold text-white no-underline" aria-label={`Emergency services in ${city}: ${sos}`}>
+          <span className="h-2 w-2 rounded-full bg-[#d92d20]" aria-hidden="true" />
+          {sos}
         </a>
       </div>
-      {helpers.length === 0 ? (
-        <EmptyLine>{mine ? "Add one or two people near you, so your family knows who to call." : "No one yet. Ask them who lives close and would come."}</EmptyLine>
-      ) : (
-        <ul className="m-0 list-none overflow-hidden rounded-[22px] bg-surface p-0">
+      <p className="m-0 mb-2 text-[13px] text-ink-soft">{ESCALATION}</p>
+
+      {helpers.length === 0 && !adding ? (
+        <EmptyLine>{mine ? "Add the first person near you your family can call." : "No one yet. Ask them who lives close and would come."}</EmptyLine>
+      ) : helpers.length > 0 ? (
+        <ol className="m-0 list-none divide-y divide-[var(--line)] overflow-hidden rounded-[22px] bg-surface p-0">
           {helpers.map((h, i) => (
-            <li key={h.id} className={i ? "border-t border-[var(--line)]" : ""}>
-              <div className="flex items-center gap-3 px-3.5 py-3">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-[#2f7a4c]">
-                  <Icon name="shield" size={18} />
+            <li key={h.id}>
+              <div className="flex items-center gap-2 py-2.5 pl-3 pr-1.5">
+                <span className={cn("tnum grid h-8 w-8 shrink-0 place-items-center rounded-full text-[14px] font-bold", i === 0 ? "bg-black text-white" : "bg-white text-ink")} aria-label={`Number ${i + 1}`}>
+                  {i + 1}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[16px] font-semibold leading-tight">{h.name}</span>
-                  <span className="block truncate text-[13px] text-ink-soft">
-                    {h.role}
-                    {h.note ? ` · ${h.note}` : ""}
-                  </span>
+                  <span className="block truncate text-[15px] font-semibold leading-tight">{h.name}</span>
+                  <span className="block truncate text-[12.5px] text-ink-soft first-letter:uppercase">{[h.role, h.note].filter(Boolean).join(" · ")}</span>
                 </span>
                 {h.phone && (
-                  <a href={tel(h.phone)} className="press grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#2f9e5b] text-white" aria-label={`Call ${h.name}`}>
-                    <Icon name="phone" size={18} />
-                  </a>
+                  <>
+                    <a href={waHref(h.phone)} target="_blank" rel="noreferrer" className="press grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-ink" aria-label={`WhatsApp ${h.name}`}>
+                      <Icon name="whatsapp" size={17} />
+                    </a>
+                    <a href={telHref(h.phone)} className="press grid h-11 w-11 shrink-0 place-items-center rounded-full bg-black text-white" aria-label={`Call ${h.name}, number ${i + 1}`}>
+                      <Icon name="phone" size={18} />
+                    </a>
+                  </>
+                )}
+                {mayEdit && (
+                  <ActionMenu
+                    label={`${h.name} options`}
+                    actions={[
+                      ...(i > 0 ? [{ label: "Move up", onSelect: () => move(h.id, -1) }] : []),
+                      ...(i < helpers.length - 1 ? [{ label: "Move down", onSelect: () => move(h.id, 1) }] : []),
+                      { label: "Edit", onSelect: () => setEditing(h.id) },
+                      {
+                        label: "Remove",
+                        danger: true,
+                        confirm: `Take ${h.name} off the list?`,
+                        onSelect: async () => {
+                          await postJson("/api/care", { action: "helper-remove", helperId: h.id });
+                          await onChange();
+                        },
+                      },
+                    ]}
+                  />
                 )}
               </div>
+              {editing === h.id && (
+                <div className="px-3 pb-3">
+                  <NearbyForm helper={h} forMemberId={h.forMemberId} onDone={async () => { setEditing(null); await onChange(); }} />
+                </div>
+              )}
             </li>
           ))}
-        </ul>
-      )}
-      {(mine || viewer.access !== "child") &&
+        </ol>
+      ) : null}
+      {busy && <span className="sr-only" role="status">Reordering…</span>}
+
+      {mayEdit &&
         (adding ? (
-          <AddNearby forMemberId={mine ? viewer.id : home.members[0].id} onDone={() => { setAdding(false); onChange(); }} />
+          <div className="mt-2">
+            <NearbyForm forMemberId={mine ? viewer.id : home.members[0].id} onDone={async () => { setAdding(false); await onChange(); }} />
+          </div>
+        ) : full ? (
+          <p className="m-0 mt-2 px-1 text-[13px] text-ink-faint">That&rsquo;s your top {MAX_NEARBY}. To add someone, take someone off first.</p>
         ) : (
-          <button type="button" onClick={() => setAdding(true)} className="press mt-2 flex h-11 items-center gap-2 px-1 text-[15px] font-semibold text-accent">
-            <Icon name="plus" size={17} /> Add someone nearby
+          <button type="button" onClick={() => setAdding(true)} className="press mt-2 flex h-11 items-center gap-2 px-1 text-[15px] font-semibold">
+            <Icon name="plus" size={17} /> Add #{helpers.length + 1}
           </button>
         ))}
     </section>
   );
 }
 
-function AddNearby({ forMemberId, onDone }: { forMemberId: string; onDone: () => void }) {
-  const [name, setName] = useState("");
-  const [role, setRole] = useState<Helper["role"]>("friend");
-  const [phone, setPhone] = useState("");
-  const [note, setNote] = useState("");
-  const [consent, setConsent] = useState(false);
+function NearbyForm({ helper, forMemberId, onDone }: { helper?: Helper; forMemberId: string; onDone: () => void | Promise<void> }) {
+  const [name, setName] = useState(helper?.name ?? "");
+  const [role, setRole] = useState<Helper["role"]>(helper?.role ?? "friend");
+  const [phone, setPhone] = useState(helper?.phone ?? "");
+  const [note, setNote] = useState(helper?.note ?? "");
+  const [consent, setConsent] = useState(helper?.consent ?? false);
   const [error, setError] = useState<string | null>(null);
-  const input = "h-12 w-full rounded-[14px] bg-white px-4 text-[15px] outline-none ring-1 ring-black/10 focus:ring-2 focus:ring-marigold";
+  const [busy, setBusy] = useState(false);
+  const phoneOk = isDialable(phone);
+  const input = "h-12 w-full rounded-[14px] bg-white px-4 text-[15px] outline-none ring-1 ring-black/5 focus:ring-2 focus:ring-black/30";
+  const save = async () => {
+    setBusy(true);
+    const fields = { name: name.trim(), role, phone: phone.trim(), note: note.trim(), emergency: true, consent };
+    const res = await fetch("/api/care", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(helper ? { action: "helper-edit", helperId: helper.id, ...fields } : { action: "helper", forMemberId, ...fields }) }).catch(() => null);
+    setBusy(false);
+    if (!res?.ok) {
+      const code = ((await res?.json().catch(() => null)) as { error?: string } | null)?.error ?? "";
+      return setError(ERRORS[code] ?? "Couldn't save. Try again.");
+    }
+    await onDone();
+  };
   return (
-    <div className="mt-2 space-y-2 rounded-[22px] bg-surface p-3">
+    <div className="space-y-2 rounded-[22px] bg-surface p-3">
       <input className={input} placeholder="Name" value={name} onChange={(e) => setName(e.target.value.slice(0, 60))} aria-label="Name" />
       <div className="flex gap-2">
-        <select className={input} value={role} onChange={(e) => setRole(e.target.value as Helper["role"])} aria-label="Who they are">
+        <select className={input} value={role} onChange={(e) => setRole(e.target.value as Helper["role"])} aria-label="Relation">
           {HELPER_ROLES.map((r) => (
             <option key={r} value={r}>
               {r}
             </option>
           ))}
         </select>
-        <input className={input} placeholder="Phone" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value.slice(0, 30))} aria-label="Phone" />
+        <input
+          className={cn(input, phone && !phoneOk && "ring-2 ring-[#d92d20]/60")}
+          placeholder="+91 98765 43210"
+          inputMode="tel"
+          autoComplete="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value.replace(/[^+\d\s()-]/g, "").slice(0, 30))}
+          aria-label="Phone number, with country code"
+          aria-invalid={Boolean(phone) && !phoneOk}
+        />
       </div>
       <input className={input} placeholder="Where, and anything useful (has a spare key…)" value={note} onChange={(e) => setNote(e.target.value.slice(0, 160))} aria-label="Note" />
       <label className="flex items-start gap-2.5 px-1 py-1 text-[14px] text-ink-soft">
-        <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-1 h-4 w-4 accent-[#b76a00]" />
-        They know they&rsquo;re on our list and are happy for the family to call them.
+        <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-1 h-4 w-4 accent-black" />
+        They know they&rsquo;re on this list and are happy for the family to call them.
       </label>
-      {error && <p className="m-0 px-1 text-[13px] text-[#a3271b]">{error}</p>}
+      {error && <p className="m-0 px-1 text-[13px] text-[#a3271b]" role="alert">{error}</p>}
       <div className="flex gap-2">
-        <Button
-          disabled={!name.trim() || !consent}
-          onClick={async () => {
-            const out = await postJson("/api/care", { action: "helper", forMemberId, name: name.trim(), role, phone, note, emergency: true, consent });
-            if (!out) return setError("Couldn't add. Check the phone number.");
-            onDone();
-          }}
-        >
-          Add to trusted nearby
+        <Button className="h-11 flex-1 text-[15px]" disabled={busy || !name.trim() || !consent || !phoneOk} onClick={() => void save()}>
+          {helper ? "Save" : "Add"}
         </Button>
-        <Button variant="secondary" onClick={onDone}>
+        <Button variant="secondary" className="h-11 flex-1 !bg-white text-[15px]" onClick={() => void onDone()}>
           Cancel
         </Button>
       </div>

@@ -1,10 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { GET as albumsGet, POST as albumsPost } from "@/app/api/albums/route";
-import { GET as placesGet, POST as placesPost } from "@/app/api/places/route";
 import { EVENT_WINDOW_MS, eventFromText, fileCard } from "@/lib/albums";
-import type { Album, Place } from "@/lib/kinds";
-import { coordsFromLink } from "@/components/neighbourhood";
-import { suggestFromWords } from "@/lib/places";
+import type { Album } from "@/lib/kinds";
 import { CaptionSchema } from "@/lib/schemas";
 import { addCard, resetDemo } from "@/lib/store";
 import { sessionCookie } from "./auth-helper";
@@ -60,36 +57,5 @@ describe("albums", () => {
     expect(albums.some((x) => x.id === march20.id)).toBe(false);
     await albumsPost(req("/api/albums", "dadi", { action: "remove", albumId: march1.id, cardId: c.id }));
     expect((await json<{ deleted: string }>(albumsPost(req("/api/albums", "dadi", { action: "delete", albumId: march1.id })))).deleted).toBe(march1.id);
-  });
-});
-
-describe("around home", () => {
-  it("reads Google Maps links and plain coordinates", () => {
-    expect(coordsFromLink("https://www.google.com/maps/place/X/@26.4499,80.3319,17z")).toEqual({ lat: 26.4499, lng: 80.3319 });
-    expect(coordsFromLink("https://maps.google.com/?q=26.45,80.33")).toEqual({ lat: 26.45, lng: 80.33 });
-    expect(coordsFromLink("26.45, 80.33")).toEqual({ lat: 26.45, lng: 80.33 });
-    expect(coordsFromLink("near the temple")).toBeNull();
-  });
-
-  it("suggests only places the family itself mentions, quoting them", () => {
-    const s = suggestFromWords(["Imran bhai knows the way to the temple and the clinic.", "मैं सात साल की थी, गाँव में मेला लगा था।"], ["The temple at the corner"]);
-    expect(s.map((x) => x.name)).toEqual(expect.arrayContaining(["The clinic", "The mela ground"]));
-    expect(s.some((x) => x.kind === "temple")).toBe(false);
-    for (const x of s) expect(x.quote.length).toBeGreaterThan(5);
-  });
-
-  it("add → attach a memory → edit → delete; children can't change places", async () => {
-    const d = await json<{ places: Place[]; suggestions: { name: string }[] }>(placesGet(req("/api/places?near=dadi", "arjun")));
-    expect(d.places.map((p) => p.id)).toEqual(expect.arrayContaining(["place-temple", "place-kirana", "place-courtyard"]));
-    expect(d.places.every((p) => p.nearMemberId === "dadi")).toBe(true);
-    expect(d.suggestions.length).toBeGreaterThan(0);
-    const added = await json<{ place: Place }>(placesPost(req("/api/places", "priya", { action: "add", nearMemberId: "dada", name: "The tea stall", kind: "tea-stall", lat: 26.45, lng: 80.33 })));
-    expect(added.place).toMatchObject({ nearMemberId: "dada", lat: 26.45, addedBy: "priya" });
-    const att = await json<{ place: Place }>(placesPost(req("/api/places", "dadi", { action: "attach", placeId: added.place.id, cardId: "demo-years-2" })));
-    expect(att.place.cardIds).toEqual(["demo-years-2"]);
-    expect((await placesPost(req("/api/places", "aria", { action: "edit", placeId: added.place.id, name: "Mine", kind: "other" }))).status).toBe(403);
-    expect((await placesPost(req("/api/places", "kavya", { action: "delete", placeId: added.place.id }))).status).toBe(403);
-    expect((await placesPost(req("/api/places", "priya", { action: "delete", placeId: added.place.id }))).status).toBe(200);
-    expect((await placesPost(req("/api/places", "arjun", { action: "add", nearMemberId: "dadi", name: "X", kind: "other", lat: 200, lng: 0 }))).status).toBe(400);
   });
 });

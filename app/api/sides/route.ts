@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { isDemoFamily, requireSession, sessionCookieHeader, signSession } from "@/lib/auth";
-import { dbAddMember, dbCreateFamily, dbCreateInvite, dbGetFamilyName, dbGetMember, dbLinkMembers, dbListMembers, dbListRelationships, dbListSides, dbUpdateMemberProfile } from "@/lib/db";
+import { dbAddMember, dbCreateFamily, dbCreateInvite, dbGetFamilyName, dbListCards, dbGetMember, dbLinkMembers, dbListMembers, dbListRelationships, dbListSides, dbUpdateMemberProfile } from "@/lib/db";
 import { allowAuthAttempt } from "@/lib/otp";
 import type { Member } from "@/lib/schemas";
 
@@ -19,10 +19,29 @@ const Body = z.discriminatedUnion("action", [
 
 const MAX_SIDES = 4;
 
+const WEEK_MS = 7 * 86_400_000;
+
+/**
+ * Each family this person is in: its name, how many people, who started it
+ * ("added by"), and how many things others shared there this week. Only
+ * counts and a call name cross over — never the other family's tree.
+ */
 async function sidesOf(me: Member) {
   const rows = await dbListSides(me);
+  const since = Date.now() - WEEK_MS;
   return Promise.all(
-    rows.map(async (m) => ({ familyId: m.familyId, memberId: m.id, name: (await dbGetFamilyName(m.familyId)) || "Family", people: (await dbListMembers(m.familyId)).length })),
+    rows.map(async (m) => {
+      const [name, people, cards] = await Promise.all([dbGetFamilyName(m.familyId), dbListMembers(m.familyId), dbListCards(m.familyId)]);
+      const host = people.find((p) => p.access === "admin" && p.id !== m.id && p.email) ?? null;
+      return {
+        familyId: m.familyId,
+        memberId: m.id,
+        name: name.replace(/^the\s+/i, "").replace(/\s+family$/i, "") || "Family",
+        people: people.length,
+        addedBy: m.access === "admin" ? null : host ? host.displayName || host.firstName : null,
+        fresh: cards.filter((c) => c.authorId && c.authorId !== m.id && Date.parse(c.takenAt) > since && Date.parse(c.takenAt) <= Date.now()).length,
+      };
+    }),
   );
 }
 

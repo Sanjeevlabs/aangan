@@ -3,7 +3,7 @@ import { requireSession } from "@/lib/auth";
 import { dbListMembers } from "@/lib/db";
 import { getDoc, listDocs, newId, putDoc } from "@/lib/family-docs";
 import { SAFETY_KINDS } from "@/lib/kinds";
-import { withoutStaleLocation } from "@/lib/safety";
+import { stateOf, withoutStaleLocation } from "@/lib/safety";
 
 // Safe & sound. Owned by the person it protects:
 // - Only she can turn it on, choose who sees it, pause it, or check in.
@@ -31,10 +31,25 @@ export async function GET(req: Request): Promise<Response> {
   // Who shares with me: enabled, not paused, and I'm one of their chosen people.
   const sharesWithMe = new Set(settings.filter((s) => s.enabled && !s.paused && s.watchers.includes(auth.memberId)).map((s) => s.memberId));
   const visible = checkins.filter((c) => c.memberId === auth.memberId || sharesWithMe.has(c.memberId)).map((c) => withoutStaleLocation(c));
+  const mine = settings.find((s) => s.memberId === auth.memberId) ?? null;
+  // At a glance, per person (for the home screen): everyone sharing with me, plus me if I'm on.
+  const people = [...(mine?.enabled ? [auth.memberId] : []), ...Array.from(sharesWithMe).filter((id) => id !== auth.memberId)];
+  const members = people.map((memberId) => {
+    const state = stateOf(visible, memberId);
+    return {
+      memberId,
+      tone: state?.tone ?? null,
+      label: state?.label ?? null,
+      at: state?.at ?? null,
+      etaAt: state && (state.tone === "pending" || state.tone === "overdue") ? state.etaAt : null,
+      recent: visible.filter((c) => c.memberId === memberId).sort((x, y) => y.at.localeCompare(x.at)).slice(0, 5),
+    };
+  });
   return Response.json({
-    mine: settings.find((s) => s.memberId === auth.memberId) ?? null,
+    mine,
     sharing: Array.from(sharesWithMe),
     checkins: visible.slice(0, 200),
+    members,
   });
 }
 

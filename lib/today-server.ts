@@ -6,7 +6,7 @@ import { households } from "./households";
 import type { TodayTask } from "./kinds";
 import { museJson } from "./muse";
 import type { Member } from "./schemas";
-import { nextOccasion } from "./occasions-server";
+import { nextOccasionFor } from "./occasions-server";
 import { PROMPT_IDS, TODAY_PROMPTS, dateIn, fallbackPrompt, fill, occasionPrompt } from "./today";
 
 const call = (m: Member) => m.displayName || m.firstName;
@@ -41,7 +41,7 @@ export async function ensureToday(familyId: string, now = new Date()): Promise<T
   const childName = join(sides.children.map(call));
   const parentsName = join(sides.parents.map(call));
   // An occasion inside a week, not yet asked about: both homes gather for it.
-  const occ = nextOccasion(members, now, 7);
+  const occ = await nextOccasionFor(familyId, members, now, 7);
   if (occ && !recent.includes("occasion")) {
     const p = occasionPrompt(occ.title);
     return putDoc(familyId, "today_task", {

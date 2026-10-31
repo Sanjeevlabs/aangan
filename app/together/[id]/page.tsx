@@ -1,15 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
-import { KIND_LOOK, KindBadge, daysUntil } from "@/components/together-art";
-import { ActionMenu, Avatar, Button, EmptyLine, Icon, MuseMark, RoomHeader, SectionTitle } from "@/components/ui/kit";
+import { PlanBadge, daysUntil } from "@/components/together-art";
+import { ActionMenu, Avatar, Button, EmptyLine, Icon, RoomHeader, SectionTitle } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
-import type { Project, QuizItem } from "@/lib/kinds";
+import type { Project } from "@/lib/kinds";
 import { canChange } from "@/lib/permissions";
 import { callName, memberPhoto } from "@/lib/people";
-import { template, type TogetherTemplate } from "@/lib/together-templates";
+import type { TogetherTemplate } from "@/lib/together-templates";
 import { postJson, useJson } from "@/lib/use-json";
 import { cn } from "@/lib/utils";
 
@@ -17,25 +16,25 @@ export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { viewer, members } = useViewer();
-  const { data, reload } = useJson<{ templates: TogetherTemplate[]; projects: Project[] }>("/api/together");
+  const { data, failed, reload } = useJson<{ templates: TogetherTemplate[]; projects: Project[] }>("/api/together");
   const [text, setText] = useState("");
   const [assignFor, setAssignFor] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [editingPlan, setEditingPlan] = useState(false);
   const p = data?.projects.find((x) => x.id === id);
 
+  if (failed && !data) return <div><RoomHeader title="Visits & holidays" /><EmptyLine>Couldn&rsquo;t load this plan. Try again in a moment.</EmptyLine></div>;
   if (!data) return <div className="skeleton mt-16 h-[420px] rounded-card" aria-busy="true" />;
   if (!p) {
     return (
       <div>
-        <RoomHeader title="Together" />
-        <EmptyLine>This isn&rsquo;t one of your family&rsquo;s projects anymore.</EmptyLine>
+        <RoomHeader title="Visits & holidays" />
+        <EmptyLine>This plan isn&rsquo;t here anymore.</EmptyLine>
       </div>
     );
   }
-  const t = p.templateId ? template(p.templateId) : undefined;
-  const k = KIND_LOOK[p.kind];
+  const holiday = p.templateId === "holiday";
   const act = async (body: Record<string, unknown>) => {
     await postJson("/api/together", { projectId: p.id, ...body });
     await reload();
@@ -44,7 +43,7 @@ export default function ProjectPage() {
   const visitor = members.find((m) => m.id === p.visitorId);
   const done = p.tasks.filter((x) => x.done).length;
   const people = members.filter((m) => m.access !== "child" || m.id === viewer.id);
-  const child = viewer.access === "child";
+  const hosts = p.hostIds.map((h) => members.find((m) => m.id === h)).filter((m): m is (typeof members)[number] => Boolean(m));
 
   return (
     <div>
@@ -52,35 +51,52 @@ export default function ProjectPage() {
         title=""
         action={
           <ActionMenu
-            label="Project options"
+            label="Plan options"
             actions={[
+              { label: "Change dates or name", onSelect: () => setEditingPlan(true) },
               { label: p.status === "done" ? "Not done yet" : "Mark as done", onSelect: () => act({ action: "finish", done: p.status !== "done" }) },
-              ...(canChange(viewer, p.createdBy) ? [{ label: "Delete", danger: true, confirm: "Delete this project and its list?", onSelect: async () => { await postJson("/api/together", { action: "delete", projectId: p.id }); router.replace("/together"); } }] : []),
+              ...(canChange(viewer, p.createdBy) ? [{ label: "Delete", danger: true, confirm: "Delete this plan and its list?", onSelect: async () => { await postJson("/api/together", { action: "delete", projectId: p.id }); router.replace("/together"); } }] : []),
             ]}
           />
         }
       />
       <div className="flex items-center gap-3">
-        <KindBadge kind={p.kind} />
+        <PlanBadge holiday={holiday} />
         <div className="min-w-0">
-          <p className="m-0 text-[12px] font-semibold uppercase tracking-[0.06em]" style={{ color: k.ink }}>
-            {k.label}
+          <p className="m-0 text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-soft">
+            {holiday ? "Holiday" : "Visit home"}
             {p.status === "done" ? " · done" : ""}
           </p>
           <h1 className="m-0 text-[27px] leading-tight">{p.title}</h1>
         </div>
       </div>
 
-      {p.kind === "visit" && days !== null && (
-        <div className="mt-4 rounded-hero p-5" style={{ background: k.bg }}>
-          <p className="m-0 text-[56px] font-bold leading-none" style={{ color: k.ink }}>
-            {days > 0 ? days : days === 0 ? "Today" : "✓"}
-          </p>
-          <p className="m-0 mt-1 text-[16px] font-medium">{days > 0 ? `day${days > 1 ? "s" : ""} till ${visitor?.id === viewer.id ? "you're" : `${callName(visitor)} is`} home` : days === 0 ? `${callName(visitor)} arrives today` : "They came home"}</p>
-          <p className="m-0 mt-1 text-[13px] text-ink-soft">Both homes see this countdown on their courtyard.</p>
+      <div className="mt-4 rounded-hero bg-surface p-5">
+        <p className="tnum m-0 text-[56px] font-bold leading-none">{days === null ? "–" : days > 0 ? days : days === 0 ? "Today" : "✓"}</p>
+        <p className="m-0 mt-1 text-[16px] font-medium">
+          {days === null
+            ? "Pick a date to start the countdown"
+            : days > 0
+              ? holiday
+                ? `day${days > 1 ? "s" : ""} to go`
+                : `day${days > 1 ? "s" : ""} till ${visitor?.id === viewer.id ? "you're" : `${callName(visitor)} is`} home`
+              : days === 0
+                ? holiday
+                  ? "It's today"
+                  : `${callName(visitor)} arrives today`
+                : "Been together"}
+        </p>
+        {p.dueAt && <p className="m-0 mt-1 text-[13px] text-ink-soft">{new Date(p.dueAt).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })} · both homes see this</p>}
+        <div className="no-scrollbar -mx-5 mt-3 flex items-center gap-1.5 overflow-x-auto px-5">
+          {[...(visitor ? [visitor] : []), ...hosts].map((m) => (
+            <span key={m.id} className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-white pl-0.5 pr-3 text-[13px] font-medium">
+              <Avatar src={memberPhoto(m)} name={callName(m)} size={32} />
+              {m.id === viewer.id ? "Me" : callName(m)}
+            </span>
+          ))}
         </div>
-      )}
-      {p.kind !== "visit" && p.dueAt && <p className="m-0 mt-3 text-[14px] text-ink-soft">{days !== null && days >= 0 ? `${days === 0 ? "Today" : `In ${days} day${days > 1 ? "s" : ""}`} · ` : ""}{new Date(p.dueAt).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}</p>}
+      </div>
+      {editingPlan && <EditPlan project={p} onClose={() => setEditingPlan(false)} onSave={async (body) => { await act(body); setEditingPlan(false); }} />}
 
       <SectionTitle>
         To do <span className="text-[15px] font-medium text-ink-faint">· {done}/{p.tasks.length}</span>
@@ -142,85 +158,30 @@ export default function ProjectPage() {
           setText("");
         }}
       >
-        <input value={text} onChange={(e) => setText(e.target.value.slice(0, 140))} placeholder="Add to the list" className="h-[48px] min-w-0 flex-1 rounded-full bg-surface px-5 text-[15px] outline-none focus:ring-2 focus:ring-marigold" aria-label="New task" />
+        <input value={text} onChange={(e) => setText(e.target.value.slice(0, 140))} placeholder="Add to the list" className="h-[48px] min-w-0 flex-1 rounded-full bg-surface px-5 text-[15px] outline-none focus:ring-2 focus:ring-black/15" aria-label="New task" />
         <Button type="submit" className="h-[48px] px-5" disabled={!text.trim()}>
           Add
         </Button>
       </form>
 
-      {t?.muse === "quiz" && (
-        <section aria-label="Quiz">
-          <SectionTitle>The quiz</SectionTitle>
-          {p.quiz.length === 0 ? (
-            <Button
-              className="w-full"
-              disabled={busy || child}
-              onClick={async () => {
-                setBusy(true);
-                await act({ action: "quiz" });
-                setBusy(false);
-              }}
-            >
-              {busy ? "Writing…" : "Write the questions"}
-            </Button>
-          ) : (
-            <Quiz items={p.quiz} />
-          )}
-          <MuseMark className="mt-2">from your family&rsquo;s own recipes, people and pets; nothing made up</MuseMark>
-        </section>
-      )}
-
-      {t?.sitReason && (
-        <Link href={`/gather?reason=${t.sitReason}`} className="press mt-8 flex h-[52px] items-center justify-center gap-2 rounded-full bg-surface text-[16px] font-semibold text-ink no-underline">
-          <Icon name="door" size={18} />
-          Book it as a Sit together
-        </Link>
-      )}
-      {t?.muse === "cookbook" && (
-        <Link href="/kitchen" className="press mt-3 flex h-[52px] items-center justify-center gap-2 rounded-full bg-surface text-[16px] font-semibold text-ink no-underline">
-          <Icon name="pot" size={18} />
-          Open the Kitchen
-        </Link>
-      )}
-      {t && (
-        <details className="mt-6 rounded-card bg-surface px-4 py-3">
-          <summary className="cursor-pointer text-[14px] font-semibold text-ink-soft">How it works</summary>
-          <ol className="m-0 mt-2 list-decimal space-y-1 pl-5 text-[14px]">
-            {t.steps.map((s, i) => (
-              <li key={i}>{s}</li>
-            ))}
-          </ol>
-        </details>
-      )}
     </div>
   );
 }
 
-/** One question at a time; tap to reveal. Played out loud on a call. */
-function Quiz({ items }: { items: QuizItem[] }) {
-  const [i, setI] = useState(0);
-  const [shown, setShown] = useState(false);
-  const q = items[i];
+/** Rename the plan or move its date. */
+function EditPlan({ project, onClose, onSave }: { project: Project; onClose: () => void; onSave: (body: Record<string, unknown>) => Promise<void> }) {
+  const [title, setTitle] = useState(project.title);
+  const [date, setDate] = useState(project.dueAt ? project.dueAt.slice(0, 10) : "");
   return (
-    <div className="rounded-card bg-[#e7eefc] p-4">
-      <p className="m-0 text-[12px] font-semibold uppercase tracking-[0.06em] text-[#2f4f8a]">
-        Question {i + 1} of {items.length}
-        {q.from ? ` · from ${q.from}` : ""}
-      </p>
-      <p className="m-0 mt-1.5 text-[19px] font-semibold leading-snug">{q.q}</p>
-      <ul className="m-0 mt-3 list-none space-y-1.5 p-0">
-        {q.options.map((o, n) => (
-          <li key={n} className={cn("rounded-[14px] px-3.5 py-2.5 text-[15px]", shown && n === q.answer ? "bg-[#2f4f8a] font-semibold text-white" : "bg-white")}>
-            {o}
-          </li>
-        ))}
-      </ul>
-      <div className="mt-3 flex gap-2">
-        <Button variant="secondary" className="flex-1 !bg-white" onClick={() => setShown((v) => !v)}>
-          {shown ? "Hide answer" : "Show answer"}
+    <div className="mt-3 space-y-2 rounded-card bg-surface p-3">
+      <input value={title} onChange={(e) => setTitle(e.target.value.slice(0, 80))} aria-label="Plan name" className="h-11 w-full rounded-full bg-white px-4 text-[15px] outline-none" />
+      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" className="h-11 w-full rounded-full bg-white px-4 text-[15px]" />
+      <div className="flex gap-2">
+        <Button variant="quiet" className="flex-1" onClick={onClose}>
+          Cancel
         </Button>
-        <Button className="flex-1" disabled={i >= items.length - 1} onClick={() => { setI(i + 1); setShown(false); }}>
-          Next
+        <Button className="flex-1" disabled={title.trim().length < 2} onClick={() => void onSave({ action: "edit", title: title.trim(), dueAt: date ? new Date(`${date}T12:00:00`).toISOString() : null })}>
+          Save
         </Button>
       </div>
     </div>

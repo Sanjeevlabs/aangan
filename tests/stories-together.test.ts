@@ -3,8 +3,7 @@ import { GET as storiesGet, POST as storiesPost } from "@/app/api/stories/route"
 import { GET as togetherGet, POST as togetherPost } from "@/app/api/together/route";
 import type { Project, Question, Story } from "@/lib/kinds";
 import { mockStoryLabel } from "@/lib/stories";
-import { TEMPLATES } from "@/lib/together";
-import { mockQuiz } from "@/lib/together";
+import { TEMPLATES } from "@/lib/together-templates";
 import { addCard, resetDemo } from "@/lib/store";
 import { sessionCookie } from "./auth-helper";
 
@@ -46,27 +45,31 @@ describe("stories", () => {
   });
 });
 
-describe("together", () => {
-  it("keeps a short, deliberate set covering every kind", () => {
-    expect(TEMPLATES.map((t) => t.id).sort()).toEqual(["birthday-surprise", "cookbook", "quiz-night", "visit", "word-a-day"]);
-    expect(new Set(TEMPLATES.map((t) => t.kind))).toEqual(new Set(["play", "make", "learn", "celebrate", "visit"]));
+describe("visits & holidays", () => {
+  it("keeps only a visit home and a family holiday, both counting down", () => {
+    expect(TEMPLATES.map((t) => t.id).sort()).toEqual(["holiday", "visit"]);
+    expect(TEMPLATES.every((t) => t.kind === "visit")).toBe(true);
   });
 
-  it("start → assign → tick → edit → delete a task → finish", async () => {
-    const started = await json<{ project: Project }>(togetherPost(req("/api/together", "priya", { action: "start", templateId: "cookbook" })));
+  it("start → assign → tick → edit → delete a task → people → finish", async () => {
+    const dueAt = new Date(Date.now() + 20 * 86_400_000).toISOString();
+    const started = await json<{ project: Project }>(togetherPost(req("/api/together", "priya", { action: "start", templateId: "holiday", title: "Goa in December", dueAt, hostIds: ["priya", "arjun", "leo"] })));
     const p = started.project;
-    expect(p.tasks.length).toBe(3);
+    expect(p).toMatchObject({ kind: "visit", templateId: "holiday", title: "Goa in December", hostIds: ["priya", "arjun", "leo"] });
+    expect(p.tasks.length).toBe(5);
     const t = p.tasks[0];
     let r = await json<{ project: Project }>(togetherPost(req("/api/together", "dadi", { action: "task-assign", projectId: p.id, taskId: t.id, assignee: "dadi" })));
     expect(r.project.tasks[0].assignee).toBe("dadi");
     r = await json(togetherPost(req("/api/together", "dadi", { action: "task-toggle", projectId: p.id, taskId: t.id })));
     expect(r.project.tasks[0].done).toBe(true);
-    r = await json(togetherPost(req("/api/together", "leo", { action: "task-add", projectId: p.id, text: "Add a dedication" })));
-    expect(r.project.tasks).toHaveLength(4);
-    r = await json(togetherPost(req("/api/together", "leo", { action: "task-edit", projectId: p.id, taskId: r.project.tasks[3].id, text: "Dedication for Dadi" })));
-    expect(r.project.tasks[3].text).toBe("Dedication for Dadi");
-    r = await json(togetherPost(req("/api/together", "leo", { action: "task-delete", projectId: p.id, taskId: r.project.tasks[3].id })));
-    expect(r.project.tasks).toHaveLength(3);
+    r = await json(togetherPost(req("/api/together", "leo", { action: "task-add", projectId: p.id, text: "Pack the cricket bat" })));
+    expect(r.project.tasks).toHaveLength(6);
+    r = await json(togetherPost(req("/api/together", "leo", { action: "task-edit", projectId: p.id, taskId: r.project.tasks[5].id, text: "Pack the bat and ball" })));
+    expect(r.project.tasks[5].text).toBe("Pack the bat and ball");
+    r = await json(togetherPost(req("/api/together", "leo", { action: "task-delete", projectId: p.id, taskId: r.project.tasks[5].id })));
+    expect(r.project.tasks).toHaveLength(5);
+    r = await json(togetherPost(req("/api/together", "priya", { action: "people", projectId: p.id, visitorId: null, hostIds: ["priya", "dadi"] })));
+    expect(r.project.hostIds).toEqual(["priya", "dadi"]);
     expect((await togetherPost(req("/api/together", "dadi", { action: "task-assign", projectId: p.id, taskId: t.id, assignee: "stranger" }))).status).toBe(400);
     r = await json(togetherPost(req("/api/together", "priya", { action: "finish", projectId: p.id })));
     expect(r.project.status).toBe("done");
@@ -74,15 +77,11 @@ describe("together", () => {
     expect((await togetherPost(req("/api/together", "priya", { action: "delete", projectId: p.id }))).status).toBe(200);
   });
 
-  it("the family quiz is grounded in the family's own data", async () => {
-    const started = await json<{ project: Project }>(togetherPost(req("/api/together", "arjun", { action: "start", templateId: "quiz-night" })));
-    const q = await json<{ project: Project }>(togetherPost(req("/api/together", "arjun", { action: "quiz", projectId: started.project.id })));
-    expect(q.project.quiz.length).toBeGreaterThanOrEqual(5);
-    for (const item of q.project.quiz) expect(item.answer).toBeLessThan(item.options.length);
-    expect(q.project.quiz.some((i) => /Gobi ke pakode|Palak paneer|Dal tadka/.test(i.q))).toBe(true);
-    const items = mockQuiz({ recipes: [{ title: "Dal tadka", cookId: "dadi", memory: "" }], members: [{ id: "dadi", displayName: "Dadi", tz: "Asia/Kolkata", birthday: "01-22", role: "elder" }, { id: "leo", displayName: "Leo", tz: "America/New_York", birthday: "", role: "child" }], pets: [] });
-    expect(items[0]).toMatchObject({ q: 'Whose recipe is "Dal tadka"?' });
-    expect(items[0].options[items[0].answer]).toBe("Dadi");
+  it("retired templates are refused, children can't start a plan, and old projects stay hidden", async () => {
+    expect((await togetherPost(req("/api/together", "arjun", { action: "start", templateId: "quiz-night" }))).status).toBe(400);
+    expect((await togetherPost(req("/api/together", "aria", { action: "start", templateId: "visit", visitorId: "aria" }))).status).toBe(403);
+    const d = await json<{ projects: Project[] }>(togetherGet(req("/api/together", "arjun")));
+    expect(d.projects.every((p) => p.kind === "visit")).toBe(true);
   });
 
   it("a visit counts down for both homes", async () => {

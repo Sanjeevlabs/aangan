@@ -77,22 +77,22 @@ interface StoryLite {
 }
 
 /** For children: tonight's story, one tap from the courtyard. */
-function StoryDoor({ story }: { story: StoryLite }) {
+export function StoryDoor({ story }: { story: StoryLite }) {
   const { members } = useViewer();
   const teller = members.find((m) => m.id === story.tellerId);
   return (
-    <Link href="/stories" className="flex items-center gap-3 rounded-card px-4 py-3.5 text-white no-underline" style={{ background: "linear-gradient(160deg,#141c3a,#2d3a6b)" }}>
+    <Link href="/stories" className="flex h-full min-h-[236px] flex-col justify-end gap-3 rounded-[26px] bg-[#1c1b1a] p-5 text-white no-underline">
       <Avatar src={memberPhoto(teller)} name={callName(teller)} size={44} ring />
       <span className="min-w-0 flex-1">
         <span className="block text-[13px] text-white/70">A story from {callName(teller)}</span>
         <span className="block truncate text-[16px] font-semibold">{story.title}</span>
       </span>
-      <Icon name="moon" size={20} className="text-[#f2c46d]" />
+      <Icon name="moon" size={20} className="text-white/70" />
     </Link>
   );
 }
 
-function useNextVisit(): Project | null {
+export function useNextVisit(): Project | null {
   const { viewer } = useViewer();
   const { data } = useJson<{ projects: Project[] }>("/api/together");
   const now = Date.now();
@@ -105,7 +105,7 @@ function useNextVisit(): Project | null {
 }
 
 /** "12 days till Arjun is home": for the traveller and the home waiting. */
-function VisitCountdown({ visit }: { visit: Project }) {
+export function VisitCountdown({ visit }: { visit: Project }) {
   const { viewer, members } = useViewer();
   const now = Date.now();
   if (!visit.dueAt) return null;
@@ -117,13 +117,13 @@ function VisitCountdown({ visit }: { visit: Project }) {
   const city = hostPeople.find((m) => m.city)?.city;
   const left = visit.tasks.filter((t) => !t.done && t.assignee === viewer.id).length;
   return (
-    <Link href={`/together/${visit.id}`} className="flex items-center gap-4 rounded-card bg-[#fff2d6] px-4 py-3.5 text-ink no-underline">
-      <span className="text-[40px] font-bold leading-none text-[#8a5a12]">{days || "Today"}</span>
+    <Link href={`/together/${visit.id}`} className="frost flex h-full min-h-[236px] flex-col justify-between rounded-[26px] p-5 text-ink no-underline">
+      <span className="tnum text-[56px] font-light leading-none tracking-[-0.03em]">{days || "Today"}</span>
       <span className="min-w-0 flex-1">
         <span className="block text-[15px] font-semibold">
           {coming ? (days ? `day${days > 1 ? "s" : ""} to your visit${city ? ` to ${city}` : ""}` : `You travel${city ? ` to ${city}` : ""} today`) : days ? `day${days > 1 ? "s" : ""} until ${callName(who)} arrives` : `${callName(who)} arrives today`}
         </span>
-        <span className="block truncate text-[13px] text-[#8a5a12]">
+        <span className="block truncate text-[13px] text-ink-soft">
           {visit.title}
           {coming && hosts ? ` · staying with ${hosts}` : ""}
           {left ? ` · ${left} thing${left > 1 ? "s" : ""} on your list` : ""}
@@ -230,7 +230,7 @@ function HomeNow({ home, presence, settings, viewerId, pets = [] }: { home: Hous
 }
 
 /** For parents: proof their giving landed. Words, never counts. */
-function GiftsThisWeek() {
+export function GiftsThisWeek() {
   const { members } = useViewer();
   const { data } = useJson<{ gifts: Gift[] }>("/api/gifts");
   const gifts = data?.gifts ?? [];
@@ -278,7 +278,7 @@ export function ShareYourDay() {
       <p className="m-0 text-[13px] text-ink-soft">{today.length ? `Shared today: ${today.map((p) => MOMENT_LABEL[p.moment].label).join(", ")}` : "The ordinary day is what they miss most."}</p>
       <div className="no-scrollbar -mx-5 mt-2.5 flex gap-2 overflow-x-auto px-5">
         {shareableFor(viewer.role).map((mo) => (
-          <button key={mo} type="button" onClick={() => void share(mo)} className={cn("press h-10 shrink-0 rounded-full px-4 text-[14px] font-semibold", sent === mo ? "bg-marigold text-black" : "bg-surface")}>
+          <button key={mo} type="button" onClick={() => void share(mo)} className={cn("press h-10 shrink-0 rounded-full px-4 text-[14px] font-semibold", sent === mo ? "bg-ink text-white" : "bg-surface")}>
             {MOMENT_LABEL[mo].label}
           </button>
         ))}
@@ -294,7 +294,7 @@ function QuestionLine({ q }: { q: Question }) {
 }
 
 /** For elders: this week's question and anything the family asked. */
-function MyQuestions() {
+export function MyQuestions() {
   const { viewer, members } = useViewer();
   const { openAdd } = useShell();
   const { data, reload } = useJson<{ questions: Question[] }>("/api/keeper");
@@ -344,7 +344,7 @@ function MyQuestions() {
 }
 
 /** For elders: what they asked for, and the reassurance in their language. */
-function MyNeeds() {
+export function MyNeeds() {
   const { viewer } = useViewer();
   const { openAdd } = useShell();
   const { data } = useJson<{ needs: Need[] }>("/api/care");

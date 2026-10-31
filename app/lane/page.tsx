@@ -1,139 +1,182 @@
 "use client";
 
+import { AnimatePresence } from "framer-motion";
 import { useMemo, useState } from "react";
-import { AlbumCover, EVENT_LABEL } from "@/components/albums";
-import { PhotoCard, VoiceRow } from "@/components/memory-card";
-import { VideoPlaque } from "@/components/plaque";
+import { AlbumCover } from "@/components/albums";
+import { LaneViewer } from "@/components/lane-viewer";
+import { usePlayer } from "@/components/player";
 import { useShell } from "@/components/shell";
-import { Avatar, EmptyLine, MuseMark, RoomHeader } from "@/components/ui/kit";
-import type { Album } from "@/lib/kinds";
-import { postJson, useJson } from "@/lib/use-json";
+import { Avatar, EmptyLine, Icon, Photo, RoomHeader } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
-import { callName, memberPhoto } from "@/lib/people";
+import type { Album } from "@/lib/kinds";
+import { LANE_ROWS, laneGroups, monthChip, rangeLabel, type LaneKind } from "@/lib/lane-groups";
+import { callName, cardCover, cardDuration, formatDuration, memberPhoto } from "@/lib/people";
 import type { Card } from "@/lib/schemas";
 import { useFamilyCards } from "@/lib/use-family";
+import { postJson, useJson } from "@/lib/use-json";
 import { cn } from "@/lib/utils";
 
-function seasonOf(month: number): string {
-  if (month <= 1 || month === 11) return "Winter";
-  if (month <= 4) return "Spring";
-  if (month <= 7) return "Summer";
-  return "Autumn";
+// Memory Lane: same kind together. Albums, photos, videos and voices each
+// get one swipe row (newest first, a month on every tile, the row's span in
+// its header). Tap opens a full-screen viewer that swipes through that kind.
+
+function RowHead({ title, count, range, extra }: { title: string; count: number; range?: string; extra?: React.ReactNode }) {
+  return (
+    <div className="mb-2 flex items-baseline gap-2">
+      <h2 className="m-0 text-[18px]">{title}</h2>
+      <span className="tnum text-[13px] text-ink-faint">{count}</span>
+      <span className="flex-1" />
+      {extra}
+      {range && <span className="tnum text-[12.5px] text-ink-soft">{range}</span>}
+    </div>
+  );
 }
 
-function chapterOf(takenAt: string): string {
-  const d = new Date(takenAt);
-  if (Number.isNaN(d.getTime())) return "Undated";
-  return `${seasonOf(d.getMonth())} ${d.getFullYear()}`;
+function Tile({ card, kind, onOpen }: { card: Card; kind: LaneKind; onOpen: () => void }) {
+  const { members } = useViewer();
+  const { current, isPlaying } = usePlayer();
+  const author = members.find((m) => m.id === card.authorId);
+  const voice = kind === "audio";
+  const label = voice ? `${callName(author)}'s voice note, ${monthChip(card.takenAt)}` : card.caption || `${kind === "video" ? "Video" : "Photo"}, ${monthChip(card.takenAt)}`;
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={label}
+      className={cn("press relative shrink-0 snap-start overflow-hidden rounded-[18px] bg-surface text-left", voice ? "h-[112px] w-[112px]" : "h-[150px] w-[120px]")}
+    >
+      <Photo src={cardCover(card, members)} alt="" sizes="240px" position="center 30%" />
+      <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,.28),transparent_38%,transparent_58%,rgba(0,0,0,.55))]" aria-hidden="true" />
+      <span className="glass absolute left-1.5 top-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold">{monthChip(card.takenAt)}</span>
+      {kind !== "photo" && (
+        <span className="glass absolute bottom-1.5 right-1.5 grid h-7 w-7 place-items-center rounded-full">
+          <Icon name={voice && current?.id === card.id && isPlaying ? "pause" : "play"} size={11} />
+        </span>
+      )}
+      <span className="absolute bottom-2 left-2 right-10 truncate text-[12px] font-medium text-white">{voice ? `${callName(author)} · ${formatDuration(cardDuration(card))}` : callName(author)}</span>
+    </button>
+  );
 }
 
-// Memory Lane: chapters by season, filtered by person (families remember by
-// who, not by media type). One column so every photo gets the full width.
+function Row({ children, label }: { children: React.ReactNode; label: string }) {
+  return (
+    <div aria-label={label} className="no-scrollbar -mx-5 flex snap-x snap-mandatory scroll-px-5 gap-2.5 overflow-x-auto px-5 pb-1">
+      {children}
+    </div>
+  );
+}
+
 export default function LanePage() {
   const { members } = useViewer();
   const { refreshKey } = useShell();
   const { cards } = useFamilyCards(refreshKey);
   const [who, setWho] = useState<string | null>(null);
   const albumsQ = useJson<{ albums: Album[] }>(`/api/albums?k=${refreshKey}`);
-  const [kind, setKind] = useState<Album["event"] | "all">("all");
   const [sorting, setSorting] = useState<string | null>(null);
-  const albums = (albumsQ.data?.albums ?? []).filter((a) => a.cardIds.length >= 2);
-  const kinds = Array.from(new Set(albums.map((a) => a.event)));
-  const shownAlbums = albums.filter((a) => kind === "all" || a.event === kind);
+  const [open, setOpen] = useState<{ kind: LaneKind; index: number } | null>(null);
 
-  const chapters = useMemo(() => {
-    if (!cards) return null;
-    const list = who ? cards.filter((c) => c.authorId === who) : cards;
-    const groups = new Map<string, Card[]>();
-    for (const c of list) {
-      const key = chapterOf(c.takenAt);
-      groups.set(key, [...(groups.get(key) ?? []), c]);
-    }
-    return Array.from(groups.entries());
-  }, [cards, who]);
+  const groups = useMemo(() => (cards ? laneGroups(cards, who) : null), [cards, who]);
+  const albums = useMemo(() => {
+    const all = (albumsQ.data?.albums ?? []).filter((a) => a.cardIds.length >= 2);
+    const mine = who && cards ? all.filter((a) => a.cardIds.some((id) => cards.find((c) => c.id === id)?.authorId === who)) : all;
+    return [...mine].sort((a, b) => b.endAt.localeCompare(a.endAt));
+  }, [albumsQ.data, who, cards]);
+  const total = groups ? groups.photo.length + groups.video.length + groups.audio.length : 0;
+  const authors = useMemo(() => new Set((cards ?? []).map((c) => c.authorId)), [cards]);
+  const people = members.filter((m) => authors.has(m.id));
+  const viewing = open && groups ? { list: groups[open.kind], title: LANE_ROWS.find((r) => r.kind === open.kind)?.title ?? "" } : null;
+
+  const sortOlder = async () => {
+    setSorting("busy");
+    const out = await postJson<{ filed: number }>("/api/albums", { action: "resort" });
+    await albumsQ.reload();
+    setSorting(out ? (out.filed ? `Sorted ${out.filed}` : "All sorted") : "Try later");
+  };
 
   return (
     <div>
-      <RoomHeader title="Memory Lane" subtitle="Every voice and moment, by season" />
+      <RoomHeader title="Memory Lane" subtitle="Photos, videos and voices, newest first" />
 
-      {/* Albums Muse made from what's in the photos: weddings, pujas, festivals… */}
-      {albums.length > 0 && cards && (
-        <section aria-label="Albums" className="mb-6">
-          <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="m-0 text-[20px]">Albums</h2>
-            <MuseMark>sorted by Muse</MuseMark>
-          </div>
-          {kinds.length > 1 && (
-            <div className="no-scrollbar -mx-5 mb-3 flex gap-1.5 overflow-x-auto px-5" role="radiogroup" aria-label="Kind of album">
-              {(["all", ...kinds] as const).map((k) => (
-                <button key={k} type="button" role="radio" aria-checked={kind === k} onClick={() => setKind(k)} className={cn("press h-9 shrink-0 rounded-full px-3.5 text-[14px] font-medium", kind === k ? "bg-black text-white" : "bg-surface")}>
-                  {k === "all" ? "All" : EVENT_LABEL[k]}
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="no-scrollbar -mx-5 flex snap-x scroll-px-5 gap-3 overflow-x-auto px-5 pb-1">
-            {shownAlbums.map((a) => (
-              <AlbumCover key={a.id} album={a} cards={cards} />
-            ))}
-          </div>
-        </section>
-      )}
-      <button
-        type="button"
-        disabled={sorting === "busy"}
-        onClick={async () => {
-          setSorting("busy");
-          const out = await postJson<{ filed: number }>("/api/albums", { action: "resort" });
-          await albumsQ.reload();
-          setSorting(out ? (out.filed ? `Sorted ${out.filed} older photo${out.filed > 1 ? "s" : ""}.` : "Everything is already sorted.") : "Couldn't sort right now.");
-        }}
-        className="mb-4 text-[13px] font-medium text-ink-soft underline underline-offset-2"
-      >
-        {sorting === "busy" ? "Sorting…" : sorting ?? "Sort my older photos into albums"}
-      </button>
-      <div className="no-scrollbar -mx-5 mb-2 flex gap-2 overflow-x-auto px-5" role="radiogroup" aria-label="Show memories from">
-        <button
-          type="button"
-          role="radio"
-          aria-checked={who === null}
-          onClick={() => setWho(null)}
-          className={cn("press h-11 shrink-0 rounded-full px-4 text-[15px] font-medium", who === null ? "bg-black text-white" : "bg-surface")}
-        >
-          Everyone
-        </button>
-        {members.map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            role="radio"
-            aria-checked={who === m.id}
-            onClick={() => setWho(m.id)}
-            className={cn("press flex h-11 shrink-0 items-center gap-2 rounded-full pl-1 pr-4 text-[15px] font-medium", who === m.id ? "bg-black text-white" : "bg-surface")}
-          >
-            <Avatar src={memberPhoto(m)} name={callName(m)} size={34} />
-            {callName(m)}
+      {people.length > 1 && (
+        <div className="no-scrollbar -mx-5 mb-4 flex gap-1.5 overflow-x-auto px-5" role="radiogroup" aria-label="Show memories from">
+          <button type="button" role="radio" aria-checked={who === null} onClick={() => setWho(null)} className={cn("press h-10 shrink-0 rounded-full px-4 text-[14px] font-medium", who === null ? "bg-ink text-white" : "bg-surface")}>
+            Everyone
           </button>
-        ))}
-      </div>
-
-      {chapters === null ? (
-        <div className="mt-6 space-y-4" aria-busy="true" aria-label="Loading memories">
-          <div className="skeleton h-[300px]" />
-          <div className="skeleton h-16" />
+          {people.map((m) => (
+            <button key={m.id} type="button" role="radio" aria-checked={who === m.id} onClick={() => setWho(m.id)} className={cn("press flex h-10 shrink-0 items-center gap-1.5 rounded-full pl-1 pr-3.5 text-[14px] font-medium", who === m.id ? "bg-ink text-white" : "bg-surface")}>
+              <Avatar src={memberPhoto(m)} name={callName(m)} size={32} />
+              {callName(m)}
+            </button>
+          ))}
         </div>
-      ) : chapters.length === 0 ? (
-        <EmptyLine>Nothing here yet. Memories appear as the family shares them.</EmptyLine>
-      ) : (
-        chapters.map(([chapter, list]) => (
-          <section key={chapter} aria-label={chapter} className="mt-8">
-            <h2 className="sticky top-0 z-10 -mx-5 m-0 mb-3 bg-white/85 px-5 py-2 text-[20px] backdrop-blur-md">{chapter}</h2>
-            <div className="space-y-4">
-              {list.map((c) => (c.type === "audio" ? <VoiceRow key={c.id} card={c} /> : c.type === "video" ? <VideoPlaque key={c.id} card={c} /> : <PhotoCard key={c.id} card={c} />))}
-            </div>
-          </section>
-        ))
       )}
+
+      {groups === null ? (
+        <div className="space-y-5" aria-busy="true" aria-label="Loading memories">
+          {[0, 1, 2].map((i) => (
+            <div key={i}>
+              <div className="skeleton mb-2 h-5 w-32" />
+              <div className="flex gap-2.5 overflow-hidden">
+                {[0, 1, 2, 3].map((j) => (
+                  <div key={j} className="skeleton h-[150px] w-[120px] shrink-0 rounded-[18px]" />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : total === 0 && albums.length === 0 ? (
+        <EmptyLine>{who ? "Nothing from them yet." : "Nothing here yet. Memories appear as the family shares them."}</EmptyLine>
+      ) : (
+        <div className="space-y-5">
+          {(albums.length > 0 || (albumsQ.data && total > 0)) && cards && (
+            <section aria-label="Albums">
+              <RowHead
+                title="Albums"
+                count={albums.length}
+                extra={
+                  <button
+                    type="button"
+                    onClick={sortOlder}
+                    disabled={sorting === "busy"}
+                    aria-label="Sort older photos into albums"
+                    title="Sort older photos into albums"
+                    className="press -my-2 flex h-9 items-center gap-1 rounded-full px-2 text-[12.5px] font-medium text-ink-soft"
+                  >
+                    <Icon name="wand" size={16} />
+                    {sorting && sorting !== "busy" ? sorting : sorting === "busy" ? "…" : null}
+                  </button>
+                }
+              />
+              {albums.length > 0 ? (
+                <Row label="Albums">
+                  {albums.map((a) => (
+                    <AlbumCover key={a.id} album={a} cards={cards} compact />
+                  ))}
+                </Row>
+              ) : (
+                <p className="m-0 text-[14px] text-ink-soft">No albums yet. Tap the wand to sort photos into albums.</p>
+              )}
+            </section>
+          )}
+
+          {LANE_ROWS.map((r) => {
+            const list = groups[r.kind];
+            if (!list.length) return null;
+            return (
+              <section key={r.kind} aria-label={r.title}>
+                <RowHead title={r.title} count={list.length} range={rangeLabel(list)} />
+                <Row label={r.title}>
+                  {list.map((c, i) => (
+                    <Tile key={c.id} card={c} kind={r.kind} onOpen={() => setOpen({ kind: r.kind, index: i })} />
+                  ))}
+                </Row>
+              </section>
+            );
+          })}
+        </div>
+      )}
+
+      <AnimatePresence>{viewing && open && viewing.list.length > 0 && <LaneViewer key={open.kind} cards={viewing.list} start={open.index} title={viewing.title} onClose={() => setOpen(null)} />}</AnimatePresence>
     </div>
   );
 }

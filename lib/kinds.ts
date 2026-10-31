@@ -349,6 +349,8 @@ export const QuestionSchema = z.object({
   topic: z.enum(["story", "recipe", "wisdom", "blessing", "song", "place"]).default("story"),
   answeredCardId: z.string().nullable().default(null),
   madeBy: z.enum(["family", "muse"]).default("muse"),
+  /** Advice & blessings category (data/advice-categories.json); null = classify from the text. */
+  category: z.string().max(40).nullable().default(null),
   createdAt: iso,
 });
 

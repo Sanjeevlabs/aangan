@@ -9,10 +9,10 @@
   --ink-soft: rgba(0, 0, 0, 0.56);
   --ink-faint: rgba(0, 0, 0, 0.38);
   --line: rgba(0, 0, 0, 0.08);
-  --accent: #b76a00; /* marigold, darkened to pass 4.5:1 for text on white */
+  --accent: #1c1b1a;
   --accent-ink: #ffffff;
-  --marigold: #f5a524;
-  --marigold-glow: rgba(245, 165, 36, 0.28);
+  --marigold: #1c1b1a; /* 30 Oct: the accent is ink (premium, monochrome); status dots keep their colour */
+  --marigold-glow: rgba(28, 27, 26, 0.18);
 
   --espresso: #000000;
   --espresso-ink: #ffffff;

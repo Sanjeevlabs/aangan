@@ -107,8 +107,8 @@ export function FamilyCircles({ members, relationships }: { members: Member[]; r
   const words = (ps: CirclePerson[]) => Array.from(new Set(ps.map((p) => p.label.toLowerCase()).filter(Boolean))).slice(0, 3).join(", ");
   if (c.home.length + c.close.length + c.wider.length === 0) return null;
   return (
-    <section aria-label="Your circles" className="mt-10">
-      <h2 className="m-0 mb-3 text-[20px]">Your circles</h2>
+    <section aria-label="How close" className="mt-10">
+      <h2 className="m-0 mb-3 text-[20px]">How close</h2>
       <ul className="m-0 list-none space-y-2 p-0">
         <CircleRow title="At home" note={words(c.home) || "Under your roof"} people={c.home} />
         <CircleRow title="Close family" note={words(c.close) || "Parents, siblings, children"} people={c.close} />
