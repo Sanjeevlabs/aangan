@@ -32,3 +32,6 @@ ios/DerivedData/
 
 # Product spec and strategy stay private (kept in the Claude project, not on GitHub)
 docs/private/
+
+# Local agent worktrees
+.claude/
