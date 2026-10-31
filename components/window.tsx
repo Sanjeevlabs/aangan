@@ -837,7 +837,7 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
                   See check-ins <Icon name="chevron" size={14} />
                 </Link>
               </div>
-              <p className="m-0 mt-0.5 text-[12px] leading-snug text-ink-soft">From when they last opened Aangan and checked in</p>
+              <p className="m-0 mt-0.5 text-[12px] leading-snug text-ink-soft">From what they shared today: a lamp lit, a voice sent, a check-in</p>
             </div>
             {atWindow.map((p) => (
               <StatusLine key={p.id} p={p} st={statusOf(p.id)} check={checkOf(p.id)} onWorry={() => setWorry(p)} />
