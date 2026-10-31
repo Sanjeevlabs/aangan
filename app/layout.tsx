@@ -1,11 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Literata, Onest } from "next/font/google";
+import { Kalam, Literata, Onest } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { Shell } from "@/components/shell";
 import "./globals.css";
 
 const onest = Onest({ subsets: ["latin"], variable: "--font-body", display: "swap" });
 const literata = Literata({ subsets: ["latin"], style: ["italic"], weight: ["400", "500"], variable: "--font-voice", display: "swap" });
+// Handwriting on printed photos (when, where, a note). Kalam covers Latin and Devanagari, so Hindi notes are handwritten too.
+const kalam = Kalam({ subsets: ["latin", "devanagari"], weight: ["400"], variable: "--font-hand", display: "swap", preload: false });
 
 export const metadata: Metadata = {
   title: "Aangan — far from home, never far from them",
@@ -26,7 +28,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${onest.variable} ${literata.variable}`}>
+      <body className={`${onest.variable} ${literata.variable} ${kalam.variable}`}>
         <Providers>
           <Shell>{children}</Shell>
         </Providers>

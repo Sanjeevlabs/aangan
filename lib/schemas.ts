@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { EVENT_KINDS } from "./kind-values";
+import { CARD_NOTE_MAX, CARD_PLACE_MAX } from "./card-limits";
 import { LANG_CODES } from "./languages";
 
 // Caption may only reference tagged members (enforced in lib/grounding.ts).
@@ -110,6 +111,10 @@ export const CardSchema = z.object({
   coverRef: z.string().nullable().default(null),
   /** Who a voice note was spoken to (member id). Null = the whole family. */
   addressedTo: z.string().nullable().default(null),
+  /** Where it was taken, as the sharer wrote it ("Amritsar"). Optional. */
+  place: z.string().max(CARD_PLACE_MAX).default(""),
+  /** A short handwritten-style note under the print. Optional; falls back to the caption. */
+  note: z.string().max(CARD_NOTE_MAX).default(""),
 });
 
 export const MemberRoleSchema = z.enum(["elder", "adult", "child"]);
@@ -172,6 +177,8 @@ export const CreateCardRequestSchema = z.object({
   transcriptLang: z.string().min(2).max(8).default("en"),
   segments: z.array(TranscriptSegmentSchema).max(64).default([]),
   addressedTo: z.string().max(64).nullable().default(null),
+  place: z.string().trim().max(CARD_PLACE_MAX).default(""),
+  note: z.string().trim().max(CARD_NOTE_MAX).default(""),
 });
 
 export const HomeImageRequestSchema = z.object({

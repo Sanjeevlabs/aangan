@@ -9,6 +9,7 @@ import { canChange } from "@/lib/permissions";
 import { resetFamilyCards } from "@/lib/use-family";
 import { useState } from "react";
 import { useShell } from "./shell";
+import { PrintFrame } from "./print-frame";
 import { ActionMenu, Button, Icon, LiveDot, Photo } from "./ui/kit";
 import { useViewer } from "./viewer";
 
@@ -104,12 +105,28 @@ export function VoiceRow({ card, showAuthor = true }: { card: Card; showAuthor?:
   );
 }
 
-/** A photo or video as a full-width card with a glass caption. */
+/**
+ * A photo as a print (white border; the note, when and where in the sharer's
+ * hand). A video keeps the full-bleed card with a glass caption.
+ */
 export function PhotoCard({ card, tall = false }: { card: Card; tall?: boolean }) {
   const { members, displayLang } = useViewer();
   const { text, translated } = useDisplayText(card.caption, card.lang, displayLang);
   const author = members.find((m) => m.id === card.authorId);
   const [editing, setEditing] = useState(false);
+  if (card.type === "photo") {
+    return (
+      <div>
+        <PrintFrame card={card} author={author} src={cardCover(card, members)} alt={text ?? "Family photo"} imageHeight={tall ? 380 : 280} signed>
+          {card.source === "glasses" && <span className="glass absolute left-2.5 top-2.5 rounded-full px-3 py-1.5 text-[12px] font-medium">Captured hands-free</span>}
+          <div className="glass absolute right-2.5 top-2.5 rounded-full">
+            <CardActions card={card} tone="light" onEditing={setEditing} />
+          </div>
+        </PrintFrame>
+        {editing && <CaptionEditor card={card} onDone={() => setEditing(false)} />}
+      </div>
+    );
+  }
   return (
     <div>
     <figure className={cn("relative m-0 overflow-hidden rounded-card bg-surface", tall ? "h-[420px]" : "h-[300px]")} style={{ boxShadow: tintShadow(card, 0.45) }}>

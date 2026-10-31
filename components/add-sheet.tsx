@@ -9,8 +9,9 @@ import { blobToWav16k, extractVideoFrames, processImage, processVideo, processVo
 import { getSessionMedia } from "@/lib/media-session";
 import { callName, formatDuration, memberPhoto } from "@/lib/people";
 import type { TranscriptSegment } from "@/lib/schemas";
+import { CARD_NOTE_MAX, CARD_PLACE_MAX } from "@/lib/card-limits";
 import { cn } from "@/lib/utils";
-import { hourIn } from "@/lib/zones";
+import { hourIn, placeFromTz } from "@/lib/zones";
 import { useShell } from "./shell";
 import { Avatar, Button, Icon, LiveDot, PlayButton } from "./ui/kit";
 import { useViewer } from "./viewer";
@@ -59,10 +60,12 @@ export function purposeTitle(c: ReplyContribution | null): string | null {
 
 // Card upload carries the real bytes: `media` for the photo/video plus key
 // frames for video grounding. The server captions from these bytes only.
-async function postMoment(upload: ProcessedUpload, file: File | Blob, caption: string, lang: string, frames: Blob[] = []): Promise<boolean> {
+async function postMoment(upload: ProcessedUpload, file: File | Blob, caption: string, lang: string, frames: Blob[] = [], extra: { place?: string; note?: string } = {}): Promise<boolean> {
   const form = new FormData();
   form.append("type", upload.kind === "video" ? "video" : "photo");
   form.append("caption", caption);
+  if (extra.place) form.append("place", extra.place.slice(0, CARD_PLACE_MAX));
+  if (extra.note) form.append("note", extra.note.slice(0, CARD_NOTE_MAX));
   form.append("lang", lang);
   form.append("takenAt", upload.takenAt);
   form.append("source", upload.source);
@@ -531,6 +534,10 @@ function MomentComposer({ onDone }: { onDone: () => void }) {
   const { viewer } = useViewer();
   const [files, setFiles] = useState<File[]>([]);
   const [note, setNote] = useState("");
+  // Written on the print: where (their home city to start with) and a short note.
+  const home = viewer.city || (placeFromTz(viewer.tz) === "Somewhere" ? "" : placeFromTz(viewer.tz));
+  const [where, setWhere] = useState(home);
+  const [printNote, setPrintNote] = useState("");
   // Glasses photos are recognised from the camera metadata itself (EXIF
   // Make/Model); there is no manual claim.
   const glasses = false;
@@ -552,7 +559,7 @@ function MomentComposer({ onDone }: { onDone: () => void }) {
           : await processImage(file, { fromToday: true, fromGlassesToggle: glasses });
         const stored = getSessionMedia(upload.mediaRef)?.blob ?? file;
         const frames = video ? await extractVideoFrames(file).catch(() => []) : [];
-        if (!(await postMoment(upload, stored, note.trim(), viewer.lang, frames))) failed += 1;
+        if (!(await postMoment(upload, stored, note.trim(), viewer.lang, frames, { place: where.trim(), note: printNote.trim() }))) failed += 1;
       } catch {
         failed += 1;
       }
@@ -605,16 +612,43 @@ function MomentComposer({ onDone }: { onDone: () => void }) {
       )}
 
       <label className="mt-4 block">
-        <span className="sr-only">Add a note</span>
+        <span className="sr-only">Caption</span>
         <input
           type="text"
           value={note}
           maxLength={280}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Add a note (optional)"
+          placeholder="Caption (optional)"
           className="h-[52px] w-full rounded-full bg-surface px-5 text-[16px] outline-none placeholder:text-ink-faint focus:ring-2 focus:ring-marigold"
         />
       </label>
+      <div className="mt-3 rounded-[22px] border border-[var(--line)] p-3">
+        <p className="m-0 px-1 text-[13px] font-medium text-ink-soft">Written on the print</p>
+        <label className="mt-2 flex items-center gap-3">
+          <span className="w-[64px] shrink-0 px-1 text-[15px] font-semibold">Where</span>
+          <input
+            type="text"
+            value={where}
+            maxLength={CARD_PLACE_MAX}
+            onChange={(e) => setWhere(e.target.value)}
+            placeholder="Amritsar"
+            autoComplete="off"
+            className="h-12 min-w-0 flex-1 rounded-[14px] bg-surface px-4 text-[16px] outline-none placeholder:text-ink-faint focus:ring-2 focus:ring-marigold"
+          />
+        </label>
+        <label className="mt-2 flex items-center gap-3">
+          <span className="w-[64px] shrink-0 px-1 text-[15px] font-semibold">A note</span>
+          <input
+            type="text"
+            value={printNote}
+            maxLength={CARD_NOTE_MAX}
+            onChange={(e) => setPrintNote(e.target.value)}
+            placeholder="Optional, in your words"
+            autoComplete="off"
+            className="h-12 min-w-0 flex-1 rounded-[14px] bg-surface px-4 font-hand text-[19px] outline-none placeholder:font-sans placeholder:text-[16px] placeholder:text-ink-faint focus:ring-2 focus:ring-marigold"
+          />
+        </label>
+      </div>
       {error && (
         <p className="m-0 mt-2 text-[14px] text-[#b42318]" role="alert">
           {error}

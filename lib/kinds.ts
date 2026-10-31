@@ -412,6 +412,17 @@ export const ChitthiSchema = z.object({
   createdAt: iso,
 });
 
+// ---------- A line about today: one short line on your own day, gone at your midnight ----------
+export const DayLineSchema = z.object({
+  /** The author's member id: one line per person, replaced when they write a new one. */
+  id,
+  memberId: id,
+  text: z.string().trim().min(1).max(80),
+  /** End of the author's local day; after this the line is no longer shown. */
+  until: iso,
+  createdAt: iso,
+});
+
 // ---------- Today: one shared task for both homes, done only when both answer ----------
 export const TodayAnswerSchema = z.object({ memberId: id, cardId: z.string().min(1), at: iso });
 export const TodayTaskSchema = z.object({
@@ -469,6 +480,7 @@ export const DOC_SCHEMAS = {
   lamp: LampSchema,
   chitthi: ChitthiSchema,
   partner_token: PartnerTokenSchema,
+  day_line: DayLineSchema,
 } as const;
 
 export type DocKind = keyof typeof DOC_SCHEMAS;
@@ -501,6 +513,7 @@ export type MuseCall = DocOf<"muse_call">;
 export type WindowView = DocOf<"window_view">;
 export type Lamp = DocOf<"lamp">;
 export type Chitthi = DocOf<"chitthi">;
+export type DayLine = DocOf<"day_line">;
 export type Wall = (typeof WALLS)[number];
 export type WindowLayer = (typeof WINDOW_LAYERS)[number];
 export type TodayTask = DocOf<"today_task">;

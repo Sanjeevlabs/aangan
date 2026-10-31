@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { strings } from "@/lib/i18n";
-import { Icon } from "./ui/kit";
+import { REACTION_EMOJI, REACTION_ORDER, REACTION_WORD, toggleReaction } from "@/lib/reaction-names";
+import { memberPhoto } from "@/lib/people";
+import { Avatar, Icon } from "./ui/kit";
 import type { Member, Play, Reaction } from "@/lib/schemas";
 import { cn } from "@/lib/utils";
 import { useShell } from "./shell";
@@ -71,9 +73,9 @@ export async function sendBlessing(cardId: string, memberId: string): Promise<bo
   }
 }
 
-// Exactly three reactions as text buttons. No counts and no list of who
-// reacted (SPEC §30.5): a reaction is a gesture to the sender, not a tally.
-// One per member per card; tapping replaces the member's prior kind.
+// Exactly three reactions as text buttons. Never a count: a reaction is a
+// gesture to the sender, not a tally (who reacted shows as names, see
+// ReactorsLine). One per member per card; tapping replaces the prior kind.
 // Long-press on Bless replies by voice.
 export function ReactionBar({ cardId, tone = "light", onReply }: { cardId: string; compact?: boolean; tone?: "light" | "glass"; onReply?: () => void }) {
   const { viewer, displayLang } = useViewer();
@@ -177,6 +179,95 @@ export function ReactionBar({ cardId, tone = "light", onReply }: { cardId: strin
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------- who reacted, by name */
+
+/** The family's reactions on one card, with an optimistic toggle for the viewer. */
+export function useCardReactions(cardId: string | null) {
+  const { viewer } = useViewer();
+  const [reactions, setReactions] = useState<Reaction[]>([]);
+  const load = useCallback(async () => {
+    if (!cardId) return;
+    try {
+      const res = await fetch(`/api/reactions?cardId=${encodeURIComponent(cardId)}`, { cache: "no-store" });
+      if (res.ok) setReactions(((await res.json()) as { reactions: Reaction[] }).reactions);
+    } catch {
+      // Offline: keep what we have.
+    }
+  }, [cardId]);
+  useEffect(() => {
+    setReactions([]);
+    void load();
+  }, [load]);
+  const mine = reactions.find((r) => r.memberId === viewer.id)?.kind ?? null;
+  const toggle = async (kind: Reaction["kind"]) => {
+    if (!cardId) return;
+    const takeBack = mine === kind;
+    setReactions((list) => toggleReaction(list, viewer.id, cardId, kind));
+    try {
+      const res = takeBack
+        ? await fetch("/api/reactions", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ cardId }) })
+        : await fetch("/api/reactions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cardId, memberId: viewer.id, kind }) });
+      if (!res.ok) throw new Error(String(res.status));
+    } catch {
+      // Didn't land: show the truth again.
+    }
+    await load();
+  };
+  return { reactions, mine, toggle };
+}
+
+/** Small avatars with names and their reaction, on a dark ground. Nothing when nobody reacted. */
+export function ReactorsLine({ reactions, className }: { reactions: Reaction[]; className?: string }) {
+  const { viewer, members } = useViewer();
+  const rows = [...reactions].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).flatMap((r) => {
+    const m = members.find((mm) => mm.id === r.memberId);
+    if (!m) return [];
+    return [{ r, m, name: r.memberId === viewer.id ? "You" : m.displayName || m.firstName }];
+  });
+  if (!rows.length) return null;
+  return (
+    <ul className={cn("m-0 flex list-none flex-wrap items-center gap-x-1 gap-y-1.5 p-0", className)} aria-label="Reactions from the family">
+      {rows.map(({ r, m, name }, i) => (
+        <li key={r.memberId} className="flex items-center gap-1.5 text-[15px] font-medium text-white">
+          {i > 0 && (
+            <span className="px-1 text-white/45" aria-hidden="true">
+              ·
+            </span>
+          )}
+          <Avatar src={memberPhoto(m)} name={name} size={24} />
+          <span>{name}</span>
+          <span role="img" aria-label={REACTION_WORD[r.kind]}>
+            {REACTION_EMOJI[r.kind]}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Three quiet emoji buttons; the one you chose is lit, tap it again to take it back. */
+export function ReactButtons({ mine, onToggle, className }: { mine: Reaction["kind"] | null; onToggle: (kind: Reaction["kind"]) => void; className?: string }) {
+  return (
+    <div className={cn("flex items-center gap-1.5", className)} role="group" aria-label="React">
+      {REACTION_ORDER.map((kind) => {
+        const on = mine === kind;
+        return (
+          <button
+            key={kind}
+            type="button"
+            aria-pressed={on}
+            aria-label={on ? `Take back your ${REACTION_WORD[kind]}` : `Send ${REACTION_WORD[kind]}`}
+            onClick={() => onToggle(kind)}
+            className={cn("press grid h-12 w-12 shrink-0 place-items-center rounded-full text-[22px] transition-colors", on ? "bg-white shadow-[0_0_0_2px_rgba(255,255,255,.9)]" : "bg-white/15 backdrop-blur")}
+          >
+            <span aria-hidden="true">{REACTION_EMOJI[kind]}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

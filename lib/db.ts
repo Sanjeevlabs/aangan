@@ -94,6 +94,8 @@ export function cardFromRow(r: Record<string, unknown>): Card {
     authorId: (r.author_id as string | null) ?? null,
     coverRef: (r.cover_ref as string | null) ?? null,
     addressedTo: (r.addressed_to as string | null) ?? null,
+    place: typeof r.place === "string" ? r.place.slice(0, 60) : "",
+    note: typeof r.note === "string" ? r.note.slice(0, 140) : "",
   });
 }
 
@@ -193,6 +195,9 @@ export async function dbAddCard(input: Omit<import("zod").input<typeof CardSchem
     author_id: card.authorId,
     cover_ref: card.coverRef,
     addressed_to: card.addressedTo,
+    // Only sent when set, so a database that hasn't added the columns yet keeps working.
+    ...(card.place ? { place: card.place } : {}),
+    ...(card.note ? { note: card.note } : {}),
   });
   if (error) return memAddCard(card);
   return card;

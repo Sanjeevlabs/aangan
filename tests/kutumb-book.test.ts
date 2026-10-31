@@ -14,7 +14,7 @@ beforeEach(() => {
 });
 
 const card = (id: string, authorId: string, takenAt: string, type: Card["type"] = "audio"): Card =>
-  ({ id, familyId: "f", type, caption: id, summary: "", lang: "en", takenAt, ritualSlug: null, source: "upload", mediaRef: null, peaks: [], palette: [], transcript: "", transcriptLang: "en", segments: [], authorId, coverRef: null, addressedTo: null }) as Card;
+  ({ id, familyId: "f", type, caption: id, summary: "", lang: "en", takenAt, ritualSlug: null, source: "upload", mediaRef: null, peaks: [], palette: [], transcript: "", transcriptLang: "en", segments: [], authorId, coverRef: null, addressedTo: null, place: "", note: "" }) as Card;
 const maa = { id: "dadi", tz: "Asia/Kolkata", city: "Amritsar" } as Member;
 
 describe("the book of Maa & Papa", () => {

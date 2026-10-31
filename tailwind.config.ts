@@ -20,6 +20,7 @@ const config: Config = {
       fontFamily: {
         sans: ["var(--font-body)"],
         voice: ["var(--font-voice)"],
+        hand: ["var(--font-hand)", "cursive"],
       },
       borderRadius: {
         sheet: "var(--radius-sheet)",

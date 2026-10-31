@@ -1,6 +1,7 @@
 import { CreatePlayRequestSchema } from "@/lib/schemas";
 import { dbAddPlay, dbGetMember, dbListCards, dbListPlays } from "@/lib/db";
 import { requireMember, requireSession } from "@/lib/auth";
+import { withDemoShelf } from "@/lib/demo";
 
 export async function GET(req: Request): Promise<Response> {
   const auth = await requireSession(req);
@@ -24,7 +25,8 @@ export async function POST(req: Request): Promise<Response> {
   }
   const ownership = requireMember(auth, parsed.data.memberId);
   if (ownership) return ownership;
-  const cards = await dbListCards(auth.familyId);
+  // The demo family's synthetic shelf voices can be heard (and counted as heard) too.
+  const cards = withDemoShelf(await dbListCards(auth.familyId), auth.familyId);
   if (!cards.some((c) => c.id === parsed.data.cardId)) {
     return Response.json({ error: "unknown-card" }, { status: 404 });
   }
