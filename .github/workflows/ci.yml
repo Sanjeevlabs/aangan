@@ -40,5 +40,14 @@ jobs:
           npx next start -p 3100 > next.log 2>&1 &
           for i in $(seq 1 60); do curl -sf -o /dev/null http://127.0.0.1:3100/ && break; sleep 1; done
           python scripts/walk.py --base http://127.0.0.1:3100
+      - name: Bundle budget (shared client JS)
+        run: node scripts/perf-budget.mjs
+      - name: Vitals (courtyard LCP and CLS, 390px, 4G, 4x CPU)
+        run: |
+          curl -sf -o /dev/null http://127.0.0.1:3100/ || {
+            npx next start -p 3100 > next.log 2>&1 &
+            for i in $(seq 1 60); do curl -sf -o /dev/null http://127.0.0.1:3100/ && break; sleep 1; done
+          }
+          python scripts/perf-vitals.py --base http://127.0.0.1:3100 --max-lcp 2500 --max-cls 0.1
       - if: failure()
         run: tail -100 next.log
