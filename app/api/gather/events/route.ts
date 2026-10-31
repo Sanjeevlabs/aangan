@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { can } from "@/lib/permissions";
+import { can, isAdmin } from "@/lib/permissions";
 import { checkRateLimit, requireSession } from "@/lib/auth";
 import { dbGetMember, dbListMembers } from "@/lib/db";
 import { EVENT_TYPES, eventTitle, lockedStart, markNone, occasionEventKey, participants, proposeSlots, slotToLock, templateFor, toggleVote, type FamilyEvent } from "@/lib/events";
@@ -59,6 +59,8 @@ const Body = z.discriminatedUnion("action", [
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     invites: z.array(Id).max(40).optional(),
     minutes: z.number().int().min(30).max(60).optional(),
+    /** Also plan a cake, flowers or sweets. Owner and admins only. */
+    extras: z.boolean().default(false),
   }),
   z.object({ action: z.literal("vote"), eventId: Id, slotId: Id }),
   z.object({ action: z.literal("none"), eventId: Id }),
@@ -107,6 +109,7 @@ export async function POST(req: Request): Promise<Response> {
 
   if (body.action === "create") {
     if (!can(me, "events.plan") || me.role === "child") return Response.json({ error: "grown-ups-only" }, { status: 403 });
+    if (body.extras && !isAdmin(me)) return Response.json({ error: "admins-only" }, { status: 403 });
     if (!checkRateLimit(auth, "/api/gather")) return Response.json({ error: "rate-limited" }, { status: 429 });
     const t = today();
     if (body.date < addDays(t, -1) || body.date > addDays(t, 366)) return Response.json({ error: "bad-date" }, { status: 400 });
@@ -131,6 +134,7 @@ export async function POST(req: Request): Promise<Response> {
       minutes,
       members: members.filter((m) => m.id === auth.memberId || invites.includes(m.id)),
       occasionNote: occ?.label,
+      extras: body.extras,
     });
     const event = await putEvent(auth.familyId, {
       id: newId("event"),
@@ -150,6 +154,7 @@ export async function POST(req: Request): Promise<Response> {
       sittingId: null,
       plan,
       planSource: source,
+      extras: body.extras,
       createdAt: new Date().toISOString(),
     });
     return Response.json({ event }, { status: 201 });

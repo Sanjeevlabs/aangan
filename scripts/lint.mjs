@@ -47,8 +47,20 @@ for (const f of files(ROOT)) {
   }
 }
 
+// Dependency allowlist: a new package is a decision, not a side effect.
+const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
+const allow = JSON.parse(readFileSync(join(ROOT, "scripts/deps-allowlist.json"), "utf8"));
+for (const sec of ["dependencies", "devDependencies"]) {
+  for (const name of Object.keys(pkg[sec] ?? {})) {
+    if (!allow[sec]?.[name]) {
+      console.error(`package.json ${sec}: "${name}" is not in scripts/deps-allowlist.json (add it with the reason, or remove it)`);
+      failures++;
+    }
+  }
+}
+
 if (failures > 0) {
   console.error(`${failures} lint failure(s)`);
   process.exit(1);
 }
-console.log("lint ok: no secrets, no hard-coded festivals in app logic");
+console.log("lint ok: no secrets, no hard-coded festivals in app logic, dependencies on the allowlist");

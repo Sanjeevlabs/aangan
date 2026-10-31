@@ -8,6 +8,7 @@ import type { UpcomingOccasion } from "@/lib/gather-prompts";
 import { addDays, whenLabel } from "@/lib/occasion-calendar";
 import { callName, memberPhoto } from "@/lib/people";
 import type { Member } from "@/lib/schemas";
+import { isAdmin } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { Avatar, Button, Icon, type IconName } from "./ui/kit";
 
@@ -37,12 +38,16 @@ export function PlanSheet({ open, onClose, occasions, members, viewer, preset, o
   const [date, setDate] = useState<string>(addDays(isoToday(), 7));
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Off by default: the plan is wishes, songs and photos. Only an owner or admin can ask for a cake or gift.
+  const [extras, setExtras] = useState(false);
+  const mayAddExtras = isAdmin(viewer);
   const wishable = occasions.filter((o) => o.kind !== "national" || o.days <= 30).slice(0, 8);
 
   useEffect(() => {
     if (!open) return;
     setFailed(false);
     setBusy(false);
+    setExtras(false);
     if (preset?.occasion) choose({ kind: "occasion", o: preset.occasion });
     else if (preset?.type) {
       setWhat({ kind: "other", type: preset.type });
@@ -86,6 +91,7 @@ export function PlanSheet({ open, onClose, occasions, members, viewer, preset, o
       date,
       occasionKey: what.kind === "occasion" ? what.o.slug : null,
       forMemberId: forId,
+      extras: mayAddExtras && extras,
       ...(title.trim().length >= 2 ? { title: title.trim() } : {}),
     });
     setBusy(false);
@@ -184,6 +190,12 @@ export function PlanSheet({ open, onClose, occasions, members, viewer, preset, o
                   </div>
                 </Step>
 
+                {mayAddExtras && (
+                  <label className="mt-5 flex min-h-11 cursor-pointer items-center gap-3 text-[15px]">
+                    <input type="checkbox" checked={extras} onChange={(e) => setExtras(e.target.checked)} className="h-5 w-5 accent-[#1c1b1a]" />
+                    Also plan a cake, flowers or sweets
+                  </label>
+                )}
                 {failed && <p className="m-0 mt-3 text-[14px] text-[#b42318]" role="alert">Couldn&rsquo;t draft it just now. Try again.</p>}
                 <Button className="mt-6 w-full" disabled={!ready} onClick={() => void submit()}>
                   <Icon name="sparkle" size={18} />

@@ -6,8 +6,13 @@ import type { CapacitorConfig } from "@capacitor/cli";
 //
 // CAP_SERVER_URL MUST be set for every native build (`npm run cap:sync`), e.g.
 //   CAP_SERVER_URL=https://aangan.example npm run cap:sync
-// The default below is only a placeholder so tooling can load this file.
-const serverUrl = (process.env.CAP_SERVER_URL || "https://aangan.vercel.app").replace(/\/+$/, "");
+// Without it, sync/copy/run/build stop with an error; the reserved .invalid
+// placeholder only lets other tooling load this file (it can never resolve).
+const PLACEHOLDER = "https://aangan.invalid";
+if (!process.env.CAP_SERVER_URL && /\b(sync|copy|run|build|update)\b/.test(process.argv.join(" "))) {
+  throw new Error("Set CAP_SERVER_URL to the production origin, e.g. CAP_SERVER_URL=https://<your-domain> npm run cap:sync");
+}
+const serverUrl = (process.env.CAP_SERVER_URL || PLACEHOLDER).replace(/\/+$/, "");
 const host = new URL(serverUrl).host;
 
 const config: CapacitorConfig = {

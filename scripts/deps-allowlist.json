@@ -1,0 +1,39 @@
+{
+  "note": "Every direct dependency must be listed here with why it exists. npm run lint fails on anything new: adding a package is a decision, not a side effect.",
+  "dependencies": {
+    "@capacitor/android": "native shell",
+    "@capacitor/app": "deep links",
+    "@capacitor/browser": "Google sign-in in the system browser",
+    "@capacitor/core": "native shell",
+    "@capacitor/haptics": "lamp haptics",
+    "@capacitor/ios": "native shell",
+    "@capacitor/push-notifications": "push tokens",
+    "@capacitor/share": "native share sheet",
+    "@capacitor/splash-screen": "native splash (configured in capacitor.config.ts, no JS import)",
+    "@capacitor/status-bar": "status bar style",
+    "@supabase/supabase-js": "Postgres, Auth, Storage",
+    "clsx": "class names",
+    "exifr": "photo date from EXIF, then stripped",
+    "framer-motion": "motion",
+    "lucide-react": "icons (tree-shaken)",
+    "next": "framework",
+    "next-themes": "light/dark",
+    "qrcode": "home-page QR to the demo",
+    "react": "UI",
+    "react-dom": "UI",
+    "tailwind-merge": "class names",
+    "zod": "validates every request and model response"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "cap sync",
+    "@types/node": "types",
+    "@types/qrcode": "types",
+    "@types/react": "types",
+    "@types/react-dom": "types",
+    "autoprefixer": "CSS",
+    "postcss": "CSS",
+    "tailwindcss": "CSS",
+    "typescript": "typecheck",
+    "vitest": "tests"
+  }
+}

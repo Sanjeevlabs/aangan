@@ -161,11 +161,6 @@ export function OccasionCelebration({
                 {viewer.role === "elder" ? "Bless" : "Wish"} {person ? name : ""}
               </button>
               {run && <PhotoWishButton run={run} viewer={viewer} forName={name} onDone={onWished} className="h-11 w-11 bg-white/20 text-white" />}
-              {person && (
-                <a href={`/send?for=${encodeURIComponent(person.id)}&kind=occasion&title=${encodeURIComponent(title)}`} aria-label={`Send ${name} something`} className="press grid h-11 w-11 place-items-center rounded-full bg-white/20 text-white no-underline">
-                  <Icon name="send" size={18} />
-                </a>
-              )}
             </>
           )}
           {beads.length > 0 && (

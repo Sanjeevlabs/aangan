@@ -82,6 +82,8 @@ export const EventSchema = z.object({
   sittingId: z.string().nullable().default(null),
   plan: EventPlanSchema,
   planSource: z.enum(["muse", "fallback"]).default("fallback"),
+  /** An owner or admin asked Muse to plan a cake, flowers or sweets too. Off by default. */
+  extras: z.boolean().default(false),
   createdAt: iso,
 });
 
@@ -102,6 +104,18 @@ export interface EventTemplate {
   minutes: number;
   runOfShow: TemplateStep[];
   tasks: TemplateTask[];
+  /** Things to buy or arrange (a cake, flowers, sweets): only when an owner or admin asks. */
+  extras?: { step?: TemplateStep; tasks: TemplateTask[] };
+}
+
+/**
+ * Words that mean buying, ordering or bringing something. A plan without
+ * extras must contain none of them (Muse drafts that do fall back to the template).
+ */
+export const PURCHASE_WORDS = /\b(cakes?|candles?|gifts?|presents?|flowers?|bouquets?|sweets|mithai|order(s|ing)?|buy(ing)?|purchase|shop(s|ping)?|deliver(y|ed)?|bring(s|ing)?|cater(ing)?)\b/i;
+
+export function planMentionsPurchase(plan: EventPlan): boolean {
+  return [...plan.runOfShow.flatMap((s) => [s.title, s.note]), ...plan.tasks.map((t) => t.text)].some((x) => PURCHASE_WORDS.test(x));
 }
 const T = TEMPLATES as unknown as {
   types: Record<EventType, EventTemplate>;
@@ -179,12 +193,16 @@ export function fallbackPlaylist(type: EventType, langs: string[]): Song[] {
 }
 
 /** The deterministic plan for an event type: data from data/event-templates.json. */
-export function fallbackPlan(type: EventType, people: Person[], ctx: { hostId: string; honoreeId: string | null }): EventPlan {
+export function fallbackPlan(type: EventType, people: Person[], ctx: { hostId: string; honoreeId: string | null }, opts: { extras?: boolean } = {}): EventPlan {
   const tpl = templateFor(type);
   let adultTurn = 0;
+  const extra = opts.extras ? tpl.extras : undefined;
+  // The extras step (cake and candles) takes the place of the moment step, same minutes.
+  const steps = extra?.step ? tpl.runOfShow.map((s) => (s.minutes === extra.step!.minutes && /song|sing|moment/i.test(s.title) ? extra.step! : s)) : tpl.runOfShow;
+  const tasks = [...tpl.tasks.slice(0, -1), ...(extra?.tasks ?? []), ...tpl.tasks.slice(-1)];
   return {
-    runOfShow: tpl.runOfShow.map((s, i) => ({ id: `r${i + 1}`, title: s.title, minutes: s.minutes, ownerId: resolveOwner(s.owner, people, ctx), note: s.note })),
-    tasks: tpl.tasks.map((t, i) => ({ id: `t${i + 1}`, text: t.text, ownerId: resolveOwner(t.owner, people, ctx, t.owner === "adult" ? adultTurn++ : 0), done: false })),
+    runOfShow: steps.map((s, i) => ({ id: `r${i + 1}`, title: s.title, minutes: s.minutes, ownerId: resolveOwner(s.owner, people, ctx), note: s.note })),
+    tasks: tasks.map((t, i) => ({ id: `t${i + 1}`, text: t.text, ownerId: resolveOwner(t.owner, people, ctx, t.owner === "adult" ? adultTurn++ : 0), done: false })),
     playlist: fallbackPlaylist(type, familyLangs(people)),
   };
 }

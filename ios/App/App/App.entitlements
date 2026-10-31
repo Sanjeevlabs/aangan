@@ -9,7 +9,7 @@
 	     CAP_SERVER_URL origin; the origin must serve /.well-known/apple-app-site-association. -->
 	<key>com.apple.developer.associated-domains</key>
 	<array>
-		<string>applinks:aangan.vercel.app</string>
+		<string>applinks:aangan.invalid</string>
 	</array>
 </dict>
 </plist>

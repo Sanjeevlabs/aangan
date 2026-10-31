@@ -180,7 +180,7 @@
 - Access roles (admin / member / child), separate from generation, in one permissions table (`lib/permissions.ts`) enforced by the routes; the family always keeps an admin (role changes, removals and leaving are guarded). Settings → People & roles.
 - Care duties: "who handles what" per home; a new need of that kind goes straight to that person, with a note to the parent in their language.
 - Every gap from the CRUD audit closed: edit/delete voice notes and photos (author; admin can remove), edit/delete recipes (cook), delete attempts, take back a blessing, withdraw or skip questions, undo a shared moment, edit/withdraw needs, edit Village contacts, leave the rota, revoke invites, link two existing people and remove a link, take back a reaction, RSVP and reschedule sittings.
-- `docs/SPEC.md` v2: what families far apart care about, every screen's operations and states, Care as a ticket tracker, Safe & sound (no tracking), pets, extended family, the Aangan map, plans (₹399 / ₹999), curated concierge (ONDC / Instacart / licensed partners; no marketplace), brand. Decisions recorded in §15.
+- Product spec v2 (kept private): every screen's operations and states, Care as a ticket tracker, Safe & sound (no tracking), pets, extended family, brand.
 - Verified: lint ok, typecheck ok, tests 152 passed + 3 skipped, production build ok; role-based UI probe (admin vs child) matches the rules; no page errors.
 
 ## 29 Oct 2026 · Stage 6: Care board, extended family, pets
@@ -209,7 +209,7 @@
 - **Care**: neutral heading ("Care · Parents' home"); parents get the shared board and can add/assign tasks; anyone (parents too) can take one; quick "Add a task" row. "Village" → **Local helpers**: grouped contact book, call/WhatsApp, hours, helped-count, Android contact picker; plumber/electrician roles. Client-only render on Care (server/client time strings).
 - **Kitchen library**: shelves per cook (elders → you → others), search, course filter, illustrated covers by course when there's no photo (`components/recipe-art.tsx`), tile menus to edit/delete. New recipe fields: course, prep/cook minutes, prep work, outcome, video. `create` action (typed recipe; write one down for someone → they're the cook, `addedBy` can still edit). One editor for new/edit (`components/recipe-editor.tsx`), recipe page redesigned (stats row, voice/video, before you start, tickable ingredients, method, how you know it's right). Six more demo recipes.
 - **Sharing & export**: `public_shares` (SQL) + `lib/shares.ts`; `/api/share` (create/list/revoke), public `/r/[token]` (frozen copy, noindex, view count, quiet CTA). Share sheet: WhatsApp, link, image card, text. Settings: download family data (`/api/export`, JSON; no emails/Muse logs/locations) and "Shared outside the family" with Stop.
-- Docs: SPEC §5.4/5.6/5.8/10/15 updated; §16 sharing model; §17 review + plan for location/weather/news/illustrations/legacy/store.
+- Docs: product spec updated (kept private).
 - Re-run `supabase/schema.sql` (new demo members/links, `public_shares`, `bump_share_views`).
 - Tests: 175 passed. Prod smoke: 7 rooms × 3 members, no page errors.
 

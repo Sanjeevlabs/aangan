@@ -1,5 +1,5 @@
 {
-  "note": "Data, never logic. The deterministic fallback plan for each event type (Muse drafts first; this is used when Muse is unavailable or its draft fails validation). `owner` is a hint the server resolves to a real family member: honoree, elder, host, adult, child, everyone. Songs are real, named recordings only (title + artist); the app links to YouTube Music / Spotify search, never hosted audio. `byOccasion` maps an occasion slug (rituals/*.json or data/traditions.json key) to a type, and may override the moment step.",
+  "note": "Data, never logic. The deterministic fallback plan for each event type (Muse drafts first; this is used when Muse is unavailable or its draft fails validation). `owner` is a hint the server resolves to a real family member: honoree, elder, host, adult, child, everyone. Songs are real, named recordings only (title + artist); the app links to YouTube Music / Spotify search, never hosted audio. `byOccasion` maps an occasion slug (rituals/*.json or data/traditions.json key) to a type, and may override the moment step. Plans focus on wishes, songs, real photos and voices. Nothing to buy, order or bring is ever in the default plan: `extras` (a cake, flowers, sweets) is added only when an owner or admin asks for it.",
   "types": {
     "birthday": {
       "label": "Birthday",
@@ -7,18 +7,69 @@
       "sittingReason": "birthday",
       "minutes": 45,
       "runOfShow": [
-        { "title": "Welcome", "minutes": 5, "owner": "host", "note": "Say hello across homes. Everyone unmutes once." },
-        { "title": "The Chorus of wishes", "minutes": 10, "owner": "everyone", "note": "One wish each, youngest first." },
-        { "title": "A story from an elder", "minutes": 10, "owner": "elder", "note": "The day they were born, or a year that mattered." },
-        { "title": "Cake and candles", "minutes": 5, "owner": "honoree", "note": "Sing together, then blow the candles out." },
-        { "title": "Open chat", "minutes": 15, "owner": "everyone", "note": "No agenda." }
+        {
+          "title": "Welcome",
+          "minutes": 5,
+          "owner": "host",
+          "note": "Say hello across homes. Everyone unmutes once."
+        },
+        {
+          "title": "The Chorus of wishes",
+          "minutes": 10,
+          "owner": "everyone",
+          "note": "One wish each, youngest first."
+        },
+        {
+          "title": "A story from an elder",
+          "minutes": 10,
+          "owner": "elder",
+          "note": "The day they were born, or a year that mattered."
+        },
+        {
+          "title": "Sing together",
+          "minutes": 5,
+          "owner": "everyone",
+          "note": "Their song plays; everyone sings from their own home."
+        },
+        {
+          "title": "Open chat",
+          "minutes": 15,
+          "owner": "everyone",
+          "note": "No agenda."
+        }
       ],
       "tasks": [
-        { "text": "Call the cake shop", "owner": "adult" },
-        { "text": "Collect old photos for the call", "owner": "adult" },
-        { "text": "Play the song at cake time", "owner": "child" },
-        { "text": "Send the link to everyone", "owner": "host" }
-      ]
+        {
+          "text": "Record your wish, voice or video",
+          "owner": "everyone"
+        },
+        {
+          "text": "Collect old photos for the call",
+          "owner": "adult"
+        },
+        {
+          "text": "Pick the song and a GIF for the moment",
+          "owner": "child"
+        },
+        {
+          "text": "Send the link to everyone",
+          "owner": "host"
+        }
+      ],
+      "extras": {
+        "step": {
+          "title": "Cake and candles",
+          "minutes": 5,
+          "owner": "honoree",
+          "note": "Sing together, then blow the candles out."
+        },
+        "tasks": [
+          {
+            "text": "Arrange the cake",
+            "owner": "adult"
+          }
+        ]
+      }
     },
     "festival": {
       "label": "Festival",
@@ -26,18 +77,67 @@
       "sittingReason": "festival",
       "minutes": 45,
       "runOfShow": [
-        { "title": "Welcome", "minutes": 5, "owner": "host", "note": "Every home on screen, dressed up." },
-        { "title": "The Chorus of wishes", "minutes": 10, "owner": "everyone", "note": "One wish each, home by home." },
-        { "title": "A story from an elder", "minutes": 10, "owner": "elder", "note": "How it was celebrated when they were young." },
-        { "title": "Light the lamp together", "minutes": 5, "owner": "everyone", "note": "Every home lights its lamp at the same moment." },
-        { "title": "Open chat", "minutes": 15, "owner": "everyone", "note": "Show the sweets, the rangoli, the table." }
+        {
+          "title": "Welcome",
+          "minutes": 5,
+          "owner": "host",
+          "note": "Every home on screen, dressed up."
+        },
+        {
+          "title": "The Chorus of wishes",
+          "minutes": 10,
+          "owner": "everyone",
+          "note": "One wish each, home by home."
+        },
+        {
+          "title": "A story from an elder",
+          "minutes": 10,
+          "owner": "elder",
+          "note": "How it was celebrated when they were young."
+        },
+        {
+          "title": "Light the lamp together",
+          "minutes": 5,
+          "owner": "everyone",
+          "note": "Every home lights its lamp at the same moment."
+        },
+        {
+          "title": "Open chat",
+          "minutes": 15,
+          "owner": "everyone",
+          "note": "Show the lamps, the colours, the table."
+        }
       ],
       "tasks": [
-        { "text": "Keep a lamp ready in every home", "owner": "everyone" },
-        { "text": "Collect last year's photos", "owner": "adult" },
-        { "text": "Play the song at lamp time", "owner": "child" },
-        { "text": "Send the link to everyone", "owner": "host" }
-      ]
+        {
+          "text": "Keep a lamp ready in every home",
+          "owner": "everyone"
+        },
+        {
+          "text": "Record your wish, voice or video",
+          "owner": "everyone"
+        },
+        {
+          "text": "Collect last year's photos",
+          "owner": "adult"
+        },
+        {
+          "text": "Play the song at lamp time",
+          "owner": "child"
+        },
+        {
+          "text": "Send the link to everyone",
+          "owner": "host"
+        }
+      ],
+      "extras": {
+        "tasks": [
+          {
+            "text": "Arrange sweets for each home",
+            "owner": "adult"
+          }
+        ]
+      }
     },
     "anniversary": {
       "label": "Anniversary",
@@ -45,18 +145,69 @@
       "sittingReason": "music",
       "minutes": 45,
       "runOfShow": [
-        { "title": "Welcome", "minutes": 5, "owner": "host", "note": "Everyone on before the couple joins." },
-        { "title": "The Chorus of wishes", "minutes": 10, "owner": "everyone", "note": "One memory of them each." },
-        { "title": "How they met", "minutes": 10, "owner": "honoree", "note": "In their own words." },
-        { "title": "Cake and candles", "minutes": 5, "owner": "honoree", "note": "Their song plays." },
-        { "title": "Open chat", "minutes": 15, "owner": "everyone", "note": "No agenda." }
+        {
+          "title": "Welcome",
+          "minutes": 5,
+          "owner": "host",
+          "note": "Everyone on before the couple joins."
+        },
+        {
+          "title": "The Chorus of wishes",
+          "minutes": 10,
+          "owner": "everyone",
+          "note": "One memory of them each."
+        },
+        {
+          "title": "How they met",
+          "minutes": 10,
+          "owner": "honoree",
+          "note": "In their own words."
+        },
+        {
+          "title": "Their song",
+          "minutes": 5,
+          "owner": "everyone",
+          "note": "Their wedding song plays, with their photos."
+        },
+        {
+          "title": "Open chat",
+          "minutes": 15,
+          "owner": "everyone",
+          "note": "No agenda."
+        }
       ],
       "tasks": [
-        { "text": "Order flowers or a cake", "owner": "adult" },
-        { "text": "Find the wedding photos", "owner": "adult" },
-        { "text": "Play their song", "owner": "child" },
-        { "text": "Send the link to everyone", "owner": "host" }
-      ]
+        {
+          "text": "Record your wish or a memory of them",
+          "owner": "everyone"
+        },
+        {
+          "text": "Find the wedding photos",
+          "owner": "adult"
+        },
+        {
+          "text": "Play their song",
+          "owner": "child"
+        },
+        {
+          "text": "Send the link to everyone",
+          "owner": "host"
+        }
+      ],
+      "extras": {
+        "step": {
+          "title": "Cake and candles",
+          "minutes": 5,
+          "owner": "honoree",
+          "note": "Their song plays."
+        },
+        "tasks": [
+          {
+            "text": "Arrange flowers or a cake",
+            "owner": "adult"
+          }
+        ]
+      }
     },
     "visit": {
       "label": "A visit home",
@@ -64,17 +215,52 @@
       "sittingReason": "just-sit",
       "minutes": 30,
       "runOfShow": [
-        { "title": "Welcome", "minutes": 5, "owner": "host", "note": "Everyone says hello." },
-        { "title": "What to do together", "minutes": 10, "owner": "everyone", "note": "One wish each for the visit." },
-        { "title": "A story from an elder", "minutes": 5, "owner": "elder", "note": "The last time everyone was home." },
-        { "title": "Open chat", "minutes": 10, "owner": "everyone", "note": "Dates, trains, the food list." }
+        {
+          "title": "Welcome",
+          "minutes": 5,
+          "owner": "host",
+          "note": "Everyone says hello."
+        },
+        {
+          "title": "What to do together",
+          "minutes": 10,
+          "owner": "everyone",
+          "note": "One wish each for the visit."
+        },
+        {
+          "title": "A story from an elder",
+          "minutes": 5,
+          "owner": "elder",
+          "note": "The last time everyone was home."
+        },
+        {
+          "title": "Open chat",
+          "minutes": 10,
+          "owner": "everyone",
+          "note": "Dates, trains, the food list."
+        }
       ],
       "tasks": [
-        { "text": "Confirm travel dates", "owner": "honoree" },
-        { "text": "Make the food list", "owner": "elder" },
-        { "text": "Get the room ready", "owner": "adult" },
-        { "text": "Send the link to everyone", "owner": "host" }
-      ]
+        {
+          "text": "Confirm travel dates",
+          "owner": "honoree"
+        },
+        {
+          "text": "Make the food list",
+          "owner": "elder"
+        },
+        {
+          "text": "Get the room ready",
+          "owner": "adult"
+        },
+        {
+          "text": "Send the link to everyone",
+          "owner": "host"
+        }
+      ],
+      "extras": {
+        "tasks": []
+      }
     },
     "custom": {
       "label": "Something else",
@@ -82,92 +268,299 @@
       "sittingReason": "just-sit",
       "minutes": 45,
       "runOfShow": [
-        { "title": "Welcome", "minutes": 5, "owner": "host", "note": "Why we are here today." },
-        { "title": "The Chorus of wishes", "minutes": 10, "owner": "everyone", "note": "One word each." },
-        { "title": "A story from an elder", "minutes": 10, "owner": "elder", "note": "A memory that fits the day." },
-        { "title": "A small moment", "minutes": 5, "owner": "honoree", "note": "A cake, a lamp, a toast." },
-        { "title": "Open chat", "minutes": 15, "owner": "everyone", "note": "No agenda." }
+        {
+          "title": "Welcome",
+          "minutes": 5,
+          "owner": "host",
+          "note": "Why we are here today."
+        },
+        {
+          "title": "The Chorus of wishes",
+          "minutes": 10,
+          "owner": "everyone",
+          "note": "One word each."
+        },
+        {
+          "title": "A story from an elder",
+          "minutes": 10,
+          "owner": "elder",
+          "note": "A memory that fits the day."
+        },
+        {
+          "title": "A small moment",
+          "minutes": 5,
+          "owner": "honoree",
+          "note": "A song, a lamp, a toast."
+        },
+        {
+          "title": "Open chat",
+          "minutes": 15,
+          "owner": "everyone",
+          "note": "No agenda."
+        }
       ],
       "tasks": [
-        { "text": "Arrange a cake or sweets", "owner": "adult" },
-        { "text": "Collect old photos", "owner": "adult" },
-        { "text": "Play the song", "owner": "child" },
-        { "text": "Send the link to everyone", "owner": "host" }
-      ]
+        {
+          "text": "Record your wish, voice or video",
+          "owner": "everyone"
+        },
+        {
+          "text": "Collect old photos",
+          "owner": "adult"
+        },
+        {
+          "text": "Play the song",
+          "owner": "child"
+        },
+        {
+          "text": "Send the link to everyone",
+          "owner": "host"
+        }
+      ],
+      "extras": {
+        "tasks": [
+          {
+            "text": "Arrange a cake or sweets",
+            "owner": "adult"
+          }
+        ]
+      }
     }
   },
   "byOccasion": {
-    "birthday": { "type": "birthday" }
+    "birthday": {
+      "type": "birthday"
+    }
   },
   "playlists": {
     "birthday": {
       "hi": [
-        { "title": "Baar Baar Din Yeh Aaye", "artist": "Mohammed Rafi", "why": "The birthday song every family knows." },
-        { "title": "Tum Jiyo Hazaaron Saal", "artist": "Asha Bhosle", "why": "A blessing, sung." },
-        { "title": "Yeh Dosti", "artist": "Kishore Kumar, Manna Dey", "why": "For the cousins' turn." },
-        { "title": "Mere Sapno Ki Rani", "artist": "Kishore Kumar", "why": "The elders will sing along." }
+        {
+          "title": "Baar Baar Din Yeh Aaye",
+          "artist": "Mohammed Rafi",
+          "why": "The birthday song every family knows."
+        },
+        {
+          "title": "Tum Jiyo Hazaaron Saal",
+          "artist": "Asha Bhosle",
+          "why": "A blessing, sung."
+        },
+        {
+          "title": "Yeh Dosti",
+          "artist": "Kishore Kumar, Manna Dey",
+          "why": "For the cousins' turn."
+        },
+        {
+          "title": "Mere Sapno Ki Rani",
+          "artist": "Kishore Kumar",
+          "why": "The elders will sing along."
+        }
       ],
       "en": [
-        { "title": "Happy Birthday", "artist": "Stevie Wonder", "why": "Bright and easy to sing." },
-        { "title": "Birthday", "artist": "The Beatles", "why": "To open the call loud." },
-        { "title": "Celebration", "artist": "Kool & The Gang", "why": "For the cake moment." },
-        { "title": "Isn't She Lovely", "artist": "Stevie Wonder", "why": "Warm, for the open chat." }
+        {
+          "title": "Happy Birthday",
+          "artist": "Stevie Wonder",
+          "why": "Bright and easy to sing."
+        },
+        {
+          "title": "Birthday",
+          "artist": "The Beatles",
+          "why": "To open the call loud."
+        },
+        {
+          "title": "Celebration",
+          "artist": "Kool & The Gang",
+          "why": "For the moment everyone sings."
+        },
+        {
+          "title": "Isn't She Lovely",
+          "artist": "Stevie Wonder",
+          "why": "Warm, for the open chat."
+        }
       ]
     },
     "festival": {
       "hi": [
-        { "title": "Ek Pyar Ka Nagma Hai", "artist": "Lata Mangeshkar, Mukesh", "why": "Every generation knows it." },
-        { "title": "Kabhi Khushi Kabhie Gham", "artist": "Lata Mangeshkar", "why": "About family coming together." },
-        { "title": "Yeh Dosti", "artist": "Kishore Kumar, Manna Dey", "why": "Something everyone can sing." },
-        { "title": "Lag Ja Gale", "artist": "Lata Mangeshkar", "why": "For the quiet end of the call." }
+        {
+          "title": "Ek Pyar Ka Nagma Hai",
+          "artist": "Lata Mangeshkar, Mukesh",
+          "why": "Every generation knows it."
+        },
+        {
+          "title": "Kabhi Khushi Kabhie Gham",
+          "artist": "Lata Mangeshkar",
+          "why": "About family coming together."
+        },
+        {
+          "title": "Yeh Dosti",
+          "artist": "Kishore Kumar, Manna Dey",
+          "why": "Something everyone can sing."
+        },
+        {
+          "title": "Lag Ja Gale",
+          "artist": "Lata Mangeshkar",
+          "why": "For the quiet end of the call."
+        }
       ],
       "en": [
-        { "title": "What a Wonderful World", "artist": "Louis Armstrong", "why": "Gentle, for the lamp moment." },
-        { "title": "Lean on Me", "artist": "Bill Withers", "why": "About family across distance." },
-        { "title": "Stand by Me", "artist": "Ben E. King", "why": "Easy to sing together." },
-        { "title": "Celebration", "artist": "Kool & The Gang", "why": "For the open chat." }
+        {
+          "title": "What a Wonderful World",
+          "artist": "Louis Armstrong",
+          "why": "Gentle, for the lamp moment."
+        },
+        {
+          "title": "Lean on Me",
+          "artist": "Bill Withers",
+          "why": "About family across distance."
+        },
+        {
+          "title": "Stand by Me",
+          "artist": "Ben E. King",
+          "why": "Easy to sing together."
+        },
+        {
+          "title": "Celebration",
+          "artist": "Kool & The Gang",
+          "why": "For the open chat."
+        }
       ]
     },
     "anniversary": {
       "hi": [
-        { "title": "Tere Mere Milan Ki Yeh Raina", "artist": "Kishore Kumar, Lata Mangeshkar", "why": "A song about two people." },
-        { "title": "Tujhe Dekha To", "artist": "Kumar Sanu, Lata Mangeshkar", "why": "The one they might dance to." },
-        { "title": "Pehla Nasha", "artist": "Udit Narayan, Sadhana Sargam", "why": "For how they met." },
-        { "title": "Abhi Na Jao Chhod Kar", "artist": "Mohammed Rafi, Asha Bhosle", "why": "For the end of the call." }
+        {
+          "title": "Tere Mere Milan Ki Yeh Raina",
+          "artist": "Kishore Kumar, Lata Mangeshkar",
+          "why": "A song about two people."
+        },
+        {
+          "title": "Tujhe Dekha To",
+          "artist": "Kumar Sanu, Lata Mangeshkar",
+          "why": "The one they might dance to."
+        },
+        {
+          "title": "Pehla Nasha",
+          "artist": "Udit Narayan, Sadhana Sargam",
+          "why": "For how they met."
+        },
+        {
+          "title": "Abhi Na Jao Chhod Kar",
+          "artist": "Mohammed Rafi, Asha Bhosle",
+          "why": "For the end of the call."
+        }
       ],
       "en": [
-        { "title": "Can't Help Falling in Love", "artist": "Elvis Presley", "why": "A classic for the couple." },
-        { "title": "The Way You Look Tonight", "artist": "Frank Sinatra", "why": "For the cake moment." },
-        { "title": "Unchained Melody", "artist": "The Righteous Brothers", "why": "Slow and timeless." },
-        { "title": "Stand by Me", "artist": "Ben E. King", "why": "Everyone joins in." }
+        {
+          "title": "Can't Help Falling in Love",
+          "artist": "Elvis Presley",
+          "why": "A classic for the couple."
+        },
+        {
+          "title": "The Way You Look Tonight",
+          "artist": "Frank Sinatra",
+          "why": "For the moment everyone sings."
+        },
+        {
+          "title": "Unchained Melody",
+          "artist": "The Righteous Brothers",
+          "why": "Slow and timeless."
+        },
+        {
+          "title": "Stand by Me",
+          "artist": "Ben E. King",
+          "why": "Everyone joins in."
+        }
       ]
     },
     "visit": {
       "hi": [
-        { "title": "Chitthi Aayi Hai", "artist": "Pankaj Udhas", "why": "The song about coming home." },
-        { "title": "Sandese Aate Hai", "artist": "Sonu Nigam, Roop Kumar Rathod", "why": "For the one far away." },
-        { "title": "Ghar Aaja Pardesi", "artist": "Pamela Chopra", "why": "Come home, it says." },
-        { "title": "Yeh Jo Des Hai Tera", "artist": "A. R. Rahman", "why": "About returning." }
+        {
+          "title": "Chitthi Aayi Hai",
+          "artist": "Pankaj Udhas",
+          "why": "The song about coming home."
+        },
+        {
+          "title": "Sandese Aate Hai",
+          "artist": "Sonu Nigam, Roop Kumar Rathod",
+          "why": "For the one far away."
+        },
+        {
+          "title": "Ghar Aaja Pardesi",
+          "artist": "Pamela Chopra",
+          "why": "Come home, it says."
+        },
+        {
+          "title": "Yeh Jo Des Hai Tera",
+          "artist": "A. R. Rahman",
+          "why": "About returning."
+        }
       ],
       "en": [
-        { "title": "Home", "artist": "Michael Bublé", "why": "Exactly the feeling." },
-        { "title": "Take Me Home, Country Roads", "artist": "John Denver", "why": "Everyone knows the chorus." },
-        { "title": "Coming Home", "artist": "Leon Bridges", "why": "Soft, for the open chat." },
-        { "title": "Here Comes the Sun", "artist": "The Beatles", "why": "For the countdown." }
+        {
+          "title": "Home",
+          "artist": "Michael Bublé",
+          "why": "Exactly the feeling."
+        },
+        {
+          "title": "Take Me Home, Country Roads",
+          "artist": "John Denver",
+          "why": "Everyone knows the chorus."
+        },
+        {
+          "title": "Coming Home",
+          "artist": "Leon Bridges",
+          "why": "Soft, for the open chat."
+        },
+        {
+          "title": "Here Comes the Sun",
+          "artist": "The Beatles",
+          "why": "For the countdown."
+        }
       ]
     },
     "custom": {
       "hi": [
-        { "title": "Zindagi Ek Safar Hai Suhana", "artist": "Kishore Kumar", "why": "Life is a journey." },
-        { "title": "Ruk Jana Nahin", "artist": "Kishore Kumar", "why": "For a new chapter." },
-        { "title": "Yeh Dosti", "artist": "Kishore Kumar, Manna Dey", "why": "Everyone sings." },
-        { "title": "Lag Ja Gale", "artist": "Lata Mangeshkar", "why": "For the quiet end." }
+        {
+          "title": "Zindagi Ek Safar Hai Suhana",
+          "artist": "Kishore Kumar",
+          "why": "Life is a journey."
+        },
+        {
+          "title": "Ruk Jana Nahin",
+          "artist": "Kishore Kumar",
+          "why": "For a new chapter."
+        },
+        {
+          "title": "Yeh Dosti",
+          "artist": "Kishore Kumar, Manna Dey",
+          "why": "Everyone sings."
+        },
+        {
+          "title": "Lag Ja Gale",
+          "artist": "Lata Mangeshkar",
+          "why": "For the quiet end."
+        }
       ],
       "en": [
-        { "title": "My Way", "artist": "Frank Sinatra", "why": "For a life's work." },
-        { "title": "Here Comes the Sun", "artist": "The Beatles", "why": "For what comes next." },
-        { "title": "What a Wonderful World", "artist": "Louis Armstrong", "why": "Gentle and warm." },
-        { "title": "Celebration", "artist": "Kool & The Gang", "why": "For the toast." }
+        {
+          "title": "My Way",
+          "artist": "Frank Sinatra",
+          "why": "For a life's work."
+        },
+        {
+          "title": "Here Comes the Sun",
+          "artist": "The Beatles",
+          "why": "For what comes next."
+        },
+        {
+          "title": "What a Wonderful World",
+          "artist": "Louis Armstrong",
+          "why": "Gentle and warm."
+        },
+        {
+          "title": "Celebration",
+          "artist": "Kool & The Gang",
+          "why": "For the toast."
+        }
       ]
     }
   }

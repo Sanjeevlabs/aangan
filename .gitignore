@@ -29,3 +29,6 @@ ios/App/App/config.xml
 ios/App/App.xcodeproj/xcuserdata/
 ios/App/App.xcworkspace/xcuserdata/
 ios/DerivedData/
+
+# Product spec and strategy stay private (kept in the Claude project, not on GitHub)
+docs/private/

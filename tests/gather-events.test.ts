@@ -7,6 +7,7 @@ import {
   EventPlanSchema,
   SongSchema,
   fallbackPlan,
+  planMentionsPurchase,
   fitsEveryone,
   proposeSlots,
   slotToLock,
@@ -76,8 +77,21 @@ describe("the fallback plan is data", () => {
   });
 
   it("never gives the person being celebrated a surprise task", () => {
-    const plan = fallbackPlan("birthday", people, { hostId: "arjun", honoreeId: "maa" });
-    expect(plan.tasks.some((t) => t.text.includes("cake shop") && t.ownerId === "maa")).toBe(false);
+    const plan = fallbackPlan("birthday", people, { hostId: "arjun", honoreeId: "maa" }, { extras: true });
+    expect(plan.tasks.some((t) => /cake/i.test(t.text) && t.ownerId === "maa")).toBe(false);
+  });
+
+  it("plans wishes, songs and photos, and nothing to buy, unless an admin asks for extras", () => {
+    for (const type of EVENT_TYPES) {
+      const plain = fallbackPlan(type, people, { hostId: "arjun", honoreeId: "maa" });
+      expect(planMentionsPurchase(plain)).toBe(false);
+      expect(plain.tasks.some((t) => /wish/i.test(t.text)) || type === "visit").toBe(true);
+    }
+    const withCake = fallbackPlan("birthday", people, { hostId: "arjun", honoreeId: "maa" }, { extras: true });
+    expect(EventPlanSchema.safeParse(withCake).success).toBe(true);
+    expect(planMentionsPurchase(withCake)).toBe(true);
+    expect(withCake.runOfShow.some((s) => s.title === "Cake and candles")).toBe(true);
+    expect(withCake.runOfShow.reduce((n, s) => n + s.minutes, 0)).toBe(fallbackPlan("birthday", people, { hostId: "arjun", honoreeId: "maa" }).runOfShow.reduce((n, s) => n + s.minutes, 0));
   });
 
   it("rejects a song without a real artist, and links only to search", () => {
@@ -111,6 +125,7 @@ function event(over: Partial<FamilyEvent> = {}): FamilyEvent {
     sittingId: null,
     plan: fallbackPlan("birthday", people, { hostId: "arjun", honoreeId: "maa" }),
     planSource: "fallback",
+    extras: false,
     createdAt: "2026-10-30T00:00:00.000Z",
     ...over,
   };
