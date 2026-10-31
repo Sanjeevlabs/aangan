@@ -8,6 +8,7 @@ import { GET as getKeeper } from "../keeper/route";
 import { GET as getLetters } from "../letters/route";
 import { GET as getPresence } from "../presence/route";
 import { GET as getSafety } from "../safety/route";
+import { GET as getFestivalWeek } from "../festival-week/route";
 import { GET as getSides } from "../sides/route";
 import { GET as getSit } from "../sit/route";
 import { GET as getStories } from "../stories/route";
@@ -49,6 +50,7 @@ async function getHandler(req: Request): Promise<Response> {
     ["presence", "/api/presence", getPresence],
     ["together", "/api/together", getTogether],
     ["sit", "/api/sit", getSit],
+    ["festivalWeek", "/api/festival-week", getFestivalWeek],
   ];
   if (me?.role === "elder") parts.push(["gifts", "/api/gifts", getGifts], ["keeper", "/api/keeper", getKeeper], ["care", "/api/care", getCare]);
   if (me?.role === "child") parts.push(["stories", "/api/stories", getStories]);

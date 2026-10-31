@@ -22,7 +22,12 @@ const HEX = /^#[0-9a-fA-F]{6}$/;
 /** The viewer's festival week, or null (no kept festival in the next seven days, loading, or failed). */
 export function useFestivalWeek(): { week: FestivalWeekPayload | null; loading: boolean; failed: boolean } {
   const { refreshKey } = useShell();
-  const { data, failed } = useJson<{ week: FestivalWeekPayload | null }>(`/api/festival-week?k=${refreshKey}`);
+  // No cache-buster: inside the courtyard this is one slice of GET /api/courtyard, refreshed with it.
+  const { data, failed, reload } = useJson<{ week: FestivalWeekPayload | null }>("/api/festival-week");
+  useEffect(() => {
+    if (refreshKey) void reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
   return { week: data?.week ?? null, loading: data === null && !failed, failed };
 }
 

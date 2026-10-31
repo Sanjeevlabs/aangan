@@ -22,6 +22,7 @@ const SLICES: Record<string, string> = {
   "/api/keeper": "keeper",
   "/api/care": "care",
   "/api/stories": "stories",
+  "/api/festival-week": "festivalWeek",
 };
 
 export interface CourtyardValue {
