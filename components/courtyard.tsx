@@ -189,6 +189,25 @@ function PersonChip({ member, lamp, onOpen }: { member: Member; lamp: { glow: bo
   );
 }
 
+/** You, first in the row: open your own day to add a photo, a voice note or a line about today. */
+function MyDayChip({ member, onOpen }: { member: Member; onOpen: () => void }) {
+  const photo = memberPhoto(member);
+  return (
+    <li className="w-[92px] shrink-0 text-center" style={{ scrollSnapAlign: "start" }}>
+      <button type="button" onClick={onOpen} aria-label="Your day: add a photo, a voice note or a line about today" className="press block w-full text-ink">
+        <span className="relative mx-auto block h-[68px] w-[68px] rounded-full ring-1 ring-black/15">
+          <span className="absolute inset-[3px] overflow-hidden rounded-full bg-surface">{photo ? <Photo src={photo} alt="" sizes="140px" position="center 30%" /> : <Monogram name={callName(member)} size={62} />}</span>
+          <span className="absolute -bottom-0.5 -right-0.5 grid h-6 w-6 place-items-center rounded-full bg-[#1c1b1a] text-white ring-2 ring-white" aria-hidden="true">
+            <Icon name="plus" size={14} />
+          </span>
+        </span>
+        <span className="mt-2 block truncate text-[13.5px] font-semibold">You</span>
+        <span className="block truncate text-[11.5px] text-ink-soft">Add to your day</span>
+      </button>
+    </li>
+  );
+}
+
 /* ----------------------------------------------------------------- page */
 export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
   const { viewer, members } = useViewer();
@@ -254,6 +273,7 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
             </div>
           ) : (
             <ul className="no-scrollbar -mx-5 m-0 flex list-none gap-2 overflow-x-auto px-5 pb-1 pt-2" style={{ scrollSnapType: "x mandatory", scrollPaddingInline: 20 }}>
+              <MyDayChip member={viewer} onOpen={() => setDayOfId(viewer.id)} />
               {people.map((mm) => (
                 <PersonChip key={mm.id} member={mm} lamp={lampFor(mm, lampData)} onOpen={() => setDayOfId(mm.id)} />
               ))}
