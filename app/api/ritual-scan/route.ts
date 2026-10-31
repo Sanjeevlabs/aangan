@@ -9,6 +9,7 @@ import { getCronState, pageFamilies, setCronState } from "@/lib/cron-state";
 import { guardWrites } from "@/lib/api-guard";
 import { letterLang } from "@/lib/weekly-letter";
 import { draftWeeklyLetter } from "@/lib/weekly-letter-run";
+import { runScanNudges } from "@/lib/nudge-run";
 
 // Daily ritual/role scan. Vercel Cron (GET, see vercel.json) hits this with
 // Authorization: Bearer CRON_SECRET; manual callers use POST with a session.
@@ -64,10 +65,13 @@ async function runScan(familyId: string): Promise<Response> {
   const letter = await draftWeeklyLetter(familyId, { lang: letterLang(keeper?.displayLang), by: "scan" }).catch(() => ({ status: "skipped" as const }));
   const letterDrafted = letter.status === "created" ? 1 : 0;
 
+  // Queue the calendar nudges (an occasion this week, the call tomorrow, letter day) and deliver what is due at 8 AM.
+  const nudges = await runScanNudges(familyId, { members, now, occasions: festivals.map((h) => ({ slug: h.key, title: h.title, date: h.date })) });
+
   // Nothing within the next 7 days and no elder to ask: no writes at all.
   if (plan.ensureRuns.length === 0 && plan.deliverRuns.length === 0 && plan.suggestions.length === 0 && !members.some((m) => m.role === "elder")) {
     console.log("[ritual-scan] skipped", familyId);
-    return Response.json({ date: nowISO.slice(0, 10), skipped: true, runsEnsured: 0, runsDelivered: 0, rolesAssigned: 0, suggestions: 0, questionsAsked: 0, letters: letterDrafted });
+    return Response.json({ date: nowISO.slice(0, 10), skipped: true, runsEnsured: 0, runsDelivered: 0, rolesAssigned: 0, suggestions: 0, questionsAsked: 0, letters: letterDrafted, nudges });
   }
 
   // TODO(batch): these helpers write one row per call (dbEnsureRitualRun also re-lists the
@@ -102,6 +106,7 @@ async function runScan(familyId: string): Promise<Response> {
     suggestions: created.length,
     questionsAsked: questions.length,
     letters: letterDrafted,
+    nudges,
   });
 }
 

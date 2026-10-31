@@ -310,6 +310,47 @@ function LanguageSection({ value, onPick, onMessage }: { value: SupportedLang; o
   );
 }
 
+/** Mail and nudges: one letter a week, and as few small notes as you like. Only you can see or change these. */
+function NudgeSettingsSection({ onMessage }: { onMessage: (m: string) => void }) {
+  const { data, reload } = useJson<{ settings: { email: boolean; maxPerWeek: number }; hasEmail: boolean }>("/api/nudges/settings");
+  const [busy, setBusy] = useState(false);
+  const save = async (patch: Partial<{ email: boolean; maxPerWeek: number }>) => {
+    if (!data) return;
+    setBusy(true);
+    const res = await fetch("/api/nudges/settings", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...data.settings, ...patch }) }).catch(() => null);
+    setBusy(false);
+    if (res?.ok) {
+      await reload();
+      onMessage("Saved.");
+    } else onMessage("Couldn't save that. Try again.");
+  };
+  const level = data?.settings.maxPerWeek ?? 3;
+  const choices: [string, number][] = [["None", 0], ["Some", 2], ["All", 3]];
+  const current = level === 0 ? 0 : level >= 3 ? 3 : 2;
+  return (
+    <>
+      <label className="mt-4 flex items-center justify-between gap-3 rounded-[22px] bg-surface px-4 py-4">
+        <span>
+          <span className="block text-[16px] font-medium">Mail me a weekly letter</span>
+          <span className="block text-[13px] text-ink-soft">{data && !data.hasEmail ? "Add an email to sign in first, then this can reach you." : "One morning email, at 8 where you are."}</span>
+        </span>
+        <input type="checkbox" className="h-6 w-6 shrink-0 accent-black" checked={data?.settings.email ?? false} disabled={data === null || busy} onChange={(e) => void save({ email: e.target.checked })} />
+      </label>
+      <div className="mt-3 rounded-[22px] bg-surface px-4 py-4">
+        <span className="block text-[16px] font-medium">Nudges</span>
+        <span className="block text-[13px] text-ink-soft">Small notes like &ldquo;Maa heard your voice note&rdquo;. Never more than three a week.</span>
+        <div role="group" aria-label="Nudges" className="mt-3 grid grid-cols-3 gap-1 rounded-full bg-black/[.05] p-1">
+          {choices.map(([label, n]) => (
+            <button key={label} type="button" aria-pressed={current === n} disabled={data === null || busy} onClick={() => void save({ maxPerWeek: n })} className={cn("press h-11 rounded-full text-[15px] font-semibold", current === n ? "bg-white text-ink shadow-sm" : "text-ink-soft")}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
 function Group({ title, id, children }: { title: string; id?: string; children: React.ReactNode }) {
   return (
     <section aria-label={title} id={id} className="mt-9 scroll-mt-6">
@@ -498,6 +539,10 @@ export default function SettingsPage() {
 
       <Group title="Reading">
         <LargeTextToggle />
+      </Group>
+
+      <Group title="Mail and nudges">
+        <NudgeSettingsSection onMessage={flash} />
       </Group>
 
       <Group title="Where you are">

@@ -6,6 +6,7 @@ import { COURSES, IngredientSchema, StepSchema } from "@/lib/kinds";
 import { canChange } from "@/lib/permissions";
 import { recipeFromVoice } from "@/lib/kitchen";
 import { guardWrites } from "@/lib/api-guard";
+import { nudgeShared } from "@/lib/nudge-producers";
 
 // The family Kitchen.
 // GET  → every recipe and every attempt (who cooked what, and who blessed it).
@@ -88,6 +89,7 @@ async function postHandler(req: Request): Promise<Response> {
       const q = await getDoc(auth.familyId, "question", body.questionId);
       if (q) await putDoc(auth.familyId, "question", { ...q, answeredCardId: card.id });
     }
+    if (cookId === auth.memberId) await nudgeShared(auth.familyId, cookId, "recipe", `/kitchen/${recipe.id}`);
     return Response.json({ recipe }, { status: 201 });
   }
 
@@ -116,6 +118,7 @@ async function postHandler(req: Request): Promise<Response> {
       madeBy: scanRef ? "muse" : "family",
       createdAt: now,
     });
+    if (cookId === auth.memberId) await nudgeShared(auth.familyId, cookId, "recipe", `/kitchen/${recipe.id}`);
     return Response.json({ recipe }, { status: 201 });
   }
 
