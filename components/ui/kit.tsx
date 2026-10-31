@@ -102,6 +102,15 @@ export function Icon({ name, size = 22, className, strokeWidth = 2 }: { name: Ic
 /* ---------------------------------------------------------------- photo */
 // next/image for bundled demo art (served as-is: see next.config.mjs); plain passthrough for
 // signed/session URLs that the optimiser can't fetch.
+
+/** The bundled demo photos come in small WebP widths too (scripts/demo-variants.mjs). */
+function demoWidths(src: string): number[] | null {
+  if (src === "/demo/courtyard.jpg") return [390, 780];
+  if (/^\/demo\/family-[a-z]+\.webp$/.test(src)) return [440, 880];
+  if (/^\/demo\/portrait-[a-z]+\.webp$/.test(src)) return [160, 400];
+  return null;
+}
+
 export function Photo({
   src,
   alt = "",
@@ -117,6 +126,25 @@ export function Photo({
   className?: string;
   position?: string;
 }) {
+  const widths = demoWidths(src);
+  if (widths) {
+    const at = (w: number) => src.replace(/\.(jpg|webp)$/, `-${w}.webp`);
+    // Static assets with no optimiser behind them: the browser picks the width from srcset.
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={at(widths[0])}
+        srcSet={widths.map((w) => `${at(w)} ${w}w`).join(", ")}
+        sizes={sizes}
+        alt={alt}
+        loading={priority ? "eager" : "lazy"}
+        decoding="async"
+        fetchPriority={priority ? "high" : undefined}
+        className={cn("absolute inset-0 h-full w-full object-cover", className)}
+        style={{ objectPosition: position }}
+      />
+    );
+  }
   const optimisable = src.startsWith("/demo/") && !src.endsWith(".svg");
   return (
     <Image

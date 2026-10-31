@@ -8,6 +8,7 @@ import { callName, cardCover, memberPhoto, peopleByRecency, relativeDay } from "
 import type { Card, Member } from "@/lib/schemas";
 import { useDisplayText } from "@/lib/use-display-text";
 import { useCourtyard } from "@/lib/courtyard-data";
+import { HERO_SIZES } from "@/lib/hero";
 import { useFamilyCards } from "@/lib/use-family";
 import { ago, postJson, useJson } from "@/lib/use-json";
 import { can } from "@/lib/permissions";
@@ -273,7 +274,7 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
       <style>{LAMP_CSS}</style>
       <header className="pt-4">
         <div className="relative h-[150px] overflow-hidden rounded-[26px] bg-[#2a211b]">
-          <Photo src="/demo/courtyard.jpg" alt="" sizes="480px" priority position="center 55%" />
+          <Photo src="/demo/courtyard.jpg" alt="" sizes={HERO_SIZES} priority position="center 55%" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/5 to-black/65" aria-hidden="true" />
           <div className="absolute right-3 top-3 flex items-center gap-2">
             <button type="button" onClick={onCloseDoor} aria-label="Close the door, back to the window" className="press glass grid h-11 w-11 place-items-center rounded-full text-white">

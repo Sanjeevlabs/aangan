@@ -9,9 +9,29 @@ import { useViewer } from "@/components/viewer";
 import { HomeSite } from "@/components/home-site";
 import { Landing } from "@/components/welcome";
 import { LiteWindow } from "@/components/window";
+import { Photo } from "@/components/ui/kit";
+import { HERO_SIZES } from "@/lib/hero";
 import { resetFamilyCards } from "@/lib/use-family";
 
 const DOOR_KEY = "aangan:door";
+
+/**
+ * What the server sends and the phone paints before any script has run. Behind the
+ * door (the inline script in app/layout.tsx sets html[data-door=open]) that is the
+ * courtyard's header photo, in the box the real header uses, so the largest paint
+ * does not wait for the bundle; otherwise the plain dark ground. See .door-hero in globals.css.
+ */
+function CheckingShell() {
+  return (
+    <div className="lite-ground checking-ground fixed inset-0 z-30" aria-busy="true" aria-label="Opening Aangan">
+      <div className="door-hero mx-auto w-full max-w-[480px] px-5" style={{ paddingTop: "calc(32px + env(safe-area-inset-top))" }} aria-hidden="true">
+        <div className="relative h-[150px] overflow-hidden rounded-[26px] bg-[#2a211b]">
+          <Photo src="/demo/courtyard.jpg" alt="" sizes={HERO_SIZES} position="center 55%" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Signed out -> Landing. Signed in -> LITE: the window into the other home.
 // The door opens the family courtyard; it stays open for the session.
@@ -74,7 +94,7 @@ export default function Page() {
     window.scrollTo(0, 0);
   }, [moving]);
 
-  if (gate === "checking") return <div className="lite-ground fixed inset-0 z-30" aria-busy="true" aria-label="Opening Aangan" />;
+  if (gate === "checking") return <CheckingShell />;
   if (gate === "landing") return wide ? <HomeSite onDemo={startDemo} /> : <Landing onDemo={startDemo} />;
   return (
     <>
