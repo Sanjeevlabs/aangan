@@ -51,7 +51,7 @@ export default function AdvicePage() {
 
   return (
     <div>
-      <RoomHeader title="Advice & blessings" subtitle={parent ? "What you told the family when they asked" : "What they told you when you asked, kept for good"} />
+      <RoomHeader title="Advice" subtitle={parent ? "What you told the family when they asked" : "What they told you when you asked, kept for good"} />
       {failed && !data ? (
         <div className="rounded-card bg-surface px-5 py-8 text-center">
           <p className="m-0 text-[15px] text-ink-soft">Couldn&rsquo;t load advice right now.</p>

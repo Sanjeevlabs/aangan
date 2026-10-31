@@ -1,4 +1,4 @@
-// Family events (Gathering): the plan Muse drafts for an occasion, the
+// Family events (Celebrations): the plan Muse drafts for an occasion, the
 // three time slots that work across every home, one-tap availability, and
 // the lock rule. Pure and client-safe: no fs, no fetch. Event specifics (run
 // of show, tasks, songs) are data in data/event-templates.json.

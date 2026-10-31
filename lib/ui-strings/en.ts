@@ -144,7 +144,7 @@ export const en = {
   "family.kitchen": "Kitchen",
   "family.care": "Care",
   "family.family": "Family",
-  "family.getTogether": "Gathering",
+  "family.getTogether": "Celebrations",
   "occasions.chorus": "The Chorus",
   "occasions.ourTraditions": "Our traditions",
 

@@ -16,10 +16,11 @@ import { useFamilyCards } from "@/lib/use-family";
 import { postJson, useJson } from "@/lib/use-json";
 import { cn } from "@/lib/utils";
 import { museLabel } from "@/lib/muse-portrait";
+import { isOccasionAlbum } from "@/lib/occasion-album";
 
 // Memory Lane: same kind together. Albums, photos, videos and voices each
 // get one swipe row (newest first, a month on every tile, the row's span in
-// its header). Tap opens a full-screen viewer that swipes through that kind.
+// its header). Tap opens a full-screen viewer that swipes through that kind. Occasion albums are on Celebrations → Occasions.
 
 function RowHead({ title, count, range, extra }: { title: string; count: number; range?: string; extra?: React.ReactNode }) {
   return (
@@ -84,7 +85,8 @@ export default function LanePage() {
 
   const groups = useMemo(() => (cards ? laneGroups(cards, who) : null), [cards, who]);
   const albums = useMemo(() => {
-    const all = (albumsQ.data?.albums ?? []).filter((a) => a.cardIds.length >= 2);
+    // Occasion albums (weddings, birthdays, festivals) live in Celebrations → Occasions, not here too.
+    const all = (albumsQ.data?.albums ?? []).filter((a) => a.cardIds.length >= 2 && !isOccasionAlbum(a));
     const mine = who && cards ? all.filter((a) => a.cardIds.some((id) => cards.find((c) => c.id === id)?.authorId === who)) : all;
     return [...mine].sort((a, b) => b.endAt.localeCompare(a.endAt));
   }, [albumsQ.data, who, cards]);

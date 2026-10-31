@@ -1,53 +1,67 @@
+import { readFileSync } from "fs";
+import { join } from "path";
 import { describe, expect, it } from "vitest";
-import { roomsFor } from "@/lib/menu";
-import { spaceFor, spacesFor } from "@/lib/spaces";
+import { roomHref, roomsFor } from "@/lib/menu";
+import { spaceFor, spacesFor, tabsFor } from "@/lib/spaces";
 
-const page = (href: string) => href.split("#")[0];
+const tabLabels = (path: string) => tabsFor(path)?.space.rooms.map((r) => r.title) ?? [];
 
 describe("the five rooms", () => {
   for (const isParent of [false, true]) {
-    it(`gives every item in a room its own page (${isParent ? "parent" : "child"})`, () => {
-      for (const room of roomsFor(isParent)) {
-        const pages = room.items.map((i) => page(i.href));
-        expect(new Set(pages).size, room.title).toBe(pages.length);
-      }
+    it(`gives every tab its own page, unique across the whole house (${isParent ? "parent" : "child"})`, () => {
+      const hrefs = roomsFor(isParent).flatMap((r) => r.tabs.map((t) => t.href));
+      expect(new Set(hrefs).size).toBe(hrefs.length);
+      expect(hrefs.every((h) => h.startsWith("/") && !h.includes("#") && !h.includes("?"))).toBe(true);
     });
 
-    it(`never points a menu item or tab at Safe & sound or Settings (${isParent ? "parent" : "child"})`, () => {
-      const rooms = roomsFor(isParent);
-      const hrefs = [...rooms.flatMap((r) => r.items.map((i) => page(i.href))), ...rooms.map((r) => r.href ?? "")];
-      expect(hrefs).not.toContain("/safe");
-      expect(rooms.flatMap((r) => r.items).filter((i) => i.href === "/settings")).toEqual([]);
-      expect(spacesFor(isParent).flatMap((s) => s.rooms.map((r) => r.href))).not.toContain("/safe");
+    it(`never points a tab at Safe & sound, Settings or Invite (${isParent ? "parent" : "child"})`, () => {
+      const hrefs = spacesFor(isParent).flatMap((s) => s.rooms.map((r) => r.href));
+      for (const bad of ["/safe", "/settings", "/ask", "/around"]) expect(hrefs).not.toContain(bad);
     });
   }
 
-  it("groups the rooms as agreed", () => {
-    const items = Object.fromEntries(roomsFor(false).map((r) => [r.id, r.items.map((i) => i.href)]));
-    expect(items).toEqual({
-      memories: ["/lane", "/rituals", "/stories"],
-      kitchen: ["/kitchen"],
-      care: ["/care", "/care/helpers", "/nearby", "/send"],
-      family: ["/bond", "/book", "/advice", "/portrait", "/settings#invite"],
-      sit: ["/gather", "/together/visits", "/together/holidays", "/gather/play"],
+  it("groups the rooms as agreed, in order", () => {
+    const tabs = Object.fromEntries(roomsFor(false).map((r) => [r.title, r.tabs.map((t) => `${t.label} ${t.href}`)]));
+    expect(tabs).toEqual({
+      Memories: ["Memory Lane /lane", "Stories /stories"],
+      Kitchen: ["Recipes /kitchen"],
+      Care: ["Send something /send", "Care tasks /care", "Local helpers /care/helpers", "Trusted nearby /nearby"],
+      Family: ["Family tree /bond", "The Book /book", "Advice /advice", "Portrait /portrait"],
+      Celebrations: ["Coming up /gather", "Occasions /rituals", "Visits /together/visits", "Holidays /together/holidays", "Play /gather/play"],
     });
   });
 
-  it("shows each room's tabs on its pages; Kitchen and Safe & sound have none", () => {
-    const tabs = (path: string) => {
-      const at = spaceFor(path);
-      return at && at.room === path && at.space.rooms.length > 1 ? at.space.rooms.map((r) => r.title) : [];
-    };
-    expect(tabs("/stories")).toEqual(["Memory Lane", "Occasions", "Stories"]);
-    expect(tabs("/book")).toEqual(["Family tree", "Book", "Advice"]);
-    expect(tabs("/care")).toEqual(["Care tasks", "Local helpers", "Trusted nearby"]);
-    expect(tabs("/care/helpers")).toEqual(["Care tasks", "Local helpers", "Trusted nearby"]);
-    expect(tabs("/gather")).toEqual(["Plan", "Visits", "Holidays", "Play"]);
-    expect(tabs("/gather/play")).toEqual(["Plan", "Visits", "Holidays", "Play"]);
-    expect(spaceFor("/gather/play")?.room).toBe("/gather/play");
-    expect(tabs("/kitchen")).toEqual([]);
-    expect(tabs("/safe")).toEqual([]);
-    // An event page inside Gathering is not a tab of its own.
-    expect(tabs("/gather/ev_123")).toEqual([]);
+  it("opens each room's tile on its first tab", () => {
+    for (const r of roomsFor(false)) {
+      expect(roomHref(r)).toBe(r.tabs[0].href);
+      expect(spaceFor(roomHref(r))?.space.id).toBe(r.id);
+      expect(spaceFor(roomHref(r))?.room).toBe(roomHref(r));
+    }
+  });
+
+  it("shows each room's tabs on its pages, with the right one active; Kitchen and pages outside rooms have none", () => {
+    expect(tabLabels("/stories")).toEqual(["Memory Lane", "Stories"]);
+    expect(tabLabels("/book")).toEqual(["Family tree", "The Book", "Advice", "Portrait"]);
+    expect(tabLabels("/send")).toEqual(["Send something", "Care tasks", "Local helpers", "Trusted nearby"]);
+    expect(tabLabels("/care/helpers")).toEqual(["Send something", "Care tasks", "Local helpers", "Trusted nearby"]);
+    expect(tabLabels("/gather")).toEqual(["Coming up", "Occasions", "Visits", "Holidays", "Play"]);
+    expect(tabLabels("/rituals")).toEqual(["Coming up", "Occasions", "Visits", "Holidays", "Play"]);
+    expect(tabsFor("/gather/play")?.room).toBe("/gather/play");
+    expect(tabsFor("/care/helpers")?.room).toBe("/care/helpers");
+    expect(tabsFor("/kitchen")).toBeNull();
+    for (const p of ["/safe", "/settings", "/day", "/people/dadi", "/lane/album/a1", "/gather/ev_123", "/together/p1", "/kitchen/r1"]) expect(tabsFor(p), p).toBeNull();
+  });
+
+  it("renders only the five rooms in the rooms sheet: no nested lists", () => {
+    const src = readFileSync(join(__dirname, "../components/shell.tsx"), "utf8");
+    const sheet = src.slice(src.indexOf("function RoomsSheet("), src.indexOf("function Dock("));
+    expect(sheet).toContain("all.map(");
+    expect(sheet).toContain("roomHref(g)");
+    expect(sheet).not.toMatch(/\.tabs\.map|\.items\.map|aria-expanded/);
+    // The dock opens it with a house, not ⋯.
+    const dock = src.slice(src.indexOf("function Dock("));
+    expect(dock).toContain('aria-label="Rooms"');
+    expect(dock).toContain('name="rooms"');
+    expect(dock).not.toContain('name="more"');
   });
 });

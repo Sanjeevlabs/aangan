@@ -58,7 +58,7 @@ function Book() {
   if (ready && !person)
     return (
       <div>
-        <RoomHeader title="The book" />
+        <RoomHeader title="The Book" />
         <EmptyLine>This person isn&rsquo;t in your family yet.</EmptyLine>
       </div>
     );
@@ -69,7 +69,7 @@ function Book() {
 
   return (
     <div>
-      <RoomHeader title="Book" subtitle={`${name}, in their own voice`} />
+      <RoomHeader title="The Book" subtitle={`${name}, in their own voice`} />
       {elders.length > 1 && (
         <nav aria-label="Whose book" className="-mt-3 mb-4 flex gap-1.5">
           {elders.map((e) => (

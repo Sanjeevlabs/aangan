@@ -29,7 +29,7 @@ export function useMuseSlot(cards: Card[]): { slot: MuseSlot | null; dismiss: ()
   useEffect(() => setDismissedAt(readDismissed()), []);
   const faces = useMemo(() => members.filter((m) => memberPhoto(m) && canInclude(viewer, m, members, relationships)).length, [members, viewer, relationships]);
   // Decided on the client only (dismissal lives in this browser), so the server never renders it.
-  // One Muse offer per screen: while Muse is already suggesting a gathering on this page, this card waits.
+  // One Muse offer per screen: while Muse is already suggesting a celebration on this page, this card waits.
   const events = useEvents();
   const museBusy = (events.data === null && !events.failed) ||(events.data?.prompts ?? []).some((p) => p.kind === "suggest");
   const slot = useMemo(

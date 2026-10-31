@@ -1,5 +1,5 @@
 // In-app prompts for family events (there is no push yet): "Join Dadi's
-// birthday gathering: pick a time", "Starts in 1 hour", and Muse's
+// birthday celebration: pick a time", "Starts in 1 hour", and Muse's
 // auto-suggestion 10 days before a birthday or a festival the family keeps.
 // Computed on read from events + occasions, so nothing to clean up. Pure.
 import { isLive, lockedStart, occasionEventKey, participants, startsInLabel, typeForOccasion, type EventType, type FamilyEvent } from "./events";
@@ -31,7 +31,7 @@ export function upcomingOccasion(o: { slug: string; kind: "birthday" | "festival
 }
 
 export function suggestText(o: UpcomingOccasion): string {
-  return o.kind === "birthday" ? `Plan ${o.label} gathering?` : `Plan a ${o.label} gathering?`;
+  return o.kind === "birthday" ? `Plan ${o.label} celebration?` : `Plan a ${o.label} celebration?`;
 }
 
 export function buildPrompts(input: {

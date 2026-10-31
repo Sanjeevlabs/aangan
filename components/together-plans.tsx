@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 
 const COPY = {
   visit: { title: "Visits", subtitle: "A visit home. Both homes see the countdown.", empty: "No visit planned yet." },
-  holiday: { title: "Family holidays", subtitle: "Somewhere together. Both homes see the countdown.", empty: "No holiday planned yet." },
+  holiday: { title: "Holidays", subtitle: "Somewhere together. Both homes see the countdown.", empty: "No holiday planned yet." },
 } as const;
 
 export function TogetherPlans({ kind }: { kind: TogetherTemplate["id"] }) {
@@ -36,9 +36,9 @@ export function TogetherPlans({ kind }: { kind: TogetherTemplate["id"] }) {
   const child = !isGrownUp(viewer);
 
   const tmpl = data?.templates[0];
-  // The sibling page and a gathering: both already exist, so the page never ends in white.
+  // The sibling page and a celebration: both already exist, so the page never ends in white.
   const other = kind === "holiday" ? { href: "/together/visits", icon: "village" as const, title: "A visit home", line: "Dates, tickets, what to bring." } : { href: "/together/holidays", icon: "sun" as const, title: "A family holiday", line: "Somewhere together." };
-  const next = child ? { href: "/gather/play", icon: "music" as const, title: "Play together", line: "Something to do on a call, right now." } : { href: "/gather?plan=1", icon: "calendar" as const, title: "Plan a gathering", line: "A family call with a reason." };
+  const next = child ? { href: "/gather/play", icon: "music" as const, title: "Play together", line: "Something to do on a call, right now." } : { href: "/gather?plan=1", icon: "calendar" as const, title: "Plan a celebration", line: "A family call with a reason." };
 
   return (
     <div>

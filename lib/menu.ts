@@ -1,91 +1,87 @@
-// Every feature since PR #1, in five rooms of a house (SPEC §29.3). A room
-// opens to the spaces inside it; a room that is one place (Kitchen) opens
-// directly. Each item opens its own page: no two items in a room share one.
+// Every feature since PR #1, in five rooms of a house (SPEC §29.3). The
+// single source of rooms → ordered tabs. The rooms sheet shows only the five
+// rooms; a room opens on its first tab, and inside it the tab row (lib/spaces.ts
+// → RoomHeader) is the only way sideways. A room with one page (Kitchen) has
+// no tab row. Every tab is its own page: no two tabs anywhere share one.
 // Safe & sound is not here: it lives on the window, the first screen.
-// Settings is not here either: tap your own photo.
+// Settings is not here either: tap your own photo. Invite family lives on the
+// tree page and in Settings.
 
-export interface MenuItem {
+export interface RoomTab {
   href: string;
-  title: string;
-  note: string;
-  icon: string;
+  /** Short label, shown in the tab row and as the page's title. */
+  label: string;
 }
 export interface Room {
-  id: "memories" | "kitchen" | "care" | "family" | "sit";
+  id: "memories" | "kitchen" | "care" | "family" | "celebrations";
   title: string;
   /** One line under the tile: what's in this room. */
   note: string;
   icon: string;
-  /** Tile tint: [light, deep]. From the approved palette. */
-  tone: [string, string];
-  /** A room that is one place opens it directly; otherwise its spaces show in a sheet. */
-  href?: string;
-  items: MenuItem[];
+  /** In order. The tile opens the first one. */
+  tabs: RoomTab[];
 }
 
-export function roomsFor(isParent: boolean, _parentNames = ""): Room[] {
-  void _parentNames;
+export function roomsFor(isParent: boolean): Room[] {
   return [
     {
       id: "memories",
       title: "Memories",
-      note: "Photos, occasions, stories",
+      note: "Every photo and voice, stories",
       icon: "memories",
-      tone: ["#f1f0ee", "#1c1b1a"],
-      items: [
-        { href: "/lane", title: "Memory Lane", note: "Every photo and voice, by the years; albums Muse sorts", icon: "lane" },
-        { href: "/rituals", title: "Occasions", note: "Birthdays and festivals; wishes and photos from every home", icon: "calendar" },
-        { href: "/stories", title: "Stories", note: "For the children, in their grandparents' voices", icon: "moon" },
+      tabs: [
+        { href: "/lane", label: "Memory Lane" },
+        { href: "/stories", label: "Stories" },
       ],
     },
     {
       id: "kitchen",
       title: "Kitchen",
-      note: "Recipes, in the voice that taught them",
+      note: isParent ? "Your recipes, and who cooked them" : "Recipes, in the voice that taught them",
       icon: "pot",
-      tone: ["#f1f0ee", "#1c1b1a"],
-      href: "/kitchen",
-      items: [{ href: "/kitchen", title: "Recipes", note: isParent ? "Your recipes, and who cooked them" : "In the voice that taught them", icon: "pot" }],
+      tabs: [{ href: "/kitchen", label: "Recipes" }],
     },
     {
       id: "care",
       title: "Care",
-      note: "Help at home, people nearby",
+      note: "Send something, help at home, people nearby",
       icon: "care",
-      tone: ["#f1f0ee", "#1c1b1a"],
-      items: [
-        { href: "/care", title: isParent ? "Ask for help" : "Care tasks", note: "Say it, add it, pick it up", icon: "care" },
-        { href: "/care/helpers", title: "Local helpers", note: "Grocer, driver, house help, the plumber", icon: "village" },
-        { href: "/nearby", title: "Trusted nearby", note: "Your top 5 to call first, in order", icon: "gather" },
-        { href: "/send", title: "Send something", note: "Groceries, a cake, a gift: Muse suggests, you send", icon: "send" },
+      tabs: [
+        { href: "/send", label: "Send something" },
+        { href: "/care", label: "Care tasks" },
+        { href: "/care/helpers", label: "Local helpers" },
+        { href: "/nearby", label: "Trusted nearby" },
       ],
     },
     {
       id: "family",
       title: "Family",
-      note: "Tree, the Book, advice",
+      note: "Tree, the Book, advice, a portrait",
       icon: "tree",
-      tone: ["#f1f0ee", "#1c1b1a"],
-      items: [
-        { href: "/bond", title: "Family tree", note: "Every generation, both sides, home by home", icon: "tree" },
-        { href: "/book", title: "The Book", note: "Their life, chapter by chapter, in their own voice", icon: "book" },
-        { href: "/advice", title: "Advice, tips & blessings", note: "Life lessons and kitchen tricks, kept with the question", icon: "bless" },
-        { href: "/portrait", title: "Family portrait", note: "Muse paints all of you, from your own photos", icon: "sparkle" },
-        { href: "/settings#invite", title: "Invite family", note: "A sibling, a cousin, your in-laws", icon: "plus" },
+      tabs: [
+        { href: "/bond", label: "Family tree" },
+        { href: "/book", label: "The Book" },
+        { href: "/advice", label: "Advice" },
+        { href: "/portrait", label: "Portrait" },
       ],
     },
     {
-      id: "sit",
-      title: "Gathering",
-      note: "Calls, visits, holidays, play",
-      icon: "video",
-      tone: ["#f1f0ee", "#1c1b1a"],
-      items: [
-        { href: "/gather", title: "Plan a gathering", note: "A family call with a reason", icon: "video" },
-        { href: "/together/visits", title: "Visits", note: "A visit home: dates, tickets, a countdown", icon: "village" },
-        { href: "/together/holidays", title: "Family holidays", note: "Somewhere together, with a countdown", icon: "send" },
-        { href: "/gather/play", title: "Play together", note: "Something to do on a call, right now", icon: "sparkle" },
+      id: "celebrations",
+      title: "Celebrations",
+      note: "Birthdays, occasions, visits, holidays, play",
+      icon: "gift",
+      tabs: [
+        { href: "/gather", label: "Coming up" },
+        { href: "/rituals", label: "Occasions" },
+        { href: "/together/visits", label: "Visits" },
+        { href: "/together/holidays", label: "Holidays" },
+        { href: "/gather/play", label: "Play" },
       ],
     },
   ];
+}
+
+/** Where a room's tile goes: its first tab. */
+export function roomHref(room: Room): string {
+  return room.tabs[0].href;
 }

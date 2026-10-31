@@ -6,6 +6,8 @@ import { Carousel } from "@/components/carousel";
 import { EventHero, EventMini } from "@/components/event-card";
 import { PlanSheet, type PlanPreset } from "@/components/event-plan-sheet";
 import { EventPrompts } from "@/components/event-prompts";
+import Link from "next/link";
+import { WishAhead } from "@/components/wish-ahead";
 import { Avatar, Button, EmptyState, Icon, RoomHeader, SectionTitle } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
 import { fmtIn, occasionEventKey } from "@/lib/events";
@@ -54,7 +56,7 @@ export default function GatherPage() {
   if (!mounted || (!data && !failed)) {
     return (
       <div>
-        <RoomHeader title="Gathering" action={plus} />
+        <RoomHeader title="Coming up" action={plus} />
         <div className="skeleton h-[230px] rounded-[28px]" aria-busy="true" aria-label="Loading" />
         <div className="skeleton mt-3 h-16 rounded-[22px]" />
       </div>
@@ -63,9 +65,9 @@ export default function GatherPage() {
   if (!data) {
     return (
       <div>
-        <RoomHeader title="Gathering" />
+        <RoomHeader title="Coming up" />
         <div className="rounded-[28px] bg-card p-5 shadow-card" role="alert">
-          <p className="m-0 text-[17px] font-semibold">Couldn&rsquo;t load your gatherings.</p>
+          <p className="m-0 text-[17px] font-semibold">Couldn&rsquo;t load your celebrations.</p>
           <Button variant="secondary" className="mt-3 !bg-well" onClick={() => void reload()}>
             Try again
           </Button>
@@ -85,7 +87,8 @@ export default function GatherPage() {
     .slice(0, 3);
   return (
     <div>
-      <RoomHeader title="Gathering" subtitle="Plan a family video call with a reason." action={plus} />
+      <RoomHeader title="Coming up" subtitle="Birthdays and festivals ahead, and the celebrations you planned." action={plus} />
+      <WishAhead viewer={viewer} />
       <EventPrompts prompts={data.prompts.filter((p) => p.kind !== "pick" || p.eventId !== next?.id)} onChange={() => void reload()} className="mb-4" />
 
       {next ? (
@@ -117,7 +120,7 @@ export default function GatherPage() {
         </>
       )}
 
-      <ComingUp occasions={upcoming} members={members} canPlan={canPlan} onPlan={(o) => setSheet({ occasion: o })} />
+      <ComingUp occasions={upcoming} members={members} viewerId={viewer.id} canPlan={canPlan} onPlan={(o) => setSheet({ occasion: o })} />
 
       <Knocks members={members} viewer={viewer} />
 
@@ -138,15 +141,17 @@ export default function GatherPage() {
 }
 
 /* ------------------------------------------- occasions not planned yet */
-function ComingUp({ occasions, members, canPlan, onPlan }: { occasions: UpcomingOccasion[]; members: Member[]; canPlan: boolean; onPlan: (o: UpcomingOccasion) => void }) {
+function ComingUp({ occasions, members, viewerId, canPlan, onPlan }: { occasions: UpcomingOccasion[]; members: Member[]; viewerId: string; canPlan: boolean; onPlan: (o: UpcomingOccasion) => void }) {
   if (!occasions.length) return null;
   return (
-    <section aria-label="Coming up">
-      <SectionTitle>Coming up</SectionTitle>
+    <section aria-label="Birthdays and festivals ahead">
+      <SectionTitle>Birthdays and festivals ahead</SectionTitle>
       <ul className="m-0 list-none divide-y divide-[var(--line)] overflow-hidden rounded-card bg-card p-0 shadow-card">
         {occasions.map((o) => {
           const d = new Date(`${o.date}T12:00:00Z`);
           const who = o.memberId ? members.find((m) => m.id === o.memberId) : undefined;
+          // A small second action on a person's day: send them something (Plan stays the main one).
+          const sendable = who && who.id !== viewerId && (o.kind === "birthday" || o.type === "anniversary");
           return (
             <li key={o.key} className="flex items-center gap-3 p-3 pl-4">
               <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[14px] bg-well text-center leading-none" aria-hidden="true">
@@ -160,6 +165,11 @@ function ComingUp({ occasions, members, canPlan, onPlan }: { occasions: Upcoming
                 <span className="mt-0.5 block text-[14px] text-ink-soft">{o.days === 0 ? "Today" : `In ${o.days} day${o.days > 1 ? "s" : ""}`}</span>
               </span>
               {who && <Avatar src={memberPhoto(who)} name={callName(who)} size={32} />}
+              {sendable && (
+                <Link href={`/send?for=${encodeURIComponent(who.id)}&kind=occasion&title=${encodeURIComponent(o.label)}`} aria-label={`Send something for ${o.label}`} title="Send something" className="press grid h-11 w-11 shrink-0 place-items-center rounded-full bg-well text-ink no-underline">
+                  <Icon name="gift" size={18} />
+                </Link>
+              )}
               {canPlan && (
                 <button type="button" onClick={() => onPlan(o)} aria-label={`Plan ${o.label}`} className="press h-11 shrink-0 rounded-full bg-[#1c1b1a] px-4 text-[15px] font-semibold text-white">
                   Plan

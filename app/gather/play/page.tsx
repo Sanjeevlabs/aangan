@@ -48,7 +48,7 @@ export default function PlayPage() {
 
   return (
     <div>
-      <RoomHeader title="Play together" subtitle="Something to do on a call, right now." />
+      <RoomHeader title="Play" subtitle="Something to do on a call, right now." />
 
       {open.map((k) => {
         const who = members.find((m) => m.id === k.memberId);

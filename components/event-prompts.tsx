@@ -12,7 +12,7 @@ const ICON: Record<EventPrompt["kind"], IconName> = { pick: "calendar", soon: "v
 
 /**
  * In-app prompts for family events (no push yet): pick a time, starts in an
- * hour, live now, and Muse's "Plan Maa's birthday gathering?" (one tap
+ * hour, live now, and Muse's "Plan Maa's birthday celebration?" (one tap
  * drafts it). Pass `prompts` from a page that already fetched them, or let
  * it fetch its own (for the window or Kutumb).
  */
@@ -27,7 +27,7 @@ export function EventPrompts({ prompts, onChange, className }: { prompts?: Event
   const refresh = () => (onChange ? onChange() : void own.reload());
 
   return (
-    <ul className={cn("m-0 list-none space-y-2 p-0", className)} aria-label="Gathering">
+    <ul className={cn("m-0 list-none space-y-2 p-0", className)} aria-label="Celebrations">
       {shown.map((p) => {
         const dark = p.kind === "live" || p.kind === "soon";
         const body = (

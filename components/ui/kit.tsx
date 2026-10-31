@@ -4,7 +4,7 @@ import * as L from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { spaceFor } from "@/lib/spaces";
+import { tabsFor } from "@/lib/spaces";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +38,7 @@ const ICONS = {
   pot: L.CookingPot,
   care: L.HeartHandshake,
   village: L.House,
+  rooms: L.House,
   sparkle: L.Sparkles,
   door: L.DoorOpen,
   doorClosed: L.DoorClosed,
@@ -78,6 +79,8 @@ const ICONS = {
   assign: L.UserPlus,
   contacts: L.Contact,
   gift: L.Gift,
+  cake: L.Cake,
+  pill: L.Pill,
   basket: L.ShoppingBasket,
   store: L.Store,
   external: L.ExternalLink,
@@ -266,6 +269,7 @@ export function RoomHeader({ title, subtitle, action }: { title: string; subtitl
         </button>
         {action}
       </div>
+      <RoomName />
       <h1 className="m-0 text-[32px] font-light leading-[1.05] tracking-[-0.015em]">{title}</h1>
       {/* Subtitles stay in the code for screen readers only: the page says it, the header doesn't repeat it. */}
       {subtitle && <p className="sr-only">{subtitle}</p>}
@@ -274,11 +278,18 @@ export function RoomHeader({ title, subtitle, action }: { title: string; subtitl
   );
 }
 
-/** The rooms of the current space, as one quiet row. Only on a room's own page. */
+/** Which room of the house this tab page is in, as a quiet line above its title. */
+function RoomName() {
+  const at = tabsFor(usePathname());
+  if (!at) return null;
+  return <p className="m-0 mb-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-ink-soft">{at.space.title}</p>;
+}
+
+/** The pages of the current room, as one quiet row. Only on a room's own tab page. */
 function SpaceTabs() {
   const pathname = usePathname();
-  const at = spaceFor(pathname);
-  if (!at || at.room !== pathname || at.space.rooms.length < 2) return null;
+  const at = tabsFor(pathname);
+  if (!at) return null;
   return (
     <nav aria-label={at.space.title} className="no-scrollbar -mx-5 mt-4 flex gap-2 overflow-x-auto px-5 py-1">
       {at.space.rooms.map((r) => (

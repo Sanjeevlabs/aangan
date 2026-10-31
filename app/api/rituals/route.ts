@@ -27,7 +27,10 @@ export async function GET(req: Request): Promise<Response> {
   // Wishes for runs of the last few weeks, so "everyone wished" shows on the day.
   const cutoff = new Date(Date.now() - 21 * 86_400_000).toISOString().slice(0, 10);
   const recentRuns = new Set(runs.filter((r) => r.occasionDate >= cutoff).map((r) => r.id));
-  const wishes = recentRuns.size ? (await dbListWishes(undefined, auth.familyId)).filter((w) => w.ritualRunId && recentRuns.has(w.ritualRunId)) : [];
+  const allWishes = runs.length ? await dbListWishes(undefined, auth.familyId) : [];
+  const wishes = allWishes.filter((w) => w.ritualRunId && recentRuns.has(w.ritualRunId));
+  // Every wish sent as a photo or voice, for the occasions album (Celebrations → Occasions).
+  const wishCards = allWishes.filter((w) => w.ritualRunId && w.cardId).map((w) => ({ ritualRunId: w.ritualRunId, cardId: w.cardId }));
   const canEdit = Boolean(me && me.familyId === auth.familyId && isGrownUp(me));
   return Response.json({
     configs: ritualConfigs(),
@@ -42,6 +45,7 @@ export async function GET(req: Request): Promise<Response> {
     members,
     runs,
     wishes,
+    wishCards,
     canEditKept: canEdit,
   });
 }

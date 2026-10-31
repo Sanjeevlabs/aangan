@@ -113,7 +113,7 @@ function PortraitInner() {
   if (!allowed) {
     return (
       <div>
-        <RoomHeader title="Family portrait" subtitle="Muse paints all of you, from your own photos" />
+        <RoomHeader title="Portrait" subtitle="Muse paints all of you, from your own photos" />
         <div className="rounded-card bg-surface p-5">
           <p className="m-0 text-[17px] font-semibold">Ask a grown-up to make one</p>
           <p className="m-0 mt-1 text-[15px] text-ink-soft">A parent or someone at home can paint a family portrait with you in it.</p>
@@ -125,7 +125,7 @@ function PortraitInner() {
   if (phase.at === "kept") {
     return (
       <div>
-        <RoomHeader title="Family portrait" />
+        <RoomHeader title="Portrait" />
         <div className="rounded-hero bg-surface px-6 py-10 text-center">
           <Icon name="check" size={28} className="mx-auto" />
           <p className="m-0 mt-3 text-[20px] font-semibold">Kept for the family</p>
@@ -143,7 +143,7 @@ function PortraitInner() {
   if (phase.at === "painting" || phase.at === "result") {
     return (
       <div>
-        <RoomHeader title="Family portrait" subtitle={phase.at === "painting" ? "Muse is painting…" : "Look it over. Nothing is shared until you keep it."} />
+        <RoomHeader title="Portrait" subtitle={phase.at === "painting" ? "Muse is painting…" : "Look it over. Nothing is shared until you keep it."} />
         {phase.at === "painting" ? (
           <div className="skeleton aspect-[4/3] w-full rounded-[26px]" aria-busy="true" aria-label="Painting your portrait" />
         ) : (
@@ -179,7 +179,7 @@ function PortraitInner() {
 
   return (
     <div>
-      <RoomHeader title="Family portrait" subtitle="Muse paints all of you, from your own photos" />
+      <RoomHeader title="Portrait" subtitle="Muse paints all of you, from your own photos" />
 
       <SectionTitle>Who&rsquo;s in it</SectionTitle>
       {people.length === 0 ? (

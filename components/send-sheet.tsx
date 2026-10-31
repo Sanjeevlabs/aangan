@@ -94,11 +94,14 @@ export function SendSheet({
   context,
   open,
   onClose,
+  inline = false,
 }: {
   forMemberId: string;
   context?: { kind: "occasion" | "need"; title: string };
   open: boolean;
   onClose: () => void;
+  /** On the Send something page: the same steps in the page, not a sheet. */
+  inline?: boolean;
 }) {
   const { members } = useViewer();
   const name = callName(members.find((x) => x.id === forMemberId));
@@ -118,11 +121,11 @@ export function SendSheet({
   }, [open, load]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || inline) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, onClose, inline]);
 
   const preview = async (items: SuggestionView[], sample: boolean, picked: SuggestionView, addressId?: string) => {
     // Changing the address keeps the preview on screen while it refreshes.
@@ -145,6 +148,22 @@ export function SendSheet({
   };
 
   const back = step.s === "preview" || step.s === "connect" ? () => setStep({ s: "list", items: step.items, sample: step.sample }) : null;
+
+  if (inline)
+    return (
+      <section aria-label={`Muse's ideas for ${name}`}>
+        <div className="mb-1 flex items-center gap-1">
+          {back && (
+            <button type="button" onClick={back} aria-label="Back to the ideas" className="press -ml-2 grid h-11 w-11 place-items-center rounded-full text-ink-soft">
+              <Icon name="back" />
+            </button>
+          )}
+          <h2 className="m-0 min-w-0 flex-1 text-[20px]">Muse&rsquo;s ideas for {name}</h2>
+        </div>
+        {context?.title && step.s !== "done" && <p className="voice m-0 mb-3 text-[16px] text-ink-soft">For {context.title}</p>}
+        <Body step={step} name={name} onPick={preview} onSend={send} onRetry={load} onClose={() => void load()} />
+      </section>
+    );
 
   return (
     <AnimatePresence>

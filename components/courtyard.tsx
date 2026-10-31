@@ -93,7 +93,7 @@ function SitSlide() {
           <span className={`h-2 w-2 rounded-full ${knock ? "animate-pulse bg-[#3ccf7a]" : "bg-white/50"}`} />
           {knock ? "Live now" : "Sit together"}
         </p>
-        <Link href="/gather" aria-label="Plan a gathering" className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white no-underline">
+        <Link href="/gather" aria-label="Plan a celebration" className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white no-underline">
           <Icon name="calendar" size={17} />
         </Link>
       </div>
@@ -130,7 +130,7 @@ function ComingUpSlide() {
     <article className={`relative ${SLIDE_H} overflow-hidden rounded-[26px] bg-surface`}>
       <Photo src={memberPhoto(who) ?? "/demo/family-group.webp"} alt="" sizes="440px" position="center 35%" />
       <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/75" aria-hidden="true" />
-      <Link href="/rituals" className="absolute inset-0" aria-label="Occasions" />
+      <Link href="/gather" className="absolute inset-0" aria-label="Coming up" />
       <div className="pointer-events-none absolute inset-x-4 bottom-4 flex items-end gap-3 text-white">
         <span className="min-w-0 flex-1">
           <span className="block text-[12px] uppercase tracking-[0.14em] text-white/70">{when}</span>

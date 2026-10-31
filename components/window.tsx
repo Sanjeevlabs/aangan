@@ -850,6 +850,11 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
                   <b className={cn("font-semibold", !data?.call.good && "font-normal text-ink-soft")}>{data?.call.text ?? " "}</b>
                 )}
               </p>
+              {atWindow.length > 0 && (
+                <button type="button" onClick={() => router.push(`/send?for=${encodeURIComponent(atWindow[0].id)}`)} aria-label={`Send ${names || callName(atWindow[0])} something`} title={`Send ${names || callName(atWindow[0])} something`} className="press grid h-[46px] w-[46px] shrink-0 place-items-center rounded-full bg-black/[.06]">
+                  <Icon name="gift" size={20} strokeWidth={1.9} />
+                </button>
+              )}
               <button type="button" onClick={() => talk()} disabled={!atWindow.length} aria-label={atWindow.length === 1 ? `Voice note to ${callName(atWindow[0])}` : "Voice note"} className="press grid h-[46px] w-[46px] shrink-0 place-items-center rounded-full bg-black/[.06] disabled:opacity-40">
                 <Icon name="mic" size={20} strokeWidth={1.9} />
               </button>

@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { Member, Relationship } from "@/lib/schemas";
-import { Avatar, Button, EmptyLine, RoomHeader } from "@/components/ui/kit";
+import { Avatar, Button, EmptyLine, Icon, RoomHeader } from "@/components/ui/kit";
 import { ShareButton } from "@/components/share-sheet";
 import { constellation, familyStats } from "@/lib/constellation";
 import type { PosterPerson } from "@/lib/poster";
@@ -282,6 +283,18 @@ export default function BondPage() {
           />
           ) : (
             <p className="m-0 mt-8 text-center text-[14px] text-ink-soft">Ask a grown-up in the family to add people.</p>
+          )}
+          {can(viewer, "invite.create") && (
+            <Link href="/settings#invite" className="press mt-6 flex items-center gap-3 rounded-card bg-card px-4 py-3 text-ink no-underline shadow-card">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-well" aria-hidden="true">
+                <Icon name="plus" size={18} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[15px] font-semibold">Invite family</span>
+                <span className="block text-[13px] text-ink-soft">A sibling, a cousin, your in-laws</span>
+              </span>
+              <Icon name="chevron" size={17} className="text-ink-faint" />
+            </Link>
           )}
         </>
       )}

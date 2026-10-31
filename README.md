@@ -12,13 +12,15 @@ The app itself is in English. What the family shares (voices, recipes, questions
 
 **Aangan keeps your parents needed.** Older adults who rarely feel useful to others have about three times the odds of disability and death over seven years (Gruenewald et al., MacArthur Study, 2007); grandparents who only *receive* help have the most depressive symptoms, those who give have the fewest (Moorman & Stokes, 2013). So every screen either lets the family **ask** a parent for what only they have, lets the parent **give** and see that it landed, or keeps them **able to give**.
 
-| Space | For children and grandchildren | For the parent |
-|---|---|---|
-| **Home** | Their day, their door, the latest voice; share your day with them; ask strip | What the family asked of you · what you gave this week ("Priya cooked your dal") · your family today · share your day · ask for help |
-| **Ask** | A recipe, a story, their advice or a blessing; what's waiting, what's answered | — |
-| **Library** | Everything they've given: recipes, stories, advice & blessings | What you've given |
-| **Care** | Help at their home, local helpers, safe and sound | Ask for help; your helpers |
-| **Family** | Home by home (pots), how we're related, both sides, Together (visits, birthdays, Ludo), Occasions, Memories | Same |
+The first screen is the window onto the parents' home (safe & sound, a voice note, a video call, send them something). Slide the key and you're in the courtyard; the house in the dock opens the five rooms:
+
+| Room | Tabs |
+|---|---|
+| **Memories** | Memory Lane · Stories |
+| **Kitchen** | Recipes |
+| **Care** | Send something (their apps by category, plus Muse's ideas) · Care tasks · Local helpers · Trusted nearby |
+| **Family** | Family tree · The Book · Advice · Portrait |
+| **Celebrations** | Coming up · Occasions (photos and voices from every birthday, wedding and festival) · Visits · Holidays · Play |
 
 ### Two courtyards, one door
 
