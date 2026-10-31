@@ -62,7 +62,7 @@ describe("LLM client (mock mode)", () => {
   });
 
   it("routes to Meta by default; Baseten is primary only when asked and keyed, and fails over with its own key", () => {
-    const prev = { p: process.env.MUSE_PROVIDER, k: process.env.BASETEN_API_KEY, m: process.env.META_API_KEY };
+    const prev = { p: process.env.MUSE_PROVIDER, k: process.env.BASETEN_API_KEY, m: process.env.META_API_KEY, mk: process.env.MODAL_API_KEY, mu: process.env.MODAL_MUSE_URL };
     try {
       delete process.env.MUSE_PROVIDER;
       delete process.env.BASETEN_API_KEY;
@@ -77,8 +77,17 @@ describe("LLM client (mock mode)", () => {
       expect(failoverProvider("meta")).toBe("baseten");
       delete process.env.BASETEN_API_KEY;
       expect(failoverProvider("meta")).toBeNull();
+      // Modal counts only with both its key and its endpoint URL.
+      process.env.MODAL_API_KEY = "test-modal";
+      expect(providerKey("modal")).toBeUndefined();
+      process.env.MODAL_MUSE_URL = "https://ws--muse.modal.run/v1/";
+      expect(providerKey("modal")).toBe("test-modal");
+      expect(failoverProvider("meta")).toBe("modal");
+      process.env.MUSE_PROVIDER = "modal";
+      expect(activeProvider()).toBe("modal");
+      expect(failoverProvider("modal")).toBe("meta");
     } finally {
-      for (const [k, v] of [["MUSE_PROVIDER", prev.p], ["BASETEN_API_KEY", prev.k], ["META_API_KEY", prev.m]] as const) {
+      for (const [k, v] of [["MUSE_PROVIDER", prev.p], ["BASETEN_API_KEY", prev.k], ["META_API_KEY", prev.m], ["MODAL_API_KEY", prev.mk], ["MODAL_MUSE_URL", prev.mu]] as const) {
         if (v === undefined) delete process.env[k];
         else process.env[k] = v;
       }

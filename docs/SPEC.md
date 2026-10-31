@@ -243,10 +243,14 @@ False alarms (phone died) → wording is calm: "Anya hasn't checked in yet. Her 
 
 ---
 
-## 8. Plans & pricing 🆕
+## 8. Money (revised 31 Oct 2026)
 
-| Plan | India | Global | For |
-|---|---|---|---|
+- **Free for every family at launch.** No plans, prices, paywalls or limits in the app. The goal is families, not revenue.
+- **Revenue later, from partners:** commission on orders placed through Send something (Swiggy, Zomato, gift stores) and margin on our own gifting store.
+- **A paid plan may come later**, decided with real usage data. Nothing in the product assumes one.
+- **Cost guard:** Muse spend is capped (USD 120 for the hackathon) and runs on partner credits (Meta, Baseten, Modal); see §31.
+
+---|---|---|---|
 | **Free** | ₹0 | $0 | Voices, photos, tree, Kitchen (5 recipes), Sit together, 3 languages, 100 Muse steps/month |
 | **Family** | **₹399/month** | $4.99 / £3.99 | Everything, up to 12 people, all 29 languages, Care board, Safe & sound, weekly digest, 1,000 Muse steps |
 | **Family Plus** | **₹999/month** | $12.99 / £9.99 | Up to 30 people, concierge orders (§9), recurring care automation, priority SMS/WhatsApp alerts, vault ⏸ |
@@ -352,7 +356,7 @@ Judges score: impact, Meta tooling, technical quality, design. Five build days l
 | 29–30 Oct | Care board (ticketing) · Safe & sound (without push: in-app statuses + overdue banner) · extended family + pets in the add flow |
 | 31 Oct | Aangan map view · courtyard image (Muse Image) · logo |
 | 1 Nov | Family news + Muse weekly digest · finish CRUD UIs (Sit RSVP/reschedule UI, card menus QA) |
-| 2 Nov | Plans screen (pricing, "coming soon" checkout) · concierge **prototype** (cake/flowers from a fixed catalog, order as a ticket; no real payment) |
+| 2 Nov | ~~Plans screen~~ (dropped 31 Oct: free at launch) · concierge **prototype** (cake/flowers from a fixed catalog, order as a ticket; no real payment) |
 | 3 Nov | Hardening, live Muse + Supabase test, demo video, README |
 | 4 Nov | Buffer + submit |
 **Not in the hackathon:** real payments, real partner orders, medicines, Vault, SMS alerts.
@@ -363,7 +367,7 @@ Judges score: impact, Meta tooling, technical quality, design. Five build days l
 
 1. **Primary family view:** ~~the Aangan map, with the living tree as Lineage~~ → **the constellation** (29 Oct feedback). The Aangan map may return as a *Homes* view.
 2. **Safe & sound:** status check-ins and overdue alerts; location is sent **once, only on "I need help"**. No continuous location.
-3. **Pricing:** ₹399 Family / ₹999 Family Plus (global equivalents), as in §8.
+3. ~~**Pricing:** ₹399 Family / ₹999 Family Plus~~ → **free at launch; partner commissions later** (31 Oct), as in §8.
 4. **Concierge in the demo:** a clearly-labelled prototype — fixed curated catalog, the order becomes a care ticket, no real payment or partner order.
 5. **Medicines:** parked until a licensed partner is signed.
 6. **Logo:** open square + marigold dot.
@@ -769,4 +773,7 @@ Each day the Stories room offers a well-known folk tale (our own three-beat outl
 - **Send something:** Swiggy (Food, Instamart, Dineout) and Zomato via their MCP servers with per-member OAuth; gift stores via Shopify's catalogue MCP; Urban Company as a link. Muse suggests 3 items from real catalogues; orders need a preview and an explicit tap; tokens are sealed server-side. Sample mode until partners approve production.
 - **Languages:** 55 content languages; first-run screens in 12 UI languages (RTL for Arabic/Urdu on those screens).
 - **Muse as event coordinator:** plan (run-of-show), tasks with owners, playlist (search links only), availability across time zones, auto-locks a get-together; in-app prompts (real push needs the native wrapper or web push).
-- **Strategy:** roles, consent, sign-up, storage, pricing, moat and engagement are in the doc "Aangan: business and product strategy".
+- **Strategy:** roles, consent, sign-up, storage, money, moat and engagement are in the doc "Aangan: business and product strategy".
+- **Home page (31 Oct):** on wide screens, signed-out `/` shows the home page (tagline, phone preview, four features) with a QR code to `/?demo=1`, which opens the demo family on any phone. Phones keep the door screen. `/home` shows it on any screen.
+- **Muse hosts and credits (31 Oct):** `PROVIDER_CHAIN` meta → baseten → modal; `MUSE_PROVIDER` picks the primary. Meta Model API: Muse Spark (text, vision), Muse Voice (transcription), Muse Image. Baseten: Muse Spark Open (`meta-models/muse-spark-open-1026`) as failover or primary. Modal: our own Muse Spark Open endpoint (`modal/muse_server.py`, vLLM, scales to zero), plus batch jobs later (reel rendering, SAM cut-outs).
+- **Money (31 Oct):** free at launch, no pricing anywhere; revenue later from partner commissions and our own gift store (§8).

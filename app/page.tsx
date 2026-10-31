@@ -5,6 +5,7 @@ import { Courtyard } from "@/components/courtyard";
 import { DoorTransition } from "@/components/door";
 import { useShell } from "@/components/shell";
 import { useViewer } from "@/components/viewer";
+import { HomeSite } from "@/components/home-site";
 import { Landing } from "@/components/welcome";
 import { LiteWindow } from "@/components/window";
 import { resetFamilyCards } from "@/lib/use-family";
@@ -27,7 +28,34 @@ export default function Page() {
     }
   }, []);
 
+  // Wide screens see the home page; phones go straight to the app.
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 900px)");
+    const on = () => setWide(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+
+  const startDemo = useCallback(async () => {
+    const res = await fetch("/api/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ inviteCode: "AANGAN-DEMO", memberId: "arjun" }) });
+    if (res.ok) {
+      resetFamilyCards();
+      window.dispatchEvent(new Event("aangan:auth"));
+    }
+  }, []);
+
   const gate = !ready || open === null ? "checking" : !signedIn ? "landing" : open ? "family" : "lite";
+
+  useEffect(() => {
+    if (gate === "checking") return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("demo") !== "1") return;
+    url.searchParams.delete("demo");
+    window.history.replaceState(null, "", url.pathname + url.search);
+    if (gate === "landing") void startDemo();
+  }, [gate, startDemo]);
 
   useEffect(() => {
     setChromeHidden(gate !== "family");
@@ -46,18 +74,7 @@ export default function Page() {
   }, [moving]);
 
   if (gate === "checking") return <div className="lite-ground fixed inset-0 z-30" aria-busy="true" aria-label="Opening Aangan" />;
-  if (gate === "landing")
-    return (
-      <Landing
-        onDemo={async () => {
-          const res = await fetch("/api/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ inviteCode: "AANGAN-DEMO", memberId: "arjun" }) });
-          if (res.ok) {
-            resetFamilyCards();
-            window.dispatchEvent(new Event("aangan:auth"));
-          }
-        }}
-      />
-    );
+  if (gate === "landing") return wide ? <HomeSite onDemo={startDemo} /> : <Landing onDemo={startDemo} />;
   return (
     <>
       {gate === "lite" ? <LiteWindow onOpenDoor={() => setMoving("opening")} /> : <Courtyard onCloseDoor={() => setMoving("closing")} />}

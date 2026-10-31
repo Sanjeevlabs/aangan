@@ -1,10 +1,15 @@
 // Single source of truth for providers and model IDs.
 // Nothing here is secret. Keys come from the environment only:
-// META_API_KEY (Meta Model API) and BASETEN_API_KEY (Baseten-hosted Muse Spark Open).
+// META_API_KEY (Meta Model API), BASETEN_API_KEY (Baseten-hosted Muse Spark Open)
+// and MODAL_API_KEY + MODAL_MUSE_URL (our own Muse Spark Open endpoint on Modal,
+// an OpenAI-compatible vLLM server; see docs/NATIVE.md / .env.example).
 
 export const SPEND_CAP_USD = 120;
 
-export type ProviderName = "meta" | "baseten";
+export type ProviderName = "meta" | "baseten" | "modal";
+
+/** Failover order. The active provider goes first; the rest follow in this order. */
+export const PROVIDER_CHAIN: readonly ProviderName[] = ["meta", "baseten", "modal"];
 
 export interface ProviderConfig {
   baseUrl: string;
@@ -27,25 +32,38 @@ export const PROVIDERS: Record<ProviderName, ProviderConfig> = {
     transcribeModel: "meta-models/muse-spark-open-1026",
     imageModel: "meta-models/muse-spark-open-1026",
   },
+  modal: {
+    // Read at call time: the URL is per deployment (https://<workspace>--<app>.modal.run/v1).
+    get baseUrl() {
+      return (process.env.MODAL_MUSE_URL ?? "").replace(/\/+$/, "");
+    },
+    captionModel: process.env.MODAL_MUSE_MODEL ?? "meta-models/muse-spark-open-1026",
+    transcribeModel: process.env.MODAL_MUSE_MODEL ?? "meta-models/muse-spark-open-1026",
+    imageModel: process.env.MODAL_MUSE_MODEL ?? "meta-models/muse-spark-open-1026",
+  },
 };
 
 /** Each provider's own key. Never send one provider's key to the other. */
 export function providerKey(p: ProviderName): string | undefined {
-  return p === "baseten" ? process.env.BASETEN_API_KEY : process.env.META_API_KEY;
+  if (p === "baseten") return process.env.BASETEN_API_KEY;
+  // Modal needs both its key and its endpoint URL to count as configured.
+  if (p === "modal") return process.env.MODAL_MUSE_URL ? process.env.MODAL_API_KEY : undefined;
+  return process.env.META_API_KEY;
 }
 
 /**
- * Meta's Model API is primary. MUSE_PROVIDER=baseten makes the Baseten-hosted
- * Muse Spark Open primary instead (when its key is set).
+ * Meta's Model API is primary. MUSE_PROVIDER=baseten|modal makes that host
+ * primary instead (when it is configured).
  */
 export function activeProvider(): ProviderName {
-  return process.env.MUSE_PROVIDER === "baseten" && process.env.BASETEN_API_KEY ? "baseten" : "meta";
+  const want = process.env.MUSE_PROVIDER;
+  if ((want === "baseten" || want === "modal") && providerKey(want)) return want;
+  return "meta";
 }
 
-/** Where a failed text/vision call goes next: the other Muse host, if it has a key. */
+/** Where a failed text/vision call goes next: the next configured host in the chain. */
 export function failoverProvider(p: ProviderName): ProviderName | null {
-  const other: ProviderName = p === "meta" ? "baseten" : "meta";
-  return providerKey(other) ? other : null;
+  return PROVIDER_CHAIN.find((o) => o !== p && providerKey(o)) ?? null;
 }
 
 export function isMockMode(): boolean {
