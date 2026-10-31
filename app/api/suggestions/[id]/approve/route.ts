@@ -1,4 +1,4 @@
-import { dbAddCard, dbAddGatherSession, dbAddSuggestion, dbAddWish, dbAssignDailyRole, dbGetMember, dbListMembers, dbListRitualRuns, dbListSuggestions, dbSetRitualRunStatus, dbSetSuggestionStatus } from "@/lib/db";
+import { dbAddCard, dbAddGatherSession, dbAddSuggestion, dbAddWish, dbAssignDailyRole, dbClaimSuggestion, dbGetMember, dbReleaseSuggestion, dbListMembers, dbListRitualRuns, dbListSuggestions, dbSetRitualRunStatus, dbSetSuggestionStatus } from "@/lib/db";
 import { isGrownUp } from "@/lib/permissions";
 import { requireSession } from "@/lib/auth";
 import { DbWriteError } from "@/lib/family-db";
@@ -36,8 +36,17 @@ async function postHandler(req: Request, props: { params: Promise<{ id: string }
     return Response.json({ suggestion: updated ?? { ...found, status: "rejected" } });
   }
 
+  // Claim first: only the request that flips pending -> approved runs the
+  // action, so a double tap or retry can't make two cards.
+  if (!(await dbClaimSuggestion(params.id, familyId))) return Response.json({ error: "already-decided" }, { status: 409 });
+
   const payload = (found.payload ?? {}) as Record<string, unknown>;
   const action = typeof payload.action === "string" ? payload.action : "";
+  // A bad payload did nothing, so give the claim back.
+  const refuse = async (error: string): Promise<Response> => {
+    await dbReleaseSuggestion(params.id, familyId);
+    return Response.json({ error }, { status: 400 });
+  };
   try {
     if (action === "create_card") {
       const card = (payload.result as { card?: Record<string, unknown> } | undefined)?.card
@@ -56,7 +65,7 @@ async function postHandler(req: Request, props: { params: Promise<{ id: string }
       const args = (payload.args as Record<string, unknown> | undefined) ?? {};
       const result = (payload.result as Record<string, unknown> | undefined) ?? {};
       const memberId = String(args.memberId ?? result.memberId ?? "");
-      if (!inFamily(memberId)) return Response.json({ error: "unknown-member" }, { status: 400 });
+      if (!inFamily(memberId)) return refuse("unknown-member");
       const prompt = String(args.prompt ?? result.prompt ?? "Bless one grandchild by voice today.");
       const roleDate = String(args.roleDate ?? result.roleDate ?? new Date().toISOString().slice(0, 10));
       await dbAssignDailyRole(memberId, prompt.slice(0, 280), roleDate.slice(0, 10), familyId);
@@ -66,7 +75,7 @@ async function postHandler(req: Request, props: { params: Promise<{ id: string }
       const ritualRunId = (args.ritualRunId ?? result.ritualRunId) as string | null;
       const memberId = String(args.memberId ?? result.memberId ?? "");
       const kind = ((args.kind ?? result.kind) as "wish" | "blessing") ?? "wish";
-      if (!inFamily(memberId) || !ownRun(ritualRunId ?? null)) return Response.json({ error: "unknown-member" }, { status: 400 });
+      if (!inFamily(memberId) || !ownRun(ritualRunId ?? null)) return refuse("unknown-member");
       await dbAddWish({ ritualRunId: ritualRunId ?? null, memberId, kind: kind === "blessing" ? "blessing" : "wish", familyId });
     } else if (action === "create_gather_session") {
       const args = (payload.args as Record<string, unknown> | undefined) ?? {};
@@ -78,7 +87,7 @@ async function postHandler(req: Request, props: { params: Promise<{ id: string }
       });
     } else if (action === "assemble_reel") {
       const ritualRunId = String((payload.ritualRunId as string | undefined) ?? "");
-      if (ritualRunId && !ownRun(ritualRunId)) return Response.json({ error: "unknown-run" }, { status: 400 });
+      if (ritualRunId && !ownRun(ritualRunId)) return refuse("unknown-run");
       if (ritualRunId) await dbSetRitualRunStatus(ritualRunId, "delivered", familyId);
       await dbAddSuggestion({
         familyId,
@@ -88,6 +97,7 @@ async function postHandler(req: Request, props: { params: Promise<{ id: string }
     }
     // schedule_notification approvals simply acknowledge the reminder.
   } catch (e) {
+    await dbReleaseSuggestion(params.id, familyId).catch(() => undefined); // let them try again
     if (e instanceof DbWriteError) throw e; // guardWrites answers 503 save-failed
     return Response.json({ error: "approve-failed" }, { status: 500 });
   }

@@ -812,6 +812,35 @@ export async function dbSetMovableDate(slug: string, year: number, date: string,
   await sb.from("ritual_configs").upsert({ slug, config: { ...config, movable } });
 }
 
+/**
+ * Take the one-time right to act on a pending suggestion: flips pending ->
+ * approved and says whether THIS call did it. Two taps (or two requests)
+ * race here and only one wins, so an approval can't run its action twice.
+ */
+export async function dbClaimSuggestion(id: string, familyId: string): Promise<boolean> {
+  const sb = dbFor(familyId);
+  if (!sb) {
+    // No await between the check and the flip, so this is atomic in memory.
+    const s = memListSuggestions().find((x) => x.id === id && x.familyId === familyId && x.status === "pending");
+    if (!s) return false;
+    memSetSuggestionStatus(id, "approved");
+    return true;
+  }
+  const { data, error } = await sb.from("suggestions").update({ status: "approved" }).eq("id", id).eq("family_id", familyId).eq("status", "pending").select("id");
+  if (error) throw new DbWriteError("suggestions", error.message);
+  return (data?.length ?? 0) > 0;
+}
+
+/** Give a claim back when the action failed, so the family can try again. */
+export async function dbReleaseSuggestion(id: string, familyId: string): Promise<void> {
+  const sb = dbFor(familyId);
+  if (!sb) {
+    memSetSuggestionStatus(id, "pending");
+    return;
+  }
+  await sb.from("suggestions").update({ status: "pending" }).eq("id", id).eq("family_id", familyId);
+}
+
 // ---- Privacy set + invites. ----
 
 export type Invite = MemInvite;
