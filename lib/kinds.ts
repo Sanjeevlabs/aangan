@@ -489,6 +489,22 @@ export const MuseImageRunSchema = z.object({
   at: iso,
 });
 
+// ---------- The fixed weekly call: one per family, a named ritual ----------
+/** "Sunday chai": the same hour every week, in the zone it was set in. */
+export const WeeklyCallSchema = z.object({
+  id: z.literal("weekly-call"),
+  /** 0 = Sunday … 6 = Saturday, in `tz`. */
+  weekday: z.number().int().min(0).max(6),
+  hour: z.number().int().min(0).max(23),
+  minute: z.number().int().min(0).max(59),
+  /** IANA zone the weekday and time are meant in (the elders' home, usually). */
+  tz: z.string().min(1).max(64),
+  hostId: z.string().min(1),
+  name: z.string().max(40).optional(),
+  updatedBy: z.string().min(1),
+  updatedAt: z.string().datetime(),
+});
+
 export const DOC_SCHEMAS = {
   recipe: RecipeSchema,
   attempt: AttemptSchema,
@@ -517,6 +533,7 @@ export const DOC_SCHEMAS = {
   partner_token: PartnerTokenSchema,
   day_line: DayLineSchema,
   muse_image_run: MuseImageRunSchema,
+  weekly_call: WeeklyCallSchema,
 } as const;
 
 export type DocKind = keyof typeof DOC_SCHEMAS;
@@ -551,6 +568,7 @@ export type Lamp = DocOf<"lamp">;
 export type Chitthi = DocOf<"chitthi">;
 export type DayLine = DocOf<"day_line">;
 export type MuseImageRun = DocOf<"muse_image_run">;
+export type WeeklyCall = DocOf<"weekly_call">;
 export type Wall = (typeof WALLS)[number];
 export type WindowLayer = (typeof WINDOW_LAYERS)[number];
 export type FirstScene = (typeof FIRST_SCENES)[number];
