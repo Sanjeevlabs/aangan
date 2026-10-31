@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { isGrownUp } from "@/lib/permissions";
-import { checkRateLimit, requireSession } from "@/lib/auth";
+import { requireSession } from "@/lib/auth";
 import { dbEnsureRitualRun, dbGetMember, dbListMembers, dbListRitualRuns, dbListWishes } from "@/lib/db";
 import { countryName, traditionChoices, TRADITIONS_DATA } from "@/lib/holidays";
 import { setRitualSettings } from "@/lib/occasion-settings";
@@ -60,7 +60,6 @@ const Body = z.discriminatedUnion("action", [SetKept, SetTraditions]);
 export async function POST(req: Request): Promise<Response> {
   const auth = await requireSession(req);
   if (auth instanceof Response) return auth;
-  if (!checkRateLimit(auth, "/api/rituals")) return Response.json({ error: "rate-limited" }, { status: 429 });
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "invalid-request" }, { status: 400 });
   const me = await dbGetMember(auth.memberId);
