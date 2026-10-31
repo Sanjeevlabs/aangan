@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { talkTarget } from "@/lib/households";
-import { callName, memberPhoto, peopleByRecency } from "@/lib/people";
+import { callName, peopleByRecency } from "@/lib/people";
 import { useFamilyCards } from "@/lib/use-family";
 import { useLargeText } from "@/lib/use-large-text";
 import { roomsFor, type Room } from "@/lib/menu";
@@ -13,7 +13,7 @@ import dynamic from "next/dynamic";
 import type { AddTab, ReplyContribution } from "./add-sheet";
 
 import { PlayerProvider, usePlayer } from "./player";
-import { Avatar, Icon, type IconName } from "./ui/kit";
+import { Icon, type IconName } from "./ui/kit";
 import { ViewerProvider, useViewer } from "./viewer";
 import { PeoplePicker } from "./people-picker";
 import { DocumentLangOnly } from "@/lib/use-t";
@@ -78,14 +78,7 @@ function RoomsSheet({ room, onClose }: { room: Room["id"] | "all" | null; onClos
             transition={{ type: "spring", stiffness: 420, damping: 38 }}
           >
             <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-black/15" aria-hidden="true" />
-            <Link href="/settings" onClick={onClose} className="press mb-3 flex items-center gap-3 rounded-[20px] px-2 py-2 text-ink no-underline">
-              <Avatar src={memberPhoto(viewer)} name={viewer.firstName} size={40} />
-              <span className="min-w-0 flex-1">
-                <span className="block text-[16px] font-semibold leading-tight">{viewer.firstName}</span>
-                <span className="block text-[12.5px] text-ink-soft">Settings · your window · privacy</span>
-              </span>
-              <Icon name="settings" size={19} className="text-ink-soft" />
-            </Link>
+            {/* Settings live behind your own photo only, not here. */}
             <ul className="m-0 list-none space-y-1.5 p-0">
               {all.map((g) => {
                 const isOpen = expanded === g.id;

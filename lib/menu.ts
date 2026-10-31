@@ -1,6 +1,8 @@
-// Kutumb (SPEC §29.3): every feature since PR #1, in five rooms of a house
-// rather than a menu. A room opens to the spaces inside it; Get-together is
-// one place, so it opens directly.
+// Every feature since PR #1, in five rooms of a house (SPEC §29.3). A room
+// opens to the spaces inside it; a room that is one place (Kitchen) opens
+// directly. Each item opens its own page: no two items in a room share one.
+// Safe & sound is not here: it lives on the window, the first screen.
+// Settings is not here either: tap your own photo.
 
 export interface MenuItem {
   href: string;
@@ -27,26 +29,23 @@ export function roomsFor(isParent: boolean, _parentNames = ""): Room[] {
     {
       id: "memories",
       title: "Memories",
-      note: "Photos, voices, occasions",
+      note: "Photos, occasions, stories",
       icon: "memories",
       tone: ["#f1f0ee", "#1c1b1a"],
       items: [
         { href: "/lane", title: "Memory Lane", note: "Every photo and voice, by the years; albums Muse sorts", icon: "lane" },
         { href: "/rituals", title: "Occasions", note: "Birthdays and festivals; wishes and photos from every home", icon: "calendar" },
-        { href: "/book", title: "The Book", note: "Their life, chapter by chapter, in their own voice", icon: "book" },
+        { href: "/stories", title: "Stories", note: "For the children, in their grandparents' voices", icon: "moon" },
       ],
     },
     {
       id: "kitchen",
       title: "Kitchen",
-      note: "Recipes, stories, blessings",
+      note: "Recipes, in the voice that taught them",
       icon: "pot",
       tone: ["#f1f0ee", "#1c1b1a"],
-      items: [
-        { href: "/kitchen", title: "Recipes", note: isParent ? "Your recipes, and who cooked them" : "In the voice that taught them", icon: "pot" },
-        { href: "/stories", title: "Stories", note: "For the children, in their grandparents' voices", icon: "moon" },
-        { href: "/advice", title: "Advice, tips & blessings", note: "Life lessons and kitchen tricks, kept with the question", icon: "bless" },
-      ],
+      href: "/kitchen",
+      items: [{ href: "/kitchen", title: "Recipes", note: isParent ? "Your recipes, and who cooked them" : "In the voice that taught them", icon: "pot" }],
     },
     {
       id: "care",
@@ -56,32 +55,36 @@ export function roomsFor(isParent: boolean, _parentNames = ""): Room[] {
       tone: ["#f1f0ee", "#1c1b1a"],
       items: [
         { href: "/care", title: isParent ? "Ask for help" : "Care tasks", note: "Say it, add it, pick it up", icon: "care" },
-        { href: "/care#helpers", title: "Local helpers", note: "Grocer, driver, house help, the plumber", icon: "village" },
+        { href: "/care/helpers", title: "Local helpers", note: "Grocer, driver, house help, the plumber", icon: "village" },
         { href: "/nearby", title: "Trusted nearby", note: "Your top 5 to call first, in order", icon: "gather" },
         { href: "/send", title: "Send something", note: "Groceries, a cake, a gift: Muse suggests, you send", icon: "send" },
-        { href: "/safe", title: "Safe & sound", note: "Heading home, landed, I need help", icon: "shield" },
       ],
     },
     {
       id: "family",
       title: "Family",
-      note: "Tree, your families, visits",
+      note: "Tree, the Book, advice",
       icon: "tree",
       tone: ["#f1f0ee", "#1c1b1a"],
       items: [
         { href: "/bond", title: "Family tree", note: "Every generation, both sides, home by home", icon: "tree" },
-        { href: "/together", title: "Visits & holidays", note: "Plan a visit home or a family trip", icon: "send" },
+        { href: "/book", title: "The Book", note: "Their life, chapter by chapter, in their own voice", icon: "book" },
+        { href: "/advice", title: "Advice, tips & blessings", note: "Life lessons and kitchen tricks, kept with the question", icon: "bless" },
         { href: "/settings#invite", title: "Invite family", note: "A sibling, a cousin, your in-laws", icon: "plus" },
       ],
     },
     {
       id: "sit",
       title: "Get-together",
-      note: "Chai, story night, a festival",
+      note: "Calls, visits, holidays, play",
       icon: "video",
       tone: ["#f1f0ee", "#1c1b1a"],
-      href: "/gather",
-      items: [{ href: "/gather", title: "Plan a get-together", note: "Chai, story night, a festival: a call with a reason", icon: "video" }],
+      items: [
+        { href: "/gather", title: "Plan a get-together", note: "A family call with a reason", icon: "video" },
+        { href: "/together/visits", title: "Visits", note: "A visit home: dates, tickets, a countdown", icon: "village" },
+        { href: "/together/holidays", title: "Family holidays", note: "Somewhere together, with a countdown", icon: "send" },
+        { href: "/gather/play", title: "Play together", note: "Something to do on a call, right now", icon: "sparkle" },
+      ],
     },
   ];
 }

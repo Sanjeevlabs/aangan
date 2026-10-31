@@ -1,6 +1,6 @@
-// Tabs inside a room (SPEC §29.3): once you're in a room of the family
-// courtyard, its spaces show as tabs so you can move sideways without going
-// back to the courtyard. Derived from the four rooms in lib/menu.ts.
+// Tabs inside a room (SPEC §29.3): once you're in a room, its spaces show as
+// tabs so you can move sideways without going back. Derived from the five
+// rooms in lib/menu.ts. A room with one page (Kitchen) has no tab row.
 import { roomsFor, type Room } from "./menu";
 
 export interface Space {
@@ -9,26 +9,28 @@ export interface Space {
   rooms: { href: string; title: string }[];
 }
 
+/** Tab labels. A page missing here (Send, Invite) is in the menu but not a tab. */
 const SHORT: Record<string, string> = {
   "/lane": "Memory Lane",
   "/rituals": "Occasions",
-  "/book": "Book",
-  "/kitchen": "Kitchen",
   "/stories": "Stories",
-  "/advice": "Advice",
-  "/care": "Care",
+  "/kitchen": "Recipes",
+  "/care": "Care tasks",
+  "/care/helpers": "Local helpers",
   "/nearby": "Trusted nearby",
-  "/safe": "Safe & sound",
-  "/together": "Visits",
   "/bond": "Family tree",
-  "/gather": "Get-together",
+  "/book": "Book",
+  "/advice": "Advice",
+  "/gather": "Plan",
+  "/together/visits": "Visits",
+  "/together/holidays": "Holidays",
+  "/gather/play": "Play",
 };
 
 export function spacesFor(isParent: boolean): Space[] {
   return roomsFor(isParent, "").map((r) => ({
     id: r.id,
     title: r.title,
-    // One tab per page (anchors like /care#helpers share their page's tab).
     rooms: Array.from(new Set(r.items.map((i) => i.href.split("#")[0])))
       .filter((h) => SHORT[h])
       .map((href) => ({ href, title: SHORT[href] })),
@@ -37,12 +39,13 @@ export function spacesFor(isParent: boolean): Space[] {
 
 const ALL = spacesFor(false);
 
-/** The space a path belongs to, and which of its rooms is open. */
+/** The space a path belongs to, and which of its rooms is open (the longest matching page wins). */
 export function spaceFor(pathname: string): { space: Space; room: string } | null {
+  let best: { space: Space; room: string } | null = null;
   for (const space of ALL) {
     for (const r of space.rooms) {
-      if (pathname === r.href || pathname.startsWith(`${r.href}/`)) return { space, room: r.href };
+      if ((pathname === r.href || pathname.startsWith(`${r.href}/`)) && (!best || r.href.length > best.room.length)) best = { space, room: r.href };
     }
   }
-  return null;
+  return best;
 }

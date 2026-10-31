@@ -85,17 +85,7 @@ export default function OccasionsPage() {
 
   return (
     <div>
-      <RoomHeader
-        title="Occasions"
-        subtitle="Birthdays, national days and your festivals"
-        action={
-          data ? (
-            <button type="button" onClick={() => setFestivalsOpen(true)} aria-label="Our traditions" className="press grid h-11 w-11 place-items-center rounded-full bg-surface">
-              <Icon name="settings" size={20} />
-            </button>
-          ) : undefined
-        }
-      />
+      <RoomHeader title="Occasions" subtitle="Birthdays, national days and your festivals" />
 
       {failed ? (
         <div className="py-6 text-center">
@@ -137,7 +127,7 @@ export default function OccasionsPage() {
               ) : (
                 <div className="rounded-card bg-surface px-4 py-5 text-center">
                   <p className="m-0 text-[14px] text-ink-soft">Add birthdays in the family tree and they&rsquo;ll appear here.</p>
-                  <Link href="/tree" className="press mt-3 inline-flex h-10 items-center rounded-full bg-ink px-4 text-[14px] font-semibold text-white no-underline">
+                  <Link href="/bond" className="press mt-3 inline-flex h-10 items-center rounded-full bg-ink px-4 text-[14px] font-semibold text-white no-underline">
                     Open the tree
                   </Link>
                 </div>
@@ -223,11 +213,15 @@ export default function OccasionsPage() {
             )}
           />
 
-          {choices.traditions.length === 0 && choices.kept.length === 0 && data.canEditKept && (
+          {choices.traditions.length === 0 && choices.kept.length === 0 && data.canEditKept ? (
             <button type="button" onClick={() => setFestivalsOpen(true)} className="press flex w-full items-center gap-3 rounded-card bg-surface px-4 py-3 text-left">
               <Icon name="flower" size={20} className="text-ink-soft" />
               <span className="min-w-0 flex-1 text-[14px] text-ink-soft">Showing birthdays and national days. Which traditions does your family celebrate?</span>
               <Icon name="chevron" size={18} className="text-ink-faint" />
+            </button>
+          ) : (
+            <button type="button" onClick={() => setFestivalsOpen(true)} className="press flex h-11 w-full items-center justify-center gap-1 text-[14px] text-ink-soft">
+              Our traditions · <span className="font-semibold text-ink">{data.canEditKept ? "Change" : "See"}</span>
             </button>
           )}
         </div>

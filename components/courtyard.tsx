@@ -192,7 +192,7 @@ function PersonChip({ member, lamp, onOpen }: { member: Member; lamp: { glow: bo
 /* ----------------------------------------------------------------- page */
 export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
   const { viewer, members } = useViewer();
-  const { refreshKey, openRoom } = useShell();
+  const { refreshKey } = useShell();
   const { cards } = useFamilyCards(refreshKey);
   const { sides, current } = useSides();
   const pres = useJson<{ presence: Presence[]; settings: CareSettings[] }>("/api/presence");
@@ -225,9 +225,9 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
             <button type="button" onClick={onCloseDoor} aria-label="Close the door, back to the window" className="press glass grid h-11 w-11 place-items-center rounded-full text-white">
               <Icon name="doorClosed" size={20} strokeWidth={1.8} />
             </button>
-            <button type="button" onClick={() => openRoom("all")} aria-label="Everything, and your settings" className="press rounded-full">
+            <Link href="/settings" aria-label="You: settings and account" className="press rounded-full no-underline">
               <Avatar src={memberPhoto(viewer)} name={viewer.firstName} size={44} ring />
-            </button>
+            </Link>
           </div>
           <div className="absolute inset-x-4 bottom-3.5 text-white">
             <h1 className="m-0 mt-0.5 truncate text-[26px] font-light leading-[1.1] tracking-[-0.01em]">{familyName ? `The ${familyName} family` : "Your family"}</h1>
