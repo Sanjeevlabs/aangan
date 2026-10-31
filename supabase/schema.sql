@@ -281,11 +281,14 @@ create table if not exists llm_calls (
 -- the model runs only on a cache miss (M3). Terms are generic kinship words.
 create table if not exists kinship_cache (
   path text not null,
-  display_lang text not null default 'en' check (display_lang in ('en', 'hi-latn', 'hi-deva')),
+  display_lang text not null default 'en',
   terms jsonb default '{}',
   created_at timestamptz default now(),
   primary key (path, display_lang)
 );
+-- Any language the app supports can be cached, so no fixed list. Databases
+-- made earlier have the old inline check (Postgres names it like this); drop it.
+alter table kinship_cache drop constraint if exists kinship_cache_display_lang_check;
 
 -- ----------------------------------------------------------------- invites
 -- Expiring invite codes (7 days). Service-role only until M5 privacy set.
