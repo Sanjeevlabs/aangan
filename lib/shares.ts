@@ -3,11 +3,12 @@
 // a frozen copy of just that thing — no names beyond what the card shows, no
 // voice, no photos of people, no family data. Revocable at any time.
 // Postgres table `public_shares` when live; an in-memory map otherwise.
-// Shares made in the demo stay in memory (dbFor returns null for demo families).
+// The seed demo families stay in memory (dbFor returns null for them); a demo
+// visitor's copy is a real database family, so its shares go to Postgres too.
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { COURSES } from "./kind-values";
-import { isDemoFamily } from "./family";
+import { isSeedFamily } from "./family";
 import { dbFor } from "./family-db";
 import { IngredientSchema, StepSchema } from "./kinds";
 
@@ -70,14 +71,22 @@ function fromRow(r: Record<string, unknown>): Share | null {
 /** Public lookup. Revoked or unknown → null (the page says it's no longer shared). */
 export async function getShare(token: string): Promise<Share | null> {
   if (!/^[A-Za-z0-9_-]{20,64}$/.test(token)) return null;
-  let share = mem.get(token) ?? null;
-  // Not in memory: a real family's share lives in the database (no family to
-  // check yet, so this follows the database switch). A demo row there is ignored.
-  const sb = share ? null : dbFor(null);
+  // With the database live it is the source of truth on every read: a revoke
+  // made on another isolate must be honoured, so memory is not consulted first.
+  // (No family to check yet, so this follows the database switch.)
+  const sb = dbFor(null);
+  let share: Share | null;
   if (sb) {
     const { data } = await sb.from("public_shares").select("*").eq("token", token).maybeSingle();
     share = data ? fromRow(data as Record<string, unknown>) : null;
-    if (share && isDemoFamily(share.familyId)) share = null;
+    // The seed families never live in the database: a stray row there is ignored, theirs are in memory.
+    if (share && isSeedFamily(share.familyId)) share = null;
+    if (!share) {
+      const m = mem.get(token);
+      if (m && isSeedFamily(m.familyId)) share = m;
+    }
+  } else {
+    share = mem.get(token) ?? null;
   }
   if (!share || share.revokedAt) return null;
   return share;
