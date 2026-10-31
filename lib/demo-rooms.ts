@@ -229,6 +229,9 @@ export function seedDemoRooms(now = Date.now()): void {
     .filter(([, h]) => h <= localNow + shift)
     .forEach(([moment, h, note], i) => seedDoc(FAM, "presence", { id: `presence-dada-${i}`, memberId: "dada", moment, note, at: ago(Math.round((localNow + shift - h) * 60), now) }));
   seedDoc(FAM, "presence", { id: "presence-arjun-0", memberId: "arjun", moment: "thinking", note: "", at: ago(15, now) });
+  // A visit yesterday, so "Since yesterday" has something to say in the demo.
+  for (const id of ["arjun", "priya", "dadi", "dada"])
+    [30, 20].forEach((h, i) => seedDoc(FAM, "presence", { id: `presence-${id}-visit-${i}`, memberId: id, moment: "here", note: "", at: ago(60 * h, now) }));
   seedDoc(FAM, "care_settings", { id: "dadi", memberId: "dadi", quietAlert: true, tellMemberId: "arjun", graceHours: 3, updatedAt: ago(60 * 24 * 6, now) });
 
   // ---------- Maa's Village ----------
