@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { albumDates } from "@/components/albums";
 import { LaneViewer } from "@/components/lane-viewer";
+import { FestivalLeadEntry } from "@/components/festival-header";
 import { OccasionCelebration } from "@/components/occasion-celebration";
 import { TraditionsSheet, type TraditionChoice } from "@/components/occasion-festivals";
 import { usePlayer } from "@/components/player";
@@ -211,6 +212,7 @@ export default function OccasionsPage() {
         </div>
       ) : (
         <div className="space-y-7">
+          <FestivalLeadEntry />
           {todays.map((o) => (
             <OccasionCelebration key={o.id} title={titleOf(o)} person={memberOf(o)} members={data.members} viewer={viewer} run={runOf(o)} wishes={wishedBy(o)} cards={cards ?? []} lampHour={o.kind === "festival" ? o.lampHour : null} onWish={() => wish(o)} onWished={() => void reload()} />
           ))}

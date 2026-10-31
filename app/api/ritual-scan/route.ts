@@ -1,7 +1,7 @@
 import { askWeeklyQuestions } from "@/lib/keeper";
 import { planRitualScan } from "@/lib/ritual-agent";
 import { dbAddAgentRun, dbAddSuggestion, dbAssignDailyRole, dbEnsureRitualRun, dbListFamilyIds, dbListDailyRoles, dbListMembers, dbListRitualRuns, dbListSuggestions, dbListWishes, dbSetRitualRunStatus } from "@/lib/db";
-import { familyHolidays } from "@/lib/occasions-server";
+import { familyHolidays, ritualConfigs } from "@/lib/occasions-server";
 import { cronAuthorized, requireSession } from "@/lib/auth";
 import { purgeSandboxes } from "@/lib/demo-sandbox";
 import { dbFor } from "@/lib/family-db";
@@ -51,7 +51,8 @@ async function runScan(familyId: string): Promise<Response> {
   // national days are on the calendar but nobody is asked for a wish.
   const fam = await familyHolidays(familyId, members).catch(() => null);
   const festivals = (fam?.visible ?? []).filter((h) => h.kind === "festival");
-  const configs = festivals.map((h) => ({ slug: h.key, title: h.title }));
+  const ritualSlugs = new Set(ritualConfigs().map((c) => c.slug));
+  const configs = festivals.map((h) => ({ slug: h.key, title: h.title, ritual: h.ritual && ritualSlugs.has(h.ritual) ? h.ritual : null }));
   const movable: Record<string, string> = {};
   for (const h of festivals) {
     // The nearest date per festival from today on (a key can recur yearly).

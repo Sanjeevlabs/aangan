@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { strings } from "@/lib/i18n";
 import type { Suggestion } from "@/lib/schemas";
 import { useRouter } from "next/navigation";
+import { FestivalStepsSheet, useFestivalWeek } from "./festival-header";
 import { useViewer } from "./viewer";
 
 // "Aangan suggests · Review / Approve" — flat surface card. Actions execute
@@ -15,6 +16,8 @@ export function Suggestions({ compact }: { compact?: boolean }) {
   const [failed, setFailed] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const router = useRouter();
+  const { week } = useFestivalWeek();
+  const [stepsOpen, setStepsOpen] = useState(false);
 
   const load = useCallback(async () => {
     setFailed(false);
@@ -35,6 +38,15 @@ export function Suggestions({ compact }: { compact?: boolean }) {
     // "Record a wish": the one place to record it is the wish card in Coming up.
     const sug = items?.find((x) => x.id === id);
     const p = (sug?.payload ?? {}) as { action?: string; ritualRunId?: string; kind?: string; prompt?: string };
+    // "You lead this year": open the steps as a checklist, then acknowledge it.
+    if (approve && p.action === "request_lead") {
+      setStepsOpen(true);
+      setBusyId(id);
+      await fetch(`/api/suggestions/${id}/approve`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ decision: "approve" }) }).catch(() => null);
+      await load();
+      setBusyId(null);
+      return;
+    }
     if (approve && p.action === "request_wish" && p.ritualRunId) {
       router.push("/gather");
       setBusyId(id);
@@ -60,7 +72,7 @@ export function Suggestions({ compact }: { compact?: boolean }) {
     if (failed) return null;
     return null;
   }
-  if (items.length === 0) return null;
+  if (items.length === 0) return <FestivalStepsSheet week={week} open={stepsOpen} onClose={() => setStepsOpen(false)} />;
 
   // Agent proposals: nothing happens until a person approves.
   return (
@@ -90,6 +102,7 @@ export function Suggestions({ compact }: { compact?: boolean }) {
           </li>
         ))}
       </ul>
+      <FestivalStepsSheet week={week} open={stepsOpen} onClose={() => setStepsOpen(false)} />
     </section>
   );
 }

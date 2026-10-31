@@ -24,6 +24,7 @@ import { GiftsShelf } from "./gifts-shelf";
 import { EventPrompts } from "./event-prompts";
 import { TodayCard, useToday } from "./today";
 import { CourtyardLetter } from "./courtyard-letter";
+import { FestivalHeader } from "./festival-header";
 import { Avatar, Icon, Monogram, Photo } from "./ui/kit";
 import { useViewer } from "./viewer";
 
@@ -257,6 +258,7 @@ export function Courtyard({ onCloseDoor }: { onCloseDoor: () => void }) {
       </header>
 
       <SafetyWatch />
+      <FestivalHeader />
 
       {people.length > 0 && (
         <section aria-label="Everyone" className="mt-5">

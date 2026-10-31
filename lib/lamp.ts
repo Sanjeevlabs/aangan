@@ -31,6 +31,27 @@ export function lastContact(lamp: Lamp | undefined, memberIds: string[], cards: 
   return { at, by };
 }
 
+/** "#rrggbb" -> "r,g,b" (null for anything else, so nothing but a colour reaches a stylesheet). */
+function rgb(hex: string): string | null {
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  return m ? `${parseInt(m[1], 16)},${parseInt(m[2], 16)},${parseInt(m[3], 16)}` : null;
+}
+
+/**
+ * The courtyard's lamp rings in a festival week's colour (`lampAccent`, from the
+ * ritual JSON). Returns a stylesheet that overrides `.kutumb-lamp`, or "" for the
+ * usual glow (no accent, or not a colour).
+ */
+export function lampGlowCss(lampAccent: string | null | undefined): string {
+  const c = lampAccent ? rgb(lampAccent) : null;
+  if (!c || !lampAccent) return "";
+  return `
+@keyframes kutumb-lamp-week { 0%,100% { box-shadow: 0 0 0 2.5px ${lampAccent}, 0 0 14px 3px rgba(${c},.55); } 50% { box-shadow: 0 0 0 2.5px ${lampAccent}, 0 0 22px 7px rgba(${c},.8); } }
+.kutumb-lamp.kutumb-lamp { box-shadow: 0 0 0 2.5px ${lampAccent}, 0 0 18px 5px rgba(${c},.65); animation: kutumb-lamp-week 4.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .kutumb-lamp.kutumb-lamp { animation: none; } }
+`;
+}
+
 /** Heartbeats waiting for this member: sent to their home, after the last one they felt. */
 export function pendingBeats(lamp: Lamp | undefined, memberId: string, now = Date.now()): { from: string; at: string }[] {
   if (!lamp) return [];

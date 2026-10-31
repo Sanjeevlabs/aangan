@@ -8,7 +8,9 @@
 // "ritual_settings", one row per family), validated with Zod on the way in
 // and out; in-memory in mock mode and as a fallback. Server only.
 import { z } from "zod";
+import { RITUAL_FILES } from "@/rituals";
 import { DbWriteError, dbFor } from "./family-db";
+import { isDemoFamily } from "./family";
 
 export const RitualSettingsSchema = z.object({
   id: z.literal("ritual-settings"),
@@ -28,18 +30,23 @@ const mem = (g.__aanganRitualSettings ??= new Map<string, RitualSettings>());
 
 // Demo families stay in memory (dbFor returns null for them).
 
-function empty(): RitualSettings {
-  return { id: ID, traditions: [], kept: [], skipped: [], updatedBy: null, updatedAt: new Date(0).toISOString() };
+function empty(familyId = ""): RitualSettings {
+  // The demo families start out keeping every festival that has a ritual guide
+  // (rituals/*.json), so Festival Week has something to show before anyone picks.
+  const kept = isDemoFamily(familyId)
+    ? RITUAL_FILES.map((f) => (f.json as { slug?: unknown }).slug).filter((s): s is string => typeof s === "string" && s !== "birthday")
+    : [];
+  return { id: ID, traditions: [], kept, skipped: [], updatedBy: null, updatedAt: new Date(0).toISOString() };
 }
 
 export async function getRitualSettings(familyId: string): Promise<RitualSettings> {
   const local = mem.get(familyId);
   const sb = dbFor(familyId);
-  if (!sb) return local ?? empty();
+  if (!sb) return local ?? empty(familyId);
   const { data, error } = await sb.from("family_docs").select("data").eq("id", `${familyId}:${ID}`).eq("kind", KIND).maybeSingle();
-  if (error || !data) return local ?? empty();
+  if (error || !data) return local ?? empty(familyId);
   const parsed = RitualSettingsSchema.safeParse((data as { data: unknown }).data);
-  return parsed.success ? parsed.data : (local ?? empty());
+  return parsed.success ? parsed.data : (local ?? empty(familyId));
 }
 
 /** The festival slugs this family keeps (birthdays are always kept). */

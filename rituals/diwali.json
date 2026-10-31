@@ -2,6 +2,9 @@
   "slug": "diwali",
   "title": "Festival of Lights — family guide",
   "lampHour": 19,
+  "accent": "#D9822B",
+  "lampAccent": "#F5A524",
+  "greeting": "Shubh Deepavali",
   "cultureNotes": "Celebrated by many Hindu, Jain, Sikh and Buddhist families. Adapt wording to the family's own tradition.",
   "steps": [
     {
