@@ -97,7 +97,7 @@ The app's `/api/stickers/cutout` sends only the photo the person picked (their o
 
 ## 7. Open Graph images
 
-`/opengraph-image` (the home page) is rendered once at build time. `/r/<token>/opengraph-image` (a shared recipe) is rendered on request by `next/og` inside the Worker. Set `APP_ORIGIN` in the build environment too (shell or `.env.production.local`) so the home page's `og:image` is an absolute URL; the recipe pages use the request's own origin. Checked under `wrangler dev` (workerd): `/r/<token>/opengraph-image` returns a 1200×630 PNG. `next/og` adds its WASM renderer and a font to the worker (~0.6 MiB gzip): the compressed worker is now ~2.9 MiB, just under the Free plan's 3 MiB limit (Paid allows 10 MiB). If it outgrows Free, replace `app/r/[token]/opengraph-image.tsx` with a static image (or move to Paid).
+Link previews use static images (`app/opengraph-image.png`, `app/r/[token]/opengraph-image.png`); the recipe page's title and description are still per recipe. A per-recipe image rendered with `next/og` adds ~0.6 MiB gzip to the Worker, which does not fit the Free plan's 3 MiB limit alongside the app (Paid allows 10 MiB). Set `APP_ORIGIN` in the build environment too so `og:image` URLs are absolute.
 
 ## 8. Cron
 

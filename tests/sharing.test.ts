@@ -192,16 +192,11 @@ describe("public recipe links", () => {
     expect(await getShare(out.token)).toBeNull();
   });
 
-  it("the shared recipe's Open Graph image renders (and a revoked one still answers)", async () => {
-    const out = (await (await sharePost(req("arjun", { kind: "recipe", id: "recipe-dadi-gobi" }))).json()) as { token: string };
-    const { default: Image, size, contentType } = await import("@/app/r/[token]/opengraph-image");
-    expect(size).toEqual({ width: 1200, height: 630 });
-    expect(contentType).toBe("image/png");
-    const res = await Image({ params: Promise.resolve({ token: out.token }) });
-    expect(res.headers.get("content-type")).toBe("image/png");
-    const bytes = new Uint8Array(await res.arrayBuffer());
-    expect(Array.from(bytes.slice(0, 4))).toEqual([0x89, 0x50, 0x4e, 0x47]);
-    const gone = await Image({ params: Promise.resolve({ token: "x".repeat(24) }) });
-    expect(gone.headers.get("content-type")).toBe("image/png");
-  }, 30_000);
+  it("shared links carry a static Open Graph image (kept static to fit the Worker size limit)", async () => {
+    const { readFileSync } = await import("node:fs");
+    for (const p of ["app/opengraph-image.png", "app/r/[token]/opengraph-image.png"]) {
+      const bytes = readFileSync(p);
+      expect(Array.from(bytes.subarray(0, 4))).toEqual([0x89, 0x50, 0x4e, 0x47]);
+    }
+  });
 });
