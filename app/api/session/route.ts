@@ -25,7 +25,7 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: "invalid-json" }, { status: 400 });
   }
   // Slow down guessing: per caller address and per target member.
-  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "local";
+  const ip = callerKey(req) ?? "local";
   const claimed = (body as { memberId?: unknown } | null)?.memberId;
   const demoCode = (body as { inviteCode?: unknown } | null)?.inviteCode === DEMO_INVITE_CODE;
   // The per-member limit slows invite-code guessing; the public demo code has
