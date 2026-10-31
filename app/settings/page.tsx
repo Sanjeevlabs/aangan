@@ -321,7 +321,7 @@ function Group({ title, id, children }: { title: string; id?: string; children: 
 
 const TABS = [
   ["you", "You"],
-  ["family", "Family"],
+  ["family", "People & invites"],
   ["privacy", "Privacy"],
 ] as const;
 

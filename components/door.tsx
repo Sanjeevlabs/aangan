@@ -4,7 +4,7 @@ import { AnimatePresence, MotionConfig, m } from "framer-motion";
 import { useEffect, useState } from "react";
 import { playDoorClose, playDoorOpen } from "@/lib/door-sound";
 
-// The door into Kutumb (SPEC §29.2, revised 30 Oct): an old carved teak door
+// The door into the courtyard (SPEC §29.2, revised 30 Oct): an old carved teak door
 // in a lime-plaster wall, quiet and premium (no colour but wood, brass and
 // light). Timed to the sound in lib/door-sound.ts: the key goes in, turns
 // twice, the bolt slides back, the leaves swing in on their hinges with light

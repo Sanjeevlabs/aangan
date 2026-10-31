@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import type { Chapter } from "@/app/api/book/chapters";
@@ -23,7 +24,7 @@ function ChapterPage({ chapter, n }: { chapter: Chapter; n: number }) {
   const playing = current?.id === card.id && isPlaying;
   const date = new Date(chapter.at).toLocaleDateString("en-US", { month: "long", day: "numeric" });
   return (
-    <article className="rounded-[26px] bg-surface px-5 py-5">
+    <article className="rounded-[26px] bg-surface px-5 py-5" data-card={card.id}>
       <p className="m-0 text-[11.5px] uppercase tracking-[0.18em] text-ink-soft">
         Chapter {n} · {date}
       </p>
@@ -47,9 +48,9 @@ function ChapterPage({ chapter, n }: { chapter: Chapter; n: number }) {
 function Book() {
   const params = useSearchParams();
   const { members, ready, viewer } = useViewer();
-  // No one named: the book of the grandparent generation, starting with the first of them.
+  // No one named: your own book if you have one (a parent), else the first of the grandparent generation.
   const elders = members.filter((m) => m.role === "elder");
-  const memberId = params.get("member") ?? (elders.find((m) => m.id !== viewer.id) ?? elders[0])?.id ?? "";
+  const memberId = params.get("member") ?? (elders.find((m) => m.id === viewer.id) ?? elders[0])?.id ?? "";
   const person = members.find((m) => m.id === memberId);
   const { data, failed, reload } = useJson<{ chapters: Chapter[] }>(memberId ? `/api/book?member=${encodeURIComponent(memberId)}` : null);
   const name = callName(person);
@@ -73,9 +74,9 @@ function Book() {
       {elders.length > 1 && (
         <nav aria-label="Whose book" className="-mt-3 mb-4 flex gap-1.5">
           {elders.map((e) => (
-            <a key={e.id} href={`/book?member=${encodeURIComponent(e.id)}`} aria-current={e.id === memberId ? "page" : undefined} className={`press flex h-9 items-center rounded-full px-4 text-[14px] font-medium no-underline ${e.id === memberId ? "bg-ink text-white" : "bg-black/[.05] text-ink"}`}>
+            <Link key={e.id} href={`/book?member=${encodeURIComponent(e.id)}`} replace scroll={false} aria-current={e.id === memberId ? "page" : undefined} className={`press flex h-9 items-center rounded-full px-4 text-[14px] font-medium no-underline ${e.id === memberId ? "bg-ink text-white" : "bg-black/[.05] text-ink"}`}>
               {callName(e)}
-            </a>
+            </Link>
           ))}
         </nav>
       )}
