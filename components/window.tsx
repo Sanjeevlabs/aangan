@@ -16,6 +16,7 @@ import { moonShadowPath } from "@/lib/sky";
 import type { DayRhythm } from "@/lib/rhythm";
 import { ALIVE_LOOK, type Alive } from "@/lib/status";
 import { ago, postJson, useJson } from "@/lib/use-json";
+import { sinceLabel } from "@/lib/since";
 import { useFamilyCards } from "@/lib/use-family";
 import { cn } from "@/lib/utils";
 import { WALL_LOOK } from "@/lib/walls";
@@ -51,6 +52,7 @@ interface WindowData {
   line: string;
   view: { style: "still" | "living"; cardId: string | null; madeBy: "family" | "muse" } | null;
   people: { id: string; lastActive: string | null; state: Alive; line: string; rhythm: DayRhythm }[];
+  since?: { at: string | null; lines: string[]; line?: string };
   chosen?: boolean;
   joined?: boolean;
   km: number | null;
@@ -835,11 +837,27 @@ export function LiteWindow({ onOpenDoor }: { onOpenDoor: () => void }) {
                   See check-ins <Icon name="chevron" size={14} />
                 </Link>
               </div>
-              <p className="m-0 mt-0.5 text-[12px] leading-snug text-ink-soft">From when they last opened Aangan and checked in</p>
+              <p className="m-0 mt-0.5 text-[12px] leading-snug text-ink-soft">What they shared today: a lamp, a voice, a check-in</p>
             </div>
             {atWindow.map((p) => (
               <StatusLine key={p.id} p={p} st={statusOf(p.id)} check={checkOf(p.id)} onWorry={() => setWorry(p)} />
             ))}
+            {data?.since?.at && data.since.lines.length > 0 && (
+              <div aria-label="Since you were here">
+                <p className="m-0 text-[12px] font-medium text-ink-soft">{sinceLabel(data.since.at, new Date(), viewer.tz)}</p>
+                {data.since.line ? (
+                  <p className="m-0 mt-0.5 text-[13.5px] leading-snug">{data.since.line}</p>
+                ) : (
+                  <ul className="m-0 mt-0.5 list-none p-0">
+                    {data.since.lines.map((l) => (
+                      <li key={l} className="text-[13.5px] leading-snug">
+                        {l}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
             <div className="my-0.5 h-px bg-[var(--line)]" />
             <div className="flex items-center gap-2.5">
               <p className="m-0 min-w-0 flex-1 text-[13.5px] leading-snug">

@@ -157,7 +157,7 @@ describe("in-app prompts", () => {
   });
 
   it("suggests planning 10 days before, once, to grown-ups other than the honoree", () => {
-    expect(buildPrompts({ viewerId: "arjun", canPlan: true, events: [], occasions: [occ(10)], dismissed: [], now })[0]).toMatchObject({ kind: "suggest", text: "Plan Maa's birthday celebration?" });
+    expect(buildPrompts({ viewerId: "arjun", canPlan: true, events: [], occasions: [occ(10)], dismissed: [], now })[0]).toMatchObject({ kind: "suggest", text: "Plan Maa's birthday celebration? \u00b7 9 Nov" });
     expect(buildPrompts({ viewerId: "arjun", canPlan: true, events: [], occasions: [occ(11)], dismissed: [], now })).toHaveLength(0);
     expect(buildPrompts({ viewerId: "maa", canPlan: true, events: [], occasions: [occ(5)], dismissed: [], now })).toHaveLength(0);
     expect(buildPrompts({ viewerId: "kid", canPlan: false, events: [], occasions: [occ(5)], dismissed: [], now })).toHaveLength(0);

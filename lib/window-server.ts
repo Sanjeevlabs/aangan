@@ -2,7 +2,7 @@
 // motion Muse composes over the chosen photo. Server only.
 import { can } from "./permissions";
 import { z } from "zod";
-import { dbListCards, dbListMembers, dbListRelationships } from "./db";
+import { dbListCards, dbListMembers, dbListPlays, dbListReactions, dbListRelationships } from "./db";
 import { getDoc, listDocs } from "./family-docs";
 import { WINDOW_LAYERS, type Presence, type WindowLayer, type WindowView } from "./kinds";
 import { museJson } from "./muse";
@@ -18,6 +18,9 @@ import type { FirstScene, Pot, Wall } from "./kinds";
 import { withDemoShelf } from "./demo";
 import { isDemoFamily } from "./auth";
 import { createDownloadUrl } from "./storage";
+import { sinceLines } from "./since";
+import { describeLang } from "./languages";
+import { isMockMode } from "./config";
 
 export interface WindowState {
   view: WindowView | null;
@@ -33,6 +36,8 @@ export interface WindowState {
   people: { id: string; lastActive: string | null; state: Alive; line: string; rhythm: DayRhythm }[];
   /** This viewer's amber threshold, in hours. */
   quietAfterHours: number;
+  /** The viewer's previous visit and what happened after it, in plain words (newest first, at most three). */
+  since: { at: string | null; lines: string[]; line?: string };
   /** A family photo was chosen for this window (else: the scene slideshow). */
   chosen: boolean;
   /** Someone on the other side has signed in (has an account). Emails never leave the server. */
@@ -154,6 +159,29 @@ export async function windowState(familyId: string, viewerId: string, now = new 
       return { id: m.id, lastActive, state, rhythm, line: rhythmLine(state, lastActive, rhythm, m.tz, (iso) => agoWords(iso, now)) };
     })
     .slice(0, 2);
+  // Since you were here: the visit before this one (the latest "here" is this visit).
+  const visits = presence
+    .filter((p) => p.memberId === viewerId && p.moment === "here" && Date.parse(p.at) <= now.getTime())
+    .map((p) => p.at)
+    .sort();
+  const previous = visits.length >= 2 ? visits[visits.length - 2] : null;
+  let sinceWords: string[] = [];
+  if (previous) {
+    const [plays, reactions] = await Promise.all([dbListPlays(undefined, familyId), dbListReactions(undefined, familyId)]);
+    const sharing = new Set((home?.members ?? []).filter((m) => settings.find((s) => s.memberId === m.id)?.shareVisits ?? true).map((m) => m.id));
+    sinceWords = sinceLines({
+      viewerId,
+      at: previous,
+      now,
+      names: Object.fromEntries(members.map((m) => [m.id, m.displayName || m.firstName])),
+      farIds: ids,
+      cards: withDemoShelf(cards, familyId),
+      plays,
+      reactions,
+      checkins: checkins.filter((c) => sharing.has(c.memberId)),
+    });
+  }
+  const sinceLine = await sinceSentence(familyId, viewerId, viewer?.displayLang ?? "en", sinceWords);
   const own = view ?? defaultView(familyId, viewerId);
   let imageRef = view?.imageRef ?? null;
   if (!imageRef) imageRef = home?.elders ? DEFAULT_IMAGE.elders : DEFAULT_IMAGE.children;
@@ -167,6 +195,7 @@ export async function windowState(familyId: string, viewerId: string, now = new 
     line,
     moments: today.slice(0, 4).map((p) => ({ memberId: p.memberId, label: MOMENT_LABEL[p.moment].line, at: p.at })),
     people,
+    since: { at: previous, lines: sinceWords, ...(sinceLine ? { line: sinceLine } : {}) },
     quietAfterHours: view?.quietAfterHours ?? 4,
     chosen: Boolean(view?.cardId && view.imageRef),
     // Signed in, or has done anything in Aangan (the demo family has no emails).
@@ -240,6 +269,40 @@ const SceneSchema = z.object({
   layers: z.array(z.enum(WINDOW_LAYERS)).max(4),
   line: z.string().min(3).max(140),
 });
+
+const SinceSchema = z.object({ line: z.string().min(3).max(140) });
+
+/**
+ * One warm sentence from the plain "since you were here" lines, in the
+ * viewer's language. Grounded (no digits, nothing but the given facts), cached
+ * and ledgered by museJson; null means "show the plain lines".
+ */
+export async function sinceSentence(
+  familyId: string,
+  viewerId: string,
+  lang: string,
+  lines: string[],
+  ask: typeof museJson = museJson,
+  mock: boolean = isMockMode(),
+): Promise<string | null> {
+  if (mock || lines.length < 2) return null;
+  const plain = lines.join(". ");
+  const out = await ask({
+    familyId,
+    purpose: "Wrote the catch-up line for the window",
+    system:
+      "Turn these facts into ONE warm sentence for the person who has been away, in the language named. " +
+      "Use ONLY the names and facts given. Never invent events, feelings or details, and never use numbers or counts. " +
+      "Keep names as written. Max 140 characters. Reply JSON only: {\"line\": str}.",
+    user: `Viewer: ${viewerId}\nLanguage: ${describeLang(lang)}\nFacts:\n${lines.map((l) => `- ${l}`).join("\n")}`,
+    schema: SinceSchema,
+    mock: () => ({ line: plain.slice(0, 140) }),
+    fallback: { line: plain.slice(0, 140) },
+    maxTokens: 200,
+    accept: (d) => !/\d/.test(d.line),
+  });
+  return out.source === "muse" ? out.data.line : null;
+}
 
 /**
  * Muse composes the window: which of the grounded motions to show and one
