@@ -3,9 +3,8 @@
 // out; in memory in mock mode and as a fallback, like lib/occasion-settings.
 // Server only.
 import { z } from "zod";
-import { isMockMode } from "./config";
 import { EventSchema, type FamilyEvent } from "./events";
-import { isDbLive, supabaseServer } from "./supabase";
+import { dbFor } from "./family-db";
 
 const DismissSchema = z.object({ id: z.string().min(1), memberId: z.string().min(1), key: z.string().min(1).max(160), at: z.string().datetime() });
 type Dismiss = z.infer<typeof DismissSchema>;
@@ -15,14 +14,11 @@ const g = globalThis as typeof globalThis & { __aanganEvents?: Map<string, Famil
 const events = (g.__aanganEvents ??= new Map<string, FamilyEvent>());
 const dismissals = (g.__aanganEventDismiss ??= new Map<string, Dismiss>());
 
-function live(): boolean {
-  return !isMockMode() && isDbLive();
-}
+// Demo families stay in memory (dbFor returns null for them).
 const key = (familyId: string, id: string) => `${familyId}::${id}`;
 
 async function listLive<T>(familyId: string, kind: string, schema: z.ZodType<T, z.ZodTypeDef, unknown>): Promise<T[] | null> {
-  if (!live()) return null;
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return null;
   const { data, error } = await sb.from("family_docs").select("data").eq("family_id", familyId).eq("kind", kind).limit(500);
   if (error || !data) return null;
@@ -30,8 +26,7 @@ async function listLive<T>(familyId: string, kind: string, schema: z.ZodType<T, 
 }
 
 async function putLive(familyId: string, kind: string, id: string, data: unknown): Promise<void> {
-  if (!live()) return;
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return;
   const { error } = await sb.from("family_docs").upsert({ id: `${familyId}:${id}`, family_id: familyId, kind, data, updated_at: new Date().toISOString() }, { onConflict: "id" });
   if (error) console.error("[gather-store] write failed, kept in memory", kind, error.message);

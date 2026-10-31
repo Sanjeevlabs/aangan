@@ -275,6 +275,7 @@ export const DEMO_IYER_MEMBERS: Member[] = [
 
 /** Demo Aangans: the synthetic families the demo invite code opens. */
 export const DEMO_FAMILY_IDS = ["demo-family", "demo-iyer"] as const;
+export const isDemoFamily = (familyId: string): boolean => (DEMO_FAMILY_IDS as readonly string[]).includes(familyId);
 
 export const DEFAULT_VIEWER_ID = "arjun";
 

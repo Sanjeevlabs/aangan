@@ -23,8 +23,7 @@ import { cacheKey, sha256Hex, type LlmStore, type SpendLedger } from "./llm";
 import { serverLedger, serverStore } from "./llm-server";
 import { newId, putDoc } from "./family-docs";
 import { MUSE_IMAGE_ESTIMATE_USD } from "./muse-portrait";
-import { createDownloadUrl, mockGetBlob } from "./storage";
-import { isDbLive } from "./supabase";
+import { createDownloadUrl, mockGetBlob, usesMockStorage } from "./storage";
 
 export type ImageSize = "1024x1024" | "1024x1536" | "1536x1024";
 
@@ -148,7 +147,7 @@ export async function loadFamilyImage(ref: string, familyId: string, origin: str
     if (ref.startsWith("storage:")) {
       const path = ref.slice("storage:".length);
       if (!path.startsWith(`${familyId}/`) || path.includes("..")) return null;
-      const local = !isDbLive() ? mockGetBlob(path) : undefined;
+      const local = usesMockStorage(path) ? mockGetBlob(path) : undefined;
       if (local) {
         bytes = local.bytes;
         mime = local.mime;

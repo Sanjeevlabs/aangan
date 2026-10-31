@@ -4,7 +4,11 @@ import { ritualRunId } from "./rituals";
 // lib/store.ts (plus the M3–M5 entities below). Tests import lib/store.ts
 // directly and stay mock-only — this module is never exercised by vitest
 // with MOCK=true.
-import { isMockMode } from "./config";
+//
+// Demo families (DEMO_FAMILY_IDS) never touch the database: dbFor(familyId)
+// returns null for them, so they always read the in-memory seed and write to
+// memory. Functions keyed by a member id decide by that member's family when
+// the id is in memory (the demo seed, or anything added in the demo).
 import {
   getMovableCache as memGetMovable,
   setMovableCache as memSetMovable,
@@ -55,7 +59,8 @@ import {
   listConsents as memListConsents,
   type Invite as MemInvite,
 } from "./store";
-import { isDbLive, supabaseServer } from "./supabase";
+import { dbFor } from "./family-db";
+import { DEMO_FAMILY_IDS, isDemoFamily } from "./family";
 import { baseLang } from "./languages";
 import type { MemberPatch } from "./store";
 import { ConsentSchema, type Consent } from "./schemas";
@@ -70,8 +75,12 @@ export function iso(v: unknown): string {
 }
 
 
-function live(): boolean {
-  return !isMockMode() && isDbLive();
+/** Never let a member-id write reach the demo rows schema.sql seeds. */
+const DEMO_IN = `(${DEMO_FAMILY_IDS.join(",")})`;
+
+/** The family a member id belongs to, when memory knows it (the demo seed and demo additions). */
+function memberFamily(memberId: string): string | undefined {
+  return memGetMember(memberId)?.familyId;
 }
 
 export function cardFromRow(r: Record<string, unknown>): Card {
@@ -125,37 +134,26 @@ function memberFromRow(r: Record<string, unknown>): Member {
 /** Every family id, for jobs that run across families (the daily ritual scan). */
 export async function dbListFamilyIds(): Promise<string[]> {
   const fromMem = Array.from(new Set(memListMembers().map((m) => m.familyId)));
-  if (!live()) return fromMem;
-  const sb = supabaseServer();
+  const sb = dbFor(null);
   if (!sb) return fromMem;
+  // Live: real families only. The demo lives in each instance's memory, so a
+  // cron pass over it would do nothing anyone sees (and spend on Muse calls).
+  const realMem = fromMem.filter((id) => !isDemoFamily(id));
   const { data, error } = await sb.from("families").select("id");
-  if (error || !data) return fromMem;
-  return data.map((r) => String(r.id));
+  if (error || !data) return realMem;
+  return data.map((r) => String(r.id)).filter((id) => !isDemoFamily(id));
 }
 
 // Tenancy: every list is scoped to one family. In-memory results (mock mode or
 // a live error) are filtered the same way, so a new family never sees another
 // family's rows.
 const DEMO_FAMILY = "demo-family";
-const DEMO_FAMILIES = new Set(["demo-family", "demo-iyer"]);
-
-/** Live rows win; seeded demo rows fill in anything the database doesn't have. */
-function withDemoSeed<T extends { id: string }>(live: T[], seed: T[], merge?: (live: T, seed: T) => T): T[] {
-  const seedById = new Map(seed.map((x) => [x.id, x]));
-  const out = live.map((row) => {
-    const s = seedById.get(row.id);
-    return s && merge ? merge(row, s) : row;
-  });
-  const ids = new Set(live.map((x) => x.id));
-  return [...out, ...seed.filter((x) => !ids.has(x.id))];
-}
 function scoped<T extends { familyId?: string | null }>(rows: T[], familyId: string | undefined): T[] {
   return familyId ? rows.filter((r) => (r.familyId ?? DEMO_FAMILY) === familyId) : rows;
 }
 
 export async function dbListCards(familyId: string): Promise<Card[]> {
-  if (!live()) return scoped(memListCards(), familyId);
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return scoped(memListCards(), familyId);
   const { data, error } = await sb.from("cards").select("*").eq("family_id", familyId).order("taken_at", { ascending: false });
   if (error || !data) return scoped(memListCards(), familyId);
@@ -173,8 +171,7 @@ export async function dbListCards(familyId: string): Promise<Card[]> {
 
 export async function dbAddCard(input: Omit<import("zod").input<typeof CardSchema>, "id"> & { id?: string }): Promise<Card> {
   const card = CardSchema.parse({ id: input.id ?? crypto.randomUUID(), ...input });
-  if (!live()) return memAddCard(card);
-  const sb = supabaseServer();
+  const sb = dbFor(card.familyId);
   if (!sb) return memAddCard(card);
   const { error } = await sb.from("cards").upsert({
     id: card.id,
@@ -214,29 +211,27 @@ export async function dbListMembers(familyId: string, opts: { includePending?: b
 }
 
 async function listMembersAll(familyId: string): Promise<Member[]> {
-  if (!live()) return scoped(memListMembers(), familyId);
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return scoped(memListMembers(), familyId);
   const { data, error } = await sb.from("members").select("*").eq("family_id", familyId);
-  if (error || !data || (data.length === 0 && DEMO_FAMILIES.has(familyId))) return scoped(memListMembers(), familyId);
-  const rows = data.map(memberFromRow);
-  return DEMO_FAMILIES.has(familyId) ? withDemoSeed(rows, scoped(memListMembers(), familyId), (live, seed) => ({ ...live, photoRef: live.photoRef ?? seed.photoRef })) : rows;
+  if (error || !data) return scoped(memListMembers(), familyId);
+  return data.map(memberFromRow);
 }
 
 export async function dbGetMember(id: string): Promise<Member | undefined> {
-  if (!live()) return memGetMember(id);
-  const sb = supabaseServer();
+  const sb = dbFor(memberFamily(id));
   if (!sb) return memGetMember(id);
   const { data, error } = await sb.from("members").select("*").eq("id", id).maybeSingle();
   if (error || !data) return memGetMember(id);
-  return memberFromRow(data as Record<string, unknown>);
+  const m = memberFromRow(data as Record<string, unknown>);
+  // The demo rows schema.sql seeds are never served: the demo lives in memory.
+  return isDemoFamily(m.familyId) ? memGetMember(id) : m;
 }
 
 export async function dbSetMemberHome(memberId: string, homeImageRef: string, homePalette: string[]): Promise<Member | undefined> {
-  if (!live()) return memSetHome(memberId, homeImageRef, homePalette);
-  const sb = supabaseServer();
+  const sb = dbFor(memberFamily(memberId));
   if (!sb) return memSetHome(memberId, homeImageRef, homePalette);
-  const { error } = await sb.from("members").update({ home_image_ref: homeImageRef, home_palette: homePalette }).eq("id", memberId);
+  const { error } = await sb.from("members").update({ home_image_ref: homeImageRef, home_palette: homePalette }).eq("id", memberId).not("family_id", "in", DEMO_IN);
   if (error) return undefined;
   return dbGetMember(memberId);
 }
@@ -244,8 +239,7 @@ export async function dbSetMemberHome(memberId: string, homeImageRef: string, ho
 /** The family's display name ("Sharma"), for headers and the poster. */
 export async function dbGetFamilyName(familyId: string): Promise<string> {
   const local = memFamilyName(familyId) ?? "";
-  if (!live()) return local;
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return local;
   const { data } = await sb.from("families").select("name").eq("id", familyId).maybeSingle();
   return String((data as { name?: unknown } | null)?.name ?? local);
@@ -254,8 +248,7 @@ export async function dbGetFamilyName(familyId: string): Promise<string> {
 export async function dbCreateFamily(name: string): Promise<string> {
   const id = `fam-${crypto.randomUUID().slice(0, 12)}`;
   memCreateFamily(id, name);
-  if (!live()) return id;
-  const sb = supabaseServer();
+  const sb = dbFor(id);
   if (!sb) return id;
   const { error } = await sb.from("families").insert({ id, name });
   if (error) throw new Error("family-create-failed");
@@ -264,8 +257,7 @@ export async function dbCreateFamily(name: string): Promise<string> {
 
 export async function dbAddMember(input: Omit<import("zod").input<typeof MemberSchema>, "id">): Promise<Member> {
   const member = MemberSchema.parse({ id: `m-${crypto.randomUUID().slice(0, 12)}`, ...input });
-  if (!live()) return memAddMember(member);
-  const sb = supabaseServer();
+  const sb = dbFor(member.familyId);
   if (!sb) return memAddMember(member);
   const { error } = await sb.from("members").insert({
     id: member.id,
@@ -290,12 +282,14 @@ export async function dbAddMember(input: Omit<import("zod").input<typeof MemberS
 
 export async function dbFindMemberByEmail(email: string): Promise<Member | undefined> {
   const e = email.trim().toLowerCase();
-  if (!live()) return memFindByEmail(e);
-  const sb = supabaseServer();
+  const sb = dbFor(null);
   if (!sb) return memFindByEmail(e);
-  const { data, error } = await sb.from("members").select("*").eq("email", e).limit(1); // exact: ilike would treat "_" and "%" as wildcards
-  if (error || !data || data.length === 0) return undefined;
-  return memberFromRow(data[0] as Record<string, unknown>);
+  // The demo's people live in memory (and carry no email); the demo rows in
+  // schema.sql are never a sign-in.
+  const { data, error } = await sb.from("members").select("*").eq("email", e).limit(8); // exact: ilike would treat "_" and "%" as wildcards
+  if (error || !data) return undefined;
+  const row = data.find((r) => !isDemoFamily(String((r as { family_id?: unknown }).family_id ?? "")));
+  return row ? memberFromRow(row as Record<string, unknown>) : undefined;
 }
 
 /**
@@ -305,18 +299,16 @@ export async function dbFindMemberByEmail(email: string): Promise<Member | undef
 export async function dbListSides(member: Member): Promise<Member[]> {
   if (!member.personId) return [member];
   const local = memFindByPerson(member.personId);
-  if (!live()) return local;
-  const sb = supabaseServer();
+  // A demo person's sides are the demo Aangans, in memory.
+  const sb = dbFor(member.familyId);
   if (!sb) return local;
   const { data, error } = await sb.from("members").select("*").eq("person_id", member.personId).limit(8);
   if (error || !data) return local;
-  const rows = data.map((r) => memberFromRow(r as Record<string, unknown>));
-  return withDemoSeed(rows, local.filter((m) => DEMO_FAMILIES.has(m.familyId)));
+  return data.map((r) => memberFromRow(r as Record<string, unknown>)).filter((m) => !isDemoFamily(m.familyId));
 }
 
 export async function dbUpdateMemberProfile(memberId: string, patch: MemberPatch): Promise<Member | undefined> {
-  if (!live()) return memUpdateProfile(memberId, patch);
-  const sb = supabaseServer();
+  const sb = dbFor(memberFamily(memberId));
   if (!sb) return memUpdateProfile(memberId, patch);
   const row: Record<string, unknown> = {};
   if (patch.firstName !== undefined) row.first_name = patch.firstName;
@@ -330,24 +322,22 @@ export async function dbUpdateMemberProfile(memberId: string, patch: MemberPatch
   if (patch.photoRef !== undefined) row.photo_ref = patch.photoRef;
   if (patch.email !== undefined) row.email = patch.email ? patch.email.toLowerCase() : null;
   if (patch.personId !== undefined) row.person_id = patch.personId;
-  const { error } = await sb.from("members").update(row).eq("id", memberId);
+  const { error } = await sb.from("members").update(row).eq("id", memberId).not("family_id", "in", DEMO_IN);
   if (error) return undefined;
   return dbGetMember(memberId);
 }
 
 export async function dbSetMemberDisplayLang(memberId: string, displayLang: Member["displayLang"]): Promise<Member | undefined> {
-  if (!live()) return memSetDisplayLang(memberId, displayLang);
-  const sb = supabaseServer();
+  const sb = dbFor(memberFamily(memberId));
   if (!sb) return memSetDisplayLang(memberId, displayLang);
   const lang = baseLang(displayLang);
-  const { error } = await sb.from("members").update({ display_lang: displayLang, lang }).eq("id", memberId);
+  const { error } = await sb.from("members").update({ display_lang: displayLang, lang }).eq("id", memberId).not("family_id", "in", DEMO_IN);
   if (error) return undefined;
   return dbGetMember(memberId);
 }
 
 export async function dbListPlays(cardId: string | undefined, familyId: string): Promise<Play[]> {
-  if (!live()) return scoped(memListPlays(cardId), familyId);
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return scoped(memListPlays(cardId), familyId);
   let q = sb.from("plays").select("*").eq("family_id", familyId).order("played_at", { ascending: false });
   if (cardId) q = q.eq("card_id", cardId);
@@ -370,8 +360,7 @@ export async function dbAddPlay(input: { cardId: string; memberId: string; famil
     playedAt: new Date().toISOString(),
     ...input,
   });
-  if (!live()) return memAddPlay(play);
-  const sb = supabaseServer();
+  const sb = dbFor(play.familyId);
   if (!sb) return memAddPlay(play);
   const { error } = await sb.from("plays").insert({
     id: play.id,
@@ -385,8 +374,7 @@ export async function dbAddPlay(input: { cardId: string; memberId: string; famil
 }
 
 export async function dbListReactions(cardId: string | undefined, familyId: string): Promise<Reaction[]> {
-  if (!live()) return scoped(memListReactions(cardId), familyId);
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return scoped(memListReactions(cardId), familyId);
   let q = sb.from("reactions").select("*").eq("family_id", familyId).order("created_at", { ascending: true });
   if (cardId) q = q.eq("card_id", cardId);
@@ -405,11 +393,10 @@ export async function dbListReactions(cardId: string | undefined, familyId: stri
 }
 
 export async function dbListRelationships(familyId: string): Promise<Relationship[]> {
-  if (!live()) return scoped(memListRelationships(), familyId);
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return scoped(memListRelationships(), familyId);
   const { data, error } = await sb.from("relationships").select("*").eq("family_id", familyId);
-  if (error || !data || (data.length === 0 && DEMO_FAMILIES.has(familyId))) return scoped(memListRelationships(), familyId);
+  if (error || !data) return scoped(memListRelationships(), familyId);
   const rows = data.map((r) =>
     RelationshipSchema.parse({
       id: r.id,
@@ -420,9 +407,7 @@ export async function dbListRelationships(familyId: string): Promise<Relationshi
       canonicalKind: canonicalKindFor(r.relation),
     }),
   );
-  // The demo family's seeded graph lives in memory: one new live edge must
-  // never hide it (that flattened the demo tree once a person was added).
-  return DEMO_FAMILIES.has(familyId) ? withDemoSeed(rows, scoped(memListRelationships(), familyId)) : rows;
+  return rows;
 }
 
 // Canonical edge kind from the family's own word. Data in, data out.
@@ -476,13 +461,8 @@ export async function dbAddRelationship(input: {
     relation: input.relation,
     canonicalKind: canonicalKindFor(input.relation),
   });
-  if (!live()) {
-    // Mock path mutates the in-memory family (tests reset it first).
-    memAddRelationship(relationship);
-    memAddMember(member);
-    return { member, relationship };
-  }
-  const sb = supabaseServer();
+  // Mock mode and the demo mutate the in-memory family (tests reset it first).
+  const sb = dbFor(familyId);
   if (!sb) {
     memAddRelationship(relationship);
     memAddMember(member);
@@ -517,8 +497,7 @@ export async function dbAddRelationship(input: {
 }
 
 export async function dbGetKinshipTerms(path: string, displayLang: string): Promise<string | undefined> {
-  if (!live()) return memGetKinship(path, displayLang);
-  const sb = supabaseServer();
+  const sb = dbFor(null);
   if (!sb) return memGetKinship(path, displayLang);
   const { data } = await sb.from("kinship_cache").select("terms").eq("path", path).eq("display_lang", displayLang).maybeSingle();
   const terms = (data as { terms?: unknown } | null)?.terms;
@@ -530,8 +509,7 @@ export async function dbGetKinshipTerms(path: string, displayLang: string): Prom
 
 export async function dbSetKinshipTerms(path: string, displayLang: string, terms: string): Promise<void> {
   memSetKinship(path, displayLang, terms);
-  if (!live()) return;
-  const sb = supabaseServer();
+  const sb = dbFor(null);
   if (!sb) return;
   await sb.from("kinship_cache").upsert({ path, display_lang: displayLang, terms: { text: terms } });
 }
@@ -550,8 +528,7 @@ function suggestionFromRow(r: Record<string, unknown>): Suggestion {
 }
 
 export async function dbListSuggestions(status: Suggestion["status"] | undefined, familyId: string): Promise<Suggestion[]> {
-  if (!live()) return scoped(memListSuggestions(status), familyId);
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return scoped(memListSuggestions(status), familyId);
   let q = sb.from("suggestions").select("*").order("created_at", { ascending: false });
   if (status) q = q.eq("status", status);
@@ -570,8 +547,7 @@ export async function dbAddSuggestion(input: { goal: string; payload?: Record<st
     status: "pending",
     createdAt: new Date().toISOString(),
   });
-  if (!live()) return memAddSuggestion(s);
-  const sb = supabaseServer();
+  const sb = dbFor(s.familyId);
   if (!sb) return memAddSuggestion(s);
   const { error } = await sb.from("suggestions").insert({
     id: s.id,
@@ -587,8 +563,7 @@ export async function dbAddSuggestion(input: { goal: string; payload?: Record<st
 export async function dbSetSuggestionStatus(id: string, status: Suggestion["status"], familyId: string): Promise<Suggestion | undefined> {
   // Only the family's own suggestion: an id from another family is unknown here.
   if (!(await dbListSuggestions(undefined, familyId)).some((x) => x.id === id)) return undefined;
-  if (!live()) return memSetSuggestionStatus(id, status);
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return memSetSuggestionStatus(id, status);
   const { error } = await sb.from("suggestions").update({ status }).eq("id", id).eq("family_id", familyId);
   if (error) return undefined;
@@ -597,8 +572,7 @@ export async function dbSetSuggestionStatus(id: string, status: Suggestion["stat
 }
 
 export async function dbListAgentRuns(familyId: string): Promise<AgentRun[]> {
-  if (!live()) return scoped(memListAgentRuns(), familyId);
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return scoped(memListAgentRuns(), familyId);
   let q = sb.from("agent_runs").select("*").order("created_at", { ascending: false }).limit(50);
   if (familyId) q = q.eq("family_id", familyId);
@@ -625,8 +599,7 @@ export async function dbAddAgentRun(input: { goal: string; tools: string[]; stat
     status: input.status ?? "done",
     createdAt: new Date().toISOString(),
   });
-  if (!live()) return memAddAgentRun(run);
-  const sb = supabaseServer();
+  const sb = dbFor(run.familyId);
   if (!sb) return memAddAgentRun(run);
   const { error } = await sb.from("agent_runs").insert({
     id: run.id,
@@ -640,8 +613,7 @@ export async function dbAddAgentRun(input: { goal: string; tools: string[]; stat
 }
 
 export async function dbListWishes(runId: string | undefined, familyId: string): Promise<Wish[]> {
-  if (!live()) return scoped(memListWishes(runId), familyId);
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return scoped(memListWishes(runId), familyId);
   let q = sb.from("wishes").select("*").order("created_at", { ascending: true });
   if (runId) q = q.eq("ritual_run_id", runId);
@@ -671,8 +643,7 @@ export async function dbAddWish(input: { ritualRunId?: string | null; cardId?: s
     kind: input.kind,
     createdAt: new Date().toISOString(),
   });
-  if (!live()) return memAddWish(w);
-  const sb = supabaseServer();
+  const sb = dbFor(w.familyId);
   if (!sb) return memAddWish(w);
   const { error } = await sb.from("wishes").insert({
     id: w.id,
@@ -687,8 +658,7 @@ export async function dbAddWish(input: { ritualRunId?: string | null; cardId?: s
 }
 
 export async function dbListRitualRuns(familyId: string): Promise<RitualRun[]> {
-  if (!live()) return scoped(memListRitualRuns(), familyId);
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return scoped(memListRitualRuns(), familyId);
   let q = sb.from("ritual_runs").select("*").order("occasion_date", { ascending: true });
   if (familyId) q = q.eq("family_id", familyId);
@@ -718,8 +688,7 @@ export async function dbEnsureRitualRun(slug: string, occasionDate: string, fami
     status: "collecting",
     createdAt: new Date().toISOString(),
   });
-  if (!live()) return memAddRitualRun(run);
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return memAddRitualRun(run);
   const { error } = await sb.from("ritual_runs").insert({
     id: run.id,
@@ -734,8 +703,7 @@ export async function dbEnsureRitualRun(slug: string, occasionDate: string, fami
 
 export async function dbSetRitualRunStatus(id: string, status: RitualRun["status"], familyId: string): Promise<RitualRun | undefined> {
   if (!(await dbListRitualRuns(familyId)).some((r) => r.id === id)) return undefined;
-  if (!live()) return memSetRunStatus(id, status);
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return memSetRunStatus(id, status);
   const { error } = await sb.from("ritual_runs").update({ status }).eq("id", id).eq("family_id", familyId);
   if (error) return undefined;
@@ -743,8 +711,7 @@ export async function dbSetRitualRunStatus(id: string, status: RitualRun["status
 }
 
 export async function dbListDailyRoles(familyId: string): Promise<DailyRole[]> {
-  if (!live()) return scoped(memListRoles(), familyId);
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return scoped(memListRoles(), familyId);
   let q = sb.from("daily_roles").select("*");
   if (familyId) q = q.eq("family_id", familyId);
@@ -765,8 +732,7 @@ export async function dbAssignDailyRole(memberId: string, prompt: string, roleDa
   // Idempotent per (member, day): the mock seam enforces uniqueness, and the
   // live table has a matching unique index.
   const role = memAssignRole({ id: crypto.randomUUID(), familyId, memberId, roleDate, prompt });
-  if (!live()) return role;
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return role;
   await sb.from("daily_roles").upsert(
     { id: role.id, family_id: familyId, member_id: memberId, role_date: roleDate, prompt },
@@ -776,8 +742,7 @@ export async function dbAssignDailyRole(memberId: string, prompt: string, roleDa
 }
 
 export async function dbListGatherSessions(familyId: string): Promise<GatherSession[]> {
-  if (!live()) return scoped(memListGather(), familyId);
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return scoped(memListGather(), familyId);
   let q = sb.from("gather_sessions").select("*").order("starts_at", { ascending: false });
   if (familyId) q = q.eq("family_id", familyId);
@@ -806,8 +771,7 @@ export async function dbAddGatherSession(input: { title: string; startsAt: strin
     playlist: input.playlist ?? [],
     createdAt: new Date().toISOString(),
   });
-  if (!live()) return memAddGather(g);
-  const sb = supabaseServer();
+  const sb = dbFor(g.familyId);
   if (!sb) return memAddGather(g);
   const { error } = await sb.from("gather_sessions").insert({
     id: g.id,
@@ -824,8 +788,7 @@ export async function dbAddGatherSession(input: { title: string; startsAt: strin
 // ---- Movable-date persistent cache (ritual_configs.config.movable). ----
 
 export async function dbGetMovableDate(slug: string, year: number): Promise<{ date: string; sources: string[] } | undefined> {
-  if (!live()) return memGetMovable(slug, year);
-  const sb = supabaseServer();
+  const sb = dbFor(null);
   if (!sb) return memGetMovable(slug, year);
   const { data } = await sb.from("ritual_configs").select("config").eq("slug", slug).maybeSingle();
   const movable = (data as { config?: { movable?: Record<string, { date: string; sources: string[] }> } } | null)?.config?.movable;
@@ -839,8 +802,7 @@ export async function dbGetMovableDate(slug: string, year: number): Promise<{ da
 
 export async function dbSetMovableDate(slug: string, year: number, date: string, sources: string[]): Promise<void> {
   memSetMovable(slug, year, date, sources);
-  if (!live()) return;
-  const sb = supabaseServer();
+  const sb = dbFor(null);
   if (!sb) return;
   const { data } = await sb.from("ritual_configs").select("config").eq("slug", slug).maybeSingle();
   const config = ((data as { config?: Record<string, unknown> } | null)?.config ?? {}) as Record<string, unknown>;
@@ -853,18 +815,21 @@ export async function dbSetMovableDate(slug: string, year: number, date: string,
 export type Invite = MemInvite;
 
 export async function dbListInvites(): Promise<Invite[]> {
-  if (!live()) return memListInvites();
-  const sb = supabaseServer();
+  const sb = dbFor(null);
   if (!sb) return memListInvites();
+  // Invites made inside the demo stay in memory; they redeem alongside the
+  // live ones (the AANGAN-DEMO code itself needs no invite row).
+  const demo = memListInvites().filter((i) => isDemoFamily(i.familyId));
   const { data, error } = await sb.from("invites").select("*").order("created_at", { ascending: false });
   if (error || !data) return memListInvites();
-  return data.map((r) => ({
+  const rows = data.map((r) => ({
     id: r.id as string,
     code: r.code as string,
     familyId: r.family_id as string,
     expiresAt: iso(r.expires_at),
     createdBy: (r.created_by as string | null) ?? null,
   }));
+  return [...rows.filter((i) => !isDemoFamily(i.familyId)), ...demo];
 }
 
 function inviteCode(): string {
@@ -878,8 +843,7 @@ function inviteCode(): string {
 
 export async function dbCreateInvite(familyId: string, createdBy: string | null = null): Promise<Invite> {
   const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString();
-  if (!live()) return memCreateInvite(inviteCode(), expiresAt, familyId, createdBy);
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return memCreateInvite(inviteCode(), expiresAt, familyId, createdBy);
   const invite: Invite = { id: crypto.randomUUID(), code: inviteCode(), familyId, expiresAt, createdBy };
   const { error } = await sb.from("invites").insert({
@@ -897,8 +861,7 @@ export async function dbCreateInvite(familyId: string, createdBy: string | null 
 
 export async function dbAddConsent(input: Omit<Consent, "id" | "createdAt">): Promise<Consent> {
   const c = ConsentSchema.parse({ id: `consent-${crypto.randomUUID().slice(0, 12)}`, createdAt: new Date().toISOString(), ...input });
-  if (!live()) return memAddConsent(c);
-  const sb = supabaseServer();
+  const sb = dbFor(c.familyId);
   if (!sb) return memAddConsent(c);
   const { error } = await sb.from("consents").insert({
     id: c.id,
@@ -914,8 +877,7 @@ export async function dbAddConsent(input: Omit<Consent, "id" | "createdAt">): Pr
 }
 
 export async function dbListConsents(familyId: string): Promise<Consent[]> {
-  if (!live()) return memListConsents(familyId);
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return memListConsents(familyId);
   const { data, error } = await sb.from("consents").select("*").eq("family_id", familyId).order("created_at", { ascending: false });
   if (error || !data) return memListConsents(familyId);
@@ -927,8 +889,7 @@ export async function dbListConsents(familyId: string): Promise<Consent[]> {
 // "Remove my memories": delete the member's attributable traces (cards stay
 // in the shared family pool). "Leave family": remove the member completely.
 export async function dbDeleteMemberTraces(memberId: string): Promise<Record<string, number>> {
-  if (!live()) return memDeleteTraces(memberId);
-  const sb = supabaseServer();
+  const sb = dbFor(memberFamily(memberId));
   if (!sb) return memDeleteTraces(memberId);
   const tables = ["wishes", "reactions", "plays", "daily_roles"];
   for (const t of tables) {
@@ -938,15 +899,14 @@ export async function dbDeleteMemberTraces(memberId: string): Promise<Record<str
 }
 
 export async function dbRemoveMember(memberId: string): Promise<boolean> {
-  if (!live()) return memRemoveMember(memberId);
-  const sb = supabaseServer();
+  const sb = dbFor(memberFamily(memberId));
   if (!sb) return memRemoveMember(memberId);
   await sb.from("relationships").delete().or(`member_id.eq.${memberId},relation_member_id.eq.${memberId}`);
   const tables = ["wishes", "reactions", "plays", "daily_roles"];
   for (const t of tables) {
     await sb.from(t).delete().eq("member_id", memberId);
   }
-  const { error } = await sb.from("members").delete().eq("id", memberId);
+  const { error } = await sb.from("members").delete().eq("id", memberId).not("family_id", "in", DEMO_IN);
   if (error) return false;
   memRemoveMember(memberId);
   return true;
@@ -958,8 +918,7 @@ export async function dbSetReaction(input: { cardId: string; memberId: string; k
     createdAt: new Date().toISOString(),
     ...input,
   });
-  if (!live()) return memSetReaction(reaction);
-  const sb = supabaseServer();
+  const sb = dbFor(reaction.familyId);
   if (!sb) return memSetReaction(reaction);
   const { error } = await sb.from("reactions").upsert(
     {
@@ -980,16 +939,14 @@ export async function dbSetReaction(input: { cardId: string; memberId: string; k
 
 export async function dbRevokeInvite(code: string, familyId: string): Promise<boolean> {
   const mem = memRevokeInvite(code, familyId);
-  if (!live()) return mem;
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return mem;
   const { error, count } = await sb.from("invites").delete({ count: "exact" }).eq("family_id", familyId).eq("code", code.trim().toUpperCase());
   return !error && ((count ?? 0) > 0 || mem);
 }
 
 export async function dbUpdateCard(id: string, familyId: string, patch: { caption?: string; transcript?: string; segments?: Card["segments"] }): Promise<Card | undefined> {
-  if (!live()) return memUpdateCard(id, patch);
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return memUpdateCard(id, patch);
   const row: Record<string, unknown> = {};
   if (patch.caption !== undefined) row.caption = patch.caption;
@@ -1003,8 +960,7 @@ export async function dbUpdateCard(id: string, familyId: string, patch: { captio
 /** Deletes a card and everything attached to it (plays, reactions, wishes). */
 export async function dbDeleteCard(id: string, familyId: string): Promise<boolean> {
   const mem = memDeleteCard(id);
-  if (!live()) return mem;
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return mem;
   for (const t of ["plays", "reactions", "wishes"]) await sb.from(t).delete().eq("card_id", id);
   const { error } = await sb.from("cards").delete().eq("id", id).eq("family_id", familyId);
@@ -1013,8 +969,7 @@ export async function dbDeleteCard(id: string, familyId: string): Promise<boolea
 
 export async function dbRemoveReaction(cardId: string, memberId: string): Promise<boolean> {
   const mem = memRemoveReaction(cardId, memberId);
-  if (!live()) return mem;
-  const sb = supabaseServer();
+  const sb = dbFor(memberFamily(memberId));
   if (!sb) return mem;
   const { error } = await sb.from("reactions").delete().eq("card_id", cardId).eq("member_id", memberId);
   return !error;
@@ -1024,8 +979,7 @@ export async function dbRemoveReaction(cardId: string, memberId: string): Promis
 export async function dbLinkMembers(input: { familyId: string; memberId: string; relationMemberId: string; relation: string }): Promise<Relationship> {
   const relationship = RelationshipSchema.parse({ id: crypto.randomUUID(), familyId: input.familyId, memberId: input.memberId, relationMemberId: input.relationMemberId, relation: input.relation, canonicalKind: canonicalKindFor(input.relation) });
   memAddRelationship(relationship);
-  if (!live()) return relationship;
-  const sb = supabaseServer();
+  const sb = dbFor(input.familyId);
   if (!sb) return relationship;
   await sb.from("relationships").insert({ id: relationship.id, family_id: input.familyId, member_id: input.memberId, relation_member_id: input.relationMemberId, relation: input.relation });
   return relationship;
@@ -1033,8 +987,7 @@ export async function dbLinkMembers(input: { familyId: string; memberId: string;
 
 export async function dbDeleteRelationship(id: string, familyId: string): Promise<boolean> {
   const mem = memDeleteRelationship(id);
-  if (!live()) return mem;
-  const sb = supabaseServer();
+  const sb = dbFor(familyId);
   if (!sb) return mem;
   const { error } = await sb.from("relationships").delete().eq("id", id).eq("family_id", familyId);
   return !error || mem;
