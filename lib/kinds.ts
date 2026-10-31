@@ -442,17 +442,6 @@ export const DayLineSchema = z.object({
   createdAt: iso,
 });
 
-// ---------- The family's fixed weekly call: one doc ("weekly-call"), weekday and time in the zone it was set in ----------
-export const WeeklyCallSchema = z.object({
-  id: z.literal("weekly-call"),
-  /** 0 = Sunday … 6 = Saturday, in `tz`. */
-  weekday: z.number().int().min(0).max(6),
-  hour: z.number().int().min(0).max(23),
-  minute: z.number().int().min(0).max(59),
-  tz: z.string().min(1).max(64),
-  hostId: id,
-});
-
 // ---------- Today: one shared task for both homes, done only when both answer ----------
 export const TodayAnswerSchema = z.object({ memberId: id, cardId: z.string().min(1), at: iso });
 export const TodayTaskSchema = z.object({
@@ -523,6 +512,22 @@ export const NudgeSettingsSchema = z.object({
   id,
   email: z.boolean().default(true),
   maxPerWeek: z.number().int().min(0).max(3).default(3),
+});
+
+// ---------- The fixed weekly call: one per family, a named ritual ----------
+/** "Sunday chai": the same hour every week, in the zone it was set in. */
+export const WeeklyCallSchema = z.object({
+  id: z.literal("weekly-call"),
+  /** 0 = Sunday … 6 = Saturday, in `tz`. */
+  weekday: z.number().int().min(0).max(6),
+  hour: z.number().int().min(0).max(23),
+  minute: z.number().int().min(0).max(59),
+  /** IANA zone the weekday and time are meant in (the elders' home, usually). */
+  tz: z.string().min(1).max(64),
+  hostId: z.string().min(1),
+  name: z.string().max(40).optional(),
+  updatedBy: z.string().min(1),
+  updatedAt: z.string().datetime(),
 });
 
 export const DOC_SCHEMAS = {

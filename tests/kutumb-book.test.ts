@@ -61,18 +61,18 @@ describe("Kutumb: the lamp-glow ring and their day", () => {
 
   it("glows when they shared something today in their local day", () => {
     const lamp = lampFor(maa, { presence: [], settings: [], cards: [card("x", "dadi", "2026-10-30T05:00:00.000Z"), card("y", "dadi", "2026-10-30T06:00:00.000Z", "photo")] }, now);
-    expect(lamp).toEqual({ glow: true, line: "2 new" });
+    expect(lamp).toEqual({ glow: true, line: "shared today" });
   });
 
-  it("glows when they were in Aangan today, and says when", () => {
-    expect(lampFor(maa, { presence: [pres("2026-10-30T10:00:00.000Z")], settings: [], cards: [] }, now)).toEqual({ glow: true, line: "active 2 h ago" });
+  it("glows when they were in Aangan today, and says so in words", () => {
+    expect(lampFor(maa, { presence: [pres("2026-10-30T10:00:00.000Z")], settings: [], cards: [] }, now)).toEqual({ glow: true, line: "here today" });
   });
 
   it("stays dim after their midnight, even if they were around a few hours ago", () => {
     // 18:00 UTC on the 29th is 23:30 in Amritsar: yesterday for her.
     const lamp = lampFor(maa, { presence: [pres("2026-10-29T18:00:00.000Z")], settings: [], cards: [] }, now);
     expect(lamp.glow).toBe(false);
-    expect(lamp.line).toBe("active 18 h ago");
+    expect(lamp.line).toBe("Amritsar");
   });
 
   it("never glows or says 'active' for someone who turned it off", () => {

@@ -248,7 +248,7 @@ export function callBothZones(call: Pick<WeeklyCall, "weekday" | "hour" | "minut
   return `${mine} yours · ${theirDay !== weekdayIn(myTz, at) ? `${theirDay} ` : ""}${theirClock} theirs`;
 }
 
-export function callTile(call: WeeklyCall | undefined, myTz: string, theirTz: string | null, now: Date): Glance["call"] {
+export function callTile(call: Pick<WeeklyCall, "id" | "weekday" | "hour" | "minute" | "tz" | "hostId"> | undefined, myTz: string, theirTz: string | null, now: Date): Glance["call"] {
   const text = call ? callBothZones(call, myTz, theirTz ?? call.tz, now) : null;
   return text ? { text, href: "/gather", set: true } : { text: "Set a weekly call", href: "/gather", set: false };
 }

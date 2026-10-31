@@ -8,7 +8,7 @@ import { callName, cardCover, relativeDay } from "@/lib/people";
 import { printWhen, printWhere } from "@/lib/print";
 import type { Card, Member } from "@/lib/schemas";
 import { useDisplayText } from "@/lib/use-display-text";
-import { ago, postJson, useJson } from "@/lib/use-json";
+import { postJson, useJson } from "@/lib/use-json";
 import { cn } from "@/lib/utils";
 import { placeFromTz } from "@/lib/zones";
 import { usePlayer, VoiceControls } from "./player";
@@ -58,12 +58,12 @@ export function lampFor(member: Pick<Member, "id" | "tz" | "city">, data: { pres
   const t = now.getTime();
   const cards = data.cards.filter((c) => c.authorId === member.id && Date.parse(c.takenAt) <= t);
   const presence = data.presence.filter((p) => p.memberId === member.id && Date.parse(p.at) <= t);
-  const fresh = cards.filter((c) => localDay(c.takenAt, member.tz) === today).length;
+  const fresh = cards.some((c) => localDay(c.takenAt, member.tz) === today);
   const activeToday = presence.some((p) => localDay(p.at, member.tz) === today);
-  const last = [...cards.map((c) => c.takenAt), ...presence.map((p) => p.at)].sort().pop();
-  const glow = fresh > 0 || activeToday;
-  if (fresh > 0) return { glow, line: `${fresh} new` };
-  if (last && t - Date.parse(last) < 48 * 3_600_000) return { glow, line: `active ${ago(last, t)}` };
+  const glow = fresh || activeToday;
+  // Words, never a count or a "last seen" clock.
+  if (fresh) return { glow, line: "shared today" };
+  if (activeToday) return { glow, line: "here today" };
   return { glow, line: place };
 }
 

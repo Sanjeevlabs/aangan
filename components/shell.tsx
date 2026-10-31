@@ -141,9 +141,7 @@ function Dock() {
                 <button type="button" onClick={voice} aria-label={pagePerson && pagePerson.id !== viewer.id ? `Voice note to ${callName(pagePerson)}` : "Voice note"} className="press relative grid h-14 w-14 place-items-center rounded-full bg-black text-white">
                   <Icon name="mic" size={23} strokeWidth={1.9} />
                   {waiting.size > 0 && !pagePerson && (
-                    <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-[#e5484d] px-1 text-[11px] font-bold" aria-label={`${waiting.size} waiting for your reply`}>
-                      {waiting.size}
-                    </span>
+                    <span className="absolute right-0 top-0 h-3 w-3 rounded-full bg-marigold ring-2 ring-white" role="img" aria-label="Someone is waiting to hear from you" />
                   )}
                 </button>
               ) : (

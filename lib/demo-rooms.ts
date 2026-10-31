@@ -271,6 +271,8 @@ export function seedDemoRooms(now = Date.now()): void {
     extras: false,
     createdAt: new Date(now).toISOString(),
   });
+  // The fixed weekly call: Sunday chai, evening in Pune, morning for the far home.
+  seedDoc(FAM, "weekly_call", { id: "weekly-call", weekday: 0, hour: 19, minute: 0, tz: "Asia/Kolkata", hostId: "dadi", name: "Sunday chai", updatedBy: "dadi", updatedAt: ago(60 * 24 * 14, now) });
   seedDoc(FAM, "care_settings", { id: "dadi", memberId: "dadi", quietAlert: true, tellMemberId: "arjun", graceHours: 3, updatedAt: ago(60 * 24 * 6, now) });
 
   // ---------- Maa's Village ----------

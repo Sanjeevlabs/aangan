@@ -7,6 +7,7 @@ import { EventHero, EventMini } from "@/components/event-card";
 import { PlanSheet, type PlanPreset } from "@/components/event-plan-sheet";
 import { EventPrompts } from "@/components/event-prompts";
 import Link from "next/link";
+import { WeeklyCallCard } from "@/components/weekly-call-card";
 import { WishAhead } from "@/components/wish-ahead";
 import { Avatar, Button, EmptyState, Icon, RoomHeader, SectionTitle } from "@/components/ui/kit";
 import { useViewer } from "@/components/viewer";
@@ -121,6 +122,8 @@ export default function GatherPage() {
           </Carousel>
         </>
       )}
+
+      <WeeklyCallCard />
 
       {visit && (
         <Link href="/together/visits" replace className="mt-4 flex min-h-[44px] items-center gap-1.5 text-[14px] font-medium text-ink-soft no-underline">
